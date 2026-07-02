@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { ScrollProgress } from "@/components/ui/ScrollProgress"
 import { BackToTop } from "@/components/ui/BackToTop"
 import { CommandPalette } from "@/components/ui/CommandPalette"
@@ -92,6 +92,13 @@ export const metadata: Metadata = {
   // verification: { google: "...", yandex: "...", bing: "..." },
 
   category: "technology",
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#171110",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

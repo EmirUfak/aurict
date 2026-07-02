@@ -180,7 +180,7 @@ class _AurictFirstLaunchIntroState extends State<AurictFirstLaunchIntro>
     _controller =
         AnimationController(
             vsync: this,
-            duration: const Duration(milliseconds: 7000),
+            duration: const Duration(milliseconds: 5900),
           )
           ..addStatusListener((status) {
             if (status == AnimationStatus.completed) _close();
@@ -411,33 +411,42 @@ class AurictIntroPainter extends CustomPainter {
       112.0,
       compact ? 170.0 : 230.0,
     );
-    final gridOpacity = _smoothStep(progress, .02, .16);
-    final grid = Paint()
-      ..color = tokens.border.withValues(alpha: .38 * gridOpacity)
-      ..strokeWidth = .55;
-    final step = compact ? 34.0 : 46.0;
-    for (var x = center.dx % step; x < size.width; x += step) {
-      canvas.drawLine(
-        Offset(x, size.height * .12),
-        Offset(x, size.height),
-        grid,
-      );
-    }
-    for (var y = size.height * .14; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
-    }
-
     final sunOpacity = _smoothStep(progress, .05, .25);
     final sunPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          tokens.accent.withValues(alpha: .26 * sunOpacity),
-          tokens.accent.withValues(alpha: .09 * sunOpacity),
+          tokens.accent.withValues(alpha: .24 * sunOpacity),
+          tokens.accent.withValues(alpha: .08 * sunOpacity),
           Colors.transparent,
         ],
-        stops: const [0, .48, 1],
+        stops: const [0, .50, 1],
       ).createShader(Rect.fromCircle(center: center, radius: sunRadius));
     canvas.drawCircle(center, sunRadius, sunPaint);
+
+    final gridOpacity = _smoothStep(progress, .02, .16);
+    final grid = Paint()
+      ..color = tokens.border.withValues(alpha: .16 * gridOpacity)
+      ..strokeWidth = .55;
+    final step = compact ? 34.0 : 46.0;
+
+    canvas.save();
+    canvas.clipPath(
+      Path()
+        ..addOval(
+          Rect.fromCircle(center: center, radius: sunRadius * 1.02),
+        ),
+    );
+    final left = center.dx - sunRadius * 1.02;
+    final right = center.dx + sunRadius * 1.02;
+    final top = center.dy - sunRadius * 1.02;
+    final bottom = center.dy + sunRadius * 1.02;
+    for (var x = left - (left % step); x <= right; x += step) {
+      canvas.drawLine(Offset(x, top), Offset(x, bottom), grid);
+    }
+    for (var y = top - (top % step); y <= bottom; y += step) {
+      canvas.drawLine(Offset(left, y), Offset(right, y), grid);
+    }
+    canvas.restore();
 
     final ringPaint = Paint()
       ..style = PaintingStyle.stroke
