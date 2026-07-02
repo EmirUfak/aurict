@@ -8,7 +8,9 @@
 
 **[aurict.com](https://aurict.com)** · [npm](https://www.npmjs.com/package/aurict) · [Docs](https://aurict.com/docs) · [Changelog](https://aurict.com/changelog) · [Android APK](https://github.com/aurict/aurict/actions/workflows/mobile-release.yml)
 
-![Aurict screenshot](docs/screenshot.jpg)
+<p align="center">
+  <img src="apps/web/public/aurict-logo-v5.svg" alt="Aurict logo" width="128" height="128">
+</p>
 
 <!-- Demo GIF — generate with: vhs docs/demo.tape -->
 ![Aurict demo](docs/demo.gif)
