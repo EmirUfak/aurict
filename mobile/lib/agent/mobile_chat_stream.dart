@@ -255,33 +255,43 @@ class MobileChatStreamingService {
               },
           ],
         });
-        for (final call in calls) {
-          final signature = _toolSignature(call);
-          final cached = toolResultCache[signature];
-          final result = cached ?? await _executeMobileTool(call);
-          if (cached == null) {
+        final pendingBySignature = <String, Future<String>>{};
+        final executed = await Future.wait(
+          calls.map((call) async {
+            final signature = _toolSignature(call);
+            final cached = toolResultCache[signature];
+            if (cached != null) {
+              forceFinalAnswer = true;
+              return _ExecutedToolCall(
+                call: call,
+                result: _duplicateToolResult(call.name, cached),
+              );
+            }
+            final future = pendingBySignature.putIfAbsent(
+              signature,
+              () => _executeMobileTool(call),
+            );
+            final result = await future;
             toolResultCache[signature] = result;
-          } else {
-            forceFinalAnswer = true;
-          }
+            return _ExecutedToolCall(call: call, result: result);
+          }),
+        );
+
+        for (final item in executed) {
           yield MobileChatStreamEvent(
             type: MobileChatEventType.toolCallCompleted,
             tool: MobileToolStreamBlock(
-              id: call.id,
-              name: call.name,
-              arguments: call.arguments,
-              result: cached == null
-                  ? result
-                  : _duplicateToolResult(call.name, result),
+              id: item.call.id,
+              name: item.call.name,
+              arguments: item.call.arguments,
+              result: item.result,
               pending: false,
             ),
           );
           conversation.add({
             'role': 'tool',
-            'tool_call_id': call.providerId,
-            'content': cached == null
-                ? result
-                : _duplicateToolResult(call.name, result),
+            'tool_call_id': item.call.providerId,
+            'content': item.result,
           });
         }
       }
@@ -855,7 +865,7 @@ class MobileChatStreamingService {
     ).encode();
   }
 
-  String _pdfRead(Map<String, Object?> args) {
+  Future<String> _pdfRead(Map<String, Object?> args) async {
     final base64Pdf =
         args['base64_pdf']?.toString() ?? args['base64']?.toString() ?? '';
     if (base64Pdf.trim().isEmpty) {
@@ -868,7 +878,7 @@ class MobileChatStreamingService {
       ).encode();
     }
     try {
-      final result = documentReader.readPdfBase64(
+      final result = await documentReader.readPdfBase64Async(
         name: args['name']?.toString() ?? 'user-document.pdf',
         base64Pdf: base64Pdf,
       );
@@ -1337,6 +1347,13 @@ class _PendingToolCall {
   final String providerId;
   final String name;
   final String arguments;
+}
+
+class _ExecutedToolCall {
+  const _ExecutedToolCall({required this.call, required this.result});
+
+  final _PendingToolCall call;
+  final String result;
 }
 
 const _mobileToolSchemas = [

@@ -279,34 +279,17 @@ class MobileWebSearchTool {
         .take(4)
         .toList(growable: false);
     final hits = <MobileSearchHit>[];
-    final providers = <String>[];
     final limitations = <String>[];
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 12)
       ..userAgent = 'AurictMobile/1.0 public-search';
     try {
-      for (final request in requests) {
-        providers.add(request.provider.name);
-        try {
-          final httpRequest = await client.getUrl(request.uri);
-          httpRequest.headers.set(
-            HttpHeaders.acceptHeader,
-            'application/json,*/*',
-          );
-          final response = await httpRequest.close().timeout(
-            const Duration(seconds: 16),
-          );
-          final limited = await response
-              .take(128)
-              .expand((chunk) => chunk)
-              .take(384 * 1024)
-              .toList()
-              .timeout(const Duration(seconds: 16));
-          final body = utf8.decode(limited, allowMalformed: true);
-          hits.addAll(parseProviderBody(request.provider, body).take(6));
-        } catch (error) {
-          limitations.add('${request.provider.name}: ${error.toString()}');
-        }
+      final results = await Future.wait(
+        requests.map((request) => _searchProvider(client, request)),
+      );
+      for (final result in results) {
+        hits.addAll(result.hits);
+        if (result.error != null) limitations.add(result.error!);
       }
     } finally {
       client.close(force: true);
@@ -314,9 +297,40 @@ class MobileWebSearchTool {
     return MobileWebSearchResult(
       query: query,
       hits: _dedupeHits(hits).take(12).toList(growable: false),
-      providers: providers,
+      providers: [for (final request in requests) request.provider.name],
       limitations: limitations,
     );
+  }
+
+  Future<_ProviderSearchResult> _searchProvider(
+    HttpClient client,
+    MobileSearchRequest request,
+  ) async {
+    try {
+      final httpRequest = await client.getUrl(request.uri);
+      httpRequest.headers.set(HttpHeaders.acceptHeader, 'application/json,*/*');
+      final response = await httpRequest.close().timeout(
+        const Duration(seconds: 16),
+      );
+      final limited = await response
+          .take(128)
+          .expand((chunk) => chunk)
+          .take(384 * 1024)
+          .toList()
+          .timeout(const Duration(seconds: 16));
+      final body = utf8.decode(limited, allowMalformed: true);
+      return _ProviderSearchResult(
+        hits: parseProviderBody(
+          request.provider,
+          body,
+        ).take(6).toList(growable: false),
+      );
+    } catch (error) {
+      return _ProviderSearchResult(
+        hits: const [],
+        error: '${request.provider.name}: ${error.toString()}',
+      );
+    }
   }
 
   List<MobileSearchHit> parseProviderBody(
@@ -498,6 +512,13 @@ class MobileWebSearchTool {
         .trim();
     return text.length <= 320 ? text : '${text.substring(0, 317)}...';
   }
+}
+
+class _ProviderSearchResult {
+  const _ProviderSearchResult({required this.hits, this.error});
+
+  final List<MobileSearchHit> hits;
+  final String? error;
 }
 
 class MobileWebFetchTool {

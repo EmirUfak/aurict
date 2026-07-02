@@ -6,7 +6,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'agent/mobile_agent_runtime.dart';
 import 'agent/mobile_chat_stream.dart';
@@ -90,588 +89,18 @@ class _AurictMobileAppState extends State<AurictMobileApp> {
               debugShowCheckedModeBanner: false,
               restorationScopeId: 'aurict_mobile',
               theme: tokens.materialTheme,
-              home: FirstLaunchIntroGate(
-                child: _onboardingComplete
-                    ? const AppShell()
-                    : OnboardingFlow(
-                        onComplete: () =>
-                            setState(() => _onboardingComplete = true),
-                      ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class FirstLaunchIntroGate extends StatefulWidget {
-  const FirstLaunchIntroGate({required this.child, super.key});
-
-  final Widget child;
-
-  @override
-  State<FirstLaunchIntroGate> createState() => _FirstLaunchIntroGateState();
-}
-
-class _FirstLaunchIntroGateState extends State<FirstLaunchIntroGate> {
-  static const _storage = FlutterSecureStorage();
-  static const _seenKey = 'aurict:first_launch_intro:v1';
-
-  var _ready = false;
-  var _showIntro = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    final seen = await _storage.read(key: _seenKey);
-    if (!mounted) return;
-    setState(() {
-      _showIntro = seen != 'seen';
-      _ready = true;
-    });
-  }
-
-  Future<void> _completeIntro() async {
-    await _storage.write(key: _seenKey, value: 'seen');
-    if (!mounted) return;
-    setState(() => _showIntro = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final disableAnimations = MediaQuery.disableAnimationsOf(context);
-    if (_ready && _showIntro && disableAnimations) {
-      unawaited(_completeIntro());
-    }
-
-    return Stack(
-      children: [
-        widget.child,
-        if (_ready && _showIntro && !disableAnimations)
-          AurictFirstLaunchIntro(onDone: _completeIntro),
-      ],
-    );
-  }
-}
-
-class AurictFirstLaunchIntro extends StatefulWidget {
-  const AurictFirstLaunchIntro({required this.onDone, super.key});
-
-  final Future<void> Function() onDone;
-
-  @override
-  State<AurictFirstLaunchIntro> createState() => _AurictFirstLaunchIntroState();
-}
-
-class _AurictFirstLaunchIntroState extends State<AurictFirstLaunchIntro>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  var _closing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller =
-        AnimationController(
-            vsync: this,
-            duration: const Duration(milliseconds: 5900),
-          )
-          ..addStatusListener((status) {
-            if (status == AnimationStatus.completed) _close();
-          })
-          ..forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _close() async {
-    if (_closing) return;
-    _closing = true;
-    await widget.onDone();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = TokensScope.of(context);
-    final size = MediaQuery.sizeOf(context);
-    final compact = size.width < 390 || size.height < 720;
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final progress = _controller.value;
-        return Material(
-          color: Colors.transparent,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: AurictIntroPainter(
-                    progress: progress,
-                    tokens: tokens,
-                    compact: compact,
-                  ),
-                ),
-              ),
-              SafeArea(
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: _close,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: tokens.surface.withValues(alpha: .48),
-                          border: Border.all(color: tokens.border),
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 11,
-                            vertical: 8,
-                          ),
-                          child: Text(
-                            'skip intro',
-                            style: TextStyle(
-                              color: tokens.muted,
-                              fontFamily: AurictTypography.mono,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
+              home: _onboardingComplete
+                  ? const AppShell()
+                  : OnboardingFlow(
+                      onComplete: () =>
+                          setState(() => _onboardingComplete = true),
                     ),
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: _IntroCopy(progress: progress, compact: compact),
-                ),
-              ),
-            ],
+            ),
           ),
-        );
-      },
-    );
-  }
-}
-
-class _IntroCopy extends StatelessWidget {
-  const _IntroCopy({required this.progress, required this.compact});
-
-  final double progress;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = TokensScope.of(context);
-    final firstOpacity = _phase(progress, .06, .18, .36, .46);
-    final secondOpacity = _phase(progress, .48, .56, .66, .74);
-    final finalOpacity = _smoothStep(progress, .72, .86);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final centerY = constraints.maxHeight * (compact ? .42 : .43);
-        final bottomY = constraints.maxHeight * (compact ? .80 : .83);
-        return Stack(
-          children: [
-            Positioned(
-              left: 24,
-              right: 24,
-              top: bottomY,
-              child: Opacity(
-                opacity: firstOpacity,
-                child: Text(
-                  'ICARUS FELL BECAUSE THE WINGS WERE FRAGILE',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: tokens.muted,
-                    fontFamily: AurictTypography.mono,
-                    fontSize: compact ? 10.5 : 12,
-                    height: 1.45,
-                    letterSpacing: compact ? .45 : 1.0,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 24,
-              right: 24,
-              top: bottomY,
-              child: Opacity(
-                opacity: secondOpacity,
-                child: Text(
-                  'AURICT REBUILDS THE ASCENT',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: tokens.accent,
-                    fontFamily: AurictTypography.mono,
-                    fontSize: compact ? 11 : 13,
-                    letterSpacing: compact ? .65 : 1.2,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 24,
-              right: 24,
-              top: centerY + (compact ? 84 : 104),
-              child: Opacity(
-                opacity: finalOpacity,
-                child: Text(
-                  'aurict█',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: tokens.text,
-                    fontFamily: AurictTypography.mono,
-                    fontSize: compact ? 38 : 52,
-                    fontWeight: FontWeight.w700,
-                    height: 1,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 34,
-                        color: Colors.black.withValues(alpha: .5),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class AurictIntroPainter extends CustomPainter {
-  const AurictIntroPainter({
-    required this.progress,
-    required this.tokens,
-    required this.compact,
-  });
-
-  final double progress;
-  final AppTokens tokens;
-  final bool compact;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    _paintBackground(canvas, size);
-    _paintSunAndGrid(canvas, size);
-    _paintFlight(canvas, size);
-    _paintFinalLogo(canvas, size);
-  }
-
-  void _paintBackground(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final base = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          tokens.background2,
-          tokens.background,
-          Colors.black.withValues(alpha: .92),
-        ],
-        stops: const [0, .56, 1],
-      ).createShader(rect);
-    canvas.drawRect(rect, base);
-
-    final lowGlow = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(0, -.74),
-        radius: 1.1,
-        colors: [
-          tokens.accent.withValues(alpha: .18),
-          tokens.accent.withValues(alpha: .035),
-          Colors.transparent,
-        ],
-      ).createShader(rect);
-    canvas.drawRect(rect, lowGlow);
-  }
-
-  void _paintSunAndGrid(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * (compact ? .40 : .43));
-    final sunRadius = (size.shortestSide * (compact ? .33 : .29)).clamp(
-      112.0,
-      compact ? 170.0 : 230.0,
-    );
-    final sunOpacity = _smoothStep(progress, .05, .25);
-    final sunPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          tokens.accent.withValues(alpha: .24 * sunOpacity),
-          tokens.accent.withValues(alpha: .08 * sunOpacity),
-          Colors.transparent,
-        ],
-        stops: const [0, .50, 1],
-      ).createShader(Rect.fromCircle(center: center, radius: sunRadius));
-    canvas.drawCircle(center, sunRadius, sunPaint);
-
-    final gridOpacity = _smoothStep(progress, .02, .16);
-    final grid = Paint()
-      ..color = tokens.border.withValues(alpha: .16 * gridOpacity)
-      ..strokeWidth = .55;
-    final step = compact ? 34.0 : 46.0;
-
-    canvas.save();
-    canvas.clipPath(
-      Path()
-        ..addOval(
-          Rect.fromCircle(center: center, radius: sunRadius * 1.02),
         ),
-    );
-    final left = center.dx - sunRadius * 1.02;
-    final right = center.dx + sunRadius * 1.02;
-    final top = center.dy - sunRadius * 1.02;
-    final bottom = center.dy + sunRadius * 1.02;
-    for (var x = left - (left % step); x <= right; x += step) {
-      canvas.drawLine(Offset(x, top), Offset(x, bottom), grid);
-    }
-    for (var y = top - (top % step); y <= bottom; y += step) {
-      canvas.drawLine(Offset(left, y), Offset(right, y), grid);
-    }
-    canvas.restore();
-
-    final ringPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = .8
-      ..color = tokens.accent.withValues(alpha: .24 * sunOpacity);
-    for (final factor
-        in compact ? const [1.0, 1.34] : const [1.0, 1.35, 1.72]) {
-      canvas.drawCircle(center, sunRadius * factor, ringPaint);
-    }
-  }
-
-  void _paintFlight(Canvas canvas, Size size) {
-    final draw = _smoothStep(progress, .16, .46);
-    final flight = _smoothStep(progress, .50, .78);
-    final opacity = 1 - _smoothStep(progress, .72, .92) * .86;
-    final center = Offset(size.width / 2, size.height * (compact ? .42 : .45));
-    final scale =
-        (size.shortestSide / 430).clamp(.68, 1.18) *
-        lerpDouble(1, .42, flight)!;
-    final lift = lerpDouble(0, -size.height * .34, flight)!;
-
-    canvas.save();
-    canvas.translate(center.dx, center.dy + lift);
-    canvas.scale(scale);
-    canvas.translate(-320, -210);
-    _paintWingSet(canvas, draw, opacity);
-    canvas.restore();
-  }
-
-  void _paintWingSet(Canvas canvas, double draw, double opacity) {
-    final primary = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 7
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFFF3355), Color(0xFF6E0B1C)],
-      ).createShader(const Rect.fromLTWH(96, 70, 448, 220))
-      ..color = Colors.white.withValues(alpha: opacity);
-    final soft = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = 2.4
-      ..color = const Color(0xFFF0B75F).withValues(alpha: .42 * opacity);
-
-    _drawPartialPath(
-      canvas,
-      _path('M318 242 C248 202 176 156 96 112'),
-      draw,
-      soft,
-    );
-    _drawPartialPath(
-      canvas,
-      _path('M322 242 C392 202 464 156 544 112'),
-      draw,
-      soft,
-    );
-    _drawPartialPath(
-      canvas,
-      _path('M318 238 C258 184 218 130 198 78'),
-      draw,
-      primary,
-    );
-    _drawPartialPath(
-      canvas,
-      _path('M322 238 C382 184 422 130 442 78'),
-      draw,
-      primary,
-    );
-    _drawPartialPath(
-      canvas,
-      _path('M248 202 C226 172 202 146 166 122'),
-      draw,
-      primary,
-    );
-    _drawPartialPath(
-      canvas,
-      _path('M392 202 C414 172 438 146 474 122'),
-      draw,
-      primary,
-    );
-    _drawPartialPath(
-      canvas,
-      _path('M286 286 L318 198 Q322 184 328 198 L356 286'),
-      draw,
-      primary,
-    );
-
-    final cursorOpacity = _smoothStep(progress, .32, .42) * opacity;
-    final cursorPaint = Paint()
-      ..color = tokens.text.withValues(alpha: cursorOpacity);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(374, 252, 10, 32),
-        const Radius.circular(1.5),
       ),
-      cursorPaint,
     );
   }
-
-  void _paintFinalLogo(Canvas canvas, Size size) {
-    final opacity = _smoothStep(progress, .70, .86);
-    if (opacity <= 0) return;
-    final center = Offset(size.width / 2, size.height * (compact ? .40 : .43));
-    final scale =
-        (size.shortestSide / 720).clamp(.66, 1.0) *
-        lerpDouble(.86, 1, opacity)!;
-    canvas.saveLayer(
-      Offset.zero & size,
-      Paint()..color = Colors.white.withValues(alpha: opacity),
-    );
-    canvas.translate(center.dx, center.dy);
-    canvas.scale(scale * 1.9);
-    canvas.translate(-50, -50);
-    _paintAurictLogo(canvas, opacity);
-    canvas.restore();
-  }
-
-  void _paintAurictLogo(Canvas canvas, double opacity) {
-    final logoPath = _path(
-      'M24 76 L47 20 Q50 14 53 20 L73 62 C76 70 69 82 54 82 C39 82 35 71 43 59 L57 38',
-    );
-    final logoPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6.5
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFFF3355), Color(0xFF6E0B1C)],
-      ).createShader(const Rect.fromLTWH(20, 14, 64, 72));
-    canvas.drawPath(logoPath, logoPaint);
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(78, 70, 4, 12),
-        const Radius.circular(.5),
-      ),
-      Paint()..color = tokens.text.withValues(alpha: opacity),
-    );
-  }
-
-  Path _path(String ignored) {
-    switch (ignored) {
-      case 'M318 242 C248 202 176 156 96 112':
-        return Path()
-          ..moveTo(318, 242)
-          ..cubicTo(248, 202, 176, 156, 96, 112);
-      case 'M322 242 C392 202 464 156 544 112':
-        return Path()
-          ..moveTo(322, 242)
-          ..cubicTo(392, 202, 464, 156, 544, 112);
-      case 'M318 238 C258 184 218 130 198 78':
-        return Path()
-          ..moveTo(318, 238)
-          ..cubicTo(258, 184, 218, 130, 198, 78);
-      case 'M322 238 C382 184 422 130 442 78':
-        return Path()
-          ..moveTo(322, 238)
-          ..cubicTo(382, 184, 422, 130, 442, 78);
-      case 'M248 202 C226 172 202 146 166 122':
-        return Path()
-          ..moveTo(248, 202)
-          ..cubicTo(226, 172, 202, 146, 166, 122);
-      case 'M392 202 C414 172 438 146 474 122':
-        return Path()
-          ..moveTo(392, 202)
-          ..cubicTo(414, 172, 438, 146, 474, 122);
-      case 'M286 286 L318 198 Q322 184 328 198 L356 286':
-        return Path()
-          ..moveTo(286, 286)
-          ..lineTo(318, 198)
-          ..quadraticBezierTo(322, 184, 328, 198)
-          ..lineTo(356, 286);
-      default:
-        return Path()
-          ..moveTo(24, 76)
-          ..lineTo(47, 20)
-          ..quadraticBezierTo(50, 14, 53, 20)
-          ..lineTo(73, 62)
-          ..cubicTo(76, 70, 69, 82, 54, 82)
-          ..cubicTo(39, 82, 35, 71, 43, 59)
-          ..lineTo(57, 38);
-    }
-  }
-
-  void _drawPartialPath(
-    Canvas canvas,
-    Path path,
-    double progress,
-    Paint paint,
-  ) {
-    final metrics = path.computeMetrics().toList();
-    for (final metric in metrics) {
-      final extract = metric.extractPath(
-        0,
-        metric.length * progress.clamp(0, 1),
-      );
-      canvas.drawPath(extract, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant AurictIntroPainter oldDelegate) =>
-      oldDelegate.progress != progress ||
-      oldDelegate.tokens != tokens ||
-      oldDelegate.compact != compact;
-}
-
-double _smoothStep(double value, double start, double end) {
-  if (value <= start) return 0;
-  if (value >= end) return 1;
-  final t = ((value - start) / (end - start)).clamp(0.0, 1.0);
-  return t * t * (3 - 2 * t);
-}
-
-double _phase(
-  double value,
-  double fadeInStart,
-  double fadeInEnd,
-  double fadeOutStart,
-  double fadeOutEnd,
-) {
-  return _smoothStep(value, fadeInStart, fadeInEnd) *
-      (1 - _smoothStep(value, fadeOutStart, fadeOutEnd));
 }
 
 class MobileDocumentContextScope
@@ -700,7 +129,10 @@ bool isAndroidUi(BuildContext context) {
 }
 
 double adaptiveBlur(BuildContext context, double base) {
-  return isAndroidUi(context) ? (base * .34).clamp(4, 9).toDouble() : base;
+  final android = isAndroidUi(context);
+  final factor = android ? .34 : .42;
+  final max = android ? 9.0 : 16.0;
+  return (base * factor).clamp(4.0, max).toDouble();
 }
 
 double adaptiveShadow(BuildContext context, double base) {
@@ -718,6 +150,7 @@ class _AppShellState extends State<AppShell> {
   AppSection _section = AppSection.chat;
   AppMode _mode = AppMode.chat;
   var _drawerOpen = false;
+  final _visitedSections = <AppSection>{AppSection.chat};
   late MobileRemoteRuntime _remoteRuntime;
   var _remoteRuntimeReady = false;
 
@@ -741,6 +174,7 @@ class _AppShellState extends State<AppShell> {
   void _select(AppSection section) {
     setState(() {
       _section = section;
+      _visitedSections.add(section);
       _mode = section == AppSection.remote ? AppMode.remote : AppMode.chat;
       _drawerOpen = false;
     });
@@ -750,6 +184,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _mode = mode;
       _section = mode == AppMode.remote ? AppSection.remote : AppSection.chat;
+      _visitedSections.add(_section);
     });
   }
 
@@ -768,9 +203,18 @@ class _AppShellState extends State<AppShell> {
             bottom: false,
             child: Padding(
               padding: EdgeInsets.only(bottom: bottomControlsHeight),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                child: _screenForSection(),
+              child: Stack(
+                children: [
+                  for (final section in AppSection.values)
+                    if (_visitedSections.contains(section))
+                      Offstage(
+                        offstage: section != _section,
+                        child: TickerMode(
+                          enabled: section == _section,
+                          child: _screenForSection(section),
+                        ),
+                      ),
+                ],
               ),
             ),
           ),
@@ -817,23 +261,23 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _screenForSection() {
-    switch (_section) {
+  Widget _screenForSection(AppSection section) {
+    switch (section) {
       case AppSection.chat:
-        return const ChatScreen(key: ValueKey('chat'));
+        return const ChatScreen(key: PageStorageKey('chat'));
       case AppSection.remote:
         return RemoteScreen(
-          key: const ValueKey('remote'),
+          key: const PageStorageKey('remote'),
           runtime: _remoteRuntime,
         );
       case AppSection.documents:
-        return const DocumentsScreen(key: ValueKey('documents'));
+        return const DocumentsScreen(key: PageStorageKey('documents'));
       case AppSection.keys:
-        return const KeysScreen(key: ValueKey('keys'));
+        return const KeysScreen(key: PageStorageKey('keys'));
       case AppSection.settings:
-        return const SettingsScreen(key: ValueKey('settings'));
+        return const SettingsScreen(key: PageStorageKey('settings'));
       case AppSection.account:
-        return const AccountScreen(key: ValueKey('account'));
+        return const AccountScreen(key: PageStorageKey('account'));
     }
   }
 }
@@ -1235,6 +679,8 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   final _threads = <MobileChatThreadMeta>[];
   StreamSubscription<MobileChatStreamEvent>? _streamSubscription;
   Timer? _streamFlushTimer;
+  Timer? _historyWriteDebounce;
+  List<Map<String, Object?>>? _pendingHistoryWrite;
   String? _activeThreadId;
   var _scrollPending = false;
   var _isStreaming = false;
@@ -1468,9 +914,10 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     var status = 'thinking';
     var errorText = '';
     var tools = <MobileToolStreamBlock>[];
+    final toolIndexes = <String, int>{};
     var artifacts = <ChatArtifact>[];
 
-    void flushStream() {
+    void flushStream({bool writeHistory = false}) {
       _streamFlushTimer?.cancel();
       _streamFlushTimer = null;
       _replaceLastAssistant(
@@ -1480,13 +927,14 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
         artifacts: artifacts,
         status: status,
         error: errorText.isEmpty ? null : errorText,
+        writeHistory: writeHistory,
       );
     }
 
     void scheduleFlush({bool immediate = false}) {
       if (!mounted) return;
       if (immediate) {
-        flushStream();
+        flushStream(writeHistory: true);
         return;
       }
       _streamFlushTimer ??= Timer(
@@ -1520,21 +968,25 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
               case MobileChatEventType.toolCallStarted:
                 final tool = event.tool;
                 if (tool != null) {
-                  tools = [...tools.where((item) => item.id != tool.id), tool];
+                  final index = toolIndexes[tool.id];
+                  if (index == null) {
+                    toolIndexes[tool.id] = tools.length;
+                    tools = [...tools, tool];
+                  } else {
+                    tools = [...tools]..[index] = tool;
+                  }
                   status = tool.name;
                 }
               case MobileChatEventType.toolCallDelta:
                 final tool = event.tool;
                 if (tool != null) {
-                  tools = tools
-                      .map(
-                        (item) => item.id == tool.id
-                            ? item.copyWith(
-                                arguments: item.arguments + tool.arguments,
-                              )
-                            : item,
-                      )
-                      .toList(growable: false);
+                  final index = toolIndexes[tool.id];
+                  if (index != null) {
+                    tools = [...tools]
+                      ..[index] = tools[index].copyWith(
+                        arguments: tools[index].arguments + tool.arguments,
+                      );
+                  }
                 }
               case MobileChatEventType.toolCallCompleted:
                 final tool = event.tool;
@@ -1546,13 +998,14 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
                       artifact,
                     ];
                   }
-                  tools = tools
-                      .map(
-                        (item) => item.id == tool.id
-                            ? item.copyWith(pending: false, result: tool.result)
-                            : item,
-                      )
-                      .toList(growable: false);
+                  final index = toolIndexes[tool.id];
+                  if (index != null) {
+                    tools = [...tools]
+                      ..[index] = tools[index].copyWith(
+                        pending: false,
+                        result: tool.result,
+                      );
+                  }
                 }
               case MobileChatEventType.done:
                 status = 'done';
@@ -1585,9 +1038,15 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
             _streamFlushTimer?.cancel();
             _streamFlushTimer = null;
             setState(() => _isStreaming = false);
-            if (assistantText.trim().isEmpty && errorText.isEmpty) {
-              _replaceLastAssistant(status: 'done');
-            }
+            _replaceLastAssistant(
+              text: assistantText.isEmpty ? null : assistantText,
+              reasoning: reasoning.isEmpty ? null : reasoning,
+              streamTools: tools,
+              artifacts: artifacts,
+              status: errorText.isEmpty ? 'done' : 'error',
+              error: errorText.isEmpty ? null : errorText,
+              writeHistory: true,
+            );
           },
         );
   }
@@ -1599,6 +1058,7 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     List<ChatArtifact>? artifacts,
     String? status,
     String? error,
+    bool writeHistory = false,
   }) {
     setState(() {
       final index = _messages.lastIndexWhere(
@@ -1614,7 +1074,7 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
         error: error,
       );
     });
-    _persistMessages();
+    _persistMessages(writeHistory: writeHistory);
     _scheduleAutoScroll();
   }
 
@@ -1827,8 +1287,31 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     ];
     _chatSnapshot.value = jsonEncode(encodedMessages);
     if (writeHistory && encodedMessages.isNotEmpty) {
-      unawaited(_writeActiveThread(encodedMessages));
+      _scheduleHistoryWrite(encodedMessages, immediate: !_isStreaming);
     }
+  }
+
+  void _scheduleHistoryWrite(
+    List<Map<String, Object?>> encodedMessages, {
+    bool immediate = false,
+  }) {
+    _pendingHistoryWrite = encodedMessages;
+    _historyWriteDebounce?.cancel();
+    if (immediate) {
+      final pending = _pendingHistoryWrite;
+      _pendingHistoryWrite = null;
+      if (pending != null && pending.isNotEmpty) {
+        unawaited(_writeActiveThread(pending));
+      }
+      return;
+    }
+    _historyWriteDebounce = Timer(const Duration(milliseconds: 650), () {
+      final pending = _pendingHistoryWrite;
+      _pendingHistoryWrite = null;
+      if (pending != null && pending.isNotEmpty) {
+        unawaited(_writeActiveThread(pending));
+      }
+    });
   }
 
   Future<void> _writeActiveThread(
@@ -1990,6 +1473,7 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   void dispose() {
     _streamSubscription?.cancel();
     _streamFlushTimer?.cancel();
+    _historyWriteDebounce?.cancel();
     _scrollController.dispose();
     _chatSnapshot.dispose();
     super.dispose();
@@ -2815,9 +2299,16 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   Future<void> _loadArtifacts() async {
     final threads = await _historyStore.listThreads();
+    final snapshots = await Future.wait(
+      threads.map((thread) async {
+        final snapshot = await _historyStore.readThread(thread.id);
+        return (thread: thread, snapshot: snapshot);
+      }),
+    );
     final byId = <String, DocumentArtifactRecord>{};
-    for (final thread in threads) {
-      final snapshot = await _historyStore.readThread(thread.id);
+    for (final item in snapshots) {
+      final thread = item.thread;
+      final snapshot = item.snapshot;
       if (snapshot == null) continue;
       for (final message in snapshot.messages) {
         final artifacts = message['artifacts'];
@@ -3073,44 +2564,46 @@ class _KeysScreenState extends State<KeysScreen> {
     return ScreenFrame(
       title: 'Keys & Models',
       subtitle: 'Provider keys stay on this device',
-      child: ListView(
+      child: ListView.builder(
         padding: const EdgeInsets.only(bottom: 112),
-        children: [
-          const SecurityNoticeCard(),
-          const SizedBox(height: 14),
-          for (final provider in providerSession.entries)
-            ProviderCard(
-              name: provider.name,
-              status: providerSession.isLoading(provider.name)
-                  ? 'Fetching...'
-                  : providerSession.hasKey(provider.name)
-                  ? 'Secure key'
-                  : 'Not connected',
-              model: providerSession.modelsFor(provider.name).isNotEmpty
-                  ? '${providerSession.modelsFor(provider.name).length} real models'
-                  : provider.model,
-              active: providerSession.hasKey(provider.name),
-              error: providerSession.errorFor(provider.name),
-              models: providerSession.modelsFor(provider.name),
-              onTap: () => showAurictSheet(
-                context,
-                SecureKeySheet(
-                  provider: provider.name,
-                  active: providerSession.hasKey(provider.name),
-                  initialKey: '',
-                  maskedKey: providerSession.maskedKeyFor(provider.name),
-                  fingerprint: providerSession.keyFingerprintFor(provider.name),
-                  models: providerSession.modelsFor(provider.name),
-                  error: providerSession.errorFor(provider.name),
-                  loading: providerSession.isLoading(provider.name),
-                  onSave: (key) =>
-                      providerSession.saveTemporaryKey(provider.name, key),
-                  onFetchModels: () =>
-                      providerSession.fetchModels(provider, force: true),
-                ),
+        itemCount: providerSession.entries.length + 2,
+        itemBuilder: (context, index) {
+          if (index == 0) return const SecurityNoticeCard();
+          if (index == 1) return const SizedBox(height: 14);
+          final provider = providerSession.entries[index - 2];
+          final models = providerSession.modelsFor(provider.name);
+          return ProviderCard(
+            name: provider.name,
+            status: providerSession.isLoading(provider.name)
+                ? 'Fetching...'
+                : providerSession.hasKey(provider.name)
+                ? 'Secure key'
+                : 'Not connected',
+            model: models.isNotEmpty
+                ? '${models.length} real models'
+                : provider.model,
+            active: providerSession.hasKey(provider.name),
+            error: providerSession.errorFor(provider.name),
+            models: models,
+            onTap: () => showAurictSheet(
+              context,
+              SecureKeySheet(
+                provider: provider.name,
+                active: providerSession.hasKey(provider.name),
+                initialKey: '',
+                maskedKey: providerSession.maskedKeyFor(provider.name),
+                fingerprint: providerSession.keyFingerprintFor(provider.name),
+                models: models,
+                error: providerSession.errorFor(provider.name),
+                loading: providerSession.isLoading(provider.name),
+                onSave: (key) =>
+                    providerSession.saveTemporaryKey(provider.name, key),
+                onFetchModels: () =>
+                    providerSession.fetchModels(provider, force: true),
               ),
             ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -4075,6 +3568,7 @@ class ModeSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
+    final android = isAndroidUi(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
       child: BackdropFilter(
@@ -4085,9 +3579,7 @@ class ModeSwitcher extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(5),
           decoration: BoxDecoration(
-            color: tokens.glass.withValues(
-              alpha: isAndroidUi(context) ? .88 : .74,
-            ),
+            color: tokens.glass.withValues(alpha: android ? .88 : .84),
             border: Border.all(color: tokens.border),
             borderRadius: BorderRadius.circular(999),
             boxShadow: [
@@ -4377,15 +3869,25 @@ class _AssistantBubbleState extends State<AssistantBubble> {
             const SizedBox(height: 10),
           ],
           if (widget.text.trim().isNotEmpty)
-            MobileMarkdownRenderer(
-              content: widget.text,
-              textColor: tokens.text,
-              mutedColor: tokens.muted,
-              borderColor: tokens.border,
-              surfaceColor: tokens.surface,
-              accentColor: tokens.accent,
-              codeColor: tokens.code,
-            )
+            if (widget.status == 'streaming' && widget.text.length > 4000)
+              Text(
+                widget.text,
+                style: TextStyle(
+                  color: tokens.text,
+                  height: 1.45,
+                  fontSize: 14,
+                ),
+              )
+            else
+              MobileMarkdownRenderer(
+                content: widget.text,
+                textColor: tokens.text,
+                mutedColor: tokens.muted,
+                borderColor: tokens.border,
+                surfaceColor: tokens.surface,
+                accentColor: tokens.accent,
+                codeColor: tokens.code,
+              )
           else if (widget.error == null)
             Text(
               'Thinking...',
@@ -4837,10 +4339,15 @@ class ToolResultView {
     if (raw == null || raw.trim().isEmpty) {
       return const ToolResultView(ok: null, summary: '', policy: '');
     }
+    final cached = _ToolResultViewCache.read(raw);
+    if (cached != null) return cached;
+    late final ToolResultView parsed;
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, Object?>) {
-        return ToolResultView(ok: null, summary: _short(raw), policy: '');
+        parsed = ToolResultView(ok: null, summary: _short(raw), policy: '');
+        _ToolResultViewCache.write(raw, parsed);
+        return parsed;
       }
       final ok = decoded['ok'] is bool ? decoded['ok'] as bool : null;
       final tool = decoded['tool']?.toString() ?? 'tool';
@@ -4849,13 +4356,17 @@ class ToolResultView {
       final policyNote = policy is Map<String, Object?>
           ? policy['note']?.toString() ?? ''
           : '';
-      return ToolResultView(
+      parsed = ToolResultView(
         ok: ok,
         summary: _summaryFor(tool, decoded, error),
         policy: policyNote,
       );
+      _ToolResultViewCache.write(raw, parsed);
+      return parsed;
     } catch (_) {
-      return ToolResultView(ok: null, summary: _short(raw), policy: '');
+      parsed = ToolResultView(ok: null, summary: _short(raw), policy: '');
+      _ToolResultViewCache.write(raw, parsed);
+      return parsed;
     }
   }
 
@@ -4922,6 +4433,27 @@ class ToolResultView {
   static String _short(String value) {
     final compact = value.replaceAll(RegExp(r'\s+'), ' ').trim();
     return compact.length > 180 ? '${compact.substring(0, 180)}...' : compact;
+  }
+}
+
+class _ToolResultViewCache {
+  _ToolResultViewCache._();
+
+  static const _maxEntries = 80;
+  static final _cache = <String, ToolResultView>{};
+
+  static ToolResultView? read(String raw) {
+    final view = _cache.remove(raw);
+    if (view == null) return null;
+    _cache[raw] = view;
+    return view;
+  }
+
+  static void write(String raw, ToolResultView view) {
+    _cache[raw] = view;
+    if (_cache.length > _maxEntries) {
+      _cache.remove(_cache.keys.first);
+    }
   }
 }
 
@@ -5167,6 +4699,7 @@ class _ChatComposerState extends State<ChatComposer> {
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
+    final android = isAndroidUi(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(28),
       child: BackdropFilter(
@@ -5177,9 +4710,7 @@ class _ChatComposerState extends State<ChatComposer> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(12, 11, 11, 11),
           decoration: BoxDecoration(
-            color: tokens.glass.withValues(
-              alpha: isAndroidUi(context) ? .9 : .78,
-            ),
+            color: tokens.glass.withValues(alpha: android ? .9 : .84),
             border: Border.all(color: tokens.border),
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
@@ -5317,18 +4848,24 @@ class ModelPickerSheet extends StatefulWidget {
 
 class _ModelPickerSheetState extends State<ModelPickerSheet> {
   final _searchController = TextEditingController();
+  Timer? _searchDebounce;
   var _query = '';
 
   @override
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      setState(() => _query = _searchController.text.trim().toLowerCase());
+      _searchDebounce?.cancel();
+      _searchDebounce = Timer(const Duration(milliseconds: 160), () {
+        if (!mounted) return;
+        setState(() => _query = _searchController.text.trim().toLowerCase());
+      });
     });
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -7641,6 +7178,7 @@ class GlassIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
+    final android = isAndroidUi(context);
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -7654,9 +7192,7 @@ class GlassIconButton extends StatelessWidget {
             height: 52,
             width: 52,
             decoration: BoxDecoration(
-              color: tokens.glass.withValues(
-                alpha: isAndroidUi(context) ? .9 : .74,
-              ),
+              color: tokens.glass.withValues(alpha: android ? .9 : .84),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: tokens.border),
             ),
@@ -7696,8 +7232,9 @@ class GlassPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
+    final android = isAndroidUi(context);
     final radius = BorderRadius.circular(26);
-    final panelOpacity = opacity ?? (isAndroidUi(context) ? .88 : .74);
+    final panelOpacity = opacity ?? (android ? .88 : .84);
     final panel = Container(
       padding: padding,
       decoration: BoxDecoration(
@@ -7724,7 +7261,7 @@ class GlassPanel extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withValues(alpha: isAndroidUi(context) ? .015 : .035),
+            Colors.white.withValues(alpha: android ? .015 : .028),
             Colors.transparent,
             Colors.black.withValues(alpha: .12),
           ],
@@ -7740,7 +7277,7 @@ class GlassPanel extends StatelessWidget {
         child: ClipRRect(
           borderRadius: radius,
           child: ClipRect(
-            child: isAndroidUi(context)
+            child: android
                 ? panel
                 : BackdropFilter(
                     filter: ImageFilter.blur(

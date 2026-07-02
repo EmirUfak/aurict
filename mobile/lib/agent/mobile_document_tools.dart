@@ -1,9 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import 'mobile_artifact_renderer.dart';
 import 'mobile_artifacts.dart';
+
+String _extractPdfTextFromBytesInIsolate(Uint8List bytes) {
+  return const MobileDocumentReaderTool().extractTextFromPdfBytes(bytes);
+}
 
 class MobileDocumentReadResult {
   const MobileDocumentReadResult({
@@ -66,6 +71,28 @@ class MobileDocumentReaderTool {
   }) {
     final bytes = base64Decode(base64Pdf);
     final text = extractTextFromPdfBytes(bytes);
+    final normalized = _normalize(text);
+    final limited = _limit(normalized);
+    return MobileDocumentReadResult(
+      name: name.isEmpty ? 'user-document.pdf' : name,
+      mimeType: 'application/pdf',
+      text: limited,
+      summary: _summary(normalized),
+      truncated: normalized.length > limited.length,
+      wordCount: _wordCount(normalized),
+      readable: normalized.isNotEmpty,
+      recommendedAction: normalized.isEmpty
+          ? 'No readable PDF text detected. Ask the user for OCR text or a text/Markdown export.'
+          : _recommendedAction(normalized, 'pdf'),
+    );
+  }
+
+  Future<MobileDocumentReadResult> readPdfBase64Async({
+    required String name,
+    required String base64Pdf,
+  }) async {
+    final bytes = base64Decode(base64Pdf);
+    final text = await compute(_extractPdfTextFromBytesInIsolate, bytes);
     final normalized = _normalize(text);
     final limited = _limit(normalized);
     return MobileDocumentReadResult(

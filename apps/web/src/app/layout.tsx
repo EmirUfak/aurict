@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next"
 import { ScrollProgress } from "@/components/ui/ScrollProgress"
 import { BackToTop } from "@/components/ui/BackToTop"
 import { CommandPalette } from "@/components/ui/CommandPalette"
-import { IcarusIntro } from "@/components/IcarusIntro"
 import "./globals.css"
 
 const BASE_URL = "https://aurict.com"
@@ -121,7 +120,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
-        <IcarusIntro />
         <ScrollProgress />
         <CommandPalette />
         <div className="site-grain" aria-hidden="true" />

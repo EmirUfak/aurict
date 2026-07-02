@@ -493,10 +493,14 @@ class MobileMarkdownRenderer extends StatelessWidget {
 class _MobileMarkdownParseCache {
   _MobileMarkdownParseCache._();
 
+  static const _streamingBypassLength = 12000;
   static const _maxEntries = 80;
   static final _cache = <String, List<MobileMarkdownBlock>>{};
 
   static List<MobileMarkdownBlock> parse(String content) {
+    if (content.length > _streamingBypassLength) {
+      return const MobileMarkdownParser().parse(content);
+    }
     final key = '${content.length}:${content.hashCode}';
     final cached = _cache.remove(key);
     if (cached != null) {
