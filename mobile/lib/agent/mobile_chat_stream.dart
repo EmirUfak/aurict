@@ -1362,7 +1362,7 @@ const _mobileToolSchemas = [
     'function': {
       'name': 'task_ledger',
       'description':
-          'Create or update a bounded reasoning ledger for multi-step mobile tasks. Use for research, documents, exports, or any task that must not stop at a summary.',
+          'Create or update a bounded reasoning ledger only for explicit multi-step research, document/report creation, PDF/slides/export generation, or user-requested plans with deliverables. Do not use for ordinary Q&A, short advice, rewriting, translation, brainstorming, or simple coding explanations.',
       'parameters': {
         'type': 'object',
         'properties': {

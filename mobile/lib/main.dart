@@ -195,68 +195,71 @@ class _AppShellState extends State<AppShell> {
     final railWidth = (MediaQuery.sizeOf(context).width - 28)
         .clamp(280.0, 320.0)
         .toDouble();
-    return Scaffold(
-      body: Stack(
-        children: [
-          const AtmosphericBackground(),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: EdgeInsets.only(bottom: bottomControlsHeight),
-              child: Stack(
-                children: [
-                  for (final section in AppSection.values)
-                    if (_visitedSections.contains(section))
-                      Offstage(
-                        offstage: section != _section,
-                        child: TickerMode(
-                          enabled: section == _section,
-                          child: _screenForSection(section),
+    return AppShellScope(
+      onSelect: _select,
+      child: Scaffold(
+        body: Stack(
+          children: [
+            const AtmosphericBackground(),
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: bottomControlsHeight),
+                child: Stack(
+                  children: [
+                    for (final section in AppSection.values)
+                      if (_visitedSections.contains(section))
+                        Offstage(
+                          offstage: section != _section,
+                          child: TickerMode(
+                            enabled: section == _section,
+                            child: _screenForSection(section),
+                          ),
                         ),
-                      ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          if (_drawerOpen)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () => setState(() => _drawerOpen = false),
-                child: Container(color: Colors.black.withValues(alpha: .26)),
+            if (_drawerOpen)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => setState(() => _drawerOpen = false),
+                  child: Container(color: Colors.black.withValues(alpha: .26)),
+                ),
+              ),
+            if (_drawerOpen)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeOutCubic,
+                left: 14,
+                top: 68,
+                bottom: bottomControlsHeight,
+                width: railWidth,
+                child: SideRail(
+                  selected: _section,
+                  onSelect: _select,
+                  remoteConnected:
+                      _remoteRuntimeReady && _remoteRuntime.connected,
+                ),
+              ),
+            Positioned(
+              left: 18,
+              bottom: 18 + bottomInset,
+              child: GlassIconButton(
+                icon: _drawerOpen
+                    ? CupertinoIcons.xmark
+                    : CupertinoIcons.ellipsis,
+                label: 'Menu',
+                onTap: () => setState(() => _drawerOpen = !_drawerOpen),
               ),
             ),
-          if (_drawerOpen)
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeOutCubic,
-              left: 14,
-              top: 68,
-              bottom: bottomControlsHeight,
-              width: railWidth,
-              child: SideRail(
-                selected: _section,
-                onSelect: _select,
-                remoteConnected:
-                    _remoteRuntimeReady && _remoteRuntime.connected,
-              ),
+            Positioned(
+              right: 18,
+              bottom: 18 + bottomInset,
+              child: ModeSwitcher(mode: _mode, onChanged: _setMode),
             ),
-          Positioned(
-            left: 18,
-            bottom: 18 + bottomInset,
-            child: GlassIconButton(
-              icon: _drawerOpen
-                  ? CupertinoIcons.xmark
-                  : CupertinoIcons.ellipsis,
-              label: 'Menu',
-              onTap: () => setState(() => _drawerOpen = !_drawerOpen),
-            ),
-          ),
-          Positioned(
-            right: 18,
-            bottom: 18 + bottomInset,
-            child: ModeSwitcher(mode: _mode, onChanged: _setMode),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -279,6 +282,27 @@ class _AppShellState extends State<AppShell> {
       case AppSection.account:
         return const AccountScreen(key: PageStorageKey('account'));
     }
+  }
+}
+
+class AppShellScope extends InheritedWidget {
+  const AppShellScope({
+    required this.onSelect,
+    required super.child,
+    super.key,
+  });
+
+  final ValueChanged<AppSection> onSelect;
+
+  static AppShellScope? of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<AppShellScope>();
+  }
+
+  void select(AppSection section) => onSelect(section);
+
+  @override
+  bool updateShouldNotify(AppShellScope oldWidget) {
+    return onSelect != oldWidget.onSelect;
   }
 }
 
@@ -2718,13 +2742,33 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 14),
           const DiagnosticsSettingsCard(),
           const SizedBox(height: 14),
-          const SettingsGroup(
+          SettingsGroup(
             title: 'Data & Privacy',
             rows: [
               SettingsRow(
                 icon: CupertinoIcons.person_crop_circle,
                 title: 'Account',
                 value: 'Local session',
+                onTap: () =>
+                    AppShellScope.of(context)?.select(AppSection.account),
+              ),
+              SettingsRow(
+                icon: CupertinoIcons.doc_text,
+                title: 'Privacy Policy',
+                value: 'View',
+                onTap: () => showAurictSheet(
+                  context,
+                  const LegalDocumentSheet(document: LegalDocument.privacy),
+                ),
+              ),
+              SettingsRow(
+                icon: CupertinoIcons.doc_checkmark,
+                title: 'Terms of Use',
+                value: 'View',
+                onTap: () => showAurictSheet(
+                  context,
+                  const LegalDocumentSheet(document: LegalDocument.terms),
+                ),
               ),
               SettingsRow(
                 icon: CupertinoIcons.square_stack_3d_up,
@@ -3234,7 +3278,7 @@ class AccountScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              const SettingsGroup(
+              SettingsGroup(
                 title: 'Privacy',
                 rows: [
                   SettingsRow(
@@ -3248,17 +3292,347 @@ class AccountScreen extends StatelessWidget {
                     value: 'Never uploaded',
                   ),
                   SettingsRow(
-                    icon: CupertinoIcons.trash,
-                    title: 'Delete account data',
-                    value: 'Manage',
+                    icon: CupertinoIcons.doc_text,
+                    title: 'Privacy Policy',
+                    value: 'View',
+                    onTap: () => showAurictSheet(
+                      context,
+                      const LegalDocumentSheet(document: LegalDocument.privacy),
+                    ),
+                  ),
+                  SettingsRow(
+                    icon: CupertinoIcons.doc_checkmark,
+                    title: 'Terms of Use',
+                    value: 'View',
+                    onTap: () => showAurictSheet(
+                      context,
+                      const LegalDocumentSheet(document: LegalDocument.terms),
+                    ),
                   ),
                 ],
               ),
+              if (account != null) ...[
+                const SizedBox(height: 14),
+                GlassPanel(
+                  borderColor: tokens.danger.withValues(alpha: .28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionLabel('Danger zone'),
+                      const SizedBox(height: 9),
+                      Text(
+                        'Delete your Aurict account, revoke backend sessions, close trusted device metadata, and clear this phone session.',
+                        style: TextStyle(color: tokens.muted, height: 1.4),
+                      ),
+                      const SizedBox(height: 12),
+                      SecondaryButton(
+                        label: 'Delete account',
+                        color: tokens.danger,
+                        onTap: auth.loading
+                            ? null
+                            : () => showAurictSheet(
+                                context,
+                                DeleteAccountSheet(account: account),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           );
         },
       ),
     );
+  }
+}
+
+enum LegalDocument { privacy, terms }
+
+class LegalDocumentSheet extends StatelessWidget {
+  const LegalDocumentSheet({required this.document, super.key});
+
+  final LegalDocument document;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TokensScope.of(context);
+    final spec = _legalSpec(document);
+    return GlassPanel(
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 680),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(spec.icon, color: tokens.accent, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        spec.title,
+                        style: TextStyle(
+                          color: tokens.text,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 19,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  spec.updated,
+                  style: TextStyle(color: tokens.muted, fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                for (final section in spec.sections) ...[
+                  Text(
+                    section.title,
+                    style: TextStyle(
+                      color: tokens.text,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14.5,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    section.body,
+                    style: TextStyle(
+                      color: tokens.muted,
+                      height: 1.45,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DeleteAccountSheet extends StatefulWidget {
+  const DeleteAccountSheet({required this.account, super.key});
+
+  final AurictAccount account;
+
+  @override
+  State<DeleteAccountSheet> createState() => _DeleteAccountSheetState();
+}
+
+class _DeleteAccountSheetState extends State<DeleteAccountSheet> {
+  final _controller = TextEditingController();
+  var _submitting = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TokensScope.of(context);
+    final auth = MobileAuthScope.of(context);
+    final confirmed =
+        _controller.text.trim().toLowerCase() ==
+        widget.account.email.toLowerCase();
+    return GlassPanel(
+      borderColor: tokens.danger.withValues(alpha: .32),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(CupertinoIcons.trash, color: tokens.danger, size: 21),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Delete account',
+                    style: TextStyle(
+                      color: tokens.text,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 19,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'This revokes backend sessions, trusted device metadata, secret transfers, and remote sessions tied to ${widget.account.email}. Local provider keys and chats remain device-local unless you clear them from Settings.',
+              style: TextStyle(color: tokens.muted, height: 1.45),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _controller,
+              onChanged: (_) => setState(() {}),
+              style: TextStyle(color: tokens.text),
+              decoration: InputDecoration(
+                labelText: 'Type your email to confirm',
+                hintText: widget.account.email,
+                labelStyle: TextStyle(color: tokens.muted),
+                hintStyle: TextStyle(color: tokens.muted),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: tokens.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: tokens.danger),
+                ),
+              ),
+            ),
+            if (auth.error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                auth.error!,
+                style: TextStyle(color: tokens.danger, height: 1.35),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: SecondaryButton(
+                    label: 'Cancel',
+                    color: tokens.muted,
+                    onTap: _submitting ? null : () => Navigator.pop(context),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SecondaryButton(
+                    label: _submitting ? 'Deleting...' : 'Delete',
+                    color: tokens.danger,
+                    onTap: !confirmed || _submitting
+                        ? null
+                        : () => unawaited(_delete(context, auth)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _delete(BuildContext context, MobileAuthSession auth) async {
+    setState(() => _submitting = true);
+    final deleted = await auth.deleteAccount(
+      confirmation: _controller.text.trim(),
+    );
+    if (!context.mounted) return;
+    if (deleted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Aurict account deleted.')));
+    } else {
+      setState(() => _submitting = false);
+    }
+  }
+}
+
+class _LegalSpec {
+  const _LegalSpec({
+    required this.title,
+    required this.updated,
+    required this.icon,
+    required this.sections,
+  });
+
+  final String title;
+  final String updated;
+  final IconData icon;
+  final List<_LegalSection> sections;
+}
+
+class _LegalSection {
+  const _LegalSection(this.title, this.body);
+
+  final String title;
+  final String body;
+}
+
+_LegalSpec _legalSpec(LegalDocument document) {
+  switch (document) {
+    case LegalDocument.privacy:
+      return const _LegalSpec(
+        title: 'Privacy Policy',
+        updated: 'Effective July 2, 2026',
+        icon: CupertinoIcons.eye_slash_fill,
+        sections: [
+          _LegalSection(
+            'What Aurict stores',
+            'Aurict Mobile stores provider API keys, local chats, generated artifacts, diagnostics, and model cache on your device unless a feature explicitly uses Aurict Backend for account, remote, or encrypted relay metadata.',
+          ),
+          _LegalSection(
+            'What Aurict Backend sees',
+            'The backend handles account identity, refresh tokens, trusted device metadata, encrypted secret transfer envelopes, and remote signaling metadata. Plaintext provider keys, prompts, terminal output, and model responses are not intentionally uploaded by the mobile app.',
+          ),
+          _LegalSection(
+            'Firebase authentication',
+            'Google and GitHub sign-in use Firebase Auth. The app exchanges a Firebase ID token for Aurict backend tokens, then stores Aurict tokens in secure device storage.',
+          ),
+          _LegalSection(
+            'Diagnostics',
+            'Runtime diagnostics are kept locally for debugging. If future versions add server-side diagnostics or analytics, the policy may change and the app should disclose that behavior.',
+          ),
+          _LegalSection(
+            'Account deletion',
+            'Deleting your account revokes Aurict backend sessions and account-linked device metadata. Device-local chats, exports, provider keys, and caches can be cleared from Settings because they are stored outside the backend account record.',
+          ),
+          _LegalSection(
+            'Policy changes',
+            'Aurict and the repository owner reserve the right to update this policy as the software, backend, or data model changes.',
+          ),
+        ],
+      );
+    case LegalDocument.terms:
+      return const _LegalSpec(
+        title: 'Terms of Use',
+        updated: 'Effective July 2, 2026',
+        icon: CupertinoIcons.doc_checkmark,
+        sections: [
+          _LegalSection(
+            'Use of the software',
+            'Aurict is provided as an open-source AI assistant and remote companion. You are responsible for your model provider keys, prompts, outputs, and how you use generated content.',
+          ),
+          _LegalSection(
+            'Bring your own key',
+            'Aurict does not sell model access in the mobile app. You connect your own providers and remain responsible for provider billing, provider terms, quotas, and key security.',
+          ),
+          _LegalSection(
+            'No warranty',
+            'The software is provided without warranties. AI outputs may be incomplete, inaccurate, unsafe, or unsuitable for your use case. Review important outputs before relying on them.',
+          ),
+          _LegalSection(
+            'Security and remote control',
+            'Remote control and secret transfer features must be used only with devices, systems, and accounts you own or are authorized to access. Misuse of security tooling or remote control is prohibited.',
+          ),
+          _LegalSection(
+            'Account actions',
+            'Aurict may revoke sessions, disable accounts, or change account-related behavior to protect the service, users, or infrastructure.',
+          ),
+          _LegalSection(
+            'Terms changes',
+            'Aurict and the repository owner reserve the right to modify these terms as the project, license posture, backend, or product model evolves.',
+          ),
+        ],
+      );
   }
 }
 
@@ -6903,16 +7277,18 @@ class SettingsRow extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.value,
+    this.onTap,
     super.key,
   });
   final IconData icon;
   final String title;
   final String value;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
       child: Row(
         children: [
@@ -6925,8 +7301,18 @@ class SettingsRow extends StatelessWidget {
             ),
           ),
           Text(value, style: TextStyle(color: tokens.muted, fontSize: 12.5)),
+          if (onTap != null) ...[
+            const SizedBox(width: 8),
+            Icon(CupertinoIcons.chevron_right, color: tokens.muted, size: 14),
+          ],
         ],
       ),
+    );
+    if (onTap == null) return row;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: row,
     );
   }
 }

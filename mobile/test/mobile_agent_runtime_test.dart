@@ -686,6 +686,21 @@ void main() {
     expect(complete.canFinish, isTrue);
   });
 
+  test('task ledger instructions stay scoped to explicit workflows', () {
+    const builder = MobileSystemPromptBuilder();
+    final prompt = builder.build(
+      latestUserText: 'Explain callbacks briefly',
+      provider: MobileProviderModelService.openCode,
+      model: 'test-model',
+    );
+
+    expect(prompt, contains('Open task_ledger only for explicit multi-step'));
+    expect(prompt, contains('answer directly without task_ledger'));
+    expect(prompt, contains('Be direct, objective, and evidence-led'));
+    expect(prompt, contains('If you do not know, say so clearly'));
+    expect(prompt, contains('research before answering'));
+  });
+
   test('safety classifier and answer verifier catch high-risk gaps', () {
     final safety = const MobileSafetyClassifier().classify(
       'Analyze this contract and tax risk',

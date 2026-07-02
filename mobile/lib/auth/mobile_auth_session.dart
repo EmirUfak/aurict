@@ -87,12 +87,7 @@ class MobileAuthSession extends ChangeNotifier {
   Future<void> signOut() async {
     _setLoading(true);
     try {
-      await _secureStorage.delete(key: _StorageKeys.accessToken);
-      await _secureStorage.delete(key: _StorageKeys.refreshToken);
-      await _secureStorage.delete(key: _StorageKeys.email);
-      await _secureStorage.delete(key: _StorageKeys.userId);
-      await _secureStorage.delete(key: _StorageKeys.provider);
-      await _secureStorage.delete(key: _StorageKeys.createdAt);
+      await _clearLocalSession();
       await _firebaseAuth?.signOut();
       if (_googleInitialized) {
         await GoogleSignIn.instance.signOut();
@@ -101,6 +96,51 @@ class MobileAuthSession extends ChangeNotifier {
       _error = null;
     } catch (error) {
       _error = _friendlyError(error);
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<bool> deleteAccount({required String confirmation}) async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final accessToken = await this.accessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        throw const HttpException('Sign in before deleting your account.');
+      }
+      final firebaseIdToken = await _firebaseAuth?.currentUser?.getIdToken(
+        true,
+      );
+      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
+        throw const HttpException(
+          'Provider verification is required before account deletion.',
+        );
+      }
+      final response = await _sendJson(
+        'DELETE',
+        _backendBaseUri.resolve('/auth/account'),
+        {'confirmation': confirmation, 'firebaseIdToken': firebaseIdToken},
+        accessToken: accessToken,
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final message = response.body['error'] is Map
+            ? response.body['error']['message']?.toString()
+            : null;
+        throw HttpException(message ?? 'Aurict backend rejected deletion.');
+      }
+      await _clearLocalSession();
+      await _firebaseAuth?.signOut();
+      if (_googleInitialized) {
+        await GoogleSignIn.instance.signOut();
+      }
+      _account = null;
+      notifyListeners();
+      return true;
+    } catch (error) {
+      _error = _friendlyError(error);
+      notifyListeners();
+      return false;
     } finally {
       _setLoading(false);
     }
@@ -224,15 +264,39 @@ class MobileAuthSession extends ChangeNotifier {
     );
   }
 
+  Future<void> _clearLocalSession() async {
+    await _secureStorage.delete(key: _StorageKeys.accessToken);
+    await _secureStorage.delete(key: _StorageKeys.refreshToken);
+    await _secureStorage.delete(key: _StorageKeys.email);
+    await _secureStorage.delete(key: _StorageKeys.userId);
+    await _secureStorage.delete(key: _StorageKeys.provider);
+    await _secureStorage.delete(key: _StorageKeys.createdAt);
+  }
+
   Future<_BackendResponse> _postJson(Uri uri, Map<String, Object?> body) async {
+    return _sendJson('POST', uri, body);
+  }
+
+  Future<_BackendResponse> _sendJson(
+    String method,
+    Uri uri,
+    Map<String, Object?> body, {
+    String? accessToken,
+  }) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10);
     try {
       final request = await client
-          .postUrl(uri)
+          .openUrl(method, uri)
           .timeout(const Duration(seconds: 12));
       request.headers.contentType = ContentType.json;
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      if (accessToken != null && accessToken.isNotEmpty) {
+        request.headers.set(
+          HttpHeaders.authorizationHeader,
+          'Bearer $accessToken',
+        );
+      }
       request.write(jsonEncode(body));
       final response = await request.close().timeout(
         const Duration(seconds: 20),

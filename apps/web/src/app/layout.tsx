@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { ScrollProgress } from "@/components/ui/ScrollProgress"
 import { BackToTop } from "@/components/ui/BackToTop"
 import { CommandPalette } from "@/components/ui/CommandPalette"
+import { RuntimeSignal } from "@/components/ui/RuntimeSignal"
 import "./globals.css"
 
 const BASE_URL = "https://aurict.com"
@@ -122,6 +123,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
         <ScrollProgress />
         <CommandPalette />
+        <RuntimeSignal />
         <div className="site-grain" aria-hidden="true" />
         <div className="top-accent" aria-hidden="true" />
         {children}
