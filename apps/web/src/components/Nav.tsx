@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { BrandMark } from "@/components/BrandMark"
+import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
 
 const LINKS = [
   { href: "/roadmap", label: "roadmap" },
@@ -77,10 +78,7 @@ export function Nav() {
           <div className="nav-links">
             <ProductDropdown links={PRODUCT_LINKS} />
             {LINKS.map((link) => <NavLink key={link.href} href={link.href}>{link.label}</NavLink>)}
-            <NavLink href="/login">login</NavLink>
-            <a className="aur-button aur-button-primary" href="/register" style={{ minHeight: 36, padding: "0 14px" }}>
-              register
-            </a>
+            <AuthNavSlot />
           </div>
 
           <button
@@ -114,8 +112,7 @@ export function Nav() {
           {LINKS.map((link) => (
             <Link key={link.href} href={link.href}>{link.label}</Link>
           ))}
-          <Link href="/login">login</Link>
-          <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>register</Link>
+          <AuthNavSlot drawer />
         </div>
       )}
     </>

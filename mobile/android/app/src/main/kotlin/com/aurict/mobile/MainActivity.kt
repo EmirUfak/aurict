@@ -12,6 +12,7 @@ import android.provider.MediaStore
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import android.view.Display
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -46,10 +47,34 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        preferHighestRefreshRate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        preferHighestRefreshRate()
+    }
+
+    private fun preferHighestRefreshRate() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val display = currentDisplay() ?: return
+        val currentMode = display.mode
+        val sameResolutionModes = display.supportedModes.filter {
+            it.physicalWidth == currentMode.physicalWidth &&
+                it.physicalHeight == currentMode.physicalHeight
+        }
+        val bestMode = (sameResolutionModes.ifEmpty { display.supportedModes.toList() })
+            .maxByOrNull { it.refreshRate } ?: return
 
         window.attributes = window.attributes.apply {
-            preferredRefreshRate = 120f
+            preferredDisplayModeId = bestMode.modeId
+            preferredRefreshRate = bestMode.refreshRate
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentDisplay(): Display? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) display else windowManager.defaultDisplay
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

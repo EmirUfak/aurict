@@ -3,6 +3,7 @@
 import { useState } from "react"
 import type { CSSProperties, ReactNode } from "react"
 import { BrandMark } from "@/components/BrandMark"
+import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
 
 const providers = ["Anthropic", "OpenAI", "Google", "xAI", "Azure", "AWS Bedrock", "Ollama", "OpenRouter"]
 
@@ -118,8 +119,7 @@ function LandingNav() {
           <a className="mono landing-nav-link" href="/roadmap">roadmap</a>
           <a className="mono landing-nav-link" href="/docs">docs</a>
           <a className="mono landing-nav-link" href="/changelog">changelog</a>
-          <a className="mono landing-nav-link" href="/login">login</a>
-          <a className="mono landing-primary-link" href="/register">register →</a>
+          <AuthNavSlot />
         </div>
       </div>
     </div>
