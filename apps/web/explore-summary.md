@@ -158,7 +158,7 @@ apps/web/src/
 - localStorage for count persistence
 
 ### `src/components/sections/Footer.tsx`
-- MIT License, © 2026, links to GitHub/npm/Docs/Changelog
+- AGPLv3 License, © 2026, links to GitHub/npm/Docs/Changelog
 
 ---
 

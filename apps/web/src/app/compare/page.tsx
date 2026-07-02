@@ -52,34 +52,13 @@ export default function ComparePage() {
   return (
     <>
       <Nav />
-      <main style={{ minHeight: "100vh", padding: "120px 24px 80px", maxWidth: 900, margin: "0 auto" }}>
+      <main className="marketing-main" style={{ maxWidth: 900 }}>
         <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Compare", href: "/compare" }]} />
 
-        <div style={{ marginBottom: 56, marginTop: 32 }}>
-          <p
-            style={{
-              fontFamily: "var(--font-geist-mono)",
-              fontSize: 12,
-              color: "var(--accent)",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              marginBottom: 16,
-            }}
-          >
-            Comparisons
-          </p>
-          <h1
-            style={{
-              fontSize: "clamp(32px, 5vw, 52px)",
-              fontWeight: 800,
-              letterSpacing: "-0.03em",
-              lineHeight: 1.1,
-              marginBottom: 16,
-            }}
-          >
-            Aurict vs. the alternatives
-          </h1>
-          <p style={{ fontSize: 17, color: "var(--text-dim)", lineHeight: 1.7, maxWidth: 600 }}>
+        <div className="marketing-hero" style={{ marginTop: 24 }}>
+          <p className="marketing-eyebrow">Comparisons</p>
+          <h1 className="marketing-title marketing-title-sm">Aurict vs. the alternatives</h1>
+          <p className="marketing-lede">
             How does Aurict compare to other AI coding tools? Here&apos;s an honest look at where it wins, where competitors have their strengths, and which tool fits which workflow.
           </p>
         </div>

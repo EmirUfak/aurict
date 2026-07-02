@@ -5,7 +5,7 @@ import { m, AnimatePresence } from "framer-motion"
 const FAQS = [
   {
     q: "Is Aurict free?",
-    a: "Yes — Aurict is fully open source under the MIT license. You bring your own API key for whichever AI provider you choose. There are no subscription fees for the core tool. Pro features (cloud sync, team workspaces, analytics) are planned and will have a paid tier.",
+    a: "Yes — Aurict is open source under the GNU Affero General Public License v3. You bring your own API key for whichever AI provider you choose. There are no subscription fees for the core tool. Pro features (cloud sync, team workspaces, analytics) are planned and will have a paid tier.",
   },
   {
     q: "How is Aurict different from Claude Code?",

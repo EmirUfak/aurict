@@ -13,7 +13,7 @@
     },
     "packages/aurict": {
       "name": "aurict",
-      "version": "1.0.7",
+      "version": "1.1.5",
       "bin": {
         "aurict": "./bin/aurict",
       },
@@ -27,7 +27,7 @@
     },
     "packages/cli": {
       "name": "@aurict/cli",
-      "version": "1.0.7",
+      "version": "1.1.5",
       "bin": {
         "aurict": "./bin/aurict",
       },
@@ -49,27 +49,27 @@
     },
     "packages/cli-darwin-arm64": {
       "name": "@aurict/cli-darwin-arm64",
-      "version": "1.0.7",
+      "version": "1.1.5",
     },
     "packages/cli-darwin-x64": {
       "name": "@aurict/cli-darwin-x64",
-      "version": "1.0.7",
+      "version": "1.1.5",
     },
     "packages/cli-linux-arm64": {
       "name": "@aurict/cli-linux-arm64",
-      "version": "1.0.7",
+      "version": "1.1.5",
     },
     "packages/cli-linux-x64": {
       "name": "@aurict/cli-linux-x64",
-      "version": "1.0.7",
+      "version": "1.1.5",
     },
     "packages/cli-win32-x64": {
       "name": "@aurict/cli-win32-x64",
-      "version": "1.0.7",
+      "version": "1.1.5",
     },
     "packages/core": {
       "name": "@aurict/core",
-      "version": "1.0.7",
+      "version": "1.1.5",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^4.0.113",
         "@ai-sdk/anthropic": "^1.1.5",

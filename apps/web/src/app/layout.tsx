@@ -1,12 +1,9 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
 import { ScrollProgress } from "@/components/ui/ScrollProgress"
 import { BackToTop } from "@/components/ui/BackToTop"
 import { CommandPalette } from "@/components/ui/CommandPalette"
+import { IcarusIntro } from "@/components/IcarusIntro"
 import "./globals.css"
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] })
 
 const BASE_URL = "https://aurict.com"
 
@@ -82,6 +79,15 @@ export const metadata: Metadata = {
     canonical: BASE_URL,
   },
 
+  icons: {
+    icon: [
+      { url: "/aurict-logo-v5.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/aurict-logo-v5.svg",
+    apple: "/aurict-logo-v5.svg",
+  },
+
   // Add verification tokens here when setting up Google/Bing Search Console:
   // verification: { google: "...", yandex: "...", bing: "..." },
 
@@ -90,23 +96,29 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en">
       <head>
         {/* Preconnect — reduce latency for external origins */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font -- next/font fetches Google Fonts during build; runtime link keeps offline builds stable. */}
+        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <link rel="dns-prefetch" href="https://github.com" />
         <link rel="dns-prefetch" href="https://registry.npmjs.org" />
+        <link rel="icon" href="/aurict-logo-v5.svg" type="image/svg+xml" />
+        <link rel="shortcut icon" href="/aurict-logo-v5.svg" />
         {/* Web App Manifest */}
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#818cf8" />
+        <meta name="theme-color" content="#171110" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
+        <IcarusIntro />
         <ScrollProgress />
         <CommandPalette />
-        <div className="noise" aria-hidden="true" />
+        <div className="site-grain" aria-hidden="true" />
+        <div className="top-accent" aria-hidden="true" />
         {children}
         <BackToTop />
       </body>

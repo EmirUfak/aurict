@@ -1,164 +1,140 @@
 "use client"
+
 import { m } from "framer-motion"
 import { TerminalWindow } from "@/components/terminal/TerminalWindow"
+
+const SYSTEM_LINES = [
+  ["agents", "explore · code · review · test · docs · security"],
+  ["context", "skills loaded lazily, cache boundary preserved"],
+  ["guardrails", "sandbox policy active, approvals required"],
+]
 
 export function Hero() {
   return (
     <section
       style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "120px 24px 80px",
-        position: "relative",
         overflow: "hidden",
+        padding:   "112px 0 96px",
+        position:  "relative",
       }}
     >
-      {/* radial glow background */}
       <div
         aria-hidden="true"
         style={{
-          position: "absolute",
-          top: "20%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 700,
-          height: 700,
-          borderRadius: "50%",
-          background: "radial-gradient(ellipse, rgba(129,140,248,0.07) 0%, transparent 70%)",
-          pointerEvents: "none",
+          background: "radial-gradient(circle, color-mix(in oklch, var(--accent) 22%, transparent), transparent 64%)",
+          filter:     "blur(6px)",
+          height:     620,
+          left:       "58%",
+          opacity:    0.42,
+          position:   "absolute",
+          top:        12,
+          transform:  "translateX(-50%)",
+          width:      820,
         }}
       />
 
-      <div style={{ maxWidth: 860, width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
-        {/* pill badge */}
-        <m.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          style={{ marginBottom: 28 }}
-        >
-          <span
+      <div
+        className="section-shell"
+        style={{
+          alignItems:           "center",
+          display:              "grid",
+          gap:                  56,
+          gridTemplateColumns:  "repeat(auto-fit, minmax(min(100%, 460px), 1fr))",
+          position:             "relative",
+          zIndex:               1,
+        }}
+      >
+        <div>
+          <m.div
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 14 }}
+            transition={{ duration: 0.55 }}
+            className="eyebrow mono"
+            style={{ marginBottom: 18 }}
+          >
+            open-source terminal ai agent
+          </m.div>
+
+          <m.h1
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            transition={{ delay: 0.08, duration: 0.65 }}
+            className="section-title"
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              fontFamily: "var(--font-geist-mono)",
-              fontSize: 12,
-              color: "var(--accent)",
-              background: "var(--accent-glow)",
-              border: "1px solid rgba(129,140,248,0.25)",
-              borderRadius: 100,
-              padding: "6px 16px",
-              letterSpacing: "0.08em",
+              fontSize:     "clamp(52px, 7vw, 88px)",
+              marginBottom: 24,
+              maxWidth:     760,
             }}
           >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "var(--accent)",
-                boxShadow: "0 0 8px var(--accent)",
-              }}
-            />
-            v1.1.3 — Open Source · MIT
-          </span>
-        </m.div>
+            Your terminal, rebuilt as an agent runtime.
+          </m.h1>
 
-        {/* headline */}
-        <m.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          style={{
-            fontSize: "clamp(40px, 7vw, 76px)",
-            fontWeight: 800,
-            letterSpacing: "-0.04em",
-            lineHeight: 1.08,
-            marginBottom: 24,
-          }}
-        >
-          <span style={{ color: "var(--text)" }}>9 agents. Any provider.</span>
-          <br />
-          <span className="gradient-text">No IDE required.</span>
-        </m.h1>
-
-        {/* subheadline */}
-        <m.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.22 }}
-          style={{
-            fontSize: 18,
-            color: "var(--text-dim)",
-            lineHeight: 1.7,
-            maxWidth: 560,
-            margin: "0 auto 40px",
-          }}
-        >
-          9 specialist agents run in parallel across your codebase. 218+ skills activate automatically based on your stack. Any provider — switch without changing anything else.
-        </m.p>
-
-        {/* CTA row */}
-        <m.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.34 }}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap", marginBottom: 72 }}
-        >
-          <a
-            href="#install"
-            style={{
-              background: "var(--accent)",
-              color: "#fff",
-              textDecoration: "none",
-              fontWeight: 700,
-              fontSize: 15,
-              padding: "14px 28px",
-              borderRadius: 10,
-              transition: "transform 0.15s, box-shadow 0.15s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)"
-              e.currentTarget.style.boxShadow = "0 8px 30px rgba(129,140,248,0.35)"
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)"
-              e.currentTarget.style.boxShadow = "none"
-            }}
+          <m.p
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 14 }}
+            transition={{ delay: 0.18, duration: 0.55 }}
+            className="section-copy"
+            style={{ marginBottom: 34, maxWidth: 610 }}
           >
-            Get started free →
-          </a>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              fontFamily: "var(--font-geist-mono)",
-              fontSize: 13,
-              color: "var(--text-dim)",
-              background: "var(--bg-card)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              padding: "12px 20px",
-            }}
-          >
-            <span style={{ color: "var(--accent)" }}>$</span>
-            <span>npm install -g aurict</span>
-          </div>
-        </m.div>
+            Aurict coordinates specialist agents, project-aware skills, sandboxed tools, and any model provider without forcing you into an IDE or proprietary cloud.
+          </m.p>
 
-        {/* terminal demo */}
+          <m.div
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 12 }}
+            transition={{ delay: 0.28, duration: 0.5 }}
+            style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 14 }}
+          >
+            <a className="aur-button aur-button-primary" href="#install">
+              $ npm install -g aurict
+            </a>
+            <a className="aur-button aur-button-secondary" href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">
+              star on GitHub
+            </a>
+          </m.div>
+
+          <m.div
+            animate={{ opacity: 1 }}
+            initial={{ opacity: 0 }}
+            transition={{ delay: 0.44, duration: 0.55 }}
+            style={{ display: "grid", gap: 10, marginTop: 42 }}
+          >
+            {SYSTEM_LINES.map(([label, value]) => (
+              <div key={label} className="mono" style={{ alignItems: "center", display: "flex", gap: 12 }}>
+                <span style={{ color: "var(--accent)", fontSize: 12, width: 76 }}>{label}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{value}</span>
+              </div>
+            ))}
+          </m.div>
+        </div>
+
         <m.div
-          initial={{ opacity: 0, y: 30, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.7, delay: 0.45 }}
-          style={{ maxWidth: 780, margin: "0 auto" }}
+          initial={{ opacity: 0, y: 28, scale: 0.985 }}
+          transition={{ delay: 0.18, duration: 0.72, ease: [0.16, 0.8, 0.2, 1] }}
+          style={{ display: "grid", gap: 16 }}
         >
           <TerminalWindow />
+          <div
+            className="aur-card mono"
+            style={{
+              display:              "grid",
+              gap:                  1,
+              gridTemplateColumns:  "repeat(3, minmax(0, 1fr))",
+              overflow:             "hidden",
+            }}
+          >
+            {[
+              ["9", "specialist agents"],
+              ["218+", "contextual skills"],
+              ["3", "native platforms"],
+            ].map(([value, label]) => (
+              <div key={label} style={{ background: "var(--bg-alt)", padding: "18px 20px" }}>
+                <div style={{ color: "var(--accent)", fontSize: 24, fontWeight: 700, lineHeight: 1 }}>{value}</div>
+                <div style={{ color: "var(--text-muted)", fontSize: 11.5, marginTop: 8 }}>{label}</div>
+              </div>
+            ))}
+          </div>
         </m.div>
       </div>
     </section>

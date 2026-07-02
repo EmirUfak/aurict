@@ -13,7 +13,7 @@ const LINE_COLORS: Record<LineType, string> = {
   input:  "var(--text)",
   system: "var(--text-dim)",
   tool:   "var(--accent)",
-  output: "#a3c4a8",
+  output: "var(--success)",
 }
 
 const PAUSE_BETWEEN = 1200
@@ -60,11 +60,11 @@ export function TerminalWindow() {
   return (
     <div
       style={{
-        background: "var(--bg-card)",
+        background: "linear-gradient(180deg, var(--bg-card), var(--bg-deep))",
         border: "1px solid var(--border)",
-        borderRadius: 12,
+        borderRadius: 14,
         overflow: "hidden",
-        boxShadow: "0 0 0 1px rgba(255,255,255,0.04), 0 40px 80px rgba(0,0,0,0.6)",
+        boxShadow: "var(--shadow-hard), inset 0 1px 0 oklch(1 0 0 / 0.04)",
       }}
     >
       {/* title bar */}
@@ -74,7 +74,7 @@ export function TerminalWindow() {
           alignItems: "center",
           padding: "12px 16px",
           borderBottom: "1px solid var(--border)",
-          background: "rgba(255,255,255,0.02)",
+          background: "oklch(1 0 0 / 0.025)",
           gap: 12,
         }}
       >
@@ -87,7 +87,7 @@ export function TerminalWindow() {
           style={{
             flex: 1,
             textAlign: "center",
-            fontFamily: "var(--font-geist-mono)",
+            fontFamily: "var(--font-mono)",
             fontSize: 12,
             color: "var(--text-muted)",
           }}
@@ -101,13 +101,13 @@ export function TerminalWindow() {
               key={s.label}
               onClick={() => setScenarioIdx(i)}
               style={{
-                fontFamily: "var(--font-geist-mono)",
+                fontFamily: "var(--font-mono)",
                 fontSize: 11,
                 padding: "3px 10px",
                 borderRadius: 4,
                 border: "1px solid",
                 borderColor: i === scenarioIdx ? "var(--accent)" : "var(--border)",
-                background: i === scenarioIdx ? "var(--accent-glow)" : "transparent",
+                background: i === scenarioIdx ? "var(--accent-soft)" : "transparent",
                 color: i === scenarioIdx ? "var(--accent)" : "var(--text-muted)",
                 cursor: "pointer",
                 transition: "all 0.15s",
@@ -123,11 +123,11 @@ export function TerminalWindow() {
       <div
         ref={containerRef}
         style={{
-          fontFamily: "var(--font-geist-mono)",
+          fontFamily: "var(--font-mono)",
           fontSize: 13,
           lineHeight: 1.7,
           padding: "20px 24px",
-          height: 340,
+          height: 360,
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",
@@ -141,7 +141,7 @@ export function TerminalWindow() {
         ))}
         {/* cursor line */}
         <div style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-          <span>❯</span>
+          <span>$</span>
           <span
             style={{
               display: "inline-block",

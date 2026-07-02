@@ -44,7 +44,7 @@ const COMPARISONS: Comparison[] = [
       { name: "Windows support", aurict: true, competitor: false },
       { name: "Bash command classifier", aurict: true, competitor: false },
       { name: "MCP integration", aurict: true, competitor: true },
-      { name: "Open source (MIT)", aurict: true, competitor: true },
+      { name: "Open source (AGPLv3)", aurict: true, competitor: true },
       { name: "Persistent memory", aurict: true, competitor: true },
     ],
   },
@@ -209,7 +209,7 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       <Nav />
-      <main style={{ maxWidth: 820, margin: "0 auto", padding: "100px 24px 80px" }}>
+      <main className="marketing-main" style={{ maxWidth: 860 }}>
         <Breadcrumb
           items={[
             { label: "Home", href: "/" },
@@ -218,62 +218,25 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
         />
 
         {/* Hero */}
-        <div style={{ marginBottom: 56 }}>
-          <p
-            style={{
-              fontFamily: "var(--font-geist-mono)",
-              fontSize: 12,
-              color: "var(--accent)",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              marginBottom: 14,
-            }}
-          >
-            Comparison
-          </p>
-          <h1
-            style={{
-              fontSize: "clamp(28px, 4vw, 44px)",
-              fontWeight: 800,
-              letterSpacing: "-0.03em",
-              color: "var(--text)",
-              marginBottom: 16,
-            }}
-          >
+        <div className="marketing-hero">
+          <p className="marketing-eyebrow">Comparison</p>
+          <h1 className="marketing-title marketing-title-sm">
             Aurict vs {comp.competitor}
           </h1>
-          <p style={{ fontSize: 16, color: "var(--text-dim)", lineHeight: 1.7, maxWidth: 600 }}>
+          <p className="marketing-lede">
             {comp.description}
           </p>
-          <p
-            style={{
-              fontSize: 14,
-              fontFamily: "var(--font-geist-mono)",
-              color: "var(--accent)",
-              marginTop: 16,
-            }}
-          >
+          <p className="mono" style={{ fontSize: 13, color: "var(--accent)", marginTop: 18 }}>
             {comp.tagline}
           </p>
         </div>
 
         {/* Feature Comparison Table */}
         <section style={{ marginBottom: 56 }}>
-          <h2
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: "var(--text)",
-              marginBottom: 24,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Feature Comparison
-          </h2>
+          <h2 className="marketing-section-title">Feature Comparison</h2>
           <div
+            className="marketing-card"
             style={{
-              border: "1px solid var(--border)",
-              borderRadius: 12,
               overflow: "hidden",
             }}
           >
@@ -283,10 +246,10 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
                 display: "grid",
                 gridTemplateColumns: "1fr 100px 100px",
                 padding: "12px 20px",
-                background: "var(--bg-subtle)",
+                background: "var(--bg-alt)",
                 borderBottom: "1px solid var(--border)",
                 fontSize: 12,
-                fontFamily: "var(--font-geist-mono)",
+                fontFamily: "var(--font-mono)",
                 color: "var(--text-muted)",
                 letterSpacing: "0.04em",
                 textTransform: "uppercase",
@@ -305,7 +268,8 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
                   gridTemplateColumns: "1fr 100px 100px",
                   padding: "14px 20px",
                   borderBottom: i < comp.features.length - 1 ? "1px solid var(--border)" : "none",
-                  fontSize: 14,
+                  fontFamily: "var(--font-serif)",
+                  fontSize: 15,
                   alignItems: "center",
                 }}
               >
@@ -331,33 +295,21 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
 
         {/* Our Strengths */}
         <section style={{ marginBottom: 56 }}>
-          <h2
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: "var(--text)",
-              marginBottom: 24,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Why Choose Aurict
-          </h2>
+          <h2 className="marketing-section-title">Why Choose Aurict</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {comp.ourStrengths.map((strength) => (
               <div
                 key={strength}
+                className="marketing-card"
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 12,
                   padding: "12px 16px",
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
                 }}
               >
                 <span style={{ color: "var(--success)", fontSize: 16, flexShrink: 0 }}>✓</span>
-                <span style={{ fontSize: 14, color: "var(--text-dim)", lineHeight: 1.5 }}>{strength}</span>
+                <span style={{ fontFamily: "var(--font-serif)", fontSize: 15, color: "var(--text-dim)", lineHeight: 1.5 }}>{strength}</span>
               </div>
             ))}
           </div>
@@ -365,19 +317,17 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
 
         {/* CTA */}
         <section
+          className="marketing-card"
           style={{
             textAlign: "center",
             padding: "48px 32px",
-            background: "var(--bg-card)",
-            border: "1px solid var(--border)",
-            borderRadius: 16,
             marginBottom: 56,
           }}
         >
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--text)", marginBottom: 12 }}>
+          <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 600, color: "var(--text)", marginBottom: 12 }}>
             Ready to try Aurict?
           </h2>
-          <p style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 24 }}>
+          <p style={{ fontFamily: "var(--font-serif)", fontSize: 16, color: "var(--text-dim)", marginBottom: 24 }}>
             Install in seconds. Open source. No subscription required.
           </p>
           <div
@@ -385,10 +335,10 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
               display: "inline-flex",
               alignItems: "center",
               gap: 10,
-              fontFamily: "var(--font-geist-mono)",
+              fontFamily: "var(--font-mono)",
               fontSize: 14,
               color: "var(--text)",
-              background: "var(--bg-subtle)",
+              background: "var(--bg-deep)",
               border: "1px solid var(--border)",
               borderRadius: 8,
               padding: "12px 20px",
@@ -401,38 +351,15 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
 
         {/* Other Comparisons */}
         <section>
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: "var(--text)",
-              marginBottom: 16,
-            }}
-          >
-            Other Comparisons
-          </h2>
+          <h2 className="marketing-section-title" style={{ fontSize: 24 }}>Other Comparisons</h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {otherComparisons.map((c) => (
               <Link
                 key={c.slug}
                 href={`/compare/${c.slug}`}
+                className="mono landing-pill"
                 style={{
-                  fontSize: 13,
-                  color: "var(--text-dim)",
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 6,
-                  padding: "6px 12px",
                   textDecoration: "none",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border-bright)"
-                  e.currentTarget.style.color = "var(--text)"
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border)"
-                  e.currentTarget.style.color = "var(--text-dim)"
                 }}
               >
                 Aurict vs {c.competitor}

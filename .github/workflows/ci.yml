@@ -6,14 +6,17 @@ on:
     paths:
       - "packages/**"
       - "scripts/**"
-      - "bun.lockb"
+      - "bun.lock"
       - "package.json"
+      - ".github/workflows/ci.yml"
   pull_request:
     branches: [main]
     paths:
       - "packages/**"
       - "scripts/**"
-      - "bun.lockb"
+      - "bun.lock"
+      - "package.json"
+      - ".github/workflows/ci.yml"
 
 # Aynı branch'te yeni push gelince eskiyi iptal et
 concurrency:

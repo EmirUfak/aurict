@@ -4,9 +4,9 @@
 
 [![CI](https://github.com/aurict/aurict/actions/workflows/ci.yml/badge.svg)](https://github.com/aurict/aurict/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/aurict)](https://www.npmjs.com/package/aurict)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
 
-**[aurict.com](https://aurict.com)** · [npm](https://www.npmjs.com/package/aurict) · [Docs](https://aurict.com/docs) · [Changelog](https://aurict.com/changelog)
+**[aurict.com](https://aurict.com)** · [npm](https://www.npmjs.com/package/aurict) · [Docs](https://aurict.com/docs) · [Changelog](https://aurict.com/changelog) · [Android APK](https://github.com/aurict/aurict/actions/workflows/mobile-release.yml)
 
 ![Aurict screenshot](docs/screenshot.jpg)
 
@@ -120,6 +120,16 @@ Aurict from CI, or build your own tooling on top.
 ---
 
 ## Installation
+
+### Android mobile build
+
+Release APKs are produced by the manual **Mobile Android Release** workflow.
+
+1. Open [Mobile Android Release](https://github.com/aurict/aurict/actions/workflows/mobile-release.yml).
+2. Run the workflow with `apk` or `both`.
+3. Download the `aurict-android-release-apk` artifact from the completed run.
+
+The APK is signed during CI with the configured Android release keystore and Firebase `google-services.json` restored from GitHub Actions secrets. Signing files are not committed to the repository.
 
 ### Compile from source (recommended)
 
@@ -496,4 +506,4 @@ Aurict is built on the shoulders of these projects:
 
 ## License
 
-MIT — see [aurict.com](https://aurict.com) for full documentation and community.
+AGPL-3.0-only — see [aurict.com](https://aurict.com) for full documentation and community.

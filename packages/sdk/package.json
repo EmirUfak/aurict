@@ -2,6 +2,7 @@
   "name": "@aurict/sdk",
   "version": "1.1.5",
   "private": false,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {

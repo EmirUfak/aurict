@@ -80,7 +80,7 @@ export default function BlogPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }} />
       <Nav />
-      <main style={{ maxWidth: 780, margin: "0 auto", padding: "100px 24px 80px" }}>
+      <main className="marketing-main marketing-main-narrow">
         <Breadcrumb
           items={[
             { label: "Home", href: "/" },
@@ -88,31 +88,10 @@ export default function BlogPage() {
           ]}
         />
 
-        <div style={{ marginBottom: 60 }}>
-          <p
-            style={{
-              fontFamily: "var(--font-geist-mono)",
-              fontSize: 12,
-              color: "var(--accent)",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              marginBottom: 14,
-            }}
-          >
-            Blog
-          </p>
-          <h1
-            style={{
-              fontSize: "clamp(32px, 5vw, 48px)",
-              fontWeight: 800,
-              letterSpacing: "-0.03em",
-              color: "var(--text)",
-              marginBottom: 16,
-            }}
-          >
-            AI Coding Insights
-          </h1>
-          <p style={{ fontSize: 16, color: "var(--text-dim)", lineHeight: 1.7, maxWidth: 580 }}>
+        <div className="marketing-hero">
+          <p className="marketing-eyebrow">Blog</p>
+          <h1 className="marketing-title marketing-title-sm">AI Coding Insights</h1>
+          <p className="marketing-lede">
             Tutorials, comparisons, and deep dives into AI-powered development tools.
           </p>
         </div>
@@ -122,65 +101,37 @@ export default function BlogPage() {
             <Link
               key={post.slug}
               href={`/blog/${post.slug}`}
+              className="marketing-card"
               style={{
                 display: "block",
-                padding: "28px 32px",
-                background: "var(--bg-card)",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
+                padding: "28px 30px",
                 textDecoration: "none",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--border-bright)"
-                e.currentTarget.style.transform = "translateY(-2px)"
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "var(--border)"
-                e.currentTarget.style.transform = "translateY(0)"
+                position: "relative",
               }}
             >
+              <span className="mono aur-corner" style={{ position: "absolute", top: 8, left: 8, color: "oklch(1 0 0/.18)" }}>┌</span>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontFamily: "var(--font-geist-mono)",
-                    color: "var(--accent)",
-                    background: "var(--accent-glow)",
-                    border: "1px solid rgba(129,140,248,0.3)",
-                    borderRadius: 4,
-                    padding: "3px 8px",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {post.category}
-                </span>
-                <span
-                  style={{
-                    fontSize: 12,
-                    color: "var(--text-muted)",
-                    fontFamily: "var(--font-geist-mono)",
-                  }}
-                >
+                <span className="marketing-tag">{post.category}</span>
+                <span className="marketing-meta">
                   {post.date} · {post.readTime}
                 </span>
               </div>
               <h2
                 style={{
-                  fontSize: 20,
-                  fontWeight: 700,
+                  fontFamily: "var(--font-serif)",
+                  fontSize: 24,
+                  fontWeight: 600,
                   color: "var(--text)",
                   marginBottom: 8,
-                  letterSpacing: "-0.02em",
+                  letterSpacing: "-0.01em",
                 }}
               >
                 {post.title}
               </h2>
               <p
+                className="marketing-copy"
                 style={{
-                  fontSize: 14,
-                  color: "var(--text-dim)",
-                  lineHeight: 1.6,
+                  fontSize: 15.5,
                 }}
               >
                 {post.description}

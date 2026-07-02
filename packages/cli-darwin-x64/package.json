@@ -2,7 +2,7 @@
   "name": "@aurict/cli-darwin-x64",
   "version": "1.1.5",
   "description": "Aurict CLI binary for macOS x64 (Intel)",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "https://github.com/aurict/aurict"

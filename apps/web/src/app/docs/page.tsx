@@ -249,42 +249,21 @@ export default function DocsPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       <Nav />
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "100px 24px 80px" }}>
-        <div style={{ marginBottom: 60 }}>
-          <p
-            style={{
-              fontFamily: "var(--font-geist-mono)",
-              fontSize: 12,
-              color: "var(--accent)",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              marginBottom: 14,
-            }}
-          >
-            Documentation
-          </p>
-          <h1
-            style={{
-              fontSize: "clamp(32px, 5vw, 54px)",
-              fontWeight: 800,
-              letterSpacing: "-0.03em",
-              color: "var(--text)",
-              marginBottom: 16,
-            }}
-          >
-            Getting started
-          </h1>
-          <p style={{ fontSize: 16, color: "var(--text-dim)", lineHeight: 1.7, maxWidth: 580 }}>
+      <main className="marketing-main" style={{ maxWidth: 1040 }}>
+        <div className="marketing-hero">
+          <p className="marketing-eyebrow">Documentation</p>
+          <h1 className="marketing-title">Getting started</h1>
+          <p className="marketing-lede">
             Everything you need to install, configure, and extend Aurict.
           </p>
         </div>
 
-        <div className="resp-docs" style={{ gap: 60 }}>
+        <div className="resp-docs" style={{ gap: 64 }}>
           <nav className="resp-docs-sidebar" style={{ position: "sticky", top: 80, alignSelf: "start" }}>
             <p
+              className="mono"
               style={{
                 fontSize: 11,
-                fontFamily: "var(--font-geist-mono)",
                 color: "var(--text-muted)",
                 letterSpacing: "0.1em",
                 textTransform: "uppercase",
@@ -305,49 +284,24 @@ export default function DocsPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 64 }}>
             {DOCS_SECTIONS.map((section) => (
               <div key={section.anchor} id={section.anchor}>
-                <h2
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: "var(--text)",
-                    letterSpacing: "-0.02em",
-                    marginBottom: 28,
-                    paddingBottom: 14,
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  {section.title}
-                </h2>
+                <h2 className="marketing-section-title">{section.title}</h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
                   {section.content.map((item) => (
-                    <div key={item.heading}>
-                      <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 10 }}>
+                    <div key={item.heading} className="marketing-card" style={{ padding: "24px 26px", position: "relative" }}>
+                      <span className="mono aur-corner" style={{ position: "absolute", top: 8, left: 8, color: "oklch(1 0 0/.18)" }}>┌</span>
+                      <h3 style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 600, color: "var(--text)", marginBottom: 10 }}>
                         {item.heading}
                       </h3>
                       <p
+                        className="marketing-copy"
                         style={{
-                          fontSize: 14,
-                          color: "var(--text-dim)",
-                          lineHeight: 1.7,
                           marginBottom: 14,
                           whiteSpace: "pre-wrap",
                         }}
                       >
                         {item.body}
                       </p>
-                      <pre
-                        style={{
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 10,
-                          padding: "16px 20px",
-                          fontSize: 13,
-                          fontFamily: "var(--font-geist-mono)",
-                          color: "var(--text)",
-                          overflowX: "auto",
-                          lineHeight: 1.65,
-                        }}
-                      >
+                      <pre className="marketing-code">
                         <code>{item.code}</code>
                       </pre>
                     </div>

@@ -1,0 +1,101 @@
+name: Mobile Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact:
+        description: "Android artifact to build"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - apk
+          - aab
+          - both
+
+concurrency:
+  group: mobile-android-release
+  cancel-in-progress: true
+
+jobs:
+  android-release:
+    name: Build Android release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore Android signing and Firebase files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p mobile/android/app
+          printf '%s' "${ANDROID_KEY_PROPERTIES_B64}" | base64 --decode > mobile/android/key.properties
+          printf '%s' "${ANDROID_KEYSTORE_B64}" | base64 --decode > mobile/android/app/mindgrid-release.keystore
+          printf '%s' "${FIREBASE_GOOGLE_SERVICES_JSON_B64}" | base64 --decode > mobile/android/app/google-services.json
+          test -s mobile/android/key.properties
+          test -s mobile/android/app/mindgrid-release.keystore
+          test -s mobile/android/app/google-services.json
+        env:
+          ANDROID_KEY_PROPERTIES_B64: ${{ secrets.ANDROID_KEY_PROPERTIES_B64 }}
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          FIREBASE_GOOGLE_SERVICES_JSON_B64: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON_B64 }}
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Test
+        working-directory: mobile
+        run: flutter test
+
+      - name: Build release APK
+        if: ${{ inputs.artifact == 'apk' || inputs.artifact == 'both' }}
+        working-directory: mobile
+        run: flutter build apk --release
+
+      - name: Verify APK signature
+        if: ${{ inputs.artifact == 'apk' || inputs.artifact == 'both' }}
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort | tail -n 1)"
+          "$APKSIGNER" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Build release App Bundle
+        if: ${{ inputs.artifact == 'aab' || inputs.artifact == 'both' }}
+        working-directory: mobile
+        run: flutter build appbundle --release
+
+      - name: Upload APK artifact
+        if: ${{ inputs.artifact == 'apk' || inputs.artifact == 'both' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurict-android-release-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload App Bundle artifact
+        if: ${{ inputs.artifact == 'aab' || inputs.artifact == 'both' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aurict-android-release-aab
+          path: mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
