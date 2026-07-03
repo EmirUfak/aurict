@@ -158,6 +158,36 @@ const value = 1
     expect(find.text('Share'), findsOneWidget);
   });
 
+  testWidgets('assistant bubble opens report sheet from report action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      TokensScope(
+        tokens: aurictThemes.first,
+        themeIndex: 0,
+        onThemeChanged: (_) {},
+        child: MaterialApp(
+          home: Scaffold(
+            body: AssistantBubble(
+              text: 'This answer can be reported.',
+              onReport: () => showAurictSheet(
+                tester.element(find.byType(AssistantBubble)),
+                ReportAnswerSheet(onSubmit: (_, _) async {}),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.bySemanticsLabel('Report answer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Report answer'), findsOneWidget);
+    expect(find.text('Incorrect answer'), findsOneWidget);
+    expect(find.text('Send report'), findsOneWidget);
+  });
+
   testWidgets('artifact save button delegates to ui export handler', (
     tester,
   ) async {

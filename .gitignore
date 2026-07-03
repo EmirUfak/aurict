@@ -28,3 +28,7 @@ packages/cli-*/bin/aurict.exe
 
 # Runtime data
 .aurict/
+AGENTS.md
+
+# Locally generated private documentation packs
+private-docs/

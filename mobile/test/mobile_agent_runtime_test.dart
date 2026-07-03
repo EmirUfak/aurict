@@ -699,6 +699,13 @@ void main() {
     expect(prompt, contains('Be direct, objective, and evidence-led'));
     expect(prompt, contains('If you do not know, say so clearly'));
     expect(prompt, contains('research before answering'));
+    expect(prompt, contains('Source contract'));
+    expect(
+      prompt,
+      contains(
+        'Do not finalize a multi-step task while task_ledger reports open gates',
+      ),
+    );
   });
 
   test('safety classifier and answer verifier catch high-risk gaps', () {
@@ -895,27 +902,50 @@ void main() {
     expect(request.body['model'], 'zen-test');
     expect(request.body['stream'], isTrue);
     expect(request.body['tool_choice'], 'auto');
-    final tools = request.body['tools'] as List<Object?>;
-    expect(tools, isA<List<Object?>>());
-    expect(tools.toString(), contains('web_search'));
-    expect(tools.toString(), contains('web_fetch_plus'));
-    expect(tools.toString(), contains('source_distill'));
-    expect(tools.toString(), contains('document_export'));
-    expect(tools.toString(), contains('task_ledger'));
-    expect(tools.toString(), contains('answer_verifier'));
-    expect(tools.toString(), contains('calculator'));
-    expect(tools.toString(), contains('table_tool'));
-    expect(tools.toString(), contains('citation_manager'));
-    expect(tools.toString(), contains('file_intake_policy'));
-    expect(tools.toString(), contains('ocr_read'));
-    expect(tools.toString(), contains('html_document_create'));
-    expect(tools.toString(), contains('html_to_pdf'));
-    expect(tools.toString(), contains('artifact_save'));
-    expect(tools.toString(), contains('artifact_share'));
+    final tools = _toolNames(request);
+    expect(tools, contains('answer_verifier'));
+    expect(tools, contains('calculator'));
+    expect(tools, contains('table_tool'));
+    expect(tools, contains('citation_manager'));
+    expect(tools, isNot(contains('web_search')));
+    expect(tools, isNot(contains('document_export')));
+    expect(tools, isNot(contains('task_ledger')));
     final messages = request.body['messages'] as List<Object?>;
     expect(messages.first.toString(), contains('Aurict Mobile Runtime'));
-    expect(messages.first.toString(), contains('file_intake_policy'));
-    expect(messages.first.toString(), contains('html_to_pdf'));
+    expect(
+      messages.first.toString(),
+      contains('answer directly without task_ledger'),
+    );
+  });
+
+  test('chat request exposes heavy tools only for matching intent', () {
+    const service = MobileChatStreamingService();
+    final request = service.buildChatRequest(
+      MobileChatRequest(
+        config: MobileProviderModelService.openCode,
+        apiKey: 'oc-test',
+        model: 'zen-test',
+        latestUserText:
+            'Research current AI security trends and create a PDF report with citations',
+        messages: const [
+          MobileChatMessage(
+            role: 'user',
+            content:
+                'Research current AI security trends and create a PDF report with citations',
+          ),
+        ],
+      ),
+    );
+    final tools = _toolNames(request);
+
+    expect(tools, contains('task_ledger'));
+    expect(tools, contains('web_search'));
+    expect(tools, contains('web_fetch_plus'));
+    expect(tools, contains('source_distill'));
+    expect(tools, contains('document_export'));
+    expect(tools, contains('html_document_create'));
+    expect(tools, contains('html_to_pdf'));
+    expect(tools, contains('answer_verifier'));
   });
 
   test('Alibaba chat streaming omits tool schemas unsupported with stream', () {
@@ -985,6 +1015,17 @@ Future<void> _waitFor(bool Function() condition) async {
     if (condition()) return;
     await Future<void>.delayed(const Duration(milliseconds: 10));
   }
+}
+
+List<String> _toolNames(MobileChatHttpRequest request) {
+  final tools = request.body['tools'] as List<Object?>;
+  return tools
+      .map((tool) {
+        final schema = tool as Map<String, Object?>;
+        final function = schema['function'] as Map<String, Object?>;
+        return function['name'].toString();
+      })
+      .toList(growable: false);
 }
 
 class _FakeModelService extends MobileProviderModelService {

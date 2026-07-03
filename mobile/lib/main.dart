@@ -12,12 +12,14 @@ import 'agent/mobile_chat_stream.dart';
 import 'agent/mobile_chat_history_store.dart';
 import 'agent/mobile_diagnostics.dart';
 import 'agent/mobile_document_picker.dart';
+import 'agent/mobile_feedback_report.dart';
 import 'agent/mobile_html_pdf_tools.dart';
 import 'agent/mobile_markdown_renderer.dart';
 import 'agent/mobile_provider_session.dart';
 import 'auth/mobile_auth_session.dart';
 import 'design/aurict_typography.dart';
 import 'remote/mobile_remote_event_codec.dart';
+import 'remote/mobile_backend_client.dart';
 import 'remote/mobile_remote_models.dart';
 import 'remote/mobile_remote_runtime.dart';
 
@@ -705,6 +707,7 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   Timer? _streamFlushTimer;
   Timer? _historyWriteDebounce;
   List<Map<String, Object?>>? _pendingHistoryWrite;
+  int _lastSnapshotWriteMs = 0;
   String? _activeThreadId;
   var _scrollPending = false;
   var _isStreaming = false;
@@ -1216,6 +1219,81 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     );
   }
 
+  void _showReportSheet(int messageIndex, ChatEntry message) {
+    if (message.text.trim().isEmpty) return;
+    showAurictSheet(
+      context,
+      ReportAnswerSheet(
+        onSubmit: (reason, note) async {
+          Navigator.pop(context);
+          await _submitAssistantReport(messageIndex, message, reason, note);
+        },
+      ),
+    );
+  }
+
+  Future<void> _submitAssistantReport(
+    int messageIndex,
+    ChatEntry message,
+    MobileFeedbackReportReason reason,
+    String note,
+  ) async {
+    final auth = MobileAuthScope.of(context);
+    final providerSession = MobileProviderSessionScope.of(context);
+    final client = MobileBackendClient(auth: auth);
+    final service = MobileFeedbackReportService(backend: client);
+    try {
+      await service.submit(
+        MobileFeedbackReportPayload(
+          reason: reason,
+          note: note,
+          userMessage: _previousUserMessage(messageIndex),
+          assistantMessage: message.text,
+          provider: providerSession.selectedEntry.name,
+          model: providerSession.selectedModel,
+          toolSummary: [
+            for (final tool in message.streamTools)
+              MobileFeedbackToolSummary(
+                name: tool.name,
+                status: tool.pending ? 'pending' : 'completed',
+                ok: tool.result?.contains('"ok":true'),
+              ),
+          ],
+          metadata: {
+            'messageStatus': message.status ?? 'unknown',
+            'toolCount': message.streamTools.length,
+            'artifactCount': message.artifacts.length,
+            'client': 'aurict-mobile',
+          },
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Report sent to Aurict.')));
+    } catch (error, stack) {
+      unawaited(
+        mobileDiagnostics.record(error, stackTrace: stack, source: 'report'),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Report failed: $error')));
+    } finally {
+      client.close();
+    }
+  }
+
+  String? _previousUserMessage(int messageIndex) {
+    for (var i = messageIndex - 1; i >= 0; i--) {
+      final message = _messages[i];
+      if (message.role == ChatRole.user && message.text.trim().isNotEmpty) {
+        return message.text;
+      }
+    }
+    return null;
+  }
+
   Future<Map<String, Object?>> _runArtifactAction(
     ChatArtifact artifact,
     ArtifactAction action,
@@ -1306,6 +1384,11 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   }
 
   void _persistMessages({bool writeHistory = true}) {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    if (!writeHistory && _isStreaming && nowMs - _lastSnapshotWriteMs < 250) {
+      return;
+    }
+    _lastSnapshotWriteMs = nowMs;
     final encodedMessages = [
       for (final message in _messages.take(120)) _encodeChatEntry(message),
     ];
@@ -1565,6 +1648,8 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
                                   streamTools: message.streamTools,
                                   artifacts: message.artifacts,
                                   onArtifactAction: _handleArtifactAction,
+                                  onReport: () =>
+                                      _showReportSheet(index, message),
                                   status: message.status,
                                   error: message.error,
                                 ),
@@ -4178,6 +4263,7 @@ class AssistantBubble extends StatefulWidget {
     this.streamTools = const [],
     this.artifacts = const [],
     this.onArtifactAction,
+    this.onReport,
     this.status,
     this.error,
     super.key,
@@ -4191,6 +4277,7 @@ class AssistantBubble extends StatefulWidget {
   final List<ChatArtifact> artifacts;
   final Future<void> Function(ChatArtifact artifact, ArtifactAction action)?
   onArtifactAction;
+  final VoidCallback? onReport;
   final String? status;
   final String? error;
 
@@ -4228,6 +4315,26 @@ class _AssistantBubbleState extends State<AssistantBubble> {
                 label: widget.status ?? 'ready',
                 color: widget.error == null ? tokens.accent : tokens.danger,
               ),
+              const Spacer(),
+              if (widget.onReport != null)
+                GestureDetector(
+                  onTap: widget.onReport,
+                  child: Container(
+                    height: 34,
+                    width: 34,
+                    decoration: BoxDecoration(
+                      color: tokens.surface.withValues(alpha: .54),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: tokens.border),
+                    ),
+                    child: Icon(
+                      CupertinoIcons.flag,
+                      color: tokens.muted,
+                      size: 16,
+                      semanticLabel: 'Report answer',
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -6934,6 +7041,171 @@ void showAurictSheet(BuildContext context, Widget child) {
       child: child,
     ),
   );
+}
+
+class ReportAnswerSheet extends StatefulWidget {
+  const ReportAnswerSheet({required this.onSubmit, super.key});
+
+  final Future<void> Function(MobileFeedbackReportReason reason, String note)
+  onSubmit;
+
+  @override
+  State<ReportAnswerSheet> createState() => _ReportAnswerSheetState();
+}
+
+class _ReportAnswerSheetState extends State<ReportAnswerSheet> {
+  final _noteController = TextEditingController();
+  var _reason = MobileFeedbackReportReason.incorrect;
+  var _submitting = false;
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TokensScope.of(context);
+    return GlassPanel(
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(CupertinoIcons.flag_fill, color: tokens.danger),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Report answer',
+                    style: TextStyle(
+                      color: tokens.text,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Aurict will receive this AI answer, the related user prompt, model metadata, tool summary, and your note. API keys, full chat history, and local files are not sent.',
+              style: TextStyle(color: tokens.muted, height: 1.45, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final reason in MobileFeedbackReportReason.values)
+                  _ReportReasonChip(
+                    label: reason.label,
+                    selected: _reason == reason,
+                    onTap: () => setState(() => _reason = reason),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _noteController,
+              maxLines: 4,
+              maxLength: 1500,
+              style: TextStyle(color: tokens.text, fontSize: 13.5),
+              decoration: InputDecoration(
+                hintText: 'Optional note',
+                hintStyle: TextStyle(color: tokens.muted),
+                filled: true,
+                fillColor: tokens.surface.withValues(alpha: .46),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: tokens.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: tokens.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: tokens.accent),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: SecondaryButton(
+                    label: 'Cancel',
+                    color: tokens.muted,
+                    onTap: _submitting ? null : () => Navigator.pop(context),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: PrimaryButton(
+                    label: _submitting ? 'Sending' : 'Send report',
+                    icon: CupertinoIcons.paperplane_fill,
+                    onTap: _submitting ? () {} : _submit,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    setState(() => _submitting = true);
+    try {
+      await widget.onSubmit(_reason, _noteController.text);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+}
+
+class _ReportReasonChip extends StatelessWidget {
+  const _ReportReasonChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TokensScope.of(context);
+    final color = selected ? tokens.accent : tokens.muted;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: selected ? .18 : .08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: color.withValues(alpha: selected ? .44 : .20),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? tokens.text : tokens.muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class TrustDeviceSheet extends StatelessWidget {

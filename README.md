@@ -23,6 +23,11 @@ Aurict runs entirely in your terminal. No browser tabs, no Electron overhead, no
 juggling between windows. You stay in the environment where you already write code, and the AI
 meets you there — with full access to your files, shell, language servers, and running processes.
 
+The wider Aurict system now includes a public web surface, a BYOK mobile assistant, and a local
+backend control-plane prototype. The terminal remains the core product, while the web and mobile
+layers handle authentication, documentation, roadmap visibility, account deletion, feedback
+reporting, Android release distribution, and future console workflows.
+
 ---
 
 ## Why Aurict?
@@ -64,6 +69,15 @@ Aurict from CI, or build your own tooling on top.
 
 ## Features
 
+### Product Surfaces
+
+| Surface | Description |
+|---|---|
+| **Terminal CLI** | Primary developer agent with provider routing, project context, tools, sessions, skills, MCP, hooks, and local API |
+| **Web platform** | Landing, docs, changelog, roadmap, manifesto, Firebase-backed auth, browser login flow, privacy, terms, and account deletion direction |
+| **Mobile app** | Flutter BYOK assistant for chat, research, document/PDF workflows, provider sessions, and assistant-answer reporting |
+| **Backend prototype** | Local/private control-plane routes for account deletion and feedback report ingestion; kept out of the public repo by `.gitignore` |
+
 ### Core Agent
 
 | Feature | Description |
@@ -100,6 +114,8 @@ Aurict from CI, or build your own tooling on top.
 | **Policy sandbox** | Low-overhead guarded execution: command classification, approvals, protected paths, scrubbed env, timeouts, output limits, and audit logs. This is not container isolation; Docker is optional. |
 | **Permission system** | Per-tool allow/deny rules, wildcard path matching, always-allow list |
 | **JWT auth** | Bearer token on the local HTTP API, auto-generated at `~/.aurict/server-token` |
+| **Mobile release hardening** | Android release builds use signing secrets restored in CI, R8/ProGuard shrinking, resource exclusions, and non-committed Firebase service config |
+| **Feedback reporting** | Mobile users can report assistant answers to a backend feedback route for review without committing private backend code or secrets |
 
 ### Design Agent
 

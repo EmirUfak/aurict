@@ -36,6 +36,43 @@ const articleJsonLd = {
 
 const DOCS_SECTIONS = [
   {
+    title: "Product Surfaces",
+    anchor: "product-surfaces",
+    content: [
+      {
+        heading: "Terminal agent",
+        body: "The CLI is the primary Aurict runtime: BYOK providers, project context, typed tools, checkpoints, sessions, skills, MCP, hooks, local API access, and multi-agent workflows run where developers already work.",
+        code: "aurict\n/config\n/providers\n/sessions\n/agent\n/mcp",
+      },
+      {
+        heading: "Web platform",
+        body: "The web app is the public trust and onboarding surface. It contains the landing page, docs, roadmap, changelog, manifesto, Firebase-backed auth, browser login flow, privacy policy, terms, and account deletion direction.",
+        code: "apps/web\n/routes: /docs /roadmap /changelog /about /privacy /terms /auth/device",
+      },
+      {
+        heading: "Mobile BYOK assistant",
+        body: "The Flutter app extends Aurict beyond the terminal: BYOK chat, provider sessions, research and document workflows, PDF generation, scoped assistant-answer reporting, and Android release hardening.",
+        code: "mobile/lib/main.dart\nmobile/lib/agent/mobile_chat_stream.dart\nmobile/lib/agent/mobile_feedback_report.dart",
+      },
+    ],
+  },
+  {
+    title: "Security & Privacy",
+    anchor: "security-privacy",
+    content: [
+      {
+        heading: "Secret boundaries",
+        body: "Provider keys, Firebase service files, Android keystores, key properties, local env files, SQLite runtime data, and backend prototype files are excluded from source control. CI restores release secrets from GitHub Actions secrets when producing Android artifacts.",
+        code: ".env\n.env.local\ngoogle-services.json\n*.jks\n*.keystore\nkey.properties\napps/backend/",
+      },
+      {
+        heading: "Account and feedback flows",
+        body: "The web and mobile surfaces include privacy, terms, account deletion, and report-feedback paths. Reported assistant answers are treated as scoped feedback events for review, not as a blanket upload of a user's project.",
+        code: "POST /feedback/reports\nPOST /account/delete\n/privacy\n/terms",
+      },
+    ],
+  },
+  {
     title: "Installation",
     anchor: "installation",
     content: [

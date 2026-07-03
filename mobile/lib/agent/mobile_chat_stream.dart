@@ -146,13 +146,12 @@ class MobileChatStreamingService {
   static final _artifactRegistry = <String, MobileHtmlToPdfArtifact>{};
 
   Stream<MobileChatStreamEvent> stream(MobileChatRequest request) async* {
+    final latestUserText = _latestUserText(request);
     final conversation = <Map<String, Object?>>[
       {
         'role': 'system',
         'content': promptBuilder.build(
-          latestUserText: request.latestUserText.isEmpty
-              ? (request.messages.isEmpty ? '' : request.messages.last.content)
-              : request.latestUserText,
+          latestUserText: latestUserText,
           provider: request.config,
           model: request.model,
         ),
@@ -329,6 +328,8 @@ class MobileChatStreamingService {
         '${request.config.name} chat streaming is not wired yet. Use OpenCode, OpenRouter, OpenAI, or a compatible endpoint.',
       );
     }
+    final latestUserText = _latestUserText(request);
+    final toolSchemas = _toolSchemasFor(latestUserText);
     final modelRequest = modelService.buildRequest(
       request.config,
       request.apiKey,
@@ -349,23 +350,78 @@ class MobileChatStreamingService {
               {
                 'role': 'system',
                 'content': promptBuilder.build(
-                  latestUserText: request.latestUserText.isEmpty
-                      ? (request.messages.isEmpty
-                            ? ''
-                            : request.messages.last.content)
-                      : request.latestUserText,
+                  latestUserText: latestUserText,
                   provider: request.config,
                   model: request.model,
                 ),
               },
               for (final message in request.messages) message.toJson(),
             ],
-        if (includeTools && request.config.supportsStreamingTools)
-          'tools': _mobileToolSchemas,
-        if (includeTools && request.config.supportsStreamingTools)
+        if (includeTools &&
+            request.config.supportsStreamingTools &&
+            toolSchemas.isNotEmpty)
+          'tools': toolSchemas,
+        if (includeTools &&
+            request.config.supportsStreamingTools &&
+            toolSchemas.isNotEmpty)
           'tool_choice': 'auto',
       },
     );
+  }
+
+  String _latestUserText(MobileChatRequest request) {
+    if (request.latestUserText.trim().isNotEmpty) {
+      return request.latestUserText;
+    }
+    return request.messages.isEmpty ? '' : request.messages.last.content;
+  }
+
+  List<Map<String, Object?>> _toolSchemasFor(String latestUserText) {
+    final intents = const MobileIntentRouter().detect(latestUserText);
+    final allowed = <String>{
+      'safety_classifier',
+      'answer_verifier',
+      'calculator',
+      'table_tool',
+      'citation_manager',
+    };
+    if (intents.any((intent) => intent != MobilePromptIntent.normal)) {
+      allowed.add('load_mobile_skill');
+    }
+    if (intents.contains(MobilePromptIntent.research)) {
+      allowed.addAll({
+        'task_ledger',
+        'web_search',
+        'web_fetch',
+        'web_fetch_plus',
+        'source_distill',
+        'research_outline',
+      });
+    }
+    if (intents.contains(MobilePromptIntent.document)) {
+      allowed.addAll({
+        'task_ledger',
+        'document_reader',
+        'file_intake_policy',
+        'ocr_read',
+        'pdf_read',
+        'document_export',
+        'html_document_create',
+        'html_sanitize',
+        'html_to_pdf',
+        'artifact_save',
+        'artifact_share',
+        'create_document_outline',
+      });
+    }
+    if (intents.contains(MobilePromptIntent.legal) ||
+        intents.contains(MobilePromptIntent.finance) ||
+        intents.contains(MobilePromptIntent.codeAdvisory)) {
+      allowed.add('load_mobile_skill');
+    }
+    return _mobileToolSchemas
+        .where((schema) => allowed.contains(_toolSchemaName(schema)))
+        .toList(growable: false);
   }
 
   bool _supportsChatCompletions(MobileModelProvider provider) {
@@ -1807,6 +1863,14 @@ const _mobileToolNames = [
   'create_document_outline',
   'load_mobile_skill',
 ];
+
+String _toolSchemaName(Map<String, Object?> schema) {
+  final function = schema['function'];
+  if (function is Map<String, Object?>) {
+    return function['name']?.toString() ?? '';
+  }
+  return '';
+}
 
 class MobileChatHttpRequest {
   const MobileChatHttpRequest({

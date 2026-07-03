@@ -33,6 +33,35 @@ android {
         versionName = flutter.versionName
     }
 
+    androidResources {
+        noCompress += listOf(
+            "tflite",
+            "lite",
+            "wasm",
+            "db",
+            "sqlite",
+            "pdf",
+            "zip",
+            "gz",
+            "br",
+        )
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+        resources {
+            excludes += setOf(
+                "META-INF/AL2.0",
+                "META-INF/LGPL2.1",
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+                "META-INF/*.kotlin_module",
+            )
+        }
+    }
+
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {
@@ -46,6 +75,12 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = if (hasReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {

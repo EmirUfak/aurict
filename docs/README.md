@@ -6,6 +6,20 @@
 - [Configuration](configuration.md) — config file, environment variables, project instructions
 - [Slash Commands](slash-commands.md) — full reference for all ~55 slash commands
 
+## Product surfaces
+
+- **Terminal CLI** — the primary Aurict agent runtime with BYOK providers, typed tools, sessions, skills, MCP, hooks, and local API.
+- **Web platform** — public landing, docs, changelog, roadmap, manifesto, Firebase-backed auth, browser login, privacy, terms, and account deletion direction.
+- **Mobile app** — Flutter BYOK assistant for chat, research, document/PDF workflows, provider sessions, and assistant-answer reporting.
+- **Backend prototype** — local/private control-plane routes for account deletion and report ingestion. Backend files and secrets stay ignored by git.
+
+Detailed product references:
+
+- [Product Overview](product-overview.md) — Aurict surfaces, architecture boundaries, and product direction
+- [Mobile App](mobile.md) — BYOK mobile assistant behavior, release path, privacy, and reporting
+- [Roadmap](roadmap.md) — current phases, near-term hardening, ecosystem expansion, and research track
+- [Security & Compliance](security-and-compliance.md) — current safeguards, limits, and next controls
+
 ## Core features
 
 - [Tools Reference](tools.md) — all built-in tools, parameters, permissions, robustness features
