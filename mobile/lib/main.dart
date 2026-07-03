@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
@@ -2799,209 +2800,215 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final scope = TokensScope.maybeOf(context);
     final selectedIndex = scope?.themeIndex ?? 0;
-    final providerSession = MobileProviderSessionScope.of(context);
     final tokens = TokensScope.of(context);
+    final sections = <WidgetBuilder>[
+      (_) => const SettingsGroup(
+        title: 'Security Model',
+        rows: [
+          SettingsRow(
+            icon: Icons.vpn_key_rounded,
+            title: 'Provider keys',
+            value: 'Device secure storage',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.eye_slash_fill,
+            title: 'Aurict server visibility',
+            value: 'No provider keys',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.lock_shield,
+            title: 'High-risk answers',
+            value: 'Verifier gated',
+          ),
+        ],
+      ),
+      (_) => const SizedBox(height: 14),
+      (_) => const SettingsGroup(
+        title: 'Export Pipeline',
+        rows: [
+          SettingsRow(
+            icon: CupertinoIcons.doc_richtext,
+            title: 'PDF source',
+            value: 'Sanitized HTML/CSS',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.square_arrow_down,
+            title: 'Save to phone',
+            value: 'Native bridge required',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.share,
+            title: 'Share sheet',
+            value: 'Native bridge required',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.checkmark_shield,
+            title: 'Export claim',
+            value: 'After save/share event',
+          ),
+        ],
+      ),
+      (_) => const SizedBox(height: 14),
+      (_) => const SettingsGroup(
+        title: 'Remote Control',
+        rows: [
+          SettingsRow(
+            icon: CupertinoIcons.desktopcomputer,
+            title: 'Remote mode',
+            value: 'Opt-in from CLI',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.timer,
+            title: 'Session trust',
+            value: 'Temporary by default',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.lock_shield,
+            title: 'Approvals',
+            value: 'Required by desktop policy',
+          ),
+        ],
+      ),
+      (_) => const SizedBox(height: 14),
+      (_) => GlassPanel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionLabel('Themes'),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (var i = 0; i < aurictThemes.length; i++)
+                  ThemeChip(
+                    tokens: aurictThemes[i],
+                    selected: i == selectedIndex,
+                    onTap: () => scope?.onThemeChanged(i),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      (_) => const SizedBox(height: 14),
+      (_) => const MobileCapabilitiesCard(),
+      (_) => const SizedBox(height: 14),
+      (_) => const DiagnosticsSettingsCard(),
+      (_) => const SizedBox(height: 14),
+      (_) => SettingsGroup(
+        title: 'Data & Privacy',
+        rows: [
+          SettingsRow(
+            icon: CupertinoIcons.person_crop_circle,
+            title: 'Account',
+            value: 'Local session',
+            onTap: () => AppShellScope.of(context)?.select(AppSection.account),
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.doc_text,
+            title: 'Privacy Policy',
+            value: 'View',
+            onTap: () => showAurictSheet(
+              context,
+              const LegalDocumentSheet(document: LegalDocument.privacy),
+            ),
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.doc_checkmark,
+            title: 'Terms of Use',
+            value: 'View',
+            onTap: () => showAurictSheet(
+              context,
+              const LegalDocumentSheet(document: LegalDocument.terms),
+            ),
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.square_stack_3d_up,
+            title: 'Model lists',
+            value: 'Fetched per provider',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.exclamationmark_bubble,
+            title: 'Diagnostics',
+            value: 'Local only',
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.doc_text_search,
+            title: 'Document previews',
+            value: 'Bounded metadata',
+          ),
+        ],
+      ),
+      (_) => const SizedBox(height: 14),
+      (_) => GlassPanel(
+        borderColor: tokens.danger.withValues(alpha: .22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionLabel('Production Controls'),
+            const SizedBox(height: 9),
+            Text(
+              'These actions affect only this phone. Provider keys are removed from the native secure store; generated export cache is removed from local artifact storage.',
+              style: TextStyle(color: tokens.muted, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: SecondaryButton(
+                    label: 'Clear exports',
+                    color: tokens.warning,
+                    onTap: () => _clearExportCache(context),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SecondaryButton(
+                    label: 'Clear all keys',
+                    color: tokens.danger,
+                    onTap: () => _clearAllKeys(
+                      context,
+                      MobileProviderSessionScope.read(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: SecondaryButton(
+                    label: 'Clear chats',
+                    color: tokens.warning,
+                    onTap: () => _clearChatHistory(context),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SecondaryButton(
+                    label: 'Clear models',
+                    color: tokens.muted,
+                    onTap: () => _clearModelCache(
+                      context,
+                      MobileProviderSessionScope.read(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ];
     return ScreenFrame(
       title: 'Settings',
       subtitle: 'Security, exports, themes, privacy',
-      child: ListView(
+      child: ListView.builder(
         padding: const EdgeInsets.only(bottom: 112),
-        children: [
-          const SettingsGroup(
-            title: 'Security Model',
-            rows: [
-              SettingsRow(
-                icon: Icons.vpn_key_rounded,
-                title: 'Provider keys',
-                value: 'Device secure storage',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.eye_slash_fill,
-                title: 'Aurict server visibility',
-                value: 'No provider keys',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.lock_shield,
-                title: 'High-risk answers',
-                value: 'Verifier gated',
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const SettingsGroup(
-            title: 'Export Pipeline',
-            rows: [
-              SettingsRow(
-                icon: CupertinoIcons.doc_richtext,
-                title: 'PDF source',
-                value: 'Sanitized HTML/CSS',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.square_arrow_down,
-                title: 'Save to phone',
-                value: 'Native bridge required',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.share,
-                title: 'Share sheet',
-                value: 'Native bridge required',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.checkmark_shield,
-                title: 'Export claim',
-                value: 'After save/share event',
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const SettingsGroup(
-            title: 'Remote Control',
-            rows: [
-              SettingsRow(
-                icon: CupertinoIcons.desktopcomputer,
-                title: 'Remote mode',
-                value: 'Opt-in from CLI',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.timer,
-                title: 'Session trust',
-                value: 'Temporary by default',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.lock_shield,
-                title: 'Approvals',
-                value: 'Required by desktop policy',
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          GlassPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionLabel('Themes'),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (var i = 0; i < aurictThemes.length; i++)
-                      ThemeChip(
-                        tokens: aurictThemes[i],
-                        selected: i == selectedIndex,
-                        onTap: () => scope?.onThemeChanged(i),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          const MobileCapabilitiesCard(),
-          const SizedBox(height: 14),
-          const DiagnosticsSettingsCard(),
-          const SizedBox(height: 14),
-          SettingsGroup(
-            title: 'Data & Privacy',
-            rows: [
-              SettingsRow(
-                icon: CupertinoIcons.person_crop_circle,
-                title: 'Account',
-                value: 'Local session',
-                onTap: () =>
-                    AppShellScope.of(context)?.select(AppSection.account),
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.doc_text,
-                title: 'Privacy Policy',
-                value: 'View',
-                onTap: () => showAurictSheet(
-                  context,
-                  const LegalDocumentSheet(document: LegalDocument.privacy),
-                ),
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.doc_checkmark,
-                title: 'Terms of Use',
-                value: 'View',
-                onTap: () => showAurictSheet(
-                  context,
-                  const LegalDocumentSheet(document: LegalDocument.terms),
-                ),
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.square_stack_3d_up,
-                title: 'Model lists',
-                value: 'Fetched per provider',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.exclamationmark_bubble,
-                title: 'Diagnostics',
-                value: 'Local only',
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.doc_text_search,
-                title: 'Document previews',
-                value: 'Bounded metadata',
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          GlassPanel(
-            borderColor: tokens.danger.withValues(alpha: .22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SectionLabel('Production Controls'),
-                const SizedBox(height: 9),
-                Text(
-                  'These actions affect only this phone. Provider keys are removed from the native secure store; generated export cache is removed from local artifact storage.',
-                  style: TextStyle(color: tokens.muted, height: 1.4),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SecondaryButton(
-                        label: 'Clear exports',
-                        color: tokens.warning,
-                        onTap: () => _clearExportCache(context),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: SecondaryButton(
-                        label: 'Clear all keys',
-                        color: tokens.danger,
-                        onTap: () => _clearAllKeys(context, providerSession),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SecondaryButton(
-                        label: 'Clear chats',
-                        color: tokens.warning,
-                        onTap: () => _clearChatHistory(context),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: SecondaryButton(
-                        label: 'Clear models',
-                        color: tokens.muted,
-                        onTap: () => _clearModelCache(context, providerSession),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+        itemCount: sections.length,
+        itemBuilder: (context, index) => sections[index](context),
       ),
     );
   }
@@ -3060,6 +3067,7 @@ class MobileCapabilitiesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
+    final skills = MobileSkillRegistry.skills;
     return GlassPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3067,66 +3075,64 @@ class MobileCapabilitiesCard extends StatelessWidget {
           const SectionLabel('Built-in mobile skills'),
           const SizedBox(height: 10),
           Text(
-            '${MobileSkillRegistry.skills.length} mobile skills are available. Full skill content is lazy-loaded through load_mobile_skill; standalone mobile uses advisory mode when shell/repo access would be required.',
+            '${skills.length} mobile skills are available. Full skill content is lazy-loaded through load_mobile_skill; standalone mobile uses advisory mode when shell/repo access would be required.',
             style: TextStyle(color: tokens.muted, height: 1.4, fontSize: 12.5),
           ),
           const SizedBox(height: 12),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 220),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  for (final skill in MobileSkillRegistry.skills)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            skill.autoContinue
-                                ? CupertinoIcons.arrow_2_circlepath
-                                : CupertinoIcons.bolt,
-                            color: skill.autoContinue
-                                ? tokens.success
-                                : tokens.accent,
-                            size: 17,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  skill.name,
-                                  style: TextStyle(
-                                    color: tokens.text,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  skill.tools.join(' · '),
-                                  style: TextStyle(
-                                    color: tokens.muted,
-                                    fontSize: 11.5,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (skill.autoContinue)
-                            StatusPill(
-                              label: 'continue',
-                              color: tokens.success,
-                            ),
-                        ],
+            child: ListView.builder(
+              itemCount: skills.length,
+              itemBuilder: (context, index) {
+                final skill = skills[index];
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index == skills.length - 1 ? 0 : 10,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        skill.autoContinue
+                            ? CupertinoIcons.arrow_2_circlepath
+                            : CupertinoIcons.bolt,
+                        color: skill.autoContinue
+                            ? tokens.success
+                            : tokens.accent,
+                        size: 17,
                       ),
-                    ),
-                ],
-              ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              skill.name,
+                              style: TextStyle(
+                                color: tokens.text,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              skill.tools.join(' · '),
+                              style: TextStyle(
+                                color: tokens.muted,
+                                fontSize: 11.5,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (skill.autoContinue)
+                        StatusPill(label: 'continue', color: tokens.success),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 2),
@@ -3160,7 +3166,9 @@ class _DiagnosticsSettingsCardState extends State<DiagnosticsSettingsCard> {
   @override
   void initState() {
     super.initState();
-    unawaited(mobileDiagnostics.load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(mobileDiagnostics.load());
+    });
   }
 
   @override
@@ -5430,90 +5438,126 @@ class _ModelPickerSheetState extends State<ModelPickerSheet> {
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
     final providerSession = MobileProviderSessionScope.of(context);
+    final providers = providerSession.entries;
+    final sheetHeight = math.min(
+      MediaQuery.sizeOf(context).height * .78,
+      560.0,
+    );
     return GlassPanel(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 560),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: SizedBox(
+        height: sheetHeight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.memory_rounded, color: tokens.accent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Model selection',
+                    style: TextStyle(
+                      color: tokens.text,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+                StatusPill(
+                  label: providerSession.canUseSelectedModel
+                      ? 'ready'
+                      : 'local',
+                  color: providerSession.canUseSelectedModel
+                      ? tokens.success
+                      : tokens.muted,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Fetch models from API Keys, then pick any provider/model used by Chat streaming. Search filters across long model lists.',
+              style: TextStyle(color: tokens.muted, height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+              decoration: BoxDecoration(
+                color: tokens.surface.withValues(alpha: .72),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: tokens.border),
+              ),
+              child: Row(
                 children: [
-                  Icon(Icons.memory_rounded, color: tokens.accent),
+                  Icon(CupertinoIcons.search, color: tokens.muted, size: 17),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      'Model selection',
-                      style: TextStyle(
-                        color: tokens.text,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 20,
+                    child: TextField(
+                      controller: _searchController,
+                      style: TextStyle(color: tokens.text, fontSize: 13.5),
+                      decoration: InputDecoration.collapsed(
+                        hintText: 'Search all fetched models...',
+                        hintStyle: TextStyle(
+                          color: tokens.muted,
+                          fontSize: 13.5,
+                        ),
                       ),
                     ),
                   ),
-                  StatusPill(
-                    label: providerSession.canUseSelectedModel
-                        ? 'ready'
-                        : 'local',
-                    color: providerSession.canUseSelectedModel
-                        ? tokens.success
-                        : tokens.muted,
-                  ),
+                  if (_query.isNotEmpty)
+                    GestureDetector(
+                      onTap: _searchController.clear,
+                      child: Icon(
+                        CupertinoIcons.xmark_circle_fill,
+                        color: tokens.muted,
+                        size: 18,
+                      ),
+                    ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Fetch models from API Keys, then pick any provider/model used by Chat streaming. Search filters across long model lists.',
-                style: TextStyle(color: tokens.muted, height: 1.4),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 13,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: tokens.surface.withValues(alpha: .72),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: tokens.border),
-                ),
-                child: Row(
-                  children: [
-                    Icon(CupertinoIcons.search, color: tokens.muted, size: 17),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        style: TextStyle(color: tokens.text, fontSize: 13.5),
-                        decoration: InputDecoration.collapsed(
-                          hintText: 'Search all fetched models...',
-                          hintStyle: TextStyle(
-                            color: tokens.muted,
-                            fontSize: 13.5,
-                          ),
-                        ),
-                      ),
+            ),
+            const SizedBox(height: 14),
+            Expanded(
+              child: ListView.builder(
+                itemCount: providers.length,
+                itemBuilder: (context, index) {
+                  final provider = providers[index];
+                  final models = providerSession.modelsFor(provider.name);
+                  final selected =
+                      providerSession.selectedProvider == provider.name;
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index == providers.length - 1 ? 0 : 8,
                     ),
-                    if (_query.isNotEmpty)
-                      GestureDetector(
-                        onTap: _searchController.clear,
-                        child: Icon(
-                          CupertinoIcons.xmark_circle_fill,
-                          color: tokens.muted,
-                          size: 18,
-                        ),
+                    child: ModelProviderPickerRow(
+                      provider: provider,
+                      query: _query,
+                      models: models,
+                      favorites: providerSession.favoriteModelsFor(
+                        provider.name,
                       ),
-                  ],
-                ),
+                      recent: providerSession.recentModelsFor(provider.name),
+                      selected: selected,
+                      selectedModel: selected
+                          ? providerSession.selectedModel
+                          : null,
+                      hasKey: providerSession.hasKey(provider.name),
+                      loading: providerSession.isLoading(provider.name),
+                      onFetchModels: () =>
+                          providerSession.fetchModels(provider, force: true),
+                      onSelect: (model) {
+                        providerSession.selectModel(provider.name, model);
+                        Navigator.pop(context);
+                      },
+                      isFavorite: (model) =>
+                          providerSession.isFavoriteModel(provider.name, model),
+                      onToggleFavorite: (model) => providerSession
+                          .toggleFavoriteModel(provider.name, model),
+                    ),
+                  );
+                },
               ),
-              const SizedBox(height: 14),
-              for (final provider in providerSession.entries) ...[
-                ModelProviderPickerRow(provider: provider, query: _query),
-                const SizedBox(height: 8),
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -5524,25 +5568,42 @@ class ModelProviderPickerRow extends StatelessWidget {
   const ModelProviderPickerRow({
     required this.provider,
     required this.query,
+    required this.models,
+    required this.favorites,
+    required this.recent,
+    required this.selected,
+    required this.hasKey,
+    required this.loading,
+    required this.onFetchModels,
+    required this.onSelect,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+    this.selectedModel,
     super.key,
   });
 
+  static const _collapsedModelLimit = 12;
+  static const _searchResultLimit = 80;
+
   final MobileProviderEntry provider;
   final String query;
+  final List<String> models;
+  final List<String> favorites;
+  final List<String> recent;
+  final bool selected;
+  final bool hasKey;
+  final bool loading;
+  final VoidCallback onFetchModels;
+  final ValueChanged<String> onSelect;
+  final bool Function(String model) isFavorite;
+  final ValueChanged<String> onToggleFavorite;
+  final String? selectedModel;
 
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
-    final providerSession = MobileProviderSessionScope.of(context);
-    final models = providerSession.modelsFor(provider.name);
-    final favorites = providerSession.favoriteModelsFor(provider.name);
-    final recent = providerSession.recentModelsFor(provider.name);
-    final filteredModels = query.isEmpty
-        ? models
-        : models
-              .where((model) => model.toLowerCase().contains(query))
-              .toList(growable: false);
-    final selected = providerSession.selectedProvider == provider.name;
+    final filteredModels = _filteredModels();
+    final visibleModels = _visibleModels(filteredModels);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -5571,12 +5632,8 @@ class ModelProviderPickerRow extends StatelessWidget {
                 ),
               ),
               StatusPill(
-                label: providerSession.hasKey(provider.name)
-                    ? '${models.length} models'
-                    : 'no key',
-                color: providerSession.hasKey(provider.name)
-                    ? tokens.success
-                    : tokens.muted,
+                label: hasKey ? '${models.length} models' : 'no key',
+                color: hasKey ? tokens.success : tokens.muted,
               ),
             ],
           ),
@@ -5586,24 +5643,15 @@ class ModelProviderPickerRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  providerSession.hasKey(provider.name)
-                      ? 'No cached models yet.'
-                      : provider.model,
+                  hasKey ? 'No cached models yet.' : provider.model,
                   style: TextStyle(color: tokens.muted, fontSize: 12.5),
                 ),
-                if (providerSession.hasKey(provider.name)) ...[
+                if (hasKey) ...[
                   const SizedBox(height: 9),
                   SecondaryButton(
-                    label: providerSession.isLoading(provider.name)
-                        ? 'Fetching...'
-                        : 'Fetch models',
+                    label: loading ? 'Fetching...' : 'Fetch models',
                     color: tokens.accent,
-                    onTap: providerSession.isLoading(provider.name)
-                        ? null
-                        : () => providerSession.fetchModels(
-                            provider,
-                            force: true,
-                          ),
+                    onTap: loading ? null : onFetchModels,
                   ),
                 ],
               ],
@@ -5626,43 +5674,55 @@ class ModelProviderPickerRow extends StatelessWidget {
                       for (final model in recent)
                         if (!favorites.contains(model)) model,
                     ],
-                    selectedModel: selected
-                        ? providerSession.selectedModel
-                        : null,
-                    onSelect: (model) {
-                      providerSession.selectModel(provider.name, model);
-                      Navigator.pop(context);
-                    },
+                    selectedModel: selectedModel,
+                    onSelect: onSelect,
                   ),
                   const SizedBox(height: 10),
                 ],
                 Text(
-                  query.isEmpty
-                      ? 'Showing all ${models.length} models'
-                      : 'Showing ${filteredModels.length} of ${models.length} models',
+                  _resultLabel(filteredModels.length, visibleModels.length),
                   style: TextStyle(color: tokens.muted, fontSize: 11.5),
                 ),
                 const SizedBox(height: 8),
                 ModelOptionList(
                   provider: provider.name,
-                  models: filteredModels,
-                  selectedModel: selected
-                      ? providerSession.selectedModel
-                      : null,
-                  isFavorite: (model) =>
-                      providerSession.isFavoriteModel(provider.name, model),
-                  onToggleFavorite: (model) =>
-                      providerSession.toggleFavoriteModel(provider.name, model),
-                  onSelect: (model) {
-                    providerSession.selectModel(provider.name, model);
-                    Navigator.pop(context);
-                  },
+                  models: visibleModels,
+                  selectedModel: selectedModel,
+                  isFavorite: isFavorite,
+                  onToggleFavorite: onToggleFavorite,
+                  onSelect: onSelect,
                 ),
               ],
             ),
         ],
       ),
     );
+  }
+
+  List<String> _filteredModels() {
+    if (query.isEmpty) return models;
+    return models
+        .where((model) => model.toLowerCase().contains(query))
+        .take(_searchResultLimit)
+        .toList(growable: false);
+  }
+
+  List<String> _visibleModels(List<String> filteredModels) {
+    if (query.isNotEmpty || selected) return filteredModels;
+    return filteredModels.take(_collapsedModelLimit).toList(growable: false);
+  }
+
+  String _resultLabel(int filteredCount, int visibleCount) {
+    if (query.isNotEmpty) {
+      if (filteredCount >= _searchResultLimit) {
+        return 'Showing first $_searchResultLimit matches. Refine search for more.';
+      }
+      return 'Showing $filteredCount of ${models.length} matching models';
+    }
+    if (selected || visibleCount == models.length) {
+      return 'Showing all ${models.length} models';
+    }
+    return 'Showing $visibleCount of ${models.length} models. Search to narrow the full list.';
   }
 }
 

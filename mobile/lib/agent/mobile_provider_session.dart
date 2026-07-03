@@ -32,8 +32,7 @@ class MobileProviderSession extends ChangeNotifier {
        _modelCacheStore =
            modelCacheStore ?? MethodChannelMobileModelCacheStore(),
        _errorReporter = errorReporter {
-    _loadModelCache();
-    _loadStoredKeys();
+    unawaited(_hydrateInitialState());
   }
 
   final MobileProviderModelService _modelService;
@@ -164,23 +163,38 @@ class MobileProviderSession extends ChangeNotifier {
     return key != null && key.isNotEmpty && model != null && model.isNotEmpty;
   }
 
-  Future<void> _loadStoredKeys() async {
-    final loaded = await _keyStore.readAll(
+  Future<void> _hydrateInitialState() async {
+    final cacheFuture = _modelCacheStore.readAll();
+    final keyFuture = _keyStore.readAll(
       providers.map((provider) => provider.name).toList(growable: false),
     );
-    if (loaded.isEmpty) return;
+    try {
+      final loadedCache = await cacheFuture;
+      final loadedKeys = await keyFuture;
+      var changed = false;
+      changed = _applyModelCache(loadedCache) || changed;
+      changed = _applyStoredKeys(loadedKeys) || changed;
+      if (changed) notifyListeners();
+    } catch (error) {
+      unawaited(
+        _errorReporter?.call(error, 'provider_hydrate') ?? Future.value(),
+      );
+    }
+  }
+
+  bool _applyStoredKeys(Map<String, MobileStoredProviderKey> loaded) {
+    if (loaded.isEmpty) return false;
     _storedKeys
       ..clear()
       ..addAll(loaded);
     if (!_storedKeys.containsKey(_selectedProvider)) {
       _selectedProvider = _storedKeys.keys.first;
     }
-    notifyListeners();
+    return true;
   }
 
-  Future<void> _loadModelCache() async {
-    final loaded = await _modelCacheStore.readAll();
-    if (loaded.isEmpty) return;
+  bool _applyModelCache(Map<String, MobileCachedModelList> loaded) {
+    if (loaded.isEmpty) return false;
     for (final entry in loaded.entries) {
       final cached = entry.value;
       if (cached.models.isEmpty) continue;
@@ -196,7 +210,7 @@ class MobileProviderSession extends ChangeNotifier {
     if (_models[_selectedProvider]?.isNotEmpty == true) {
       _selectedModel = _models[_selectedProvider]!.first;
     }
-    notifyListeners();
+    return true;
   }
 
   Future<void> saveTemporaryKey(String provider, String key) {
@@ -214,6 +228,7 @@ class MobileProviderSession extends ChangeNotifier {
       _models.remove(provider);
       _modelFetchedAt.remove(provider);
       _modelCacheGeneration++;
+      _errors.remove(provider);
       if (_selectedProvider == provider) _selectedModel = null;
       notifyListeners();
       await _keyStore.delete(provider);
@@ -227,6 +242,7 @@ class MobileProviderSession extends ChangeNotifier {
       );
       _storedKeys[provider] = stored;
       _selectedProvider = provider;
+      _errors.remove(provider);
       notifyListeners();
       await _keyStore.save(stored);
       if (autoFetchModels) {
@@ -234,8 +250,6 @@ class MobileProviderSession extends ChangeNotifier {
         if (entry != null) unawaited(fetchModels(entry));
       }
     }
-    _errors.remove(provider);
-    notifyListeners();
   }
 
   Future<void> clearProvider(String provider) async {
@@ -424,6 +438,14 @@ class MobileProviderSessionScope
   static MobileProviderSession of(BuildContext context) {
     final scope = context
         .dependOnInheritedWidgetOfExactType<MobileProviderSessionScope>();
+    assert(scope != null, 'MobileProviderSessionScope not found');
+    return scope!.notifier!;
+  }
+
+  static MobileProviderSession read(BuildContext context) {
+    final element = context
+        .getElementForInheritedWidgetOfExactType<MobileProviderSessionScope>();
+    final scope = element?.widget as MobileProviderSessionScope?;
     assert(scope != null, 'MobileProviderSessionScope not found');
     return scope!.notifier!;
   }

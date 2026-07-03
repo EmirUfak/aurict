@@ -132,6 +132,7 @@ class MobileDiagnosticsController extends ChangeNotifier {
   bool get loaded => _loaded;
 
   Future<void> load() async {
+    if (_loaded) return;
     final events = await _store.readEvents();
     _events
       ..clear()

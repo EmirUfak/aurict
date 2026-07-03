@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 enum MobileModelProvider {
   openai,
   anthropic,
@@ -287,8 +289,10 @@ class MobileProviderModelService {
           uri: request.uri,
         );
       }
-      final jsonBody = jsonDecode(body);
-      final parsedModels = parseModels(config.provider, jsonBody);
+      final parsedModels = await compute(parseMobileModelListResponse, {
+        'provider': config.provider.index,
+        'body': body,
+      });
       return MobileModelListResult(
         provider: config.provider,
         models: parsedModels.isEmpty && config.defaultModels.isNotEmpty
@@ -319,4 +323,13 @@ class MobileProviderModelService {
     }
     return const [];
   }
+}
+
+List<String> parseMobileModelListResponse(Map<String, Object?> payload) {
+  final providerIndex = payload['provider'];
+  final body = payload['body'];
+  if (providerIndex is! int || body is! String) return const [];
+  final provider = MobileModelProvider.values[providerIndex];
+  final jsonBody = jsonDecode(body);
+  return const MobileProviderModelService().parseModels(provider, jsonBody);
 }

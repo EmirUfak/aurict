@@ -97,6 +97,29 @@ class MethodChannelMobileSecureKeyStore implements MobileSecureKeyStore {
   Future<Map<String, MobileStoredProviderKey>> readAll(
     List<String> providers,
   ) async {
+    try {
+      final values = await channel.invokeMapMethod<String, Object?>(
+        'readAllProviderKeys',
+        {'providers': providers},
+      );
+      if (values == null) return const {};
+      final result = <String, MobileStoredProviderKey>{};
+      for (final entry in values.entries) {
+        final value = entry.value;
+        if (value is Map) {
+          final parsed = _fromMap(Map<String, Object?>.from(value));
+          if (parsed.key.isNotEmpty) result[entry.key] = parsed;
+        }
+      }
+      return result;
+    } on MissingPluginException {
+      return readAllSequential(providers);
+    }
+  }
+
+  Future<Map<String, MobileStoredProviderKey>> readAllSequential(
+    List<String> providers,
+  ) async {
     final result = <String, MobileStoredProviderKey>{};
     for (final provider in providers) {
       final key = await read(provider);

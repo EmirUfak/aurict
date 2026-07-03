@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class MobileCachedModelList {
@@ -91,16 +92,10 @@ class MethodChannelMobileModelCacheStore implements MobileModelCacheStore {
   Future<Map<String, MobileCachedModelList>> readAll() async {
     try {
       final raw = await channel.invokeMethod<String>('readModelCache');
-      final decoded = jsonDecode(raw ?? '{}');
-      if (decoded is! Map<String, Object?>) return const {};
-      final result = <String, MobileCachedModelList>{};
-      for (final entry in decoded.entries) {
-        final value = entry.value;
-        if (value is! Map<String, Object?>) continue;
-        final cached = MobileCachedModelList.fromJson(value);
-        if (cached != null) result[entry.key] = cached;
+      if (raw == null || raw.trim().isEmpty || raw.trim() == '{}') {
+        return const {};
       }
-      return result;
+      return compute(parseMobileModelCachePayload, raw);
     } on MissingPluginException {
       return _fallback.readAll();
     }
@@ -126,4 +121,17 @@ class MethodChannelMobileModelCacheStore implements MobileModelCacheStore {
       await _fallback.clear();
     }
   }
+}
+
+Map<String, MobileCachedModelList> parseMobileModelCachePayload(String raw) {
+  final decoded = jsonDecode(raw);
+  if (decoded is! Map<String, Object?>) return const {};
+  final result = <String, MobileCachedModelList>{};
+  for (final entry in decoded.entries) {
+    final value = entry.value;
+    if (value is! Map<String, Object?>) continue;
+    final cached = MobileCachedModelList.fromJson(value);
+    if (cached != null) result[entry.key] = cached;
+  }
+  return result;
 }

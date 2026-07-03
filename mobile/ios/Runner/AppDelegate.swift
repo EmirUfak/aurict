@@ -79,6 +79,8 @@ import UIKit
         self.saveProviderKey(call.arguments, result: result)
       case "readProviderKey":
         self.readProviderKey(call.arguments, result: result)
+      case "readAllProviderKeys":
+        self.readAllProviderKeys(call.arguments, result: result)
       case "deleteProviderKey":
         self.deleteProviderKey(call.arguments, result: result)
       default:
@@ -645,6 +647,40 @@ import UIKit
     } catch {
       result(FlutterError(code: "decode_failed", message: error.localizedDescription, details: nil))
     }
+  }
+
+  private func readAllProviderKeys(_ arguments: Any?, result: FlutterResult) {
+    guard
+      let map = arguments as? [String: Any],
+      let providers = map["providers"] as? [String]
+    else {
+      result(FlutterError(code: "bad_args", message: "readAllProviderKeys requires providers.", details: nil))
+      return
+    }
+    var values: [String: Any] = [:]
+    for provider in providers where !provider.isEmpty {
+      var query = keychainQuery(provider: provider)
+      query[kSecReturnData as String] = true
+      query[kSecMatchLimit as String] = kSecMatchLimitOne
+      var item: CFTypeRef?
+      let status = SecItemCopyMatching(query as CFDictionary, &item)
+      if status == errSecItemNotFound {
+        continue
+      }
+      guard status == errSecSuccess, let data = item as? Data else {
+        result(FlutterError(code: "keychain_read_failed", message: "Keychain read failed: \(status)", details: nil))
+        return
+      }
+      do {
+        if let decoded = try JSONSerialization.jsonObject(with: data) as? [String: String] {
+          values[provider] = decoded
+        }
+      } catch {
+        result(FlutterError(code: "decode_failed", message: error.localizedDescription, details: nil))
+        return
+      }
+    }
+    result(values)
   }
 
   private func deleteProviderKey(_ arguments: Any?, result: FlutterResult) {

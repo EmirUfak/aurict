@@ -98,6 +98,7 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "saveProviderKey" -> saveProviderKey(call.arguments, result)
                     "readProviderKey" -> readProviderKey(call.arguments, result)
+                    "readAllProviderKeys" -> readAllProviderKeys(call.arguments, result)
                     "deleteProviderKey" -> deleteProviderKey(call.arguments, result)
                     else -> result.notImplemented()
                 }
@@ -467,6 +468,35 @@ class MainActivity : FlutterActivity() {
         } catch (error: Throwable) {
             result.error("decrypt_failed", error.message ?: "Unable to decrypt provider key.", null)
         }
+    }
+
+    private fun readAllProviderKeys(arguments: Any?, result: MethodChannel.Result) {
+        val map = arguments as? Map<*, *>
+        val providers = (map?.get("providers") as? List<*>)
+            ?.mapNotNull { it?.toString()?.takeIf { value -> value.isNotBlank() } }
+        if (providers == null) {
+            result.error("bad_args", "readAllProviderKeys requires providers.", null)
+            return
+        }
+        val values = mutableMapOf<String, Map<String, String>>()
+        val prefs = securePrefs()
+        for (provider in providers) {
+            val stored = prefs.getString(provider, null)
+            if (stored.isNullOrBlank()) continue
+            try {
+                val decoded = JSONObject(decryptProviderPayload(stored))
+                values[provider] = mapOf(
+                    "provider" to decoded.optString("provider", provider),
+                    "key" to decoded.optString("key", ""),
+                    "createdAt" to decoded.optString("createdAt", ""),
+                    "lastUsedAt" to decoded.optString("lastUsedAt", ""),
+                )
+            } catch (error: Throwable) {
+                result.error("decrypt_failed", error.message ?: "Unable to decrypt provider key.", null)
+                return
+            }
+        }
+        result.success(values)
     }
 
     private fun deleteProviderKey(arguments: Any?, result: MethodChannel.Result) {
