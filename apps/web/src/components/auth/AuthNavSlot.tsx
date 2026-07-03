@@ -22,10 +22,10 @@ export function AuthNavSlot({ drawer = false }: { drawer?: boolean }) {
     let cancelled = false
     async function loadUser() {
       try {
-        const response = await fetch("/api/auth/me", { cache: "no-store" })
+        const response = await fetch("/api/auth/session", { cache: "no-store" })
         const body = await response.json().catch(() => undefined)
         if (cancelled) return
-        if (response.ok && body?.ok && body.user) {
+        if (response.ok && body?.ok && body.authenticated && body.user) {
           setState({ status: "user", user: body.user as AuthUser })
         } else {
           setState({ status: "guest" })
