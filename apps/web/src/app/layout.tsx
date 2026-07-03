@@ -16,10 +16,14 @@ export const metadata: Metadata = {
   },
 
   description:
-    "Open-source terminal AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and support for Anthropic, OpenAI, Google, and 6 more providers. No IDE required. Works in macOS, Linux, and Windows.",
+    "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and support for Anthropic, OpenAI, Google, and 6 more providers. No IDE required. Works in macOS, Linux, and Windows.",
 
   keywords: [
+    "open source terminal agent",
+    "open-source terminal agent",
     "terminal AI coding assistant",
+    "terminal agent",
+    "AI terminal agent",
     "AI coding tool",
     "AI terminal assistant",
     "Claude Code alternative",
@@ -55,7 +59,7 @@ export const metadata: Metadata = {
     url:         BASE_URL,
     siteName:    "Aurict",
     title:       "Aurict — Terminal AI Coding Assistant",
-    description: "Open-source terminal AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and multi-provider support. One command to rule your codebase.",
+    description: "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and multi-provider support. One command to rule your codebase.",
     images: [
       {
         url:    "/opengraph-image",
@@ -71,7 +75,7 @@ export const metadata: Metadata = {
     site:        "@aurictdev",
     creator:     "@aurictdev",
     title:       "Aurict — Terminal AI Coding Assistant",
-    description: "Open-source terminal AI assistant — 9 agents, 218+ skills, 9 providers. No IDE required.",
+    description: "Open-source terminal agent and AI assistant — 9 agents, 218+ skills, 9 providers. No IDE required.",
     images:      ["/opengraph-image"],
   },
 

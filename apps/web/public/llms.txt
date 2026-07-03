@@ -1,10 +1,10 @@
 # Aurict
 
-> Open-source terminal AI coding assistant and BYOK mobile AI workspace. Aurict focuses on provider flexibility, specialist agents, local-first workflows, objective assistance, research, document generation, and terminal-native developer productivity.
+> Open-source terminal agent, AI coding assistant, and BYOK mobile AI workspace. Aurict focuses on provider flexibility, specialist agents, local-first workflows, objective assistance, research, document generation, and terminal-native developer productivity.
 
 ## Core Pages
 
-- [Aurict — Terminal AI Coding Assistant](https://aurict.com/): Open-source terminal AI coding assistant with specialist agents, contextual skills, multi-provider support, and a BYOK mobile assistant.
+- [Aurict — Terminal AI Coding Assistant](https://aurict.com/): Open-source terminal agent and AI coding assistant with specialist agents, contextual skills, multi-provider support, and a BYOK mobile assistant.
 - [Documentation](https://aurict.com/docs): Install Aurict, configure providers and API keys, connect tools, use agent workflows, and understand the runtime.
 - [About Aurict](https://aurict.com/about): The Aurict manifesto, architecture philosophy, BYOK model, objectivity principle, and long-term product vision.
 - [Roadmap](https://aurict.com/roadmap): Product direction across the terminal agent, mobile BYOK assistant, web platform, security workflows, and future AI research.

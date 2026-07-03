@@ -137,7 +137,7 @@ function Hero() {
             open source · terminal-native · nine specialist agents
           </div>
           <h1 className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 78, lineHeight: 1.03, letterSpacing: "-.015em", color: "oklch(0.96 0.004 80)", margin: "0 0 32px", animationDelay: ".05s" }}>Never leave the terminal.</h1>
-          <p className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 400, fontSize: 19, lineHeight: 1.62, color: "oklch(0.7 0.01 75)", maxWidth: 470, margin: "0 0 20px", animationDelay: ".1s" }}>Aurict reads your codebase before you type a word, routes work across nine specialist agents, and calls whichever model provider you already trust — all inside the shell you never leave.</p>
+          <p className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 400, fontSize: 19, lineHeight: 1.62, color: "oklch(0.7 0.01 75)", maxWidth: 470, margin: "0 0 20px", animationDelay: ".1s" }}>Aurict is an open-source terminal agent that reads your codebase before you type a word, routes work across nine specialist agents, and calls whichever model provider you already trust — all inside the shell you never leave.</p>
           <p className="aur-rise mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", margin: "0 0 40px", animationDelay: ".12s" }}>no browser tab · no extension host · no clipboard round-trip</p>
           <div className="aur-rise landing-cta-row" style={{ animationDelay: ".15s" }}>
             <a className="mono landing-button-primary" href="#install">$ npm install -g aurict</a>

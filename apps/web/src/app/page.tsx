@@ -51,7 +51,7 @@ const howToJsonLd = {
   "@context": "https://schema.org",
   "@type":    "HowTo",
   "name":     "How to install and run Aurict",
-  "description": "Install the open-source terminal AI coding assistant in three steps.",
+  "description": "Install the open-source terminal agent and AI coding assistant in three steps.",
   "totalTime": "PT1M",
   "step": [
     {
@@ -86,7 +86,7 @@ const jsonLd = {
       "name":                "Aurict",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem":     "macOS, Linux, Windows",
-      "description":         "Open-source terminal AI coding assistant with 9 specialist agents, 218+ auto-injected contextual skills, bash classifier, MCP client, and support for 9 AI providers. Install with one npm command.",
+      "description":         "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected contextual skills, bash classifier, MCP client, and support for 9 AI providers. Install with one npm command.",
       "url":                 "https://aurict.com",
       "downloadUrl":         "https://www.npmjs.com/package/aurict",
       "installUrl":          "https://www.npmjs.com/package/aurict",
@@ -122,7 +122,7 @@ const jsonLd = {
       "@type":       "WebSite",
       "url":         "https://aurict.com",
       "name":        "Aurict",
-      "description": "Open-source terminal AI coding assistant",
+      "description": "Open-source terminal agent and AI coding assistant",
     },
     {
       "@type":  "Organization",
