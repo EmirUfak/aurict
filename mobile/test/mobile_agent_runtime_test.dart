@@ -4,16 +4,19 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:aurict_mobile/agent/mobile_agent_runtime.dart';
+import 'package:aurict_mobile/agent/mobile_artifact_index_store.dart';
 import 'package:aurict_mobile/agent/mobile_artifact_renderer.dart';
 import 'package:aurict_mobile/agent/mobile_artifacts.dart';
 import 'package:aurict_mobile/agent/mobile_chat_history_store.dart';
 import 'package:aurict_mobile/agent/mobile_chat_stream.dart';
+import 'package:aurict_mobile/agent/mobile_citation_audit_tool.dart';
 import 'package:aurict_mobile/agent/mobile_citations.dart';
 import 'package:aurict_mobile/agent/mobile_cli_skill_importer.dart';
 import 'package:aurict_mobile/agent/mobile_diagnostics.dart';
 import 'package:aurict_mobile/agent/mobile_document_picker.dart';
 import 'package:aurict_mobile/agent/mobile_document_tools.dart';
 import 'package:aurict_mobile/agent/mobile_html_pdf_tools.dart';
+import 'package:aurict_mobile/agent/mobile_memory_tools.dart';
 import 'package:aurict_mobile/agent/mobile_model_cache_store.dart';
 import 'package:aurict_mobile/agent/mobile_ocr_tools.dart';
 import 'package:aurict_mobile/agent/mobile_productivity_tools.dart';
@@ -635,6 +638,24 @@ void main() {
     expect(prompt, contains('load_mobile_skill'));
   });
 
+  test('mobile intent router returns confidence and reasons', () {
+    const router = MobileIntentRouter();
+    final analysis = router.analyze(
+      'Prepare a sourced PDF report about current AI compliance trends',
+    );
+
+    expect(analysis.intents, contains(MobilePromptIntent.document));
+    expect(analysis.intents, contains(MobilePromptIntent.research));
+    expect(
+      analysis.scoreFor(MobilePromptIntent.document)?.confidence,
+      greaterThanOrEqualTo(.24),
+    );
+    expect(
+      analysis.scoreFor(MobilePromptIntent.research)?.reasons,
+      contains('current'),
+    );
+  });
+
   test('completion gate blocks unfinished source and artifact work', () {
     final artifacts = const MobileArtifactPlanner().plan('Create a PDF report');
     final blocked = const MobileCompletionGate().evaluate(
@@ -907,7 +928,9 @@ void main() {
     expect(tools, contains('calculator'));
     expect(tools, contains('table_tool'));
     expect(tools, contains('citation_manager'));
+    expect(tools, contains('note_memory'));
     expect(tools, isNot(contains('web_search')));
+    expect(tools, isNot(contains('citation_audit')));
     expect(tools, isNot(contains('document_export')));
     expect(tools, isNot(contains('task_ledger')));
     final messages = request.body['messages'] as List<Object?>;
@@ -916,6 +939,49 @@ void main() {
       messages.first.toString(),
       contains('answer directly without task_ledger'),
     );
+  });
+
+  test(
+    'Anthropic chat adapter builds native messages request without tools',
+    () {
+      const service = MobileChatStreamingService();
+      final request = service.buildChatRequest(
+        MobileChatRequest(
+          config: MobileProviderModelService.anthropic,
+          apiKey: 'anthropic-test',
+          model: 'claude-test',
+          messages: const [MobileChatMessage(role: 'user', content: 'hello')],
+        ),
+      );
+
+      expect(request.uri.toString(), 'https://api.anthropic.com/v1/messages');
+      expect(request.headers['x-api-key'], 'anthropic-test');
+      expect(request.protocol, MobileChatStreamProtocol.anthropic);
+      expect(request.supportsToolLoop, isFalse);
+      expect(
+        request.body['system'].toString(),
+        contains('Aurict Mobile Runtime'),
+      );
+      expect(request.body.containsKey('tools'), isFalse);
+    },
+  );
+
+  test('Google chat adapter builds streamGenerateContent request', () {
+    const service = MobileChatStreamingService();
+    final request = service.buildChatRequest(
+      MobileChatRequest(
+        config: MobileProviderModelService.google,
+        apiKey: 'google-test',
+        model: 'gemini-test',
+        messages: const [MobileChatMessage(role: 'user', content: 'hello')],
+      ),
+    );
+
+    expect(request.uri.toString(), contains(':streamGenerateContent'));
+    expect(request.uri.query, contains('key=google-test'));
+    expect(request.protocol, MobileChatStreamProtocol.google);
+    expect(request.supportsToolLoop, isFalse);
+    expect(request.body['contents'].toString(), contains('hello'));
   });
 
   test('chat request exposes heavy tools only for matching intent', () {
@@ -942,33 +1008,80 @@ void main() {
     expect(tools, contains('web_search'));
     expect(tools, contains('web_fetch_plus'));
     expect(tools, contains('source_distill'));
+    expect(tools, contains('citation_audit'));
     expect(tools, contains('document_export'));
     expect(tools, contains('html_document_create'));
     expect(tools, contains('html_to_pdf'));
     expect(tools, contains('answer_verifier'));
   });
 
-  test('Alibaba chat streaming omits tool schemas unsupported with stream', () {
-    const service = MobileChatStreamingService();
-    final request = service.buildChatRequest(
-      MobileChatRequest(
-        config: MobileProviderModelService.alibaba,
-        apiKey: 'dashscope-test',
-        model: 'qwen-plus',
-        messages: const [MobileChatMessage(role: 'user', content: 'hello')],
-      ),
-    );
+  test(
+    'Alibaba chat streaming tries tool schemas for fallback-capable models',
+    () {
+      const service = MobileChatStreamingService();
+      final request = service.buildChatRequest(
+        MobileChatRequest(
+          config: MobileProviderModelService.alibaba,
+          apiKey: 'dashscope-test',
+          model: 'qwen-plus',
+          messages: const [MobileChatMessage(role: 'user', content: 'hello')],
+        ),
+      );
 
-    expect(
-      request.uri.toString(),
-      'https://dashscope-us.aliyuncs.com/compatible-mode/v1/chat/completions',
-    );
-    expect(request.headers['authorization'], 'Bearer dashscope-test');
-    expect(request.body['model'], 'qwen-plus');
-    expect(request.body['stream'], isTrue);
-    expect(request.body.containsKey('tools'), isFalse);
-    expect(request.body.containsKey('tool_choice'), isFalse);
-  });
+      expect(
+        request.uri.toString(),
+        'https://dashscope-us.aliyuncs.com/compatible-mode/v1/chat/completions',
+      );
+      expect(request.headers['authorization'], 'Bearer dashscope-test');
+      expect(request.body['model'], 'qwen-plus');
+      expect(request.body['stream'], isTrue);
+      expect(request.body.containsKey('tools'), isTrue);
+      expect(request.body['tool_choice'], 'auto');
+    },
+  );
+
+  test(
+    'chat stream fallback policy retries only likely tool schema failures',
+    () {
+      const service = MobileChatStreamingService();
+
+      expect(
+        service.shouldRetryWithoutToolsForTest(
+          statusCode: 400,
+          body: '{"error":"unsupported parameter: tools"}',
+        ),
+        isTrue,
+      );
+      expect(
+        service.shouldRetryWithoutToolsForTest(
+          statusCode: 422,
+          body: '{"error":"invalid schema for function call"}',
+        ),
+        isTrue,
+      );
+      expect(
+        service.shouldRetryWithoutToolsForTest(
+          statusCode: 401,
+          body: '{"error":"invalid api key"}',
+        ),
+        isFalse,
+      );
+      expect(
+        service.shouldRetryWithoutToolsForTest(
+          statusCode: 429,
+          body: '{"error":"rate limited"}',
+        ),
+        isFalse,
+      );
+      expect(
+        service.shouldRetryWithoutToolsForTest(
+          statusCode: 500,
+          body: '{"error":"server failed while processing tools"}',
+        ),
+        isFalse,
+      );
+    },
+  );
 
   test('chat stream parser keeps answer text separate from thinking', () {
     const service = MobileChatStreamingService();
@@ -983,6 +1096,22 @@ void main() {
     expect(normal.single.delta, 'hello answer');
     expect(thinking.single.type, MobileChatEventType.thinkingDelta);
     expect(thinking.single.delta, 'private thought');
+  });
+
+  test('chat stream parser handles Anthropic and Google text deltas', () {
+    const service = MobileChatStreamingService();
+    final anthropic = service.parseStreamFrameForProtocolTest(
+      '{"type":"content_block_delta","delta":{"type":"text_delta","text":"hello"}}',
+      MobileChatStreamProtocol.anthropic,
+    );
+    final google = service.parseStreamFrameForProtocolTest(
+      '{"candidates":[{"content":{"parts":[{"text":"world"}]}}]}',
+      MobileChatStreamProtocol.google,
+    );
+
+    expect(anthropic.single.delta, 'hello');
+    expect(anthropic.single.type, MobileChatEventType.textDelta);
+    expect(google.single.delta, 'world');
   });
 
   test('chat stream parser keeps tool call chunks on stable index id', () {
@@ -1007,6 +1136,201 @@ void main() {
     expect(body, isA<Map<String, Object?>>());
     expect(body['ok'], isFalse);
     expect(body['error'].toString(), contains('public HTTP/HTTPS'));
+  });
+
+  test(
+    'chat tool executor runs note_memory with injected local store',
+    () async {
+      final store = MemoryMobileNoteMemoryStore();
+      final service = MobileChatStreamingService(
+        noteMemoryTool: MobileNoteMemoryTool(store: store),
+      );
+
+      final remembered =
+          jsonDecode(
+                await service.executeToolForTest('note_memory', {
+                  'action': 'remember',
+                  'text': 'Use compact answers in mobile mode.',
+                  'category': 'style',
+                }),
+              )
+              as Map<String, Object?>;
+      final listed =
+          jsonDecode(
+                await service.executeToolForTest('note_memory', {
+                  'action': 'list',
+                }),
+              )
+              as Map<String, Object?>;
+
+      expect(remembered['ok'], isTrue);
+      expect(listed['count'], 1);
+      expect(listed['records'].toString(), contains('compact answers'));
+    },
+  );
+
+  test('chat tool executor runs citation_audit gate', () async {
+    const service = MobileChatStreamingService();
+    final result =
+        jsonDecode(
+              await service.executeToolForTest('citation_audit', {
+                'answer':
+                    'Current research shows a measurable improvement. '
+                    'The direct source supports this claim [S1].',
+                'citations': [
+                  {'id': 'S1', 'confidence': 'high'},
+                ],
+              }),
+            )
+            as Map<String, Object?>;
+
+    expect(result['ok'], isTrue);
+    expect(result['tool'], 'citation_audit');
+    expect(result['verdict'], 'revise');
+    expect(result['issues'].toString(), contains('possible_uncited_claims'));
+  });
+
+  test(
+    'encrypted chat history stores message payload outside plain snapshot',
+    () async {
+      final inner = MemoryMobileChatHistoryStore();
+      final encrypted = EncryptedMobileChatHistoryStore(inner: inner);
+      final snapshot = MobileChatThreadSnapshot(
+        meta: MobileChatThreadMeta(
+          id: 't1',
+          title: 'Sensitive chat',
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+          messageCount: 1,
+          preview: 'secret preview',
+        ),
+        messages: const [
+          {'role': 'user', 'text': 'secret body'},
+        ],
+      );
+
+      await encrypted.writeThread(snapshot);
+      final raw = await inner.readThread('t1');
+      final restored = await encrypted.readThread('t1');
+
+      expect(raw?.messages, isEmpty);
+      expect(raw?.encryptedPayload, isNotNull);
+      expect(raw?.encryptedPayload, isNot(contains('secret body')));
+      expect(restored?.messages.single['text'], 'secret body');
+    },
+  );
+
+  test(
+    'artifact index upserts and removes records by thread and artifact',
+    () async {
+      final store = MemoryMobileArtifactIndexStore();
+      await store.upsertThreadArtifacts(
+        threadId: 'thread-1',
+        threadTitle: 'Report thread',
+        updatedAt: DateTime.utc(2026, 1, 1),
+        artifacts: const [
+          {'id': 'artifact-1', 'name': 'report.pdf'},
+        ],
+      );
+      await store.upsertThreadArtifacts(
+        threadId: 'thread-2',
+        threadTitle: 'Deck thread',
+        updatedAt: DateTime.utc(2026, 1, 2),
+        artifacts: const [
+          {'id': 'artifact-2', 'name': 'deck.pdf'},
+        ],
+      );
+
+      expect((await store.readAll()).first.threadId, 'thread-2');
+      await store.removeArtifact('artifact-2');
+      expect((await store.readAll()).single.artifactId, 'artifact-1');
+      await store.removeThread('thread-1');
+      expect(await store.readAll(), isEmpty);
+    },
+  );
+
+  test('note_memory remembers lists searches and forgets local notes', () async {
+    final store = MemoryMobileNoteMemoryStore();
+    final tool = MobileNoteMemoryTool(store: store);
+    final remembered =
+        jsonDecode(
+              await tool.run({
+                'action': 'remember',
+                'text':
+                    'User prefers concise Turkish answers for mobile planning.',
+                'category': 'preference',
+              }),
+            )
+            as Map<String, Object?>;
+    final record = remembered['record'] as Map<String, Object?>;
+
+    final listed =
+        jsonDecode(await tool.run({'action': 'list'})) as Map<String, Object?>;
+    final searched =
+        jsonDecode(await tool.run({'action': 'search', 'query': 'Turkish'}))
+            as Map<String, Object?>;
+    final forgotten =
+        jsonDecode(await tool.run({'action': 'forget', 'id': record['id']}))
+            as Map<String, Object?>;
+
+    expect(remembered['ok'], isTrue);
+    expect(record['category'], 'preference');
+    expect((listed['records'] as List), hasLength(1));
+    expect(searched['count'], 1);
+    expect(forgotten['forgotten'], isTrue);
+    expect(await store.readAll(), isEmpty);
+  });
+
+  test('note_memory refuses likely secrets', () async {
+    final tool = MobileNoteMemoryTool(store: MemoryMobileNoteMemoryStore());
+    final result =
+        jsonDecode(
+              await tool.run({
+                'action': 'remember',
+                'text': 'api key: sk-this-should-never-be-stored-123456',
+              }),
+            )
+            as Map<String, Object?>;
+
+    expect(result['ok'], isFalse);
+    expect(result['error'].toString(), contains('secret'));
+  });
+
+  test('citation_audit passes cited source-backed answer', () {
+    final result =
+        jsonDecode(
+              const MobileCitationAuditTool().run({
+                'answer': 'The fetched source supports the claim [S1].',
+                'citations': [
+                  {'id': 'S1', 'confidence': 'high'},
+                ],
+              }),
+            )
+            as Map<String, Object?>;
+
+    expect(result['ok'], isTrue);
+    expect(result['verdict'], 'pass');
+    expect(result['issues'], isEmpty);
+  });
+
+  test('citation_audit flags unknown ids and uncited claims', () {
+    final result =
+        jsonDecode(
+              const MobileCitationAuditTool().run({
+                'answer':
+                    'Current market data shows costs decreased materially. '
+                    'This claim cites an unknown source [S9].',
+                'citations': [
+                  {'id': 'S1', 'confidence': 'medium'},
+                ],
+              }),
+            )
+            as Map<String, Object?>;
+
+    expect(result['verdict'], 'revise');
+    expect(result['unknownCitationIds'], contains('S9'));
+    expect(result['issues'].toString(), contains('possible_uncited_claims'));
+    expect(result['requiredFixes'].toString(), contains('S9'));
   });
 }
 

@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow:     "/",
-        disallow:  ["/api/"],
+        disallow:  ["/api/", "/auth/", "/console/", "/login", "/register"],
       },
     ],
     sitemap: "https://aurict.com/sitemap.xml",

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aurict.com/evals/result.schema.json",
+  "title": "Aurict benchmark result",
+  "type": "object",
+  "required": ["task_id", "benchmark", "status", "duration_ms"],
+  "properties": {
+    "task_id": { "type": "string" },
+    "benchmark": {
+      "type": "string",
+      "enum": ["internal", "terminal-bench", "swe-bench"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "passed", "failed", "timeout", "blocked", "infrastructure_error"]
+    },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "model": { "type": "string" },
+    "provider": { "type": "string" },
+    "steps": { "type": "integer", "minimum": 0 },
+    "tool_calls": { "type": "integer", "minimum": 0 },
+    "input_tokens": { "type": "integer", "minimum": 0 },
+    "output_tokens": { "type": "integer", "minimum": 0 },
+    "estimated_cost_usd": { "type": "number", "minimum": 0 },
+    "patch_bytes": { "type": "integer", "minimum": 0 },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

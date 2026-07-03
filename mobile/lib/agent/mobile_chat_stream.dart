@@ -6,8 +6,11 @@ import 'package:flutter/foundation.dart';
 
 import 'mobile_agent_runtime.dart';
 import 'mobile_citations.dart';
+import 'mobile_chat_provider_adapter.dart';
+import 'mobile_citation_audit_tool.dart';
 import 'mobile_document_tools.dart';
 import 'mobile_html_pdf_tools.dart';
+import 'mobile_memory_tools.dart';
 import 'mobile_ocr_tools.dart';
 import 'mobile_productivity_tools.dart';
 import 'mobile_provider_models.dart';
@@ -17,6 +20,9 @@ import 'mobile_system_prompt.dart';
 import 'mobile_task_ledger.dart';
 import 'mobile_tool_contracts.dart';
 import 'mobile_verification_tools.dart';
+
+export 'mobile_chat_provider_adapter.dart'
+    show MobileChatHttpRequest, MobileChatStreamProtocol;
 
 enum MobileChatEventType {
   queued,
@@ -107,6 +113,7 @@ class MobileChatStreamEvent {
 
 class MobileChatStreamingService {
   const MobileChatStreamingService({
+    this.chatAdapter = const MobileChatProviderAdapter(),
     this.modelService = const MobileProviderModelService(),
     this.promptBuilder = const MobileSystemPromptBuilder(),
     this.skillLoader = const MobileSkillLoader(),
@@ -124,8 +131,11 @@ class MobileChatStreamingService {
     this.calculator = const MobileCalculatorTool(),
     this.tableTool = const MobileTableTool(),
     this.citationManager = const MobileCitationManagerTool(),
+    this.citationAuditTool = const MobileCitationAuditTool(),
+    this.noteMemoryTool = const MobileNoteMemoryTool(),
   });
 
+  final MobileChatProviderAdapter chatAdapter;
   final MobileProviderModelService modelService;
   final MobileSystemPromptBuilder promptBuilder;
   final MobileSkillLoader skillLoader;
@@ -143,6 +153,8 @@ class MobileChatStreamingService {
   final MobileCalculatorTool calculator;
   final MobileTableTool tableTool;
   final MobileCitationManagerTool citationManager;
+  final MobileCitationAuditTool citationAuditTool;
+  final MobileNoteMemoryTool noteMemoryTool;
   static final _artifactRegistry = <String, MobileHtmlToPdfArtifact>{};
 
   Stream<MobileChatStreamEvent> stream(MobileChatRequest request) async* {
@@ -166,61 +178,84 @@ class MobileChatStreamingService {
       yield const MobileChatStreamEvent(type: MobileChatEventType.queued);
       final toolResultCache = <String, String>{};
       var forceFinalAnswer = false;
+      var forceToolsOff = false;
       for (var step = 0; step <= request.maxToolSteps; step++) {
         final includeTools =
             request.enableTools &&
-            request.config.supportsStreamingTools &&
             !forceFinalAnswer &&
+            !forceToolsOff &&
             step < request.maxToolSteps;
         final chatRequest = _buildChatRequest(
           request,
           conversationOverride: conversation,
           includeTools: includeTools,
         );
+        final canRunToolLoop = chatRequest.supportsToolLoop;
         final toolCalls = <String, _PendingToolCall>{};
         final toolOrder = <String>[];
-        final httpRequest = await client.postUrl(chatRequest.uri);
-        chatRequest.headers.forEach(httpRequest.headers.set);
-        httpRequest.headers.contentType = ContentType.json;
-        httpRequest.write(jsonEncode(chatRequest.body));
-        final response = await httpRequest.close();
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          final body = await response.transform(utf8.decoder).join();
-          throw HttpException(
-            'Chat request failed with HTTP ${response.statusCode}: ${_short(body)}',
-            uri: chatRequest.uri,
-          );
-        }
+        var emittedAttemptEvent = false;
+        try {
+          final httpRequest = await client.postUrl(chatRequest.uri);
+          chatRequest.headers.forEach(httpRequest.headers.set);
+          httpRequest.headers.contentType = ContentType.json;
+          httpRequest.write(jsonEncode(chatRequest.body));
+          final response = await httpRequest.close();
+          if (response.statusCode < 200 || response.statusCode >= 300) {
+            final body = await response.transform(utf8.decoder).join();
+            throw _ChatRequestFailure(
+              statusCode: response.statusCode,
+              body: body,
+              uri: chatRequest.uri,
+            );
+          }
 
-        var buffer = '';
-        await for (final chunk
-            in response
-                .transform(utf8.decoder)
-                .timeout(const Duration(seconds: 90))) {
-          buffer += chunk;
-          while (true) {
-            final split = buffer.indexOf('\n\n');
-            if (split == -1) break;
-            final frame = buffer.substring(0, split);
-            buffer = buffer.substring(split + 2);
-            final event = _parseSseFrame(frame);
-            if (event == null) continue;
-            if (event == '[DONE]') break;
-            for (final parsed in _eventsFromJson(event)) {
-              _collectToolDelta(parsed, toolCalls, toolOrder);
-              yield parsed;
+          var buffer = '';
+          await for (final chunk
+              in response
+                  .transform(utf8.decoder)
+                  .timeout(const Duration(seconds: 90))) {
+            buffer += chunk;
+            while (true) {
+              final split = buffer.indexOf('\n\n');
+              if (split == -1) break;
+              final frame = buffer.substring(0, split);
+              buffer = buffer.substring(split + 2);
+              final event = _parseSseFrame(frame);
+              if (event == null) continue;
+              if (event == '[DONE]') break;
+              for (final parsed in _eventsFromJson(
+                event,
+                chatRequest.protocol,
+              )) {
+                _collectToolDelta(parsed, toolCalls, toolOrder);
+                emittedAttemptEvent = true;
+                yield parsed;
+              }
             }
           }
-        }
 
-        if (buffer.trim().isNotEmpty) {
-          final event = _parseSseFrame(buffer);
-          if (event != null && event != '[DONE]') {
-            for (final parsed in _eventsFromJson(event)) {
-              _collectToolDelta(parsed, toolCalls, toolOrder);
-              yield parsed;
+          if (buffer.trim().isNotEmpty) {
+            final event = _parseSseFrame(buffer);
+            if (event != null && event != '[DONE]') {
+              for (final parsed in _eventsFromJson(
+                event,
+                chatRequest.protocol,
+              )) {
+                _collectToolDelta(parsed, toolCalls, toolOrder);
+                emittedAttemptEvent = true;
+                yield parsed;
+              }
             }
           }
+        } catch (error) {
+          if (includeTools &&
+              !emittedAttemptEvent &&
+              _shouldRetryWithoutTools(error)) {
+            forceToolsOff = true;
+            step--;
+            continue;
+          }
+          rethrow;
         }
 
         final calls = [
@@ -228,7 +263,7 @@ class MobileChatStreamingService {
             if (toolCalls[id] != null && toolCalls[id]!.name.isNotEmpty)
               toolCalls[id]!,
         ];
-        if (calls.isEmpty) {
+        if (calls.isEmpty || !canRunToolLoop) {
           yield const MobileChatStreamEvent(type: MobileChatEventType.done);
           return;
         }
@@ -323,49 +358,32 @@ class MobileChatStreamingService {
     List<Map<String, Object?>>? conversationOverride,
     bool includeTools = true,
   }) {
-    if (!_supportsChatCompletions(request.config.provider)) {
+    if (!chatAdapter.supportsChat(request.config)) {
       throw UnsupportedError(
-        '${request.config.name} chat streaming is not wired yet. Use OpenCode, OpenRouter, OpenAI, or a compatible endpoint.',
+        '${request.config.name} chat streaming is not wired yet.',
       );
     }
     final latestUserText = _latestUserText(request);
     final toolSchemas = _toolSchemasFor(latestUserText);
-    final modelRequest = modelService.buildRequest(
-      request.config,
-      request.apiKey,
-    );
-    final uri = _chatCompletionsUri(request.config.modelsEndpoint);
-    return MobileChatHttpRequest(
-      uri: uri,
-      headers: {
-        ...modelRequest.headers,
-        HttpHeaders.acceptHeader: 'text/event-stream',
-      },
-      body: {
-        'model': request.model,
-        'stream': true,
-        'messages':
-            conversationOverride ??
-            [
-              {
-                'role': 'system',
-                'content': promptBuilder.build(
-                  latestUserText: latestUserText,
-                  provider: request.config,
-                  model: request.model,
-                ),
-              },
-              for (final message in request.messages) message.toJson(),
-            ],
-        if (includeTools &&
-            request.config.supportsStreamingTools &&
-            toolSchemas.isNotEmpty)
-          'tools': toolSchemas,
-        if (includeTools &&
-            request.config.supportsStreamingTools &&
-            toolSchemas.isNotEmpty)
-          'tool_choice': 'auto',
-      },
+    return chatAdapter.build(
+      config: request.config,
+      apiKey: request.apiKey,
+      model: request.model,
+      conversation:
+          conversationOverride ??
+          [
+            {
+              'role': 'system',
+              'content': promptBuilder.build(
+                latestUserText: latestUserText,
+                provider: request.config,
+                model: request.model,
+              ),
+            },
+            for (final message in request.messages) message.toJson(),
+          ],
+      toolSchemas: toolSchemas,
+      includeTools: includeTools,
     );
   }
 
@@ -384,6 +402,7 @@ class MobileChatStreamingService {
       'calculator',
       'table_tool',
       'citation_manager',
+      'note_memory',
     };
     if (intents.any((intent) => intent != MobilePromptIntent.normal)) {
       allowed.add('load_mobile_skill');
@@ -395,6 +414,7 @@ class MobileChatStreamingService {
         'web_fetch',
         'web_fetch_plus',
         'source_distill',
+        'citation_audit',
         'research_outline',
       });
     }
@@ -406,6 +426,7 @@ class MobileChatStreamingService {
         'ocr_read',
         'pdf_read',
         'document_export',
+        'citation_audit',
         'html_document_create',
         'html_sanitize',
         'html_to_pdf',
@@ -424,30 +445,6 @@ class MobileChatStreamingService {
         .toList(growable: false);
   }
 
-  bool _supportsChatCompletions(MobileModelProvider provider) {
-    return provider == MobileModelProvider.openai ||
-        provider == MobileModelProvider.openrouter ||
-        provider == MobileModelProvider.opencode ||
-        provider == MobileModelProvider.nvidia ||
-        provider == MobileModelProvider.zai ||
-        provider == MobileModelProvider.alibaba ||
-        provider == MobileModelProvider.mistral ||
-        provider == MobileModelProvider.groq ||
-        provider == MobileModelProvider.together ||
-        provider == MobileModelProvider.fireworks ||
-        provider == MobileModelProvider.xai ||
-        provider == MobileModelProvider.perplexity ||
-        provider == MobileModelProvider.compatible;
-  }
-
-  Uri _chatCompletionsUri(Uri modelsEndpoint) {
-    final path = modelsEndpoint.path.replaceFirst(
-      RegExp(r'/models/?$'),
-      '/chat/completions',
-    );
-    return modelsEndpoint.replace(path: path);
-  }
-
   String? _parseSseFrame(String frame) {
     final lines = const LineSplitter().convert(frame);
     final data = lines
@@ -458,7 +455,19 @@ class MobileChatStreamingService {
     return data.isEmpty ? null : data;
   }
 
-  List<MobileChatStreamEvent> _eventsFromJson(String data) {
+  List<MobileChatStreamEvent> _eventsFromJson(
+    String data, [
+    MobileChatStreamProtocol protocol =
+        MobileChatStreamProtocol.openAiCompatible,
+  ]) {
+    return switch (protocol) {
+      MobileChatStreamProtocol.openAiCompatible => _openAiEventsFromJson(data),
+      MobileChatStreamProtocol.anthropic => _anthropicEventsFromJson(data),
+      MobileChatStreamProtocol.google => _googleEventsFromJson(data),
+    };
+  }
+
+  List<MobileChatStreamEvent> _openAiEventsFromJson(String data) {
     final decoded = jsonDecode(data);
     if (decoded is! Map<String, Object?>) return const [];
     final choices = decoded['choices'];
@@ -531,14 +540,105 @@ class MobileChatStreamingService {
     return events;
   }
 
+  List<MobileChatStreamEvent> _anthropicEventsFromJson(String data) {
+    final decoded = jsonDecode(data);
+    if (decoded is! Map<String, Object?>) return const [];
+    final type = decoded['type']?.toString() ?? '';
+    final delta = decoded['delta'];
+    if (delta is Map<String, Object?>) {
+      final text = delta['text']?.toString();
+      if (text != null && text.isNotEmpty) {
+        return [
+          MobileChatStreamEvent(
+            type: type.contains('thinking')
+                ? MobileChatEventType.thinkingDelta
+                : MobileChatEventType.textDelta,
+            delta: text,
+          ),
+        ];
+      }
+      final thinking = delta['thinking']?.toString();
+      if (thinking != null && thinking.isNotEmpty) {
+        return [
+          MobileChatStreamEvent(
+            type: MobileChatEventType.thinkingDelta,
+            delta: thinking,
+          ),
+        ];
+      }
+    }
+    return const [];
+  }
+
+  List<MobileChatStreamEvent> _googleEventsFromJson(String data) {
+    final decoded = jsonDecode(data);
+    if (decoded is! Map<String, Object?>) return const [];
+    final candidates = decoded['candidates'];
+    if (candidates is! List || candidates.isEmpty) return const [];
+    final first = candidates.first;
+    if (first is! Map<String, Object?>) return const [];
+    final content = first['content'];
+    if (content is! Map<String, Object?>) return const [];
+    final parts = content['parts'];
+    if (parts is! List) return const [];
+    final events = <MobileChatStreamEvent>[];
+    for (final part in parts) {
+      if (part is! Map<String, Object?>) continue;
+      final text = part['text']?.toString();
+      if (text != null && text.isNotEmpty) {
+        events.add(
+          MobileChatStreamEvent(
+            type: MobileChatEventType.textDelta,
+            delta: text,
+          ),
+        );
+      }
+    }
+    return events;
+  }
+
   @visibleForTesting
   List<MobileChatStreamEvent> parseStreamFrameForTest(String data) {
     return _eventsFromJson(data);
   }
 
   @visibleForTesting
+  List<MobileChatStreamEvent> parseStreamFrameForProtocolTest(
+    String data,
+    MobileChatStreamProtocol protocol,
+  ) {
+    return _eventsFromJson(data, protocol);
+  }
+
+  @visibleForTesting
   Future<String> webFetchForTest(String url) {
     return _webFetch(url);
+  }
+
+  @visibleForTesting
+  Future<String> executeToolForTest(String name, Map<String, Object?> args) {
+    return _executeMobileTool(
+      _PendingToolCall(
+        id: 'test-tool',
+        providerId: 'test-tool',
+        name: name,
+        arguments: jsonEncode(args),
+      ),
+    );
+  }
+
+  @visibleForTesting
+  bool shouldRetryWithoutToolsForTest({
+    required int statusCode,
+    required String body,
+  }) {
+    return _shouldRetryWithoutTools(
+      _ChatRequestFailure(
+        statusCode: statusCode,
+        body: body,
+        uri: Uri.https('example.com'),
+      ),
+    );
   }
 
   void _collectToolDelta(
@@ -600,6 +700,10 @@ class MobileChatStreamingService {
         return _tableTool(args);
       case 'citation_manager':
         return _citationManager(args);
+      case 'citation_audit':
+        return citationAuditTool.run(args);
+      case 'note_memory':
+        return noteMemoryTool.run(args);
       case 'research_outline':
         return MobileToolResult.success(
           tool: 'research_outline',
@@ -688,7 +792,11 @@ class MobileChatStreamingService {
     if (raw.trim().isEmpty) return const {};
     try {
       final decoded = jsonDecode(raw);
-      return decoded is Map<String, Object?> ? decoded : const {};
+      if (decoded is Map<String, Object?>) return decoded;
+      if (decoded is Map) {
+        return decoded.map((key, value) => MapEntry(key.toString(), value));
+      }
+      return const {};
     } catch (_) {
       return {'raw': raw};
     }
@@ -1385,9 +1493,53 @@ class MobileChatStreamingService {
     });
   }
 
+  bool _shouldRetryWithoutTools(Object error) {
+    if (error is FormatException) return true;
+    if (error is! _ChatRequestFailure) return false;
+    if (error.statusCode == 401 ||
+        error.statusCode == 403 ||
+        error.statusCode == 408 ||
+        error.statusCode == 429 ||
+        error.statusCode >= 500) {
+      return false;
+    }
+    final body = error.body.toLowerCase();
+    final statusCanBeSchemaFailure =
+        error.statusCode == 400 ||
+        error.statusCode == 404 ||
+        error.statusCode == 405 ||
+        error.statusCode == 415 ||
+        error.statusCode == 422;
+    final looksToolRelated =
+        body.contains('tool') ||
+        body.contains('function') ||
+        body.contains('tool_choice') ||
+        body.contains('unsupported parameter') ||
+        body.contains('unknown parameter') ||
+        body.contains('invalid schema');
+    return statusCanBeSchemaFailure && looksToolRelated;
+  }
+
   static String _short(String body) {
     final compact = body.replaceAll(RegExp(r'\s+'), ' ').trim();
     return compact.length > 240 ? '${compact.substring(0, 240)}...' : compact;
+  }
+}
+
+class _ChatRequestFailure implements Exception {
+  const _ChatRequestFailure({
+    required this.statusCode,
+    required this.body,
+    required this.uri,
+  });
+
+  final int statusCode;
+  final String body;
+  final Uri uri;
+
+  @override
+  String toString() {
+    return 'Chat request failed with HTTP $statusCode: ${MobileChatStreamingService._short(body)}';
   }
 }
 
@@ -1542,6 +1694,40 @@ const _mobileToolSchemas = [
   {
     'type': 'function',
     'function': {
+      'name': 'note_memory',
+      'description':
+          'Store, list, search, or forget short non-secret user preferences and durable project notes locally on device. Use only for information the user explicitly asks Aurict to remember or retrieve. Never store API keys, passwords, tokens, private keys, or sensitive secrets.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'action': {
+            'type': 'string',
+            'description': 'remember, list, search, or forget',
+          },
+          'text': {
+            'type': 'string',
+            'description': 'Short note to remember. Required for remember.',
+          },
+          'category': {
+            'type': 'string',
+            'description': 'preference, project, style, fact, or other',
+          },
+          'query': {
+            'type': 'string',
+            'description': 'Search query. Required for search.',
+          },
+          'id': {
+            'type': 'string',
+            'description': 'Memory id. Required for forget.',
+          },
+        },
+        'required': ['action'],
+      },
+    },
+  },
+  {
+    'type': 'function',
+    'function': {
       'name': 'web_search',
       'description':
           'Search public no-key knowledge APIs from the device. Use for research discovery, then fetch/distill important sources before strong claims. Do not use for private/local targets.',
@@ -1609,6 +1795,43 @@ const _mobileToolSchemas = [
             },
           },
         },
+      },
+    },
+  },
+  {
+    'type': 'function',
+    'function': {
+      'name': 'citation_audit',
+      'description':
+          'Audit a drafted answer against a citation ledger before finalizing research or document output. Flags unknown source ids, missing citations, uncited source-backed claims, and low-confidence sources. Use after source_distill when the final answer makes factual source-backed claims.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'answer': {
+            'type': 'string',
+            'description': 'Draft answer to audit before final response.',
+          },
+          'citations': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'properties': {
+                'id': {'type': 'string'},
+                'title': {'type': 'string'},
+                'url': {'type': 'string'},
+                'claim': {'type': 'string'},
+                'evidence': {'type': 'string'},
+                'confidence': {'type': 'string'},
+              },
+            },
+          },
+          'strict': {
+            'type': 'boolean',
+            'description':
+                'When true, also flags source ledger ids that are not used in the answer.',
+          },
+        },
+        'required': ['answer', 'citations'],
       },
     },
   },
@@ -1845,10 +2068,12 @@ const _mobileToolNames = [
   'calculator',
   'table_tool',
   'citation_manager',
+  'note_memory',
   'web_search',
   'web_fetch',
   'web_fetch_plus',
   'source_distill',
+  'citation_audit',
   'research_outline',
   'document_reader',
   'file_intake_policy',
@@ -1870,16 +2095,4 @@ String _toolSchemaName(Map<String, Object?> schema) {
     return function['name']?.toString() ?? '';
   }
   return '';
-}
-
-class MobileChatHttpRequest {
-  const MobileChatHttpRequest({
-    required this.uri,
-    required this.headers,
-    required this.body,
-  });
-
-  final Uri uri;
-  final Map<String, String> headers;
-  final Map<String, Object?> body;
 }

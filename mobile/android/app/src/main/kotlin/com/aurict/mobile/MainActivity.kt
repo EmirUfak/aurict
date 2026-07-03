@@ -36,6 +36,7 @@ class MainActivity : FlutterActivity() {
     private val artifactChannelName = "dev.aurict.mobile/artifacts"
     private val secureKeyChannelName = "dev.aurict.mobile/secure_keys"
     private val chatHistoryChannelName = "dev.aurict.mobile/chat_history"
+    private val artifactIndexChannelName = "dev.aurict.mobile/artifact_index"
     private val modelCacheChannelName = "dev.aurict.mobile/model_cache"
     private val documentPickerChannelName = "dev.aurict.mobile/document_picker"
     private val diagnosticsChannelName = "dev.aurict.mobile/diagnostics"
@@ -109,6 +110,15 @@ class MainActivity : FlutterActivity() {
                     "writeThread" -> writeChatThread(call.arguments, result)
                     "deleteThread" -> deleteChatThread(call.arguments, result)
                     "clearAllThreads" -> clearAllChatThreads(result)
+                    else -> result.notImplemented()
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, artifactIndexChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "readArtifactIndex" -> readArtifactIndex(result)
+                    "writeArtifactIndex" -> writeArtifactIndex(call.arguments, result)
+                    "clearArtifactIndex" -> clearArtifactIndex(result)
                     else -> result.notImplemented()
                 }
             }
@@ -387,6 +397,30 @@ class MainActivity : FlutterActivity() {
 
     private fun chatHistoryDir(): File {
         return File(filesDir, "chat_history").apply { mkdirs() }
+    }
+
+    private fun readArtifactIndex(result: MethodChannel.Result) {
+        val file = artifactIndexFile()
+        result.success(if (file.exists()) file.readText() else "[]")
+    }
+
+    private fun writeArtifactIndex(arguments: Any?, result: MethodChannel.Result) {
+        val payload = (arguments as? Map<*, *>)?.get("payload")?.toString()
+        if (payload.isNullOrBlank()) {
+            result.error("bad_args", "writeArtifactIndex requires payload.", null)
+            return
+        }
+        artifactIndexFile().writeText(payload)
+        result.success(null)
+    }
+
+    private fun clearArtifactIndex(result: MethodChannel.Result) {
+        artifactIndexFile().delete()
+        result.success(null)
+    }
+
+    private fun artifactIndexFile(): File {
+        return File(filesDir, "artifact_index.json")
     }
 
     private fun saveProviderKey(arguments: Any?, result: MethodChannel.Result) {

@@ -1,153 +1,54 @@
 import type { MetadataRoute } from "next"
+import { BLOG_POSTS } from "@/content/blog"
+import { COMPARISONS } from "@/content/comparisons"
+import { USE_CASES } from "@/content/use-cases"
+import { absoluteUrl } from "@/lib/seo"
 
-const BASE = "https://aurict.com"
+type StaticRoute = {
+  path: string
+  lastModified: string
+  changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]
+  priority: number
+}
+
+const staticRoutes: StaticRoute[] = [
+  { path: "/", lastModified: "2026-07-03", changeFrequency: "weekly", priority: 1 },
+  { path: "/docs", lastModified: "2026-07-03", changeFrequency: "weekly", priority: 0.9 },
+  { path: "/about", lastModified: "2026-07-03", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/roadmap", lastModified: "2026-07-03", changeFrequency: "weekly", priority: 0.8 },
+  { path: "/changelog", lastModified: "2026-07-03", changeFrequency: "weekly", priority: 0.7 },
+  { path: "/blog", lastModified: "2026-07-03", changeFrequency: "weekly", priority: 0.8 },
+  { path: "/compare", lastModified: "2026-07-03", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/use-cases", lastModified: "2026-07-03", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/privacy", lastModified: "2026-07-03", changeFrequency: "yearly", priority: 0.4 },
+  { path: "/terms", lastModified: "2026-07-03", changeFrequency: "yearly", priority: 0.4 },
+]
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
-    // Main pages
-    {
-      url:             BASE,
-      lastModified:    new Date(),
-      changeFrequency: "weekly",
-      priority:        1.0,
-    },
-    {
-      url:             `${BASE}/docs`,
-      lastModified:    new Date(),
-      changeFrequency: "weekly",
-      priority:        0.9,
-    },
-    {
-      url:             `${BASE}/about`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.8,
-    },
-    {
-      url:             `${BASE}/roadmap`,
-      lastModified:    new Date(),
-      changeFrequency: "weekly",
-      priority:        0.8,
-    },
-    {
-      url:             `${BASE}/changelog`,
-      lastModified:    new Date(),
-      changeFrequency: "weekly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/privacy`,
-      lastModified:    new Date(),
-      changeFrequency: "yearly",
-      priority:        0.4,
-    },
-    {
-      url:             `${BASE}/terms`,
-      lastModified:    new Date(),
-      changeFrequency: "yearly",
-      priority:        0.4,
-    },
-
-    // Blog
-    {
-      url:             `${BASE}/blog`,
-      lastModified:    new Date(),
-      changeFrequency: "weekly",
-      priority:        0.8,
-    },
-    {
-      url:             `${BASE}/blog/how-to-use-ai-coding-assistant`,
-      lastModified:    new Date("2026-06-15"),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/blog/claude-code-vs-aurict`,
-      lastModified:    new Date("2026-06-12"),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/blog/terminal-ai-tools-2026`,
-      lastModified:    new Date("2026-06-10"),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/blog/multi-agent-ai-coding`,
-      lastModified:    new Date("2026-06-08"),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/blog/mcp-model-context-protocol`,
-      lastModified:    new Date("2026-06-05"),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-
-    // Use Cases
-    {
-      url:             `${BASE}/use-cases`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.8,
-    },
-    {
-      url:             `${BASE}/use-cases/refactoring`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/use-cases/code-review`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/use-cases/testing`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/use-cases/documentation`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-
-    // Comparisons
-    {
-      url:             `${BASE}/compare/claude-code`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/compare/cursor`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/compare/aider`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/compare/github-copilot`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
-    {
-      url:             `${BASE}/compare/opencode`,
-      lastModified:    new Date(),
-      changeFrequency: "monthly",
-      priority:        0.7,
-    },
+    ...staticRoutes.map((route) => ({
+      url: absoluteUrl(route.path),
+      lastModified: new Date(route.lastModified),
+      changeFrequency: route.changeFrequency,
+      priority: route.priority,
+    })),
+    ...BLOG_POSTS.map((post) => ({
+      url: absoluteUrl(`/blog/${post.slug}`),
+      lastModified: new Date(post.updatedAt),
+      changeFrequency: "monthly" as const,
+      priority: 0.72,
+    })),
+    ...COMPARISONS.map((comparison) => ({
+      url: absoluteUrl(`/compare/${comparison.slug}`),
+      lastModified: new Date(comparison.updatedAt),
+      changeFrequency: "monthly" as const,
+      priority: 0.72,
+    })),
+    ...USE_CASES.map((useCase) => ({
+      url: absoluteUrl(`/use-cases/${useCase.slug}`),
+      lastModified: new Date(useCase.updatedAt),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
   ]
 }

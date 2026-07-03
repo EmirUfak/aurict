@@ -23,6 +23,8 @@ import 'remote/mobile_backend_client.dart';
 import 'remote/mobile_remote_models.dart';
 import 'remote/mobile_remote_runtime.dart';
 
+import 'agent/mobile_artifact_index_store.dart';
+
 void main() {
   runZonedGuarded(
     () async {
@@ -699,7 +701,8 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   final _localRuntime = const MobileAgentRuntime();
   final _streamingService = const MobileChatStreamingService();
   final _artifactBridge = const MobileHtmlToPdfRenderer();
-  final _historyStore = MethodChannelMobileChatHistoryStore();
+  final _historyStore = EncryptedMobileChatHistoryStore();
+  final _artifactIndexStore = MethodChannelMobileArtifactIndexStore();
   final _chatSnapshot = RestorableString('');
   final _scrollController = ScrollController();
   final _threads = <MobileChatThreadMeta>[];
@@ -800,6 +803,7 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   Future<void> _deleteThread(String id) async {
     if (_activeThreadId == id && _isStreaming) _cancelStreaming();
     await _historyStore.deleteThread(id);
+    unawaited(_artifactIndexStore.removeThread(id));
     if (!mounted) return;
     final shouldClearDocuments = _activeThreadId == id;
     if (shouldClearDocuments) {
@@ -846,6 +850,14 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
         meta: updatedMeta,
         messages: snapshot.messages,
         documents: snapshot.documents,
+      ),
+    );
+    unawaited(
+      _artifactIndexStore.upsertThreadArtifacts(
+        threadId: id,
+        threadTitle: updatedMeta.title,
+        updatedAt: updatedMeta.updatedAt,
+        artifacts: _artifactMapsFromEncoded(snapshot.messages),
       ),
     );
     if (!mounted) return;
@@ -1452,6 +1464,14 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
         documents: MobileDocumentContextScope.of(context).documents,
       ),
     );
+    unawaited(
+      _artifactIndexStore.upsertThreadArtifacts(
+        threadId: id,
+        threadTitle: meta.title,
+        updatedAt: meta.updatedAt,
+        artifacts: _artifactMapsFromEntries(_messages),
+      ),
+    );
     if (!mounted) return;
     setState(() {
       _activeThreadId = id;
@@ -1499,6 +1519,24 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
         for (final artifact in message.artifacts) artifact.toJson(),
       ],
     };
+  }
+
+  List<Map<String, Object?>> _artifactMapsFromEntries(List<ChatEntry> entries) {
+    return [
+      for (final message in entries)
+        for (final artifact in message.artifacts) artifact.toJson(),
+    ];
+  }
+
+  List<Map<String, Object?>> _artifactMapsFromEncoded(
+    List<Map<String, Object?>> messages,
+  ) {
+    return [
+      for (final message in messages)
+        if (message['artifacts'] is List)
+          for (final artifact in (message['artifacts'] as List))
+            if (artifact is Map<String, Object?>) artifact,
+    ];
   }
 
   List<ChatEntry> _decodeChatSnapshot(String raw) {
@@ -2392,7 +2430,8 @@ class DocumentsScreen extends StatefulWidget {
 }
 
 class _DocumentsScreenState extends State<DocumentsScreen> {
-  final _historyStore = MethodChannelMobileChatHistoryStore();
+  final _historyStore = EncryptedMobileChatHistoryStore();
+  final _artifactIndexStore = MethodChannelMobileArtifactIndexStore();
   final _artifactBridge = const MobileHtmlToPdfRenderer();
   final _documentPicker = const MobileDocumentPicker();
   final _records = <DocumentArtifactRecord>[];
@@ -2407,6 +2446,27 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   Future<void> _loadArtifacts() async {
+    final indexed = await _artifactIndexStore.readAll();
+    if (indexed.isNotEmpty) {
+      final records = indexed
+          .map(
+            (record) => DocumentArtifactRecord(
+              artifact: ChatArtifact.fromJson(record.artifact),
+              threadId: record.threadId,
+              threadTitle: record.threadTitle,
+              updatedAt: record.updatedAt,
+            ),
+          )
+          .toList(growable: false);
+      if (!mounted) return;
+      setState(() {
+        _records
+          ..clear()
+          ..addAll(records);
+        _loading = false;
+      });
+      return;
+    }
     final threads = await _historyStore.listThreads();
     final snapshots = await Future.wait(
       threads.map((thread) async {
@@ -2435,6 +2495,19 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     }
     final records = byId.values.toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    if (records.isNotEmpty) {
+      unawaited(
+        _artifactIndexStore.writeAll([
+          for (final record in records)
+            MobileArtifactIndexRecord(
+              artifact: record.artifact.toJson(),
+              threadId: record.threadId,
+              threadTitle: record.threadTitle,
+              updatedAt: record.updatedAt,
+            ),
+        ]),
+      );
+    }
     if (!mounted) return;
     setState(() {
       _records
@@ -2540,6 +2613,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         documents: snapshot.documents,
       ),
     );
+    await _artifactIndexStore.removeArtifact(record.artifact.id);
     if (!mounted) return;
     setState(() {
       _records.removeWhere((item) => item.artifact.id == record.artifact.id);
@@ -2960,7 +3034,8 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Future<void> _clearChatHistory(BuildContext context) async {
-    await MethodChannelMobileChatHistoryStore().clearAllThreads();
+    await EncryptedMobileChatHistoryStore().clearAllThreads();
+    await MethodChannelMobileArtifactIndexStore().clear();
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Local chat history cleared.')),

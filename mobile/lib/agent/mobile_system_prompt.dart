@@ -10,74 +10,139 @@ enum MobilePromptIntent {
   normal,
 }
 
+class MobileIntentScore {
+  const MobileIntentScore({
+    required this.intent,
+    required this.score,
+    required this.reasons,
+  });
+
+  final MobilePromptIntent intent;
+  final double score;
+  final List<String> reasons;
+
+  double get confidence => score.clamp(0, 1).toDouble();
+}
+
+class MobileIntentAnalysis {
+  const MobileIntentAnalysis({required this.intents, required this.scores});
+
+  final Set<MobilePromptIntent> intents;
+  final List<MobileIntentScore> scores;
+
+  MobileIntentScore? scoreFor(MobilePromptIntent intent) {
+    for (final score in scores) {
+      if (score.intent == intent) return score;
+    }
+    return null;
+  }
+}
+
 class MobileIntentRouter {
   const MobileIntentRouter();
 
   Set<MobilePromptIntent> detect(String text) {
-    final input = text.toLowerCase();
-    final intents = <MobilePromptIntent>{};
-    if (_matches(input, [
-      'pdf',
-      'report',
-      'rapor',
-      'document',
-      'doküman',
-      'proposal',
-      'resume',
-      'cv',
-      'slides',
-      'presentation',
-      'sunum',
-    ])) {
-      intents.add(MobilePromptIntent.document);
-    }
-    if (_matches(input, [
-      'research',
-      'araştır',
-      'source',
-      'kaynak',
-      'citation',
-    ])) {
-      intents.add(MobilePromptIntent.research);
-    }
-    if (_matches(input, [
-      'contract',
-      'legal',
-      'gdpr',
-      'privacy',
-      'nda',
-      'sözleşme',
-    ])) {
-      intents.add(MobilePromptIntent.legal);
-    }
-    if (_matches(input, [
-      'budget',
-      'finance',
-      'tax',
-      'invoice',
-      'portfolio',
-      'bütçe',
-      'vergi',
-    ])) {
-      intents.add(MobilePromptIntent.finance);
-    }
-    if (_matches(input, [
-      'code',
-      'debug',
-      'api',
-      'test',
-      'llm',
-      'prompt',
-      'review',
-    ])) {
-      intents.add(MobilePromptIntent.codeAdvisory);
-    }
-    if (intents.isEmpty) intents.add(MobilePromptIntent.normal);
-    return intents;
+    return analyze(text).intents;
   }
 
-  bool _matches(String input, List<String> terms) {
-    return terms.any(input.contains);
+  MobileIntentAnalysis analyze(
+    String text, {
+    Iterable<String> context = const [],
+  }) {
+    final input = text.toLowerCase();
+    final contextText = context.join('\n').toLowerCase();
+    final haystack = '$input\n$contextText';
+    final scores = <MobileIntentScore>[
+      _score(MobilePromptIntent.document, haystack, {
+        'pdf': .34,
+        'report': .32,
+        'rapor': .32,
+        'document': .28,
+        'doküman': .28,
+        'proposal': .25,
+        'resume': .25,
+        'cv': .22,
+        'slides': .28,
+        'presentation': .28,
+        'sunum': .28,
+        'export': .2,
+        'create a': .12,
+        'oluştur': .16,
+      }),
+      _score(MobilePromptIntent.research, haystack, {
+        'research': .34,
+        'araştır': .34,
+        'source': .24,
+        'kaynak': .24,
+        'citation': .24,
+        'cite': .22,
+        'evidence': .2,
+        'current': .18,
+        'latest': .18,
+        'güncel': .18,
+        'compare sources': .28,
+      }),
+      _score(MobilePromptIntent.legal, haystack, {
+        'contract': .34,
+        'legal': .34,
+        'gdpr': .28,
+        'privacy policy': .28,
+        'terms': .22,
+        'nda': .24,
+        'sözleşme': .34,
+        'hukuk': .28,
+      }),
+      _score(MobilePromptIntent.finance, haystack, {
+        'budget': .3,
+        'finance': .34,
+        'tax': .3,
+        'invoice': .24,
+        'portfolio': .24,
+        'bütçe': .3,
+        'vergi': .3,
+        'investment': .28,
+        'cash flow': .24,
+      }),
+      _score(MobilePromptIntent.codeAdvisory, haystack, {
+        'code': .28,
+        'debug': .34,
+        'api': .2,
+        'test': .18,
+        'llm': .16,
+        'prompt': .16,
+        'review': .22,
+        'stacktrace': .3,
+        'flutter': .24,
+        'typescript': .24,
+        'kotlin': .24,
+      }),
+    ];
+    final intents = scores
+        .where((score) => score.confidence >= .24)
+        .map((score) => score.intent)
+        .toSet();
+    if (intents.isEmpty) intents.add(MobilePromptIntent.normal);
+    return MobileIntentAnalysis(intents: intents, scores: scores);
+  }
+
+  MobileIntentScore _score(
+    MobilePromptIntent intent,
+    String input,
+    Map<String, double> weights,
+  ) {
+    var score = 0.0;
+    final reasons = <String>[];
+    for (final entry in weights.entries) {
+      if (input.contains(entry.key)) {
+        score += entry.value;
+        reasons.add(entry.key);
+      }
+    }
+    return MobileIntentScore(
+      intent: intent,
+      score: score.clamp(0, 1).toDouble(),
+      reasons: reasons,
+    );
   }
 }
 
@@ -136,7 +201,9 @@ Operating standard:
 - Do not finalize a multi-step task while task_ledger reports open gates. Continue with the next required phase or state exactly what external input is blocking progress.
 - Source contract: any strong factual claim from research must be tied to distilled evidence with citations such as [S1]. If verified sources are missing, say that evidence is insufficient instead of presenting the claim as fact.
 - Use calculator for arithmetic, table_tool for structured tables, and citation_manager for bibliography formatting.
+- Use note_memory only when the user explicitly asks you to remember, recall, search, or forget durable non-secret preferences/project facts. Never store secrets, API keys, passwords, tokens, or private keys.
 - For research: discover with web_search, fetch exact important URLs with web_fetch_plus, then call source_distill before strong source-backed claims.
+- Before finalizing research/document answers with citations, run citation_audit on the draft answer and citation ledger. Revise if it reports unknown citations, uncited source-backed claims, or low-confidence evidence.
 - For PDF documents: generate semantic HTML/CSS, validate with html_sanitize or html_document_create, then render with html_to_pdf. Do not use markdown as the PDF source unless user explicitly asks for markdown.
 - For documents: use document_reader/pdf_read only with user-provided content, and html_to_pdf/document_export only when a real local artifact preview is needed.
 - For file/image intake: use file_intake_policy first when permission or data-flow is unclear; use ocr_read only with recognized_text from a user-selected image.
@@ -176,6 +243,7 @@ $lines
 - Do not claim PDF/PPTX binary export unless an artifact tool confirms it.
 - Use html_to_pdf for high-quality PDF artifact preview, then state that save/share is a separate UI gate.
 - Run answer_verifier before final output if sources or artifact gates are involved.
+- Run citation_audit before final output when the document includes source-backed claims or citation ids.
 - For professional reports: executive summary, scope, findings, evidence, recommendations, risks, appendix.
 ''';
 
@@ -186,6 +254,7 @@ $lines
 - Use web_search for discovery and web_fetch_plus only for exact public URLs.
 - Distill evidence instead of dumping raw source text.
 - Call source_distill before citing or relying on fetched/user-provided source text.
+- Run citation_audit on the draft answer and distilled citations before finalizing.
 - Run answer_verifier with sources_required=true before finalizing.
 - Do not make unsourced current claims. If web/search tools are unavailable or fail, say what could not be verified.
 - Include uncertainty, source dates when known, and limitations.

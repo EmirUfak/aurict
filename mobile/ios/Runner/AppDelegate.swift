@@ -6,6 +6,7 @@ import UIKit
   private let artifactChannelName = "dev.aurict.mobile/artifacts"
   private let secureKeyChannelName = "dev.aurict.mobile/secure_keys"
   private let chatHistoryChannelName = "dev.aurict.mobile/chat_history"
+  private let artifactIndexChannelName = "dev.aurict.mobile/artifact_index"
   private let modelCacheChannelName = "dev.aurict.mobile/model_cache"
   private let documentPickerChannelName = "dev.aurict.mobile/document_picker"
   private let diagnosticsChannelName = "dev.aurict.mobile/diagnostics"
@@ -14,6 +15,7 @@ import UIKit
   private var artifactChannel: FlutterMethodChannel?
   private var secureKeyChannel: FlutterMethodChannel?
   private var chatHistoryChannel: FlutterMethodChannel?
+  private var artifactIndexChannel: FlutterMethodChannel?
   private var modelCacheChannel: FlutterMethodChannel?
   private var documentPickerChannel: FlutterMethodChannel?
   private var diagnosticsChannel: FlutterMethodChannel?
@@ -113,6 +115,31 @@ import UIKit
       }
     }
     chatHistoryChannel = channel
+    configureArtifactIndexChannel(binaryMessenger: binaryMessenger)
+  }
+
+  private func configureArtifactIndexChannel(binaryMessenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: artifactIndexChannelName,
+      binaryMessenger: binaryMessenger
+    )
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(FlutterError(code: "bridge_unavailable", message: "Artifact index bridge is unavailable.", details: nil))
+        return
+      }
+      switch call.method {
+      case "readArtifactIndex":
+        self.readArtifactIndex(result: result)
+      case "writeArtifactIndex":
+        self.writeArtifactIndex(call.arguments, result: result)
+      case "clearArtifactIndex":
+        self.clearArtifactIndex(result: result)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    artifactIndexChannel = channel
     configureModelCacheChannel(binaryMessenger: binaryMessenger)
   }
 
@@ -516,6 +543,44 @@ import UIKit
       create: true
     )
     return support.appendingPathComponent("chat_history", isDirectory: true)
+  }
+
+  private func readArtifactIndex(result: FlutterResult) {
+    let url = artifactIndexFile()
+    result((try? String(contentsOf: url, encoding: .utf8)) ?? "[]")
+  }
+
+  private func writeArtifactIndex(_ arguments: Any?, result: FlutterResult) {
+    guard
+      let map = arguments as? [String: Any],
+      let payload = map["payload"] as? String,
+      !payload.isEmpty
+    else {
+      result(FlutterError(code: "bad_args", message: "writeArtifactIndex requires payload.", details: nil))
+      return
+    }
+    do {
+      try payload.write(to: artifactIndexFile(), atomically: true, encoding: .utf8)
+      result(nil)
+    } catch {
+      result(FlutterError(code: "write_failed", message: error.localizedDescription, details: nil))
+    }
+  }
+
+  private func clearArtifactIndex(result: FlutterResult) {
+    try? FileManager.default.removeItem(at: artifactIndexFile())
+    result(nil)
+  }
+
+  private func artifactIndexFile() -> URL {
+    let support = try? FileManager.default.url(
+      for: .applicationSupportDirectory,
+      in: .userDomainMask,
+      appropriateFor: nil,
+      create: true
+    )
+    return (support ?? FileManager.default.temporaryDirectory)
+      .appendingPathComponent("artifact_index.json", isDirectory: false)
   }
 
   private func saveProviderKey(_ arguments: Any?, result: FlutterResult) {

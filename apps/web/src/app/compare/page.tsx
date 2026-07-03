@@ -3,6 +3,8 @@ import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
 import { CompareCard } from "@/components/ui/CompareCard"
+import { COMPARISONS } from "@/content/comparisons"
+import { breadcrumbJsonLd, collectionJsonLd } from "@/lib/seo"
 
 export const metadata: Metadata = {
   title: "Aurict vs. Alternatives — Terminal AI Coding Assistant Comparisons",
@@ -10,47 +12,27 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://aurict.com/compare" },
 }
 
-const COMPARISONS = [
-  {
-    slug: "claude-code",
-    competitor: "Claude Code",
-    tagline: "Provider flexibility meets multi-agent power",
-    description: "Claude Code is Anthropic-only. Aurict supports 9 providers, 9 specialist agents, and runs as a native binary with no Node.js required.",
-    differentiator: "Multi-provider + multi-agent",
-  },
-  {
-    slug: "cursor",
-    competitor: "Cursor",
-    tagline: "Terminal-native vs IDE-bound",
-    description: "Cursor is an Electron IDE. Aurict is a lightweight terminal tool — same AI capabilities, no context switching, no 200MB download.",
-    differentiator: "Lightweight, no IDE required",
-  },
-  {
-    slug: "aider",
-    competitor: "Aider",
-    tagline: "Full TUI vs command-line interface",
-    description: "Aider is a CLI tool. Aurict adds a full interactive TUI, 9 specialist agents, 218+ contextual skills, and a plugin system on top.",
-    differentiator: "Interactive TUI + agent orchestration",
-  },
-  {
-    slug: "github-copilot",
-    competitor: "GitHub Copilot",
-    tagline: "Agentic tasks vs inline completions",
-    description: "Copilot completes code inline. Aurict handles full tasks — refactoring, audits, test suites — with specialist agents running in parallel.",
-    differentiator: "Full agentic tasks, not just completions",
-  },
-  {
-    slug: "opencode",
-    competitor: "OpenCode",
-    tagline: "Deeper context, richer TUI",
-    description: "Both are open-source terminal AI tools. Aurict adds 218+ auto-injected skills, 9 agent types, design wizard, and a plugin marketplace.",
-    differentiator: "Skills system + design agent + plugins",
-  },
-]
+const breadcrumb = breadcrumbJsonLd([
+  { name: "Home", path: "/" },
+  { name: "Compare", path: "/compare" },
+])
+
+const collection = collectionJsonLd({
+  name: "Aurict Alternatives and Comparisons",
+  description: "Compare Aurict with Claude Code, Cursor, Aider, GitHub Copilot, and OpenCode.",
+  path: "/compare",
+  items: COMPARISONS.map((comparison) => ({
+    name: comparison.title,
+    path: `/compare/${comparison.slug}`,
+    description: comparison.description,
+  })),
+})
 
 export default function ComparePage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collection) }} />
       <Nav />
       <main className="marketing-main" style={{ maxWidth: 900 }}>
         <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Compare", href: "/compare" }]} />

@@ -188,6 +188,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
+export function generateStaticParams() {
+  return COMPARISONS.map((comparison) => ({ slug: comparison.slug }))
+}
+
 export default async function ComparePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const comp = COMPARISONS.find((c) => c.slug === slug)
