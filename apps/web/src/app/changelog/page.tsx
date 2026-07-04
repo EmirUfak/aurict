@@ -27,7 +27,7 @@ const CHANGELOG = [
     version: "1.0.5",
     date: "2026-06-09",
     tag: "Polish & reliability",
-    tagColor: "#818cf8",
+    tagColor: "#38bdf8",
     changes: [
       { type: "new",  text: "/cost command — full cache token breakdown with savings estimate; cache-aware pricing for all 9 providers" },
       { type: "new",  text: "First-run setup wizard — 3-step interactive onboarding (provider → API key → model) on first launch" },
@@ -78,7 +78,7 @@ const CHANGELOG = [
     version: "1.0.0",
     date: "2026-06-07",
     tag: "Initial release",
-    tagColor: "#4eba65",
+    tagColor: "#a78bfa",
     changes: [
       { type: "new", text: "Multi-agent orchestration — 9 specialist agents (Explore, Code, Review, Test, Docs, Security, Debug, Performance, Analytics)" },
       { type: "new", text: "218+ contextual skills auto-injected based on project framework and language" },
@@ -96,10 +96,10 @@ const CHANGELOG = [
 ]
 
 const TYPE_STYLE: Record<string, { label: string; color: string; bg: string }> = {
-  new:  { label: "New",  color: "#4eba65", bg: "rgba(78,186,101,0.1)" },
+  new:  { label: "New",  color: "#a78bfa", bg: "rgba(167,139,250,0.1)" },
   fix:  { label: "Fix",  color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
   break: { label: "Breaking", color: "#ff6b6b", bg: "rgba(255,107,107,0.1)" },
-  perf: { label: "Perf", color: "#818cf8", bg: "rgba(129,140,248,0.1)" },
+  perf: { label: "Perf", color: "#38bdf8", bg: "rgba(56,189,248,0.1)" },
 }
 
 export default function ChangelogPage() {

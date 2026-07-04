@@ -20,13 +20,20 @@ import { Message } from "../src/tui/Message.js"
 import { ExpandableOutput } from "../src/tui/ExpandableOutput.js"
 import { TaskFloatingPanel } from "../src/tui/TaskFloatingPanel.js"
 import { CommandPalette } from "../src/tui/CommandPalette.js"
-import { CommandSuggest } from "../src/tui/CommandSuggest.js"
+import { CommandSuggest, getCommandMatches } from "../src/tui/CommandSuggest.js"
 import { DesignWizard } from "../src/tui/DesignWizard.js"
 import { sanitizePaste } from "../src/tui/MultilineInput.js"
-import { parseSlashCommand } from "../src/commands/registry.js"
+import { TerminalSizeContext } from "../src/tui/TerminalSizeContext.js"
+import { mergeModelLists, parseSlashCommand } from "../src/commands/registry.js"
 import type { CommandDef } from "../src/commands/types.js"
 
 afterEach(() => { cleanup() })
+
+// İki tonlu renklendirme (ör. "Th" + dim "inking…") kelimenin ortasına ANSI
+// renk kodu sokar; içerik doğru olsa da naif toContain patlar. Assert'ten önce
+// ANSI escape dizilerini soyup metni olduğu gibi kontrol ederiz.
+// eslint-disable-next-line no-control-regex
+const stripAnsi = (s: string | undefined): string => (s ?? "").replace(/\x1b\[[0-9;]*m/g, "")
 
 // ── Spinner ───────────────────────────────────────────────────────────────────
 
@@ -34,33 +41,33 @@ describe("Spinner", () => {
   it("renders Thinking verb when no tool", () => {
     const { lastFrame } = render(<Spinner />)
     const frame = lastFrame() ?? ""
-    expect(frame).toContain("Thinking")
+    expect(stripAnsi(frame)).toContain("Thinking")
   })
 
   it("renders Running for bash tool", () => {
     const { lastFrame } = render(<Spinner activeTool="bash" />)
     const frame = lastFrame() ?? ""
-    expect(frame).toContain("Running")
+    expect(stripAnsi(frame)).toContain("Running")
   })
 
   it("renders Reading for read tool", () => {
     const { lastFrame } = render(<Spinner activeTool="read" />)
-    expect(lastFrame()).toContain("Reading")
+    expect(stripAnsi(lastFrame())).toContain("Reading")
   })
 
   it("renders Searching for glob tool", () => {
     const { lastFrame } = render(<Spinner activeTool="glob" />)
-    expect(lastFrame()).toContain("Searching")
+    expect(stripAnsi(lastFrame())).toContain("Searching")
   })
 
   it("renders Fetching for webfetch tool", () => {
     const { lastFrame } = render(<Spinner activeTool="webfetch" />)
-    expect(lastFrame()).toContain("Fetching")
+    expect(stripAnsi(lastFrame())).toContain("Fetching")
   })
 
   it("renders Working for unknown tool", () => {
     const { lastFrame } = render(<Spinner activeTool="unknown_tool_xyz" />)
-    expect(lastFrame()).toContain("Working")
+    expect(stripAnsi(lastFrame())).toContain("Working")
   })
 
   it("renders a spinner character", () => {
@@ -142,7 +149,7 @@ describe("Markdown", () => {
   it("renders code block with border", () => {
     const { lastFrame } = render(<Markdown content={"```ts\nconst x = 1\n```"} />)
     const frame = lastFrame() ?? ""
-    expect(frame).toContain("x = 1")
+    expect(stripAnsi(frame)).toContain("x = 1")
     expect(frame).toContain("ts")
   })
 
@@ -454,12 +461,14 @@ const TEST_COMMANDS: CommandDef[] = [
 describe("Command UX", () => {
   it("renders command palette categories and aliases", () => {
     const { lastFrame } = render(
-      <CommandPalette
-        commands={TEST_COMMANDS}
-        recentCommands={[]}
-        onSelect={() => {}}
-        onClose={() => {}}
-      />,
+      <TerminalSizeContext.Provider value={{ columns: 100, rows: 32 }}>
+        <CommandPalette
+          commands={TEST_COMMANDS}
+          recentCommands={[]}
+          onSelect={() => {}}
+          onClose={() => {}}
+        />
+      </TerminalSizeContext.Provider>,
     )
 
     const frame = lastFrame() ?? ""
@@ -489,9 +498,32 @@ describe("Command UX", () => {
     expect(frame).toContain("Manage persistent memory")
   })
 
+  it("prioritizes exact aliases and command names in slash suggestions", () => {
+    expect(getCommandMatches("m", TEST_COMMANDS)[0]?.name).toBe("model")
+    expect(getCommandMatches("mem", TEST_COMMANDS)[0]?.name).toBe("memory")
+    expect(getCommandMatches("memory", TEST_COMMANDS)[0]?.name).toBe("memory")
+    expect(getCommandMatches("memory extra", TEST_COMMANDS)).toHaveLength(0)
+  })
+
   it("does not parse an empty slash command", () => {
     expect(parseSlashCommand("/")).toBeNull()
     expect(parseSlashCommand("/   ")).toBeNull()
+  })
+
+  it("keeps curated and remote models in the model picker list", () => {
+    const models = mergeModelLists(
+      [
+        { id: "claude-opus-4-8", name: "Claude Opus 4.8", contextWindow: 200_000, maxOutput: 32_000, supportsTools: true, supportsVision: true, supportsThinking: true },
+        { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", contextWindow: 200_000, maxOutput: 64_000, supportsTools: true, supportsVision: true, supportsThinking: true },
+      ],
+      [
+        { id: "claude-opus-4-8", name: "claude-opus-4-8", contextWindow: 200_000, maxOutput: 32_000, supportsTools: true, supportsVision: true },
+        { id: "deepseek-v4-flash", name: "deepseek-v4-flash", contextWindow: 200_000, maxOutput: 32_000, supportsTools: true, supportsVision: false },
+      ],
+    )
+
+    expect(models.map((m) => m.id)).toEqual(["claude-opus-4-8", "claude-sonnet-4-6", "deepseek-v4-flash"])
+    expect(models[0]?.name).toBe("Claude Opus 4.8")
   })
 })
 

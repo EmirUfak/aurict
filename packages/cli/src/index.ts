@@ -257,6 +257,18 @@ if (process.stdin.isTTY) {
     )
     await waitUntilExit()
   }
+
+  // Ink unmount olduktan sonra süreç Bun.serve (lokal server) ve MCP child
+  // process'leri yüzünden canlı kalır — kullanıcı donmuş bir ekranla baş başa
+  // kalır ve tuş basışları ham metin olarak sızar. Temiz kapat:
+  if (mcpManagerRef) {
+    await Promise.race([
+      mcpManagerRef.disconnectAll().catch(() => {}),
+      new Promise((res) => setTimeout(res, 1000)),
+    ])
+  }
+  restoreTerminal()
+  process.exit(0)
 } else {
   // Pipe modu — tek seferlik
   const input = (await Bun.stdin.text()).trim()

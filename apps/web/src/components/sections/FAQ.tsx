@@ -95,7 +95,7 @@ export function FAQ() {
                   textAlign:      "left",
                   transition:     "background 0.15s",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(129,140,248,0.04)")}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(56,189,248,0.04)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
               >
                 <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>

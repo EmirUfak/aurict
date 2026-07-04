@@ -2,6 +2,7 @@ import { streamText, generateText, tool } from "ai"
 import type { CoreMessage, ToolSet } from "ai"
 import { resolve } from "path"
 import { ProviderRegistry } from "../provider/registry.js"
+import { findCachedModelInfo } from "../provider/models-fetch.js"
 import { ToolRegistry } from "../tool/registry.js"
 import { executeTool } from "../tool/executor.js"
 import { SessionManager } from "../session/manager.js"
@@ -234,7 +235,10 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   const tailTurns        = compCfg?.tailTurns            ?? DEFAULT_TAIL_TURNS
   const strategy         = compCfg?.strategy             ?? "balanced"
   const msgThreshold     = compCfg?.messageCountThreshold
+  // Önce statik liste, yoksa uzak /models cache'i — uzak listeden seçilen
+  // modellerin capability'leri (ör. supportsTools: false) kaybolmasın.
   const modelInfo = plugin.listModels().find((m) => m.id === modelId)
+    ?? findCachedModelInfo(providerName, modelId)
   const compCfgFull = {
     contextLimit:          modelInfo?.contextWindow ?? 200_000,
     maxOutput:             modelInfo?.maxOutput     ?? 8_000,
@@ -682,13 +686,38 @@ function parseRetryAfter(msg: string): number | undefined {
 
 export function parseProviderError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err)
-  if (/401|unauthorized|invalid.{0,20}key/i.test(raw))
-    return `Invalid API key — update with /config set <provider> <key>`
-  if (/429|rate.?limit|too.many/i.test(raw))
+
+  // AI SDK APICallError: statusCode + url + responseBody taşır — "Bad Request"
+  // gibi çıplak mesajlar yerine asıl nedeni göster.
+  const api = err as { statusCode?: number; url?: string; responseBody?: unknown }
+  const status = typeof api?.statusCode === "number" ? api.statusCode : undefined
+  const body = typeof api?.responseBody === "string"
+    ? api.responseBody.slice(0, 600)
+    : api?.responseBody !== undefined ? JSON.stringify(api.responseBody).slice(0, 600) : ""
+  const detail = [
+    status !== undefined ? `HTTP ${status}` : null,
+    api?.url ? `endpoint: ${api.url}` : null,
+    body ? `response: ${body}` : null,
+  ].filter(Boolean).join("\n")
+
+  if (status === 400 || /\b400\b|bad request/i.test(raw)) {
+    return [
+      `Provider rejected the request (400 Bad Request).`,
+      detail,
+      `Common causes: model id not available on this provider (/models to pick from the live list), unsupported parameter, or tool/schema rejected by the model.`,
+    ].filter(Boolean).join("\n")
+  }
+  if (status === 404 || /\b404\b|not found/i.test(raw))
+    return [`Model or endpoint not found (404).`, detail, `Pick a model from /models — the id may be stale.`].filter(Boolean).join("\n")
+  if (status === 401 || /\b401\b|unauthorized|invalid.{0,20}key/i.test(raw))
+    return [`Invalid API key — update with /config set <provider> <key>`, detail].filter(Boolean).join("\n")
+  if (status === 403 || /\b403\b|forbidden/i.test(raw))
+    return [`Access forbidden (403) — key may lack access to this model.`, detail].filter(Boolean).join("\n")
+  if (status === 429 || /\b429\b|rate.?limit|too.many/i.test(raw))
     return `Rate limited — wait a moment or switch provider (/providers)`
   if (/503|502|overload|unavailable/i.test(raw))
     return `Provider unavailable — try again or switch with /providers`
   if (/ECONNREFUSED|ENOTFOUND|network|timeout/i.test(raw))
     return `Network error — check your internet connection`
-  return raw
+  return detail ? `${raw}\n${detail}` : raw
 }

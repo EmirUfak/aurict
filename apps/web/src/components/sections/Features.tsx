@@ -112,6 +112,7 @@ export function Features() {
         padding: "120px 24px",
         maxWidth: 1200,
         margin: "0 auto",
+        background: "linear-gradient(180deg, transparent, rgba(56,189,248,0.035) 44%, transparent)",
       }}
     >
       {/* section header */}
@@ -124,7 +125,7 @@ export function Features() {
           style={{
             fontFamily: "var(--font-geist-mono)",
             fontSize: 12,
-            color: "var(--accent)",
+            color: "var(--accent-blue)",
             letterSpacing: "0.12em",
             textTransform: "uppercase",
             marginBottom: 16,
@@ -158,9 +159,10 @@ export function Features() {
           gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
           background: "var(--border)",
           gap: 1,
-          border: "1px solid var(--border)",
+          border: "1px solid rgba(56,189,248,0.18)",
           borderRadius: 16,
           overflow: "hidden",
+          boxShadow: "0 28px 80px rgba(56,189,248,0.055)",
         }}
       >
         {FEATURES.map((feature, i) => {
@@ -175,13 +177,19 @@ export function Features() {
               style={{
                 padding: "32px 36px",
                 background: "var(--bg-subtle)",
-                transition: "background 0.2s",
+                transition: "background 0.2s, box-shadow 0.2s",
                 cursor: "default",
                 position: "relative",
                 overflow: "hidden",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg-card)" }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-subtle)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "var(--bg-card)"
+                e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(56,189,248,0.08)"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "var(--bg-subtle)"
+                e.currentTarget.style.boxShadow = "none"
+              }}
             >
               {/* colored accent top line */}
               <div
@@ -191,7 +199,7 @@ export function Features() {
                   left: 0,
                   right: 0,
                   height: 2,
-                  background: `linear-gradient(90deg, ${feature.color}50, transparent)`,
+                  background: `linear-gradient(90deg, ${feature.color}70, rgba(56,189,248,0.18), transparent)`,
                 }}
               />
 

@@ -1,60 +1,64 @@
 /**
- * StartupBanner — Aurict başlangıç banner'ı
+ * StartupBanner — Aurict başlangıç banner'ı (Cockpit v2)
  *
- * 2 sütunlu modern terminal tasarımı (Responsive):
- *  - Geniş ekranlarda (cols >= 85) yan yana iki sütunlu görünüm.
- *  - Dar ekranlarda (cols < 85) üst üste tek sütunlu görünüm.
- *  - Sol/Üst Sütun: Welcome back, aurict.png logomuz, model/provider detayları.
- *  - Sağ/Alt Sütun: Kerning verilerek sağa doğru genişletilmiş 3D AURICT logosu, /help ve ipuçları.
- *  - Opsiyonel: Geniş ekranlarda (cols >= 120 veya 85) Rick and Morty repliklerinin yazılımcı uyarlamaları.
+ * Responsive terminal cockpit:
+ *  - Geniş terminaller "SYSTEMS ONLINE" instrument ızgaralı bir komuta paneli gösterir.
+ *  - Dar terminaller aynı bilgiyi tek okunur sütunda tutar.
+ *  - Metin özgün sci-fi mühendislik tonunda; dış slogan yok.
  */
 
 import React from "react"
 import { Text } from "ink"
-import { HStack, VStack, Center, Divider } from "./design-system/index.js"
+import { HStack, VStack, Center } from "./design-system/index.js"
 import { useTheme } from "../utils/theme.js"
 
-// Kerning uygulanarak sağa doğru genişletilmiş 3D AURICT logosu (yeşil-cyan gradient)
+// Kerning uygulanarak sağa doğru genişletilmiş 3D AURICT logosu.
 const ASCII_LOGO = [
-  { text: "  █████╗  ██╗   ██╗  ██████╗  ██╗  ██████╗  ████████╗", color: "#06b6d4" },
-  { text: " ██╔══██╗ ██║   ██║  ██╔══██╗ ██║ ██╔════╝  ╚══██╔══╝", color: "#0891b2" },
-  { text: " ███████║ ██║   ██║  ██████╔╝ ██║ ██║          ██║   ", color: "#0d9488" },
-  { text: " ██╔══██║ ██║   ██║  ██╔══██╗ ██║ ██║          ██║   ", color: "#10b981" },
-  { text: " ██║  ██║ ╚██████╔╝  ██║  ██║ ██║ ╚██████╗     ██║   ", color: "#059669" },
-  { text: " ╚═╝  ╚═╝  ╚═════╝   ╚═╝  ╚═╝ ╚═╝  ╚═════╝     ╚═╝   ", color: "#047857" },
+  { text: "  █████╗  ██╗   ██╗  ██████╗  ██╗  ██████╗  ████████╗", color: "#38bdf8" },
+  { text: " ██╔══██╗ ██║   ██║  ██╔══██╗ ██║ ██╔════╝  ╚══██╔══╝", color: "#60a5fa" },
+  { text: " ███████║ ██║   ██║  ██████╔╝ ██║ ██║          ██║   ", color: "#818cf8" },
+  { text: " ██╔══██║ ██║   ██║  ██╔══██╗ ██║ ██║          ██║   ", color: "#a78bfa" },
+  { text: " ██║  ██║ ╚██████╔╝  ██║  ██║ ██║ ╚██████╗     ██║   ", color: "#c4b5fd" },
+  { text: " ╚═╝  ╚═╝  ╚═════╝   ╚═╝  ╚═╝ ╚═╝  ╚═════╝     ╚═╝   ", color: "#38bdf8" },
 ]
 
 // Dar terminaller için özel kompakt AURICT ASCII logo.
 const COMPACT_ASCII_LOGO = [
-  { text: "  █   █ ███  ███ ███ ███ ███", color: "#06b6d4" },
-  { text: " █ █  █ █  █  █  █   █    █ ", color: "#0891b2" },
-  { text: " ███  █ ███   █  █   █    █ ", color: "#0d9488" },
-  { text: " █ █  █ █ █   █  █   █    █ ", color: "#10b981" },
-  { text: " █ █  █ █  █ ███ ███ ███  █ ", color: "#059669" },
+  { text: "  █   █ ███  ███ ███ ███ ███", color: "#38bdf8" },
+  { text: " █ █  █ █  █  █  █   █    █ ", color: "#60a5fa" },
+  { text: " ███  █ ███   █  █   █    █ ", color: "#a78bfa" },
+  { text: " █ █  █ █ █   █  █   █    █ ", color: "#c4b5fd" },
+  { text: " █ █  █ █  █ ███ ███ ███  █ ", color: "#38bdf8" },
 ]
 
-// Rick & Morty tarzı, terminal ve kod akışına uyarlanmış replik havuzu.
-const QUOTE_POOL = [
-  "Sometimes coding is more art than science, {user}. A lot of people don't get that.",
-  "Nobody deploys on purpose. Nobody belongs in production. Everybody's gonna diff. Come code, {user}.",
-  "In developer culture, {user}, this is considered a failing test.",
-  "What is my purpose? You render the status line. Oh my god.",
-  "To code is to risk it all, {user}; otherwise you're just syntax waiting for a parser.",
-  "This isn't legacy code, {user}. It's architecture we don't understand yet.",
-  "This is the worst part of any deploy, {user}: waiting for CI to tell us what we already know.",
-  "A-are we in a simulation, or is this just local Docker?",
-  "Existence is pain to a compiler, {user}.",
-  "There is no clean build, {user}. Gotta rip that band-aid off now.",
-  "Don't get cute with the regex, {user}. It's not a good look.",
-  "I'm not arguing, {user}. I'm explaining why my rewrite is right.",
-  "That just sounds like serverless with extra steps.",
-  "Well then get your code together. Put it all together and push it to a clean commit.",
-  "I don't think we should run this script, {user}.",
-  "The road to production is paved with stack traces.",
-  "I am not programmed to ignore TypeScript warnings, {user}.",
-  "Wubba Lubba Dub Dub. That means the test suite is failing.",
-  "I'm Aurict, and this is my dev environment, {user}.",
-  "Don't play dumb with me, {user}. I know you skipped the code review.",
+const SIGNAL_POOL = [
+  "Command deck online. Keep the blast radius visible.",
+  "Portal anomaly contained; patch route is stable.",
+  "Compiler mood: skeptical, but negotiable.",
+  "Run the smallest safe check before the dramatic rewrite.",
+  "If the diff looks haunted, ask the review agent first.",
+  "Telemetry is quiet. That usually means the logs are waiting.",
+  "Sandbox field armed. Destructive commands need a real reason.",
+  "Context loaded. Try a precise task and let the swarm split it.",
+  "A clean commit is not a personality trait, but it helps.",
+  "The fastest path is still the one with verification.",
+]
+
+const BOOT_PHASES = [
+  "syncing workspace",
+  "calibrating agents",
+  "arming sandbox",
+  "warming tool bus",
+  "cockpit ready",
+]
+
+const PORTAL_FRAMES = [
+  "◜══════◝",
+  "═◜════◝═",
+  "══◜══◝══",
+  "══◟══◞══",
+  "═◟════◞═",
+  "◟══════◞",
 ]
 
 interface Tip {
@@ -64,10 +68,10 @@ interface Tip {
 }
 
 const TIP_POOL: Tip[] = [
-  { label: "ctrl+x",    hint: "subagent view",       tone: "accent"  },
-  { label: "ctrl+t",    hint: "task panel",          tone: "accent"  },
-  { label: "ctrl+p",    hint: "command palette",     tone: "accent"  },
-  { label: "ctrl+r",    hint: "history search",      tone: "muted"   },
+  { label: "⌃X",        hint: "subagent view",       tone: "accent"  },
+  { label: "⌃T",        hint: "task panel",          tone: "accent"  },
+  { label: "⌃P",        hint: "command palette",     tone: "accent"  },
+  { label: "⌃R",        hint: "history search",      tone: "muted"   },
   { label: "/design",   hint: "UI wizard",           tone: "info"    },
   { label: "/sessions", hint: "restore history",     tone: "info"    },
   { label: "/compact",  hint: "manage context",      tone: "warning" },
@@ -101,23 +105,103 @@ interface Props {
   rows?:    number
 }
 
+// İki sütunlu instrument ızgarası için tek hücre
+function Cell({ label, value, valueColor, labelColor, width }: {
+  label: string; value: string; valueColor: string; labelColor: string; width: number
+}) {
+  return (
+    <HStack width={width} justify="space-between">
+      <Text color={labelColor}>{label}</Text>
+      <Text color={valueColor}>{value}</Text>
+    </HStack>
+  )
+}
+
+function SafeDivider({ color, width, label }: { color: string; width: number; label?: string | undefined }) {
+  const safeWidth = Math.max(12, width)
+  if (label) {
+    const prefix = `── ${label} `
+    return <Text color={color}>{prefix}{String("─").repeat(Math.max(0, safeWidth - prefix.length))}</Text>
+  }
+  return <Text color={color}>{String("─").repeat(safeWidth)}</Text>
+}
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text
+  return `${text.slice(0, Math.max(1, max - 1))}…`
+}
+
 export function StartupBanner({ version, provider, model, workdir, cols, rows }: Props) {
   const theme = useTheme()
   const user  = process.env["USER"] || process.env["USERNAME"] || "user"
   const dir   = workdir.replace(process.env["HOME"] ?? "", "~")
 
-  const tips = seededPick(TIP_POOL, 2)
+  const tips = seededPick(TIP_POOL, 3)
   const isNarrow = cols !== undefined && cols < 85
-  const showFullLogo = cols === undefined || cols >= 85
-  const quote = React.useMemo(() => {
-    const raw = QUOTE_POOL[Math.floor(Math.random() * QUOTE_POOL.length)]!
-    return raw.replace(/{user}/g, user)
-  }, [user])
+  const isTiny = rows !== undefined && rows < 20
+  const isShort = rows !== undefined && rows < 30
+  const showFullLogo = (cols === undefined || cols >= 85) && !isShort
+  const signal = React.useMemo(() => SIGNAL_POOL[Math.floor(Math.random() * SIGNAL_POOL.length)]!, [])
+  const [bootFrame, setBootFrame] = React.useState(0)
+
+  React.useEffect(() => {
+    const maxFrame = BOOT_PHASES.length * 2 - 1
+    const t = setInterval(() => setBootFrame((n) => n >= maxFrame ? n : n + 1), 220)
+    return () => clearInterval(t)
+  }, [])
+
+  const bootPhase = BOOT_PHASES[Math.min(BOOT_PHASES.length - 1, Math.floor(bootFrame / 2) % BOOT_PHASES.length)]!
+  const portalFrame = PORTAL_FRAMES[bootFrame % PORTAL_FRAMES.length]!
+  const bannerWidth = Math.max(24, (cols ?? 80) - 4)
+  const outerContentWidth = Math.max(18, bannerWidth - 6)
+  const panelWidth = outerContentWidth
+  const panelContentWidth = Math.max(18, panelWidth - 6)
+  const dividerWidth = outerContentWidth
+  const panelDividerWidth = panelContentWidth
+  const shortDir = truncate(dir, Math.max(18, bannerWidth - 26))
+  const narrowCellWidth = Math.max(30, outerContentWidth - 4)
+  const wideCellWidth = Math.max(30, Math.floor((panelContentWidth - 3) / 2))
+
+  if (isTiny) {
+    return (
+      <VStack width={bannerWidth} paddingX="md" paddingY="none" gap="none" borderStyle="round" borderColor={theme.borderDim}>
+        <HStack justify="space-between">
+          <Text color={theme.accentAlt} bold>AURICT {version}</Text>
+          <Text color={theme.success}>● ready</Text>
+        </HStack>
+        <HStack justify="space-between">
+          <Text color={theme.textDim}>{shortDir}</Text>
+          <Text color={theme.textSecondary}>{truncate(model, 18)}</Text>
+        </HStack>
+      </VStack>
+    )
+  }
+
+  if (isShort) {
+    return (
+      <VStack width={bannerWidth} paddingX="md" paddingY="xs" gap="none" borderStyle="round" borderColor={theme.borderDim}>
+        <HStack justify="space-between">
+          <Text color={theme.accentAlt} bold>AURICT {version}</Text>
+          <Text color={theme.success}>● ready</Text>
+        </HStack>
+        <HStack justify="space-between">
+          <Text color={theme.textDim}>{truncate(provider, 18)}</Text>
+          <Text color={theme.textSecondary}>{truncate(model, Math.max(16, bannerWidth - 34))}</Text>
+        </HStack>
+        <Text color={theme.textDim}>{shortDir}</Text>
+        <HStack justify="space-between">
+          <Text color={theme.accent}>{portalFrame}</Text>
+          <Text color={theme.textDim}>{bootPhase}</Text>
+        </HStack>
+        <Text color={theme.textDim}>/help · ⌃P palette · @ file</Text>
+      </VStack>
+    )
+  }
 
   // ── Dar Ekran Düzeni (Tek Sütun) ──────────────────────────────────────────
   if (isNarrow) {
     return (
-      <VStack paddingX="md" paddingY="sm" gap="sm" borderStyle="round" borderColor={theme.borderDim}>
+      <VStack width={bannerWidth} paddingX="md" paddingY="sm" gap="sm" borderStyle="round" borderColor={theme.borderDim}>
         <Center>
           <VStack gap="none">
             {COMPACT_ASCII_LOGO.map((row, i) => (
@@ -126,35 +210,39 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
           </VStack>
         </Center>
         <HStack justify="center" marginBottom="xs">
-          <Text color="#475569">AURICT {version}</Text>
+          <Text color={theme.accentAlt}>✦ AURICT {version}</Text>
         </HStack>
 
-        <Divider color={theme.borderDim} />
+        <SafeDivider color={theme.borderDim} width={dividerWidth} label="systems online" />
 
         <VStack paddingX="sm" gap="none">
-          <Text color={theme.accent} italic>"{quote}"</Text>
-          <Text color={theme.textDim} dimColor>— Rick C-137</Text>
+          <Cell label="provider" value={provider} valueColor={theme.textPrimary} labelColor={theme.textDim} width={narrowCellWidth} />
+          <Cell label="model"    value={model}    valueColor={theme.textPrimary} labelColor={theme.textDim} width={narrowCellWidth} />
+          <Cell label="project"  value={dir}      valueColor={theme.textPrimary} labelColor={theme.textDim} width={narrowCellWidth} />
         </VStack>
 
-        <Divider color={theme.borderDim} />
-
-        {/* Kullanıcı / Model Bilgisi */}
-        <HStack justify="space-between" paddingX="sm">
-          <Text color={theme.textSecondary} bold>Welcome back {user}!</Text>
-          <Text color={theme.textDim}>{provider} · {model}</Text>
+        <HStack justify="center" gap="sm">
+          <Text color={theme.accent}>{portalFrame}</Text>
+          <Text color={theme.textDim}>{bootPhase}</Text>
         </HStack>
 
-        <Divider color={theme.borderDim} />
+        <SafeDivider color={theme.borderDim} width={dividerWidth} />
 
-        {/* İpuçları */}
+        <VStack paddingX="sm" gap="none">
+          <Text color={theme.accentAlt}>◆ {signal}</Text>
+          <Text color={theme.textDim} dimColor>engineering signal</Text>
+        </VStack>
+
+        <SafeDivider color={theme.borderDim} width={dividerWidth} />
+
         <VStack gap="none" paddingX="sm">
-          <Text color={theme.textSecondary} bold>Tips for getting started</Text>
+          <Text color={theme.textSecondary} bold>Welcome back, {user}</Text>
           <Text color={theme.textDim}>
-            • Run <Text color={theme.accent} bold>/help</Text> to view all available commands & shortcut keys
+            • <Text color={theme.accent} bold>/help</Text> — tüm komutlar & kısayollar
           </Text>
-          {tips.map((tip, i) => (
+          {tips.slice(0, 2).map((tip, i) => (
             <Text key={i} color={theme.textDim}>
-              • <Text color={theme.warning} bold>{tip.label}</Text>: {tip.hint}
+              • <Text color={theme.warning} bold>{tip.label}</Text> {tip.hint}
             </Text>
           ))}
         </VStack>
@@ -162,9 +250,9 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
     )
   }
 
-  // ── Geniş Ekran Düzeni (OpenClaude benzeri tek odaklı karşılama) ─────────
+  // ── Geniş Ekran Düzeni (komuta paneli) ──────────────────────────────────────
   return (
-    <VStack paddingX="md" paddingY="sm" gap="sm">
+    <VStack width={bannerWidth} paddingX="md" paddingY="sm" gap="sm">
       {showFullLogo && (
         <Center>
           <VStack gap="none">
@@ -175,50 +263,64 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
         </Center>
       )}
 
-      <Center>
+      <HStack justify="center" gap="sm">
+        <Text color={theme.accentAlt}>✦</Text>
+        <Text color={theme.textPrimary} bold>AURICT</Text>
+        <Text color={theme.textDim}>· multi-agent cockpit</Text>
         <Text color={theme.accent}>✦</Text>
-        <Text color={theme.textPrimary} bold> AURICT </Text>
-        <Text color={theme.accent}>✦</Text>
-      </Center>
-
-      <VStack borderStyle="single" borderColor={theme.borderDim} paddingX="md" paddingY="sm" gap="xs">
-        <HStack justify="space-between">
-          <Text color={theme.textDim}>Provider</Text>
-          <Text color={theme.textPrimary}>{provider}</Text>
-        </HStack>
-        <HStack justify="space-between">
-          <Text color={theme.textDim}>Model</Text>
-          <Text color={theme.textPrimary}>{model}</Text>
-        </HStack>
-        <HStack justify="space-between">
-          <Text color={theme.textDim}>Project</Text>
-          <Text color={theme.textPrimary}>{dir}</Text>
-        </HStack>
-        <Divider color={theme.borderDim} />
-        <HStack gap="sm">
-          <Text color={theme.accent}>●</Text>
-          <Text color={theme.textDim}>Ready - type </Text>
-          <Text color={theme.accent} bold>/help</Text>
-          <Text color={theme.textDim}> to begin</Text>
-        </HStack>
-        <Divider color={theme.borderDim} />
-        <VStack gap="none">
-          <Text color={theme.accent} italic>"{quote}"</Text>
-          <Text color={theme.textDim} dimColor>— Rick C-137</Text>
-        </VStack>
-      </VStack>
-
-      <HStack justify="space-between" paddingX="sm">
-        <Text color={theme.textDim}>aurict {version}</Text>
-        <Text color={theme.textDim}>Welcome back {user}</Text>
       </HStack>
 
-      <HStack gap="md" paddingX="sm">
-        {tips.map((tip, i) => (
-          <Text key={i} color={theme.textDim}>
-            <Text color={theme.warning} bold>{tip.label}</Text> {tip.hint}
-          </Text>
-        ))}
+      {/* ── SYSTEMS ONLINE instrument paneli ── */}
+      <VStack width={panelWidth} borderStyle="round" borderColor={theme.borderActive} paddingX="md" paddingY="sm" gap="xs">
+        <HStack justify="space-between">
+          <Text color={theme.textDim} bold>SYSTEMS ONLINE</Text>
+          <Text color={theme.success}>◉ ready · {version}</Text>
+        </HStack>
+        <SafeDivider color={theme.borderDim} width={panelDividerWidth} />
+        <HStack gap="lg">
+          <Cell label="provider" value={provider}        valueColor={theme.textPrimary} labelColor={theme.textDim} width={wideCellWidth} />
+          <Cell label="sandbox"  value="policy"          valueColor={theme.warning}     labelColor={theme.textDim} width={wideCellWidth} />
+        </HStack>
+        <HStack gap="lg">
+          <Cell label="model"    value={model}           valueColor={theme.textPrimary} labelColor={theme.textDim} width={wideCellWidth} />
+          <Cell label="agents"   value="swarm · 0 active" valueColor={theme.accentAlt}  labelColor={theme.textDim} width={wideCellWidth} />
+        </HStack>
+        <HStack gap="lg">
+          <Cell label="project"  value={dir}             valueColor={theme.textPrimary} labelColor={theme.textDim} width={wideCellWidth} />
+          <Cell label="status"   value="● online"        valueColor={theme.success}     labelColor={theme.textDim} width={wideCellWidth} />
+        </HStack>
+        <SafeDivider color={theme.borderDim} width={panelDividerWidth} />
+        <HStack justify="space-between">
+          <HStack gap="sm">
+            <Text color={theme.accentAlt}>●</Text>
+            <Text color={theme.textDim}>Ready — type </Text>
+            <Text color={theme.accent} bold>/help</Text>
+            <Text color={theme.textDim}> to begin</Text>
+          </HStack>
+          <HStack gap="sm">
+            <Text color={theme.accent}>{portalFrame}</Text>
+            <Text color={theme.textDim}>{bootPhase}</Text>
+          </HStack>
+        </HStack>
+      </VStack>
+
+      {/* ── Mission signal ── */}
+      <HStack paddingX="sm" gap="sm">
+        <Text color={theme.accentAlt}>◆</Text>
+        <Text color={theme.textSecondary}>{signal}</Text>
+        <Text color={theme.textDim} dimColor>· mission signal</Text>
+      </HStack>
+
+      {/* ── Welcome + ipuçları ── */}
+      <HStack justify="space-between" paddingX="sm">
+        <Text color={theme.textDim}>Welcome back, {user}</Text>
+        <HStack gap="md">
+          {tips.map((tip, i) => (
+            <Text key={i} color={theme.textDim}>
+              <Text color={theme.warning} bold>{tip.label}</Text> {tip.hint}
+            </Text>
+          ))}
+        </HStack>
       </HStack>
     </VStack>
   )

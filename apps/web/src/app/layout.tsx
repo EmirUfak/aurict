@@ -99,7 +99,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="dns-prefetch" href="https://registry.npmjs.org" />
         {/* Web App Manifest */}
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#818cf8" />
+        <meta name="theme-color" content="#a78bfa" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

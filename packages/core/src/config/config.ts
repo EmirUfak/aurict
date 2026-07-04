@@ -162,6 +162,17 @@ export interface OmniConfig {
 
 const GLOBAL_PATH = join(homedir(), ".aurict", "config.json")
 
+const PROVIDER_ENV_VARS: Record<string, string> = {
+  anthropic:  "ANTHROPIC_API_KEY",
+  openai:     "OPENAI_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+  google:     "GOOGLE_GENERATIVE_AI_API_KEY",
+  opencode:   "OPENCODE_API_KEY",
+  xai:        "XAI_API_KEY",
+  azure:      "AZURE_OPENAI_API_KEY",
+  bedrock:    "AWS_ACCESS_KEY_ID",
+}
+
 function load(path: string): OmniConfig {
   try {
     if (!existsSync(path)) return {}
@@ -214,6 +225,11 @@ export function loadConfig(projectDir?: string): OmniConfig {
     if (envKey) {
       providers[provider] = { ...(providers[provider] ?? {}), apiKey: envKey }
     }
+  }
+
+  for (const [provider, envVar] of Object.entries(PROVIDER_ENV_VARS)) {
+    const configuredKey = providers[provider]?.apiKey?.trim()
+    if (configuredKey && !process.env[envVar]) process.env[envVar] = configuredKey
   }
 
   return { ...merged, providers }
@@ -286,14 +302,7 @@ export function setApiKey(provider: string, apiKey: string): void {
 
   // Aynı zamanda env var olarak set et (mevcut process için)
   const envMap: Record<string, string> = {
-    anthropic:  "ANTHROPIC_API_KEY",
-    openai:     "OPENAI_API_KEY",
-    openrouter: "OPENROUTER_API_KEY",
-    google:     "GOOGLE_GENERATIVE_AI_API_KEY",
-    opencode:   "OPENCODE_API_KEY",
-    xai:        "XAI_API_KEY",
-    azure:      "AZURE_OPENAI_API_KEY",
-    bedrock:    "AWS_ACCESS_KEY_ID",
+    ...PROVIDER_ENV_VARS,
   }
   const envVar = envMap[provider]
   if (envVar) process.env[envVar] = apiKey

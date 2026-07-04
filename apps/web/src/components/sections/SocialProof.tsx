@@ -50,9 +50,9 @@ export function SocialProof() {
     <section
       style={{
         padding: "48px 24px 64px",
-        borderTop: "1px solid var(--border)",
-        borderBottom: "1px solid var(--border)",
-        background: "var(--bg-card)",
+        borderTop: "1px solid rgba(56,189,248,0.14)",
+        borderBottom: "1px solid rgba(167,139,250,0.14)",
+        background: "linear-gradient(90deg, rgba(56,189,248,0.055), var(--bg-card), rgba(167,139,250,0.045))",
       }}
     >
       <div style={{ maxWidth: 1100, margin: "0 auto" }}>
@@ -98,14 +98,14 @@ export function SocialProof() {
                 padding: "16px 20px",
                 borderRadius: 12,
                 border: "1px solid var(--border)",
-                background: "var(--bg)",
+                background: "linear-gradient(135deg, rgba(56,189,248,0.035), var(--bg))",
                 textDecoration: "none",
                 color: "var(--text-dim)",
                 transition: "border-color 0.2s, color 0.2s",
                 cursor: "pointer",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent)"
+                e.currentTarget.style.borderColor = "var(--accent-blue)"
                 e.currentTarget.style.color = "var(--text)"
               }}
               onMouseLeave={(e) => {
@@ -113,13 +113,13 @@ export function SocialProof() {
                 e.currentTarget.style.color = "var(--text-dim)"
               }}
             >
-              <span style={{ color: "var(--accent)", flexShrink: 0 }}>{s.icon}</span>
+              <span style={{ color: "var(--accent-blue)", flexShrink: 0 }}>{s.icon}</span>
               <span style={{ fontSize: 13, flex: 1, lineHeight: 1.4 }}>{s.label}</span>
               <span
                 style={{
                   fontSize: 11,
                   fontFamily: "var(--font-geist-mono)",
-                  color: "var(--accent)",
+                  color: "var(--accent-blue)",
                   whiteSpace: "nowrap",
                   flexShrink: 0,
                 }}

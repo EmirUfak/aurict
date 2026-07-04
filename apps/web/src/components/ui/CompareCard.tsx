@@ -17,13 +17,13 @@ export function CompareCard({ slug, competitor, tagline, description, differenti
           padding: "28px 32px",
           borderRadius: 14,
           border: "1px solid var(--border)",
-          background: "var(--bg-card)",
+          background: "linear-gradient(135deg, rgba(56,189,248,0.035), var(--bg-card))",
           transition: "border-color 0.2s, transform 0.15s",
           cursor: "pointer",
         }}
         onMouseEnter={(e) => {
           const el = e.currentTarget as HTMLDivElement
-          el.style.borderColor = "var(--accent)"
+          el.style.borderColor = "var(--accent-blue)"
           el.style.transform = "translateY(-2px)"
         }}
         onMouseLeave={(e) => {
@@ -42,9 +42,9 @@ export function CompareCard({ slug, competitor, tagline, description, differenti
                 style={{
                   fontSize: 11,
                   fontFamily: "var(--font-geist-mono)",
-                  color: "var(--accent)",
-                  background: "var(--accent-glow)",
-                  border: "1px solid rgba(129,140,248,0.2)",
+                  color: "var(--accent-blue)",
+                  background: "rgba(56,189,248,0.09)",
+                  border: "1px solid rgba(56,189,248,0.2)",
                   borderRadius: 6,
                   padding: "3px 9px",
                   whiteSpace: "nowrap",
@@ -60,7 +60,7 @@ export function CompareCard({ slug, competitor, tagline, description, differenti
               {description}
             </p>
           </div>
-          <span style={{ fontSize: 20, color: "var(--accent)", alignSelf: "center", flexShrink: 0 }}>
+          <span style={{ fontSize: 20, color: "var(--accent-blue)", alignSelf: "center", flexShrink: 0 }}>
             →
           </span>
         </div>

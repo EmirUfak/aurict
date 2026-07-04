@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect, useRef } from "react"
 import { Box, Text, useInput } from "ink"
 import { useTheme } from "../utils/theme.js"
 
@@ -28,12 +28,17 @@ export function Select<T extends string = string>({
 }: Props<T>) {
   const theme = useTheme()
 
+  // Coalesced (aynı tick) ok tuşlarında closure'daki selectedIndex bayat kalır;
+  // ref her tuşta senkron güncellenir, prop değişince yeniden hizalanır.
+  const selRef = useRef(selectedIndex)
+  useEffect(() => { selRef.current = selectedIndex }, [selectedIndex])
+
   useInput((_, key) => {
-    if (key.upArrow)   { onChange(Math.max(0, selectedIndex - 1)); return }
-    if (key.downArrow) { onChange(Math.min(options.length - 1, selectedIndex + 1)); return }
+    if (key.upArrow)   { selRef.current = Math.max(0, selRef.current - 1); onChange(selRef.current); return }
+    if (key.downArrow) { selRef.current = Math.min(options.length - 1, selRef.current + 1); onChange(selRef.current); return }
     if (key.return) {
-      const opt = options[selectedIndex]
-      if (opt) onSelect(opt, selectedIndex)
+      const opt = options[selRef.current]
+      if (opt) onSelect(opt, selRef.current)
       return
     }
     if (key.escape && onCancel) { onCancel(); return }

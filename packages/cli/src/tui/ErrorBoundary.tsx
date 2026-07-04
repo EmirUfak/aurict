@@ -44,32 +44,29 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render(): React.ReactNode {
     if (this.state.hasError && this.state.error) {
       const err = this.state.error
+      const stackFrame = err.stack?.split("\n")[1]?.trim() ?? "unavailable"
       return (
-        <Box flexDirection="column" padding={2} borderStyle="round" borderColor="#ff5555">
+        <Box flexDirection="column" padding={1} borderStyle="round" borderColor="#38bdf8">
           <Box gap={1} marginBottom={1}>
-            <Text color="#ff5555" bold>✗ TUI Error</Text>
-            <Text color="#6272a4">— a component crashed</Text>
+            <Text color="#38bdf8" bold>AURICT</Text>
+            <Text color="#a78bfa" bold> terminal UI recovered</Text>
+            <Text color="#817694">component crash contained</Text>
           </Box>
 
-          <Box flexDirection="column" paddingLeft={2} gap={0}>
-            <Text color="#ff6b6b">{err.message}</Text>
+          <Box flexDirection="column" paddingX={1} borderStyle="single" borderColor="#27314a">
+            <Text color="#fb7185" bold>{err.name || "Error"}</Text>
+            <Text color="#f7f3ff">{err.message || "Unknown terminal render error"}</Text>
             {this.state.phase && (
-              <Text color="#6272a4" dimColor>in: {this.state.phase}</Text>
+              <Text color="#817694" dimColor>component: {this.state.phase}</Text>
             )}
+            <Text color="#817694" dimColor>stack: {stackFrame}</Text>
           </Box>
 
-          <Box marginTop={1} flexDirection="column" gap={0}>
-            <Text color="#6272a4">────────────────────────────────────</Text>
-            <Text color="#f8f8f2" dimColor>
-              Stack: {err.stack?.split("\n")[1]?.trim() ?? "unavailable"}
-            </Text>
-          </Box>
-
-          <Box marginTop={1} gap={1}>
-            <Text color="#50fa7b">Suggestions:</Text>
-            <Text color="#f8f8f2">• Press Ctrl+C twice to exit</Text>
-            <Text color="#f8f8f2">• Report: aurict crash</Text>
-            <Text color="#f8f8f2">• Try: terminal resize or restart</Text>
+          <Box marginTop={1} flexDirection="column">
+            <Text color="#34d399" bold>Recovery</Text>
+            <Text color="#c8bedc">• Press Ctrl+C twice to exit cleanly.</Text>
+            <Text color="#c8bedc">• Restart with a wider terminal if the crash followed a resize.</Text>
+            <Text color="#c8bedc">• Run aurict doctor, then attach the crash report when filing an issue.</Text>
           </Box>
         </Box>
       )

@@ -6,9 +6,13 @@ import { TaskFloatingPanel } from "../src/tui/TaskFloatingPanel.js"
 import { ExpandableOutput } from "../src/tui/ExpandableOutput.js"
 import { Markdown } from "../src/tui/Markdown.js"
 import { Message } from "../src/tui/Message.js"
+import { StartupBanner } from "../src/tui/StartupBanner.js"
 import type { Task } from "@aurict/core"
 
 afterEach(() => { cleanup() })
+
+// eslint-disable-next-line no-control-regex
+const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;]*m/g, "")
 
 const DEFAULT_STATUS_PROPS = {
   provider: "anthropic",
@@ -33,6 +37,66 @@ function withTerminalSize<T>(cols: number, rows: number, fn: () => T): T {
 }
 
 describe("TUI responsive regression", () => {
+  it("lets startup banner continue expanding on wide terminals", () => {
+    const medium = render(
+      <StartupBanner
+        version="v1.1.5"
+        provider="opencode"
+        model="gemini-3-flash"
+        workdir="/home/user/projects/aurict"
+        cols={120}
+        rows={40}
+      />,
+    ).lastFrame() ?? ""
+    cleanup()
+
+    const wide = render(
+      <StartupBanner
+        version="v1.1.5"
+        provider="opencode"
+        model="gemini-3-flash"
+        workdir="/home/user/projects/aurict"
+        cols={180}
+        rows={40}
+      />,
+    ).lastFrame() ?? ""
+
+    const longestMedium = Math.max(...stripAnsi(medium).split("\n").map((line) => line.length))
+    const longestWide = Math.max(...stripAnsi(wide).split("\n").map((line) => line.length))
+    expect(longestWide).toBeGreaterThan(longestMedium + 30)
+  })
+
+  it("uses height-aware startup banner density", () => {
+    const shortWide = render(
+      <StartupBanner
+        version="v1.1.5"
+        provider="anthropic"
+        model="claude-sonnet-4-6"
+        workdir="/home/user/projects/aurict"
+        cols={120}
+        rows={24}
+      />,
+    ).lastFrame() ?? ""
+    expect(shortWide).toContain("AURICT v1.1.5")
+    expect(shortWide).toContain("/help")
+    expect(shortWide).not.toContain("SYSTEMS ONLINE")
+    expect(shortWide.split("\n").length).toBeLessThanOrEqual(8)
+    cleanup()
+
+    const tiny = render(
+      <StartupBanner
+        version="v1.1.5"
+        provider="anthropic"
+        model="claude-sonnet-4-6"
+        workdir="/home/user/projects/aurict"
+        cols={120}
+        rows={16}
+      />,
+    ).lastFrame() ?? ""
+    expect(tiny).toContain("AURICT v1.1.5")
+    expect(tiny.split("\n").length).toBeLessThanOrEqual(4)
+  })
+
   it("renders status bar across terminal breakpoints", () => {
     // tiny: sadece kısa model adı gösterilir
     const tiny = render(<StatusBar {...DEFAULT_STATUS_PROPS} cols={50} />).lastFrame() ?? ""

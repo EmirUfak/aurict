@@ -32,7 +32,7 @@ export function FullscreenLayout({
   })
 
   return (
-    <Box flexDirection="column" height={rows} overflow="hidden">
+    <Box flexDirection="column" height={rows} overflow="hidden" flexGrow={1} flexShrink={1}>
       {header && (
         <Box flexDirection="column" flexShrink={0}>
           {header}
@@ -41,8 +41,13 @@ export function FullscreenLayout({
       <Box ref={scrollableRef} flexGrow={1} flexShrink={1} flexDirection="column" overflow="hidden">
         {scrollable}
       </Box>
+      {/* Overlay (picker/modal) odaklanılan UI'dır — ASLA büzüşmemeli.
+          flexShrink={1} iken yer daraldığında Yoga bu kutuyu küçültüyor ve
+          Ink satır atlayarak çiziyordu (başlık + seçili satır görünmez
+          oluyordu). Daralma scrollable alana yaptırılır; overlay bileşenleri
+          kendi yüksekliklerini terminal satır sayısına göre sınırlar. */}
       {overlay && (
-        <Box flexDirection="column" flexShrink={1} overflow="hidden">
+        <Box flexDirection="column" flexShrink={0}>
           {overlay}
         </Box>
       )}

@@ -12,6 +12,7 @@ interface Props {
   onSubmit:           (v: string) => void
   disabled:           boolean
   history:            string[]
+  inlineSuggestionActive?: boolean
   onPasteTruncated?:  (originalLen: number, truncatedLen: number) => void
   onPasteStart?:      () => void
   onPasteEnd?:        () => void
@@ -59,7 +60,7 @@ function sanitizeInput(raw: string): string {
     .replace(/\[201~/g, "")
 }
 
-export function MultilineInput({ value, onChange, onSubmit, disabled, history, onPasteTruncated, onPasteStart, onPasteEnd }: Props) {
+export function MultilineInput({ value, onChange, onSubmit, disabled, history, inlineSuggestionActive = false, onPasteTruncated, onPasteStart, onPasteEnd }: Props) {
   const theme = useTheme()
 
   const [lines, setLines]   = useState<string[]>(() => splitLines(value))
@@ -169,6 +170,10 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, o
       return
     }
     if (input === "\x1b" || input === "\x1b[") {
+      return
+    }
+
+    if (inlineSuggestionActive && (key.upArrow || key.downArrow || key.tab || key.return)) {
       return
     }
 

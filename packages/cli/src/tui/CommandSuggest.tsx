@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useTerminalSize } from "./TerminalSizeContext.js"
 import { Box, Text, useInput } from "ink"
 import type { CommandDef } from "../commands/types.js"
@@ -29,43 +29,117 @@ interface Props {
   onFill:    (cmdName: string) => void  // Tab: input'u doldur
 }
 
+// Subsequence fuzzy match: "mdl" → "model". Eşleşirse 0-1 arası yoğunluk skoru.
+function fuzzySubsequence(text: string, query: string): number {
+  let ti = 0; let qi = 0
+  while (ti < text.length && qi < query.length) {
+    if (text[ti] === query[qi]) qi++
+    ti++
+  }
+  if (qi < query.length) return 0
+  return query.length / text.length
+}
+
+function matchScore(c: CommandDef, filter: string): number {
+  const f = filter.toLowerCase()
+  if (!f) return 1
+  const name = c.name.toLowerCase()
+  const aliases = (c.aliases ?? []).map((a) => a.toLowerCase())
+  if (name === f) return 100
+  if (aliases.some((a) => a === f)) return 95
+  if (name.startsWith(f)) return 80
+  if (aliases.some((a) => a.startsWith(f))) return 75
+  // Substring: tek karakterde bile isim/alias içinde ara — daha çok sonuç göster
+  if (name.includes(f)) return 60
+  if (aliases.some((a) => a.includes(f))) return 55
+  // Açıklama/kategori/usage içinde substring (1 karakter için çok gürültülü)
+  if (f.length >= 2 && commandSearchText(c).includes(f)) return 30
+  // Fuzzy subsequence: "mdl" → /model, "cpt" → /checkpoints
+  if (f.length >= 2) {
+    const fz = fuzzySubsequence(name, f)
+    if (fz > 0) return 10 + fz * 15
+  }
+  return 0
+}
+
+export function getCommandMatches(filter: string, commands: CommandDef[]): CommandDef[] {
+  return commands
+    .map((c) => ({ cmd: c, score: matchScore(c, filter) }))
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score || commandSortKey(a.cmd).localeCompare(commandSortKey(b.cmd)))
+    .map((r) => r.cmd)
+}
+
 export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }: Props) {
   const theme = useTheme()
+  // Seçim TÜM eşleşme listesi üzerinde gezinir; görünen pencere render'da
+  // türetilir (offsetRef). State yerine functional update + ref kullanımı:
+  // coalesced tuşlar aynı tick'te art arda geldiğinde closure'daki bayat
+  // değerlerle adım kaybetmemek için.
   const [idx, setIdx] = useState(0)
+  const idxRef    = useRef(0)   // aynı tick içinde gelen ardışık tuşlar için güncel değer
+  const offsetRef = useRef(0)
 
-  // Filter değişince seçimi sıfırla
-  useEffect(() => { setIdx(0) }, [filter])
+  const moveSel = (compute: (current: number) => number) => {
+    idxRef.current = compute(idxRef.current)
+    setIdx(idxRef.current)
+  }
 
-  const allMatches = commands.filter((c) => {
-    const f = filter.toLowerCase()
-    const aliases = c.aliases ?? []
-    return (
-      c.name.startsWith(f) ||
-      aliases.some((a) => a.startsWith(f)) ||
-      (f.length >= 2 && commandSearchText(c).includes(f))
-    )
-  }).sort((a, b) => commandSortKey(a).localeCompare(commandSortKey(b)))
-  const filtered  = allMatches.slice(0, MAX_SHOW)
-  const hiddenCount = allMatches.length - filtered.length
-  const termCols = useTerminalSize().columns
-  const descWidth = Math.max(16, Math.min(72, termCols - NAME_WIDTH - CATEGORY_WIDTH - ALIAS_WIDTH - 14))
+  // Filter değişince seçimi ve pencereyi sıfırla
+  useEffect(() => { idxRef.current = 0; setIdx(0); offsetRef.current = 0 }, [filter])
+
+  const { columns: termCols, rows: termRows } = useTerminalSize()
+  const maxShow = termRows <= 26 ? 4 : termRows >= 34 ? 8 : MAX_SHOW
+  const allMatches = getCommandMatches(filter, commands)
+  const matchCount = allMatches.length
+
+  // Liste küçüldüyse state'i sınırlar içine çek (bayat index bug'ını önler)
+  useEffect(() => {
+    if (idxRef.current > matchCount - 1) {
+      idxRef.current = Math.max(0, matchCount - 1)
+      setIdx(idxRef.current)
+    }
+  }, [matchCount])
+
+  const activeIdx = Math.min(idx, Math.max(0, matchCount - 1))
+
+  // Pencereyi render'da türet: seçili öğe her zaman görünür kalır
+  let winStart = offsetRef.current
+  if (activeIdx < winStart) winStart = activeIdx
+  if (activeIdx >= winStart + maxShow) winStart = activeIdx - maxShow + 1
+  winStart = Math.max(0, Math.min(winStart, Math.max(0, matchCount - maxShow)))
+  offsetRef.current = winStart
+
+  const visible   = allMatches.slice(winStart, winStart + maxShow)
+  const descWidth = Math.max(16, termCols - NAME_WIDTH - CATEGORY_WIDTH - ALIAS_WIDTH - 14)
 
   useInput((_char, key) => {
-    if (!filtered.length) return
-    if (key.upArrow)   { setIdx((i) => Math.max(0, i - 1));                             return }
-    if (key.downArrow) { setIdx((i) => Math.min(filtered.length - 1, i + 1));           return }
-    if (key.tab)       { const c = filtered[idx]; if (c) onFill(c.name);                return }
-    if (key.return)    { const c = filtered[idx]; if (c) onExecute(c.name);              return }
-  }, { isActive: isActive && filtered.length > 0 })
+    if (!matchCount) return
+    if (key.upArrow)   { moveSel((i) => Math.max(0, Math.min(i, matchCount - 1) - 1));              return }
+    if (key.downArrow) { moveSel((i) => Math.min(matchCount - 1, Math.min(i, matchCount - 1) + 1)); return }
+    if (key.tab)    { const c = allMatches[Math.min(idxRef.current, matchCount - 1)]; if (c) onFill(c.name);    return }
+    if (key.return) { const c = allMatches[Math.min(idxRef.current, matchCount - 1)]; if (c) onExecute(c.name); return }
+  }, { isActive: isActive && matchCount > 0 })
 
-  if (!isActive || !filtered.length) return null
+  if (!isActive || !allMatches.length) return null
+
+  const aboveCount = winStart
+  const belowCount = allMatches.length - (winStart + visible.length)
 
   return (
     <Box flexDirection="column" borderStyle="single" borderColor={theme.borderActive} paddingX={1} marginX={1}>
-      <Text color={theme.accent} dimColor bold>commands</Text>
+      <Box gap={1}>
+        <Text color={theme.accent} dimColor bold>commands</Text>
+        {allMatches.length > maxShow && (
+          <Text color={theme.textDim} dimColor>{activeIdx + 1}/{allMatches.length}</Text>
+        )}
+      </Box>
+      {aboveCount > 0 && (
+        <Text color={theme.textDim} dimColor>  ↑ {aboveCount} more</Text>
+      )}
       <Box flexDirection="column">
-        {filtered.map((cmd, i) => {
-          const sel = i === idx
+        {visible.map((cmd, i) => {
+          const sel = winStart + i === activeIdx
           const category = COMMAND_CATEGORY_META[commandCategory(cmd)]
           return (
             <Box key={cmd.name}>
@@ -88,8 +162,8 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
           )
         })}
       </Box>
-      {hiddenCount > 0 && (
-        <Text color={theme.textDim} dimColor>  +{hiddenCount} more - type to narrow</Text>
+      {belowCount > 0 && (
+        <Text color={theme.textDim} dimColor>  ↓ {belowCount} more - type to narrow</Text>
       )}
       <Text color={theme.textDim} dimColor>  up/down select  tab fill  enter run  esc close</Text>
     </Box>

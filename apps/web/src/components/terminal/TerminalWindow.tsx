@@ -12,8 +12,8 @@ interface Line {
 const LINE_COLORS: Record<LineType, string> = {
   input:  "var(--text)",
   system: "var(--text-dim)",
-  tool:   "var(--accent)",
-  output: "#a3c4a8",
+  tool:   "var(--accent-blue)",
+  output: "#d8ccff",
 }
 
 const PAUSE_BETWEEN = 1200
@@ -59,12 +59,13 @@ export function TerminalWindow() {
 
   return (
     <div
+      className="terminal-window"
       style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
+        background: "linear-gradient(135deg, rgba(56,189,248,0.035), var(--bg-card))",
+        border: "1px solid rgba(56,189,248,0.18)",
+        borderRadius: 8,
         overflow: "hidden",
-        boxShadow: "0 0 0 1px rgba(255,255,255,0.04), 0 40px 80px rgba(0,0,0,0.6)",
+        boxShadow: "0 0 0 1px rgba(255,255,255,0.04), 0 30px 70px rgba(0,0,0,0.48)",
       }}
     >
       {/* title bar */}
@@ -74,8 +75,9 @@ export function TerminalWindow() {
           alignItems: "center",
           padding: "12px 16px",
           borderBottom: "1px solid var(--border)",
-          background: "rgba(255,255,255,0.02)",
+          background: "linear-gradient(90deg, rgba(56,189,248,0.06), rgba(167,139,250,0.04))",
           gap: 12,
+          minHeight: 48,
         }}
       >
         <div style={{ display: "flex", gap: 6 }}>
@@ -90,12 +92,13 @@ export function TerminalWindow() {
             fontFamily: "var(--font-geist-mono)",
             fontSize: 12,
             color: "var(--text-muted)",
+            minWidth: 140,
           }}
         >
-          aurict — my-project
+          aurict-control // repo: my-project
         </div>
         {/* scenario tabs */}
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {TERMINAL_SCENARIOS.map((s, i) => (
             <button
               key={s.label}
@@ -104,11 +107,11 @@ export function TerminalWindow() {
                 fontFamily: "var(--font-geist-mono)",
                 fontSize: 11,
                 padding: "3px 10px",
-                borderRadius: 4,
+                borderRadius: 6,
                 border: "1px solid",
-                borderColor: i === scenarioIdx ? "var(--accent)" : "var(--border)",
-                background: i === scenarioIdx ? "var(--accent-glow)" : "transparent",
-                color: i === scenarioIdx ? "var(--accent)" : "var(--text-muted)",
+                borderColor: i === scenarioIdx ? "var(--accent-blue)" : "var(--border)",
+                background: i === scenarioIdx ? "rgba(56,189,248,0.1)" : "transparent",
+                color: i === scenarioIdx ? "var(--accent-blue)" : "var(--text-muted)",
                 cursor: "pointer",
                 transition: "all 0.15s",
               }}
@@ -121,13 +124,14 @@ export function TerminalWindow() {
 
       {/* terminal body */}
       <div
+        className="terminal-body"
         ref={containerRef}
         style={{
           fontFamily: "var(--font-geist-mono)",
           fontSize: 13,
           lineHeight: 1.7,
           padding: "20px 24px",
-          height: 340,
+          height: 338,
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",

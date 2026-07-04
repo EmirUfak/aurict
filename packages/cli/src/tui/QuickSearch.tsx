@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { Box, Text, useInput } from "ink"
 import { useTheme } from "../utils/theme.js"
 import { Typo } from "./design-system/index.js"
+import { useTerminalSize } from "./TerminalSizeContext.js"
 import { SessionManager } from "@aurict/core"
 import type { Session } from "@aurict/core"
 
@@ -82,9 +83,11 @@ function fmtDate(ts: number): string {
 
 export function QuickSearch({ onSelect, onClose }: Props) {
   const theme = useTheme()
+  const { columns } = useTerminalSize()
   const [query,  setQuery]  = useState("")
   const [tab,    setTab]    = useState<Tab>("all")
   const [cursor, setCursor] = useState(0)
+  const panelWidth = Math.max(40, Math.min(70, columns - 2))
 
   // Load all sessions with their parts (for snippet extraction)
   const allSessions = useMemo(() => SessionManager.list().sort((a, b) => b.updatedAt - a.updatedAt), [])
@@ -137,11 +140,15 @@ export function QuickSearch({ onSelect, onClose }: Props) {
   // Clamp cursor
   const clampedCursor = Math.min(cursor, Math.max(0, hits.length - 1))
 
+  useEffect(() => {
+    setCursor((c) => Math.min(c, Math.max(0, hits.length - 1)))
+  }, [hits.length])
+
   useInput((input, key) => {
     if (key.escape) { onClose(); return }
 
     if (key.upArrow)   { setCursor(c => Math.max(0, c - 1)); return }
-    if (key.downArrow) { setCursor(c => Math.min(hits.length - 1, c + 1)); return }
+    if (key.downArrow) { setCursor(c => Math.min(Math.max(0, hits.length - 1), c + 1)); return }
 
     if (key.return) {
       const hit = hits[clampedCursor]
@@ -163,7 +170,7 @@ export function QuickSearch({ onSelect, onClose }: Props) {
     if (key.backspace || key.delete) {
       setQuery(q => q.slice(0, -1)); setCursor(0); return
     }
-    if (!key.ctrl && !key.meta && !key.escape && !key.return && input && input.length === 1) {
+    if (!key.ctrl && !key.meta && !key.escape && !key.return && !key.tab && input) {
       setQuery(q => q + input); setCursor(0)
     }
   })
@@ -180,7 +187,7 @@ export function QuickSearch({ onSelect, onClose }: Props) {
       borderStyle="round"
       borderColor={theme.accent}
       paddingX={1}
-      width={70}
+      width={panelWidth}
     >
       {/* Header */}
       <Box justifyContent="space-between" marginBottom={0}>
@@ -209,7 +216,7 @@ export function QuickSearch({ onSelect, onClose }: Props) {
       </Box>
 
       {/* Divider */}
-      <Text color={theme.borderDim}>{"─".repeat(66)}</Text>
+      <Text color={theme.borderDim}>{"─".repeat(Math.max(10, panelWidth - 4))}</Text>
 
       {/* Results */}
       {hits.length === 0 && (

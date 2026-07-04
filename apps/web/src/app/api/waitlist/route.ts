@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       subject: `New waitlist signup: ${email}`,
       html: `
         <div style="font-family:monospace;background:#0a0a0a;color:#f5f5f5;padding:32px;border-radius:8px">
-          <p style="color:#818cf8;font-size:12px;letter-spacing:0.1em;text-transform:uppercase">Aurict Waitlist</p>
+          <p style="color:#38bdf8;font-size:12px;letter-spacing:0.1em;text-transform:uppercase">Aurict Waitlist</p>
           <h2 style="margin:12px 0;font-size:20px">New signup</h2>
           <p style="color:#a1a1aa;font-size:14px">Email:</p>
           <p style="font-size:16px;color:#f5f5f5">${safeEmail}</p>

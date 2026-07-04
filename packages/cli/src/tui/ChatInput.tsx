@@ -1,13 +1,11 @@
 /**
- * ChatInput — Kullanıcı giriş alanı
+ * ChatInput — Kullanıcı giriş alanı (Cockpit v2)
  *
- * Border'lı bir container içinde MultilineInput + prompt işareti + (opsiyonel)
- * queued mesaj göstergesi. Border rengi disabled durumuna göre değişir.
- * Paste sırasında border rengi uyarı rengine döner.
+ * Border'lı bir container içinde MultilineInput + mod göstergesi + prompt işareti
+ * + (opsiyonel) queued mesaj göstergesi. Altta segmentli ipucu barı.
+ * Border rengi disabled/paste durumuna göre değişir.
  *
- * Input boşken ghost hint gösterilir: "/" komutları ve kısayollar.
- *
- * Design system: VStack, HStack, Surface, Typo, Icon.
+ * Design system: VStack, HStack, Surface, Typo.
  */
 
 import React, { useState } from "react"
@@ -24,32 +22,47 @@ interface Props {
   disabled:           boolean
   history?:           string[]
   queued?:            string | undefined
+  inlineSuggestionActive?: boolean
   onPasteTruncated?:  (originalLen: number, truncatedLen: number) => void
 }
 
-// Ghost hint içeriği — terminale sığacak şekilde kısa tutuldu
-const GHOST_HINT_WIDE  = "Try /help, /model, /agents, or paste a file path. Shift+Enter inserts a newline."
-const GHOST_HINT_SHORT = "/help  /model  /agents  Shift+Enter newline"
+// Alt ipucu barı hücreleri — terminal genişliğine göre seçilir
+const HINTS_WIDE: { key: string; label: string }[] = [
+  { key: "/",   label: "cmd" },
+  { key: "⌃P",  label: "palette" },
+  { key: "⌃T",  label: "tasks" },
+  { key: "⌃X",  label: "agents" },
+  { key: "⌃R",  label: "history" },
+  { key: "@",   label: "file" },
+]
+const HINTS_SHORT: { key: string; label: string }[] = [
+  { key: "/",  label: "cmd" },
+  { key: "⌃P", label: "palette" },
+  { key: "@",  label: "file" },
+]
 
-export function ChatInput({ value, onChange, onSubmit, disabled, history = [], queued, onPasteTruncated }: Props) {
+export function ChatInput({ value, onChange, onSubmit, disabled, history = [], queued, inlineSuggestionActive = false, onPasteTruncated }: Props) {
   const theme = useTheme()
   const [isPasting, setIsPasting] = useState(false)
   const promptChar = "❯"
-  const borderColor = isPasting ? theme.warning : disabled ? theme.borderDim : theme.borderBright
+  const borderColor = isPasting ? theme.warning : disabled ? theme.borderDim : theme.borderActive
 
-  // Ghost hint: sadece input boş, disabled değil ve paste yokken göster
-  const showGhostHint = !disabled && !isPasting && value === "" && !queued
+  // Mod etiketi: paste / working / INSERT
+  const modeLabel = isPasting ? "PASTE" : disabled ? "BUSY" : "INSERT"
+  const modeColor = isPasting ? theme.warning : disabled ? theme.textDim : theme.accent
 
-  // Terminal genişliğine göre hint seç
   const termCols  = useTerminalSize().columns
   const isNarrow  = termCols < 80
-  const ghostHint = termCols >= 100 ? GHOST_HINT_WIDE : GHOST_HINT_SHORT
+  const hints     = termCols >= 100 ? HINTS_WIDE : HINTS_SHORT
+  const showHints = !isPasting && !isNarrow
+
+  const Sep = () => <Text color={theme.borderDim}> · </Text>
 
   return (
     <VStack flexGrow={1} flexShrink={1}>
       {queued && (
         <HStack paddingX="md" gap="xs">
-          <Typo variant="body" tone="warning" dimColor>⟳ queued:</Typo>
+          <Typo variant="body" tone="warning" dimColor>queued</Typo>
           <Typo variant="body" tone="muted" dimColor>"{queued.slice(0, 50)}{queued.length > 50 ? "…" : ""}"</Typo>
         </HStack>
       )}
@@ -64,12 +77,15 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
         flexShrink={1}
       >
         <HStack flexGrow={1} flexShrink={1} gap="xs">
+          {!isNarrow && (
+            <Text color={modeColor} bold>{modeLabel} </Text>
+          )}
           <Typo
             variant="bodyEmphasis"
-            tone={disabled ? "muted" : isPasting ? "warning" : "accent"}
+            tone={disabled ? "muted" : isPasting ? "warning" : "accentAlt"}
             bold
           >
-            {isPasting ? "paste" : promptChar}
+            {promptChar}
           </Typo>
           <Box flexGrow={1} flexShrink={1}>
             <MultilineInput
@@ -78,22 +94,33 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
               onSubmit={onSubmit}
               disabled={disabled}
               history={history}
+              inlineSuggestionActive={inlineSuggestionActive}
               {...(onPasteTruncated !== undefined ? { onPasteTruncated } : {})}
               onPasteStart={() => setIsPasting(true)}
               onPasteEnd={() => setIsPasting(false)}
             />
           </Box>
-          {disabled && !isNarrow && <Typo variant="body" tone="muted" dimColor>working</Typo>}
+          {disabled && !isNarrow && <Typo variant="body" tone="muted" dimColor>working…</Typo>}
         </HStack>
       </Surface>
 
-      {/* Ghost hint — input boşken gösterilir; dar terminalde gizle */}
-      {showGhostHint && !isNarrow && (
-        <Box paddingLeft={2}>
-          <Text color={theme.borderBright} dimColor>
-            {ghostHint}
-          </Text>
-        </Box>
+      {/* ── Segmentli ipucu barı ── */}
+      {showHints && (
+        <HStack paddingLeft="md" gap="none">
+          {hints.map((h, i) => (
+            <React.Fragment key={h.key}>
+              {i > 0 && <Sep />}
+              <Text color={theme.warning} bold>{h.key}</Text>
+              <Text color={theme.textDim} dimColor> {h.label}</Text>
+            </React.Fragment>
+          ))}
+          {termCols >= 100 && (
+            <>
+              <Sep />
+              <Text color={theme.textDim} dimColor>⇧⏎ newline</Text>
+            </>
+          )}
+        </HStack>
       )}
     </VStack>
   )

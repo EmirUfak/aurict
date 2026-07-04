@@ -40,7 +40,7 @@ function estimateMessageRows(message: DisplayMessage, width: number): number {
 
 // ── Measured wrapper ──────────────────────────────────────────────────────────
 
-function contentKey(message: DisplayMessage): string {
+function contentKey(message: DisplayMessage, width: number): string {
   const base = message.id ?? message.content.slice(0, 16)
   let len = (message.content?.length ?? 0) + (message.resultContent?.length ?? 0) + (message.reasoningContent?.length ?? 0)
   if (message.blocks) {
@@ -49,7 +49,7 @@ function contentKey(message: DisplayMessage): string {
       else len += b.args.length + (b.resultContent?.length ?? 0)
     }
   }
-  return `${base}:${len}`
+  return `${base}:${len}:w${width}`
 }
 
 interface MeasuredBoxProps {
@@ -190,7 +190,7 @@ export function ConversationViewport({
   // Tüm mesajlar + canlı tail
   const entries = useMemo<TranscriptEntry[]>(() => {
     const list: TranscriptEntry[] = messages.map((message, index) => {
-      const ck      = contentKey(message)
+      const ck      = contentKey(message, width)
       const measured = heightCacheRef.current.get(ck)
       const rows    = measured ?? estimateMessageRows(message, width)
       return { kind: "message", key: message.id ?? `m-${index}`, rows, message }
@@ -248,7 +248,7 @@ export function ConversationViewport({
           {visibleEntries.map((entry) => {
             if (entry.kind === "message") {
               const m  = entry.message
-              const ck = contentKey(m)
+              const ck = contentKey(m, width)
               return (
                 <MeasuredBox key={entry.key} cacheKey={ck} onMeasure={handleMeasure}>
                   <Message

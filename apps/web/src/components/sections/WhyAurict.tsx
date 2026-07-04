@@ -50,6 +50,7 @@ export function WhyAurict() {
         padding: "120px 24px",
         maxWidth: 1100,
         margin: "0 auto",
+        background: "linear-gradient(180deg, transparent, rgba(56,189,248,0.03), transparent)",
       }}
     >
       {/* header */}
@@ -62,7 +63,7 @@ export function WhyAurict() {
           style={{
             fontFamily: "var(--font-geist-mono)",
             fontSize: 12,
-            color: "var(--accent)",
+            color: "var(--accent-blue)",
             letterSpacing: "0.12em",
             textTransform: "uppercase",
             marginBottom: 16,
@@ -112,10 +113,11 @@ export function WhyAurict() {
         style={{
           background: "var(--border)",
           gap: 1,
-          border: "1px solid var(--border)",
+          border: "1px solid rgba(56,189,248,0.18)",
           borderRadius: 16,
           overflow: "hidden",
           marginBottom: 80,
+          boxShadow: "0 28px 90px rgba(56,189,248,0.05)",
         }}
       >
         {STATS.map((s, i) => (
@@ -138,7 +140,7 @@ export function WhyAurict() {
                 letterSpacing: "-0.04em",
                 lineHeight: 1,
                 marginBottom: 10,
-                background: "linear-gradient(135deg, #818cf8 0%, #c4b5fd 100%)",
+                background: "linear-gradient(135deg, #38bdf8 0%, #a78bfa 58%, #c4b5fd 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",

@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import Link from "next/link"
 
 export function Nav() {
@@ -46,6 +47,9 @@ export function Nav() {
           }}
         >
           <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="brand-mark" aria-hidden="true">
+              <Image src="/aurict.png" alt="" width={30} height={30} priority />
+            </span>
             <span
               style={{
                 fontFamily: "var(--font-geist-mono)",
@@ -61,15 +65,15 @@ export function Nav() {
               style={{
                 fontSize: 11,
                 fontFamily: "var(--font-geist-mono)",
-                color: "var(--accent)",
-                background: "var(--accent-glow)",
-                border: "1px solid rgba(129,140,248,0.3)",
+                color: "var(--accent-blue)",
+                background: "rgba(56,189,248,0.09)",
+                border: "1px solid rgba(56,189,248,0.3)",
                 borderRadius: 4,
                 padding: "2px 7px",
                 letterSpacing: "0.05em",
               }}
             >
-              v1.1.3
+              v1.1.5
             </span>
           </Link>
 
@@ -92,7 +96,7 @@ export function Nav() {
             <a
               href="#install"
               style={{
-                background: "var(--accent)",
+                background: "linear-gradient(135deg, var(--accent), var(--accent-blue))",
                 color: "#fff",
                 textDecoration: "none",
                 fontSize: 13,

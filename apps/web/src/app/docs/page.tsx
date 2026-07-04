@@ -1,4 +1,5 @@
 import { Nav } from "@/components/Nav"
+import { DocsSidebar } from "@/components/docs/DocsSidebar"
 import { Footer } from "@/components/sections/Footer"
 import type { Metadata } from "next"
 
@@ -249,112 +250,35 @@ export default function DocsPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       <Nav />
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "100px 24px 80px" }}>
-        <div style={{ marginBottom: 60 }}>
-          <p
-            style={{
-              fontFamily: "var(--font-geist-mono)",
-              fontSize: 12,
-              color: "var(--accent)",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              marginBottom: 14,
-            }}
-          >
-            Documentation
-          </p>
-          <h1
-            style={{
-              fontSize: "clamp(32px, 5vw, 54px)",
-              fontWeight: 800,
-              letterSpacing: "-0.03em",
-              color: "var(--text)",
-              marginBottom: 16,
-            }}
-          >
-            Getting started
-          </h1>
-          <p style={{ fontSize: 16, color: "var(--text-dim)", lineHeight: 1.7, maxWidth: 580 }}>
-            Everything you need to install, configure, and extend Aurict.
-          </p>
-        </div>
+      <main className="docs-page">
+        <div className="docs-shell">
+          <div className="docs-layout">
+            <DocsSidebar items={DOCS_SECTIONS.map(({ anchor, title }) => ({ anchor, title }))} />
 
-        <div className="resp-docs" style={{ gap: 60 }}>
-          <nav className="resp-docs-sidebar" style={{ position: "sticky", top: 80, alignSelf: "start" }}>
-            <p
-              style={{
-                fontSize: 11,
-                fontFamily: "var(--font-geist-mono)",
-                color: "var(--text-muted)",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                marginBottom: 14,
-              }}
-            >
-              On this page
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {DOCS_SECTIONS.map((s) => (
-                <a key={s.anchor} href={`#${s.anchor}`} className="docs-sidebar-link">
-                  {s.title}
-                </a>
+            <header className="docs-hero">
+              <p className="docs-kicker">Documentation</p>
+              <h1>Getting started</h1>
+              <p>Everything you need to install, configure, and extend Aurict.</p>
+            </header>
+
+            <div className="docs-content">
+              {DOCS_SECTIONS.map((section) => (
+                <section key={section.anchor} id={section.anchor} className="docs-section">
+                  <h2>{section.title}</h2>
+                  <div className="docs-section-items">
+                    {section.content.map((item) => (
+                      <article key={item.heading} className="docs-item">
+                        <h3>{item.heading}</h3>
+                        <p>{item.body}</p>
+                        <pre>
+                          <code>{item.code}</code>
+                        </pre>
+                      </article>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
-          </nav>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 64 }}>
-            {DOCS_SECTIONS.map((section) => (
-              <div key={section.anchor} id={section.anchor}>
-                <h2
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: "var(--text)",
-                    letterSpacing: "-0.02em",
-                    marginBottom: 28,
-                    paddingBottom: 14,
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
-                  {section.title}
-                </h2>
-                <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-                  {section.content.map((item) => (
-                    <div key={item.heading}>
-                      <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 10 }}>
-                        {item.heading}
-                      </h3>
-                      <p
-                        style={{
-                          fontSize: 14,
-                          color: "var(--text-dim)",
-                          lineHeight: 1.7,
-                          marginBottom: 14,
-                          whiteSpace: "pre-wrap",
-                        }}
-                      >
-                        {item.body}
-                      </p>
-                      <pre
-                        style={{
-                          background: "var(--bg-card)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 10,
-                          padding: "16px 20px",
-                          fontSize: 13,
-                          fontFamily: "var(--font-geist-mono)",
-                          color: "var(--text)",
-                          overflowX: "auto",
-                          lineHeight: 1.65,
-                        }}
-                      >
-                        <code>{item.code}</code>
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </main>

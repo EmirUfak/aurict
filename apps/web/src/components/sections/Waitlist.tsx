@@ -105,8 +105,8 @@ export function Waitlist() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 style={{
-                  background: "rgba(78,186,101,0.08)",
-                  border: "1px solid rgba(78,186,101,0.3)",
+                  background: "linear-gradient(135deg, rgba(56,189,248,0.1), rgba(167,139,250,0.08))",
+                  border: "1px solid rgba(56,189,248,0.3)",
                   borderRadius: 12,
                   padding: "20px 24px",
                   display: "flex",
@@ -231,9 +231,9 @@ export function Waitlist() {
                 style={{
                   fontFamily: "var(--font-geist-mono)",
                   fontSize: 11,
-                  color: "var(--accent-alt)",
-                  background: "rgba(167,139,250,0.1)",
-                  border: "1px solid rgba(167,139,250,0.25)",
+                  color: "var(--accent-blue)",
+                  background: "rgba(56,189,248,0.1)",
+                  border: "1px solid rgba(56,189,248,0.25)",
                   borderRadius: 6,
                   padding: "4px 10px",
                 }}
@@ -252,7 +252,7 @@ export function Waitlist() {
                       height: 20,
                       borderRadius: "50%",
                       background: "var(--accent-glow)",
-                      border: "1px solid rgba(129,140,248,0.3)",
+                      border: "1px solid rgba(56,189,248,0.3)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",

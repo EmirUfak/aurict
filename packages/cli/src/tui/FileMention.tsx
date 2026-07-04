@@ -8,7 +8,7 @@ const MAX_SHOW = 5
 
 interface Match { display: string; full: string; isDir: boolean }
 
-function listMatches(workdir: string, filter: string): Match[] {
+export function listFileMentionMatches(workdir: string, filter: string): Match[] {
   try {
     const lastSlash = filter.lastIndexOf("/")
     const dir       = lastSlash >= 0 ? filter.slice(0, lastSlash + 1) : ""
@@ -37,7 +37,7 @@ interface Props {
 export function FileMention({ filter, workdir, isActive, onSelect }: Props) {
   const theme   = useTheme()
   const [idx, setIdx] = useState(0)
-  const matches = listMatches(workdir, filter)
+  const matches = listFileMentionMatches(workdir, filter)
 
   useEffect(() => { setIdx(0) }, [filter])
 

@@ -158,7 +158,7 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
       return
     }
     if (key.downArrow) {
-      setSelectedIdx(i => Math.min(matches.length - 1, i + 1))
+      setSelectedIdx(i => Math.min(Math.max(0, matches.length - 1), i + 1))
       return
     }
 
@@ -184,7 +184,7 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
     }
 
     // Karakter ekle
-    if (input && !key.ctrl && !key.meta) {
+    if (input && !key.ctrl && !key.meta && !key.tab) {
       setQuery(q => q + input)
       return
     }

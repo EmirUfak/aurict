@@ -143,7 +143,7 @@ export default function UseCasesPage() {
                   fontFamily: "var(--font-geist-mono)",
                   color: "var(--accent)",
                   background: "var(--accent-glow)",
-                  border: "1px solid rgba(129,140,248,0.3)",
+                  border: "1px solid rgba(56,189,248,0.3)",
                   borderRadius: 4,
                   padding: "2px 6px",
                   marginBottom: 12,

@@ -52,6 +52,7 @@ export function SettingsPanel({ provider, model, currentTheme, workdir, onTheme,
   const [cursor, setCursor] = useState(0)
 
   const tabIdx = TABS.findIndex(t => t.id === tab)
+  const maxCursor = tab === "theme" ? Math.max(0, THEME_NAMES.length - 1) : 0
 
   useInput((input, key) => {
     if (key.escape) { onClose(); return }
@@ -60,7 +61,7 @@ export function SettingsPanel({ provider, model, currentTheme, workdir, onTheme,
     if (key.leftArrow)  { const i = Math.max(0, tabIdx - 1); setTab(TABS[i]!.id); setCursor(0); return }
     if (key.rightArrow) { const i = Math.min(TABS.length - 1, tabIdx + 1); setTab(TABS[i]!.id); setCursor(0); return }
     if (key.upArrow)    { setCursor(c => Math.max(0, c - 1)); return }
-    if (key.downArrow)  { setCursor(c => c + 1); return }
+    if (key.downArrow)  { setCursor(c => Math.min(maxCursor, c + 1)); return }
 
     // Theme tab: Enter to select theme
     if (tab === "theme" && key.return) {

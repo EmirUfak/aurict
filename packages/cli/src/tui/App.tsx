@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from "react"
+import React, { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } from "react"
 import crypto from "node:crypto"
 import { join } from "node:path"
 import { homedir, tmpdir } from "node:os"
@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process"
 import { Box, Text, useInput, useApp } from "ink"
 import {
   runAgent,
+  parseProviderError,
   ProviderRegistry,
   SessionManager,
   ExecutorEvents,
@@ -52,13 +53,14 @@ import { QuestionPrompt }    from "./QuestionPrompt.js"
 import { Picker }            from "./Picker.js"
 import { PromptInput }       from "./PromptInput.js"
 import { StatusBar }         from "./StatusBar.js"
-import { CommandSuggest }    from "./CommandSuggest.js"
+import { CommandSuggest, getCommandMatches } from "./CommandSuggest.js"
 import { StartupBanner }     from "./StartupBanner.js"
+import { CockpitHeader }     from "./CockpitHeader.js"
 import { AgentStatus }       from "./AgentStatus.js"
 import { ConversationViewport } from "./ConversationViewport.js"
 import { FullscreenLayout }     from "./FullscreenLayout.js"
 import { SubagentView }      from "./SubagentView.js"
-import { FileMention }       from "./FileMention.js"
+import { FileMention, listFileMentionMatches } from "./FileMention.js"
 import { ExpandableOutput }  from "./ExpandableOutput.js"
 import { BtwPanel }          from "./BtwPanel.js"
 import { QuickSearch }       from "./QuickSearch.js"
@@ -71,7 +73,7 @@ import type { DesignWizardResult } from "./DesignWizard.js"
 import type { UpdateInfo } from "../util/update-check.js"
 import { CURRENT_VERSION }  from "../util/update-check.js"
 import { readClipboard }     from "../util/clipboard.js"
-import { useMouseEvents }    from "./mouse.js"
+import { useMouseEvents, injectInput } from "./mouse.js"
 import { buildDesignPrompt, recordSystemUsed, recordSkillUsed, slugify } from "@aurict/core"
 import { clearDraft, hasPendingCrashReport, writeCrashReport } from "../util/draft.js"
 import { getTerminalCaps }   from "../util/terminal-caps.js"
@@ -129,6 +131,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   const [effort,     setEffort]        = useState<number | undefined>(undefined)
   const [termCols,   setTermCols]      = useState(() => process.stdout.columns ?? 80)
   const [termRows,   setTermRows]      = useState(() => process.stdout.rows ?? 24)
+  const [terminalMeasured, setTerminalMeasured] = useState(false)
   const [messages,   setMessages]      = useState<DisplayMessage[]>([])
   const [input,      setInput]         = useState("")
   const [loading,    setLoading]       = useState(false)
@@ -197,8 +200,9 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   useMouseEvents((e) => {
     if (e.type !== "scroll") return
     if (picker !== null || permission !== null || question !== null) {
-      if (e.button === "scroll-up")   process.stdin.emit("data", "\x1b[A")
-      if (e.button === "scroll-down") process.stdin.emit("data", "\x1b[B")
+      // injectInput: Ink 5 'readable' modda tükettiği için emit("data") çalışmaz
+      if (e.button === "scroll-up")   injectInput("\x1b[A")
+      if (e.button === "scroll-down") injectInput("\x1b[B")
       return
     }
     if (overlayOpen || viewingSubagentId) return
@@ -318,15 +322,21 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   const turnHadToolRef     = useRef(false)
   const turnAssistantIdRef = useRef<string | null>(null)
 
-  // "/" öneri filtresi
-  const cmdFilter = !overlayOpen && input.startsWith("/")
-    ? input.slice(1)
+  const commandDefs = allCommands()
+
+  // "/" öneri filtresi: sadece komut adını tamamla, argümanlara karışma.
+  const slashBody = input.startsWith("/") ? input.slice(1) : null
+  const cmdFilter = focusLayer === "ready" && slashBody !== null && !/\s/.test(slashBody)
+    ? slashBody
     : null
 
   // "@" dosya tamamlama filtresi — "@" sonraki path prefix'i yakala
-  const mentionFilter = !overlayOpen && !loading && cmdFilter === null
+  const mentionFilter = focusLayer === "ready" && cmdFilter === null
     ? (input.match(/@([\w./~-]*)$/)?.[1] ?? null)
     : null
+  const commandSuggestionOpen = cmdFilter !== null && getCommandMatches(cmdFilter, commandDefs).length > 0
+  const mentionSuggestionOpen = mentionFilter !== null && listFileMentionMatches(workdirState, mentionFilter).length > 0
+  const inlineSuggestionActive = commandSuggestionOpen || mentionSuggestionOpen
 
   // ── Static için finalize mesajlar ─────────────────────────────────────────
   const showStartupBanner = !viewingSubagentId && startupBannerVisible
@@ -372,13 +382,25 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   }, [])  // loadingRef + inputRef stable ref'ler, deps gereksiz
 
   // ── Subscriptions ─────────────────────────────────────────────────────────
-  useEffect(() => {
+  useLayoutEffect(() => {
     const handler = () => {
-      setTermCols(process.stdout.columns ?? 80)
-      setTermRows(process.stdout.rows ?? 24)
+      const nextCols = process.stdout.columns ?? 80
+      const nextRows = process.stdout.rows ?? 24
+      setTermCols(nextCols)
+      setTermRows(nextRows)
+      setTerminalMeasured(true)
+      setMeasuredViewportRows(Math.max(3, nextRows - 8))
+      setConversationOffsetRows((prev) => Math.max(0, prev))
     }
+    handler()
+    const timer = setTimeout(handler, 0)
     process.stdout.on("resize", handler)
-    return () => { process.stdout.off("resize", handler) }
+    process.on("SIGWINCH", handler)
+    return () => {
+      clearTimeout(timer)
+      process.stdout.off("resize", handler)
+      process.off("SIGWINCH", handler)
+    }
   }, [])
 
   // Kalıcı izinleri başlangıçta yükle
@@ -572,6 +594,12 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   useInput((input, key) => {
     // ── Ctrl+C: abort / exit ──────────────────────────────────────────────
     if (key.ctrl && input === "c") {
+      if (focusLayer !== "ready" && focusLayer !== "streaming" && !loadingRef.current) {
+        closeFocusedLayer()
+        ctrlCCountRef.current = 0
+        if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current)
+        return
+      }
       if (loadingRef.current && abortControllerRef.current) {
         abortControllerRef.current.abort()
         abortControllerRef.current = null
@@ -597,7 +625,11 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
     if (key.escape) {
       if (closeFocusedLayer()) return
       if (updateInfo && !updateDismissed) { setUpdateDismissed(true); return }
-      if (input?.startsWith("/")) { setInput(""); return }
+      // Not: `input` parametresi keypress karakteridir (Esc için boş), yazılan
+      // metin DEĞİL. Yazılmış metin varsa Esc onu temizler — asla exit etmez.
+      // (Önceki `input?.startsWith("/")` gölgeleme hatası: Esc doğrudan exit()
+      // çağırıyor, Bun.serve süreci canlı tuttuğu için TUI zombiye dönüyordu.)
+      if (inputRef.current.length > 0) { setInput(""); return }
       if (!loading) exit()
       return
     }
@@ -781,6 +813,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
 
     // ── Tab: agent döngüsü ────────────────────────────────────────────────
     if (key.tab) {
+      if (inlineSuggestionActive) return
       if (loading || picker || permission || question || expandedContent) return
       const agents = getAllSessionAgents(workdirState)
       if (agents.length < 2) return
@@ -1537,7 +1570,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
       const partialReason = streamReasonRef.current
       streamTextRef.current   = ""
       streamReasonRef.current = ""
-      const errMsg = err instanceof Error ? err.message : String(err)
+      const errMsg = parseProviderError(err)
       setStreamingError(errMsg)
       setStreamingText(null)
       setStreamingReason(null)
@@ -1590,6 +1623,13 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
 
   // ── Render ────────────────────────────────────────────────────────────────
   const activeTheme = THEMES[themeName] ?? THEMES[DEFAULT_THEME]!
+  const currentContextWindow = useMemo(() => {
+    try {
+      return ProviderRegistry.get(provider).listModels().find((m) => m.id === model)?.contextWindow
+    } catch {
+      return undefined
+    }
+  }, [provider, model])
 
   const subSessions = viewingSubagentId
     ? SessionManager.list().filter((s) => s.parentId === mainSessionId.current).sort((a, b) => a.createdAt - b.createdAt)
@@ -1621,6 +1661,28 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
               onClose={() => setViewingSubagentId(null)}
               onPrev={() => { const prev = subSessions[(subIdx - 1 + subSessions.length) % subSessions.length]; if (prev) setViewingSubagentId(prev.id) }}
               onNext={() => { const next = subSessions[(subIdx + 1) % subSessions.length]; if (next) setViewingSubagentId(next.id) }}
+            />
+          )}
+          {!viewingSubagentId && !showStartupBanner && (
+            <CockpitHeader
+              provider={provider}
+              model={model}
+              workdir={workdirState}
+              tokens={tokens}
+              contextTokens={contextTokens}
+              contextWindow={currentContextWindow}
+              loading={loading}
+              activeTool={activeTool}
+              taskSummary={tasks.length > 0 ? taskSummary : undefined}
+              bgTaskCount={bgTasks.filter(t => t.status === "running").length || undefined}
+              localServer={localServer}
+              sandboxBackend={sandboxBackend}
+              coordinatorMode={coordinatorMode}
+              autopilotMode={autopilotMode}
+              cols={termCols}
+              activeAgentCount={activeAgentCount > 0 ? activeAgentCount : undefined}
+              {...(branch !== undefined ? { branch } : {})}
+              {...(activeAgent !== undefined ? { activeAgent } : {})}
             />
           )}
           {/* Startup banner */}
@@ -1700,7 +1762,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
 
         {cmdPaletteOpen && (
           <CommandPalette
-            commands={allCommands()}
+            commands={commandDefs}
             recentCommands={recentCmds}
             onClose={() => setCmdPaletteOpen(false)}
             onSelect={(cmd, args, action) => {
@@ -1796,23 +1858,6 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
           />
         )}
 
-        <CommandSuggest
-          filter={cmdFilter ?? ""}
-          commands={allCommands()}
-          isActive={cmdFilter !== null}
-          onExecute={handleCmdExecute}
-          onFill={handleCmdFill}
-        />
-
-        {mentionFilter !== null && (
-          <FileMention
-            filter={mentionFilter}
-            workdir={workdirState}
-            isActive={true}
-            onSelect={(path) => setInput((prev) => prev.replace(/@([\w./~-]*)$/, `@${path}`))}
-          />
-        )}
-
         {question && (
           <QuestionPrompt request={question} onAnswer={handleQuestionAnswer} onReject={handleQuestionReject} />
         )}
@@ -1857,6 +1902,23 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
           viewingSessionId={viewingSubagentId}
           onViewAgent={setViewingSubagentId}
         />
+        <CommandSuggest
+          filter={cmdFilter ?? ""}
+          commands={commandDefs}
+          isActive={cmdFilter !== null}
+          onExecute={handleCmdExecute}
+          onFill={handleCmdFill}
+        />
+
+        {mentionFilter !== null && (
+          <FileMention
+            filter={mentionFilter}
+            workdir={workdirState}
+            isActive={true}
+            onSelect={(path) => setInput((prev) => prev.replace(/@([\w./~-]*)$/, `@${path}`))}
+          />
+        )}
+
         {/* Input alanı */}
         <Box flexDirection="row" alignItems="flex-end">
           {permission
@@ -1879,6 +1941,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
                 onSubmit={handleSubmit}
                 disabled={loading}
                 history={commandHistory}
+                inlineSuggestionActive={inlineSuggestionActive}
                 onPasteTruncated={(orig, trunc) =>
                   addSystemMsg(`Paste truncated: ${orig.toLocaleString()} → ${trunc.toLocaleString()} chars`)
                 }
@@ -1888,39 +1951,36 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
           }
         </Box>
 
-        <StatusBar
-          provider={provider}
-          model={model}
-          tokens={tokens}
-          contextTokens={contextTokens}
-          workdir={workdirState}
-          skills={skillNames}
-          turnSkills={turnSkillNames}
-          isUndercover={isUndercover}
-          coordinatorMode={coordinatorMode}
-          wasCompacted={wasCompacted}
-          activeAgent={activeAgent}
-          agentColor={getSessionAgent(activeAgent, workdirState).color}
-          bgTaskCount={bgTasks.filter(t => t.status === "running").length || undefined}
-          taskCount={tasks.length || undefined}
-          taskSummary={tasks.length > 0 ? taskSummary : undefined}
-          taskPanelOpen={taskPanelOpen}
-          localServer={localServer}
-          sandboxBackend={sandboxBackend}
-          effort={effort}
-          autopilotMode={autopilotMode}
-          cols={termCols}
-          activeAgentCount={activeAgentCount > 0 ? activeAgentCount : undefined}
-          hasBtwNote={btwState !== null}
-          scrollLocked={scrollLocked}
-          {...(branch !== undefined ? { branch } : {})}
-          {...(() => {
-            try {
-              const cw = ProviderRegistry.get(provider).listModels().find((m) => m.id === model)?.contextWindow
-              return cw !== undefined ? { contextWindow: cw } : {}
-            } catch { return {} }
-          })()}
-        />
+        {terminalMeasured && (
+          <StatusBar
+            provider={provider}
+            model={model}
+            tokens={tokens}
+            contextTokens={contextTokens}
+            workdir={workdirState}
+            skills={skillNames}
+            turnSkills={turnSkillNames}
+            isUndercover={isUndercover}
+            coordinatorMode={coordinatorMode}
+            wasCompacted={wasCompacted}
+            activeAgent={activeAgent}
+            agentColor={getSessionAgent(activeAgent, workdirState).color}
+            bgTaskCount={bgTasks.filter(t => t.status === "running").length || undefined}
+            taskCount={tasks.length || undefined}
+            taskSummary={tasks.length > 0 ? taskSummary : undefined}
+            taskPanelOpen={taskPanelOpen}
+            localServer={localServer}
+            sandboxBackend={sandboxBackend}
+            effort={effort}
+            autopilotMode={autopilotMode}
+            cols={termCols}
+            activeAgentCount={activeAgentCount > 0 ? activeAgentCount : undefined}
+            hasBtwNote={btwState !== null}
+            scrollLocked={scrollLocked}
+            {...(branch !== undefined ? { branch } : {})}
+            {...(currentContextWindow !== undefined ? { contextWindow: currentContextWindow } : {})}
+          />
+        )}
         </>}
       />
 

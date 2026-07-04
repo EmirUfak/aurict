@@ -95,7 +95,7 @@ const jsonLd = {
       "url":                 "https://aurict.com",
       "downloadUrl":         "https://www.npmjs.com/package/aurict",
       "installUrl":          "https://www.npmjs.com/package/aurict",
-      "softwareVersion":     "1.1.3",
+      "softwareVersion":     "1.1.5",
       "releaseNotes":        "https://aurict.com/changelog",
       "license":             "https://opensource.org/licenses/MIT",
       "author": {
