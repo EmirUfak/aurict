@@ -5,7 +5,7 @@ import { m, AnimatePresence } from "framer-motion"
 const FAQS = [
   {
     q: "Is Aurict free?",
-    a: "Yes — Aurict is fully open source under the MIT license. You bring your own API key for whichever AI provider you choose. There are no subscription fees for the core tool. Pro features (cloud sync, team workspaces, analytics) are planned and will have a paid tier.",
+    a: "Yes — Aurict is open source under the GNU Affero General Public License v3. You bring your own API key for whichever AI provider you choose. There are no subscription fees for the core tool. Pro features (cloud sync, team workspaces, analytics) are planned and will have a paid tier.",
   },
   {
     q: "How is Aurict different from Claude Code?",
@@ -95,7 +95,7 @@ export function FAQ() {
                   textAlign:      "left",
                   transition:     "background 0.15s",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(56,189,248,0.04)")}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(129,140,248,0.04)")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
               >
                 <span style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>

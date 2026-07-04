@@ -1,0 +1,43 @@
+# Aurict
+
+> Open-source terminal agent, AI coding assistant, and BYOK mobile AI workspace. Aurict focuses on provider flexibility, specialist agents, local-first workflows, objective assistance, research, document generation, and terminal-native developer productivity.
+
+## Core Pages
+
+- [Aurict — Terminal AI Coding Assistant](https://aurict.com/): Open-source terminal agent and AI coding assistant with specialist agents, contextual skills, multi-provider support, and a BYOK mobile assistant.
+- [Documentation](https://aurict.com/docs): Install Aurict, configure providers and API keys, connect tools, use agent workflows, and understand the runtime.
+- [About Aurict](https://aurict.com/about): The Aurict manifesto, architecture philosophy, BYOK model, objectivity principle, and long-term product vision.
+- [Roadmap](https://aurict.com/roadmap): Product direction across the terminal agent, mobile BYOK assistant, web platform, security workflows, and future AI research.
+- [Changelog](https://aurict.com/changelog): Release history and product updates.
+- [Privacy Policy](https://aurict.com/privacy): Privacy policy for BYOK workflows, provider keys, account data, and future policy changes.
+- [Terms of Use](https://aurict.com/terms): Terms covering open-source software, BYOK responsibilities, acceptable use, security workflows, and disclaimers.
+
+## Product Areas
+
+- [Use Cases](https://aurict.com/use-cases): Real-world development workflows for refactoring, code review, testing, and documentation.
+- [Code Refactoring](https://aurict.com/use-cases/refactoring): Refactor complex code with dependency-aware AI assistance.
+- [Code Review](https://aurict.com/use-cases/code-review): Review code for bugs, security issues, performance risks, and maintainability problems.
+- [Test Generation](https://aurict.com/use-cases/testing): Generate useful tests, edge cases, and verification plans.
+- [Documentation](https://aurict.com/use-cases/documentation): Create README files, API docs, inline comments, and usage examples.
+
+## Comparisons
+
+- [Aurict vs Claude Code](https://aurict.com/compare/claude-code): Compare Aurict with Claude Code for provider flexibility, terminal workflows, and agent architecture.
+- [Aurict vs Cursor](https://aurict.com/compare/cursor): Compare terminal-native AI workflows with IDE-based AI development.
+- [Aurict vs Aider](https://aurict.com/compare/aider): Compare Aurict's agent runtime with Git-focused AI pair programming.
+- [Aurict vs GitHub Copilot](https://aurict.com/compare/github-copilot): Compare full terminal assistant workflows with IDE autocomplete and GitHub-native assistance.
+- [Aurict vs OpenCode](https://aurict.com/compare/opencode): Compare open-source terminal AI tools, agent workflows, provider support, and extensibility.
+
+## Blog
+
+- [Blog](https://aurict.com/blog): AI coding assistant guides, terminal AI comparisons, and agent workflow articles.
+- [How to Use an AI Coding Assistant in 2026](https://aurict.com/blog/how-to-use-ai-coding-assistant): Practical guide to using AI coding assistants effectively.
+- [Claude Code vs Aurict](https://aurict.com/blog/claude-code-vs-aurict): Comparison of Claude Code and Aurict for terminal AI workflows.
+- [The Best Terminal AI Tools in 2026](https://aurict.com/blog/terminal-ai-tools-2026): Overview of terminal AI coding tools and where Aurict fits.
+- [Why Multi-Agent AI is the Future of Coding](https://aurict.com/blog/multi-agent-ai-coding): Explanation of specialist agent workflows for software development.
+- [What is MCP and Why It Matters](https://aurict.com/blog/mcp-model-context-protocol): Practical overview of Model Context Protocol and AI tool integration.
+
+## Open Source
+
+- [GitHub Repository](https://github.com/aurict/aurict): Source code, issues, releases, and contribution history.
+- [npm Package](https://www.npmjs.com/package/aurict): Package page for installing Aurict.

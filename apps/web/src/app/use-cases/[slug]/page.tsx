@@ -160,6 +160,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
+export function generateStaticParams() {
+  return USE_CASES.map((useCase) => ({ slug: useCase.slug }))
+}
+
 export default async function UseCasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const uc = USE_CASES.find((u) => u.slug === slug)
@@ -203,7 +207,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
                 fontFamily: "var(--font-geist-mono)",
                 color: "var(--accent)",
                 background: "var(--accent-glow)",
-                border: "1px solid rgba(56,189,248,0.3)",
+                border: "1px solid rgba(129,140,248,0.3)",
                 borderRadius: 4,
                 padding: "3px 8px",
               }}
@@ -429,23 +433,9 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
               <Link
                 key={u.slug}
                 href={`/use-cases/${u.slug}`}
+                className="mono landing-pill"
                 style={{
-                  fontSize: 13,
-                  color: "var(--text-dim)",
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 6,
-                  padding: "6px 12px",
                   textDecoration: "none",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border-bright)"
-                  e.currentTarget.style.color = "var(--text)"
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border)"
-                  e.currentTarget.style.color = "var(--text-dim)"
                 }}
               >
                 {u.title}

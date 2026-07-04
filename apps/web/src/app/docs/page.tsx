@@ -1,5 +1,4 @@
 import { Nav } from "@/components/Nav"
-import { DocsSidebar } from "@/components/docs/DocsSidebar"
 import { Footer } from "@/components/sections/Footer"
 import type { Metadata } from "next"
 
@@ -36,6 +35,43 @@ const articleJsonLd = {
 }
 
 const DOCS_SECTIONS = [
+  {
+    title: "Product Surfaces",
+    anchor: "product-surfaces",
+    content: [
+      {
+        heading: "Terminal agent",
+        body: "The CLI is the primary Aurict runtime: BYOK providers, project context, typed tools, checkpoints, sessions, skills, MCP, hooks, local API access, and multi-agent workflows run where developers already work.",
+        code: "aurict\n/config\n/providers\n/sessions\n/agent\n/mcp",
+      },
+      {
+        heading: "Web platform",
+        body: "The web app is the public trust and onboarding surface. It contains the landing page, docs, roadmap, changelog, manifesto, Firebase-backed auth, browser login flow, privacy policy, terms, and account deletion direction.",
+        code: "apps/web\n/routes: /docs /roadmap /changelog /about /privacy /terms /auth/device",
+      },
+      {
+        heading: "Mobile BYOK assistant",
+        body: "The Flutter app extends Aurict beyond the terminal: BYOK chat, provider sessions, research and document workflows, PDF generation, scoped assistant-answer reporting, and Android release hardening.",
+        code: "mobile/lib/main.dart\nmobile/lib/agent/mobile_chat_stream.dart\nmobile/lib/agent/mobile_feedback_report.dart",
+      },
+    ],
+  },
+  {
+    title: "Security & Privacy",
+    anchor: "security-privacy",
+    content: [
+      {
+        heading: "Secret boundaries",
+        body: "Provider keys, Firebase service files, Android keystores, key properties, local env files, SQLite runtime data, and backend prototype files are excluded from source control. CI restores release secrets from GitHub Actions secrets when producing Android artifacts.",
+        code: ".env\n.env.local\ngoogle-services.json\n*.jks\n*.keystore\nkey.properties\napps/backend/",
+      },
+      {
+        heading: "Account and feedback flows",
+        body: "The web and mobile surfaces include privacy, terms, account deletion, and report-feedback paths. Reported assistant answers are treated as scoped feedback events for review, not as a blanket upload of a user's project.",
+        code: "POST /feedback/reports\nPOST /account/delete\n/privacy\n/terms",
+      },
+    ],
+  },
   {
     title: "Installation",
     anchor: "installation",
@@ -250,35 +286,66 @@ export default function DocsPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       <Nav />
-      <main className="docs-page">
-        <div className="docs-shell">
-          <div className="docs-layout">
-            <DocsSidebar items={DOCS_SECTIONS.map(({ anchor, title }) => ({ anchor, title }))} />
+      <main className="marketing-main" style={{ maxWidth: 1040 }}>
+        <div className="marketing-hero">
+          <p className="marketing-eyebrow">Documentation</p>
+          <h1 className="marketing-title">Getting started</h1>
+          <p className="marketing-lede">
+            Everything you need to install, configure, and extend Aurict.
+          </p>
+        </div>
 
-            <header className="docs-hero">
-              <p className="docs-kicker">Documentation</p>
-              <h1>Getting started</h1>
-              <p>Everything you need to install, configure, and extend Aurict.</p>
-            </header>
-
-            <div className="docs-content">
-              {DOCS_SECTIONS.map((section) => (
-                <section key={section.anchor} id={section.anchor} className="docs-section">
-                  <h2>{section.title}</h2>
-                  <div className="docs-section-items">
-                    {section.content.map((item) => (
-                      <article key={item.heading} className="docs-item">
-                        <h3>{item.heading}</h3>
-                        <p>{item.body}</p>
-                        <pre>
-                          <code>{item.code}</code>
-                        </pre>
-                      </article>
-                    ))}
-                  </div>
-                </section>
+        <div className="resp-docs" style={{ gap: 64 }}>
+          <nav className="resp-docs-sidebar" style={{ position: "sticky", top: 80, alignSelf: "start" }}>
+            <p
+              className="mono"
+              style={{
+                fontSize: 11,
+                color: "var(--text-muted)",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                marginBottom: 14,
+              }}
+            >
+              On this page
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {DOCS_SECTIONS.map((s) => (
+                <a key={s.anchor} href={`#${s.anchor}`} className="docs-sidebar-link">
+                  {s.title}
+                </a>
               ))}
             </div>
+          </nav>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 64 }}>
+            {DOCS_SECTIONS.map((section) => (
+              <div key={section.anchor} id={section.anchor}>
+                <h2 className="marketing-section-title">{section.title}</h2>
+                <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+                  {section.content.map((item) => (
+                    <div key={item.heading} className="marketing-card" style={{ padding: "24px 26px", position: "relative" }}>
+                      <span className="mono aur-corner" style={{ position: "absolute", top: 8, left: 8, color: "oklch(1 0 0/.18)" }}>┌</span>
+                      <h3 style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 600, color: "var(--text)", marginBottom: 10 }}>
+                        {item.heading}
+                      </h3>
+                      <p
+                        className="marketing-copy"
+                        style={{
+                          marginBottom: 14,
+                          whiteSpace: "pre-wrap",
+                        }}
+                      >
+                        {item.body}
+                      </p>
+                      <pre className="marketing-code">
+                        <code>{item.code}</code>
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </main>

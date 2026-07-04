@@ -1,225 +1,127 @@
 "use client"
+
 import { m } from "framer-motion"
 
 const STATS = [
-  {
-    value: "9",
-    label: "Specialist Agents",
-    detail: "Each a domain expert — explore, code, review, test, debug, docs, security, perf, analytics.",
-  },
-  {
-    value: "218+",
-    label: "Contextual Skills",
-    detail: "Your stack is detected before you say a word. The right context is injected automatically.",
-  },
-  {
-    value: "3",
-    label: "Native Platforms",
-    detail: "Compiled binaries for macOS, Linux, and Windows. No runtime dependency. One command.",
-  },
+  ["9", "specialist agents", "Explore, code, review, test, docs, security, debug, performance, analytics."],
+  ["218+", "contextual skills", "Framework and project signals select the right context without manual attachment."],
+  ["native", "macOS · Linux · Windows", "Installed through npm, executed as a compiled standalone binary."],
 ]
 
 const DIFFERENTIATORS = [
   {
     index: "01",
-    title: "Agent-first, not prompt-first",
-    body: "Most tools wrap a single LLM call. Aurict routes every task to the right specialist — a dedicated agent with its own tools, context budget, and domain knowledge. Complex tasks are decomposed and run in parallel.",
+    title: "Coordinator-first architecture",
+    body: "Aurict routes work through specialized agents instead of hoping a single prompt keeps every concern in memory.",
   },
   {
     index: "02",
-    title: "Zero-setup cross-platform",
-    body: "Install with one npm command on any OS. Aurict ships native compiled binaries — no Node runtime required at execution time, no WSL on Windows, no Rosetta headaches on Apple Silicon.",
+    title: "Context is treated as infrastructure",
+    body: "Static, session, dynamic, skills, memories, tools, and cached boundaries are separated so attention is not wasted.",
   },
   {
     index: "03",
-    title: "Context that sees your codebase",
-    body: "Before you ask your first question, Aurict has already read your directory tree, detected your framework, parsed your config, and ranked the files most likely to matter. No manual attachment, no copy-paste.",
+    title: "Tools are gated, not blindly exposed",
+    body: "Bash classification, sandbox policy, approvals, protected paths, output limits, and optional security profiles keep execution controlled.",
   },
   {
     index: "04",
-    title: "Open and yours to extend",
-    body: "Bring your own MCP servers, custom slash commands, and team-shared skill templates. Your claude_desktop_config.json works out of the box. Nothing is locked into a proprietary cloud.",
+    title: "Open where it matters",
+    body: "Use your own model provider, MCP servers, skills, slash commands, and workflows without moving the codebase into a vendor IDE.",
   },
 ]
 
 export function WhyAurict() {
   return (
-    <section
-      className="resp-section"
-      style={{
-        padding: "120px 24px",
-        maxWidth: 1100,
-        margin: "0 auto",
-        background: "linear-gradient(180deg, transparent, rgba(56,189,248,0.03), transparent)",
-      }}
-    >
-      {/* header */}
-      <div style={{ textAlign: "center", marginBottom: 80 }}>
-        <m.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.5 }}
-          style={{
-            fontFamily: "var(--font-geist-mono)",
-            fontSize: 12,
-            color: "var(--accent-blue)",
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            marginBottom: 16,
-          }}
-        >
-          Why Aurict
-        </m.p>
-        <m.h2
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.6, delay: 0.08 }}
-          style={{
-            fontSize: "clamp(28px, 4.5vw, 52px)",
-            fontWeight: 800,
-            letterSpacing: "-0.03em",
-            lineHeight: 1.12,
-            color: "var(--text)",
-            marginBottom: 20,
-          }}
-        >
-          More than an assistant.
-          <br />
-          <span className="gradient-text">A complete agent runtime.</span>
-        </m.h2>
-        <m.p
-          initial={{ opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.5, delay: 0.18 }}
-          style={{
-            fontSize: 16,
-            color: "var(--text-dim)",
-            lineHeight: 1.7,
-            maxWidth: 520,
-            margin: "0 auto",
-          }}
-        >
-          Most AI coding tools are a chat interface attached to a text editor.
-          Aurict is engineered differently — from the architecture up.
-        </m.p>
-      </div>
-
-      {/* stat row */}
-      <div
-        className="resp-grid-3"
-        style={{
-          background: "var(--border)",
-          gap: 1,
-          border: "1px solid rgba(56,189,248,0.18)",
-          borderRadius: 16,
-          overflow: "hidden",
-          marginBottom: 80,
-          boxShadow: "0 28px 90px rgba(56,189,248,0.05)",
-        }}
-      >
-        {STATS.map((s, i) => (
-          <m.div
-            key={s.label}
-            initial={{ opacity: 0, y: 16 }}
+    <section id="why" className="resp-section" style={{ padding: "118px 0" }}>
+      <div className="section-shell">
+        <div style={{ display: "grid", gap: 28, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", marginBottom: 64 }}>
+          <div>
+            <m.div className="eyebrow" initial={{ opacity: 0 }} transition={{ duration: 0.45 }} viewport={{ once: true }} whileInView={{ opacity: 1 }}>
+              why aurict
+            </m.div>
+            <m.h2
+              className="section-title"
+              initial={{ opacity: 0, y: 14 }}
+              transition={{ delay: 0.08, duration: 0.55 }}
+              viewport={{ once: true, margin: "-60px" }}
+              whileInView={{ opacity: 1, y: 0 }}
+              style={{ marginTop: 16 }}
+            >
+              Not a chat box. A runtime for real developer work.
+            </m.h2>
+          </div>
+          <m.p
+            className="section-copy"
+            initial={{ opacity: 0, y: 10 }}
+            transition={{ delay: 0.16, duration: 0.5 }}
+            viewport={{ once: true, margin: "-60px" }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.5, delay: i * 0.1 }}
-            style={{
-              background: "var(--bg-subtle)",
-              padding: "40px 36px",
-            }}
+            style={{ alignSelf: "end" }}
           >
-            <div
-              style={{
-                fontFamily: "var(--font-geist-mono)",
-                fontSize: "clamp(36px, 5vw, 60px)",
-                fontWeight: 800,
-                letterSpacing: "-0.04em",
-                lineHeight: 1,
-                marginBottom: 10,
-                background: "linear-gradient(135deg, #38bdf8 0%, #a78bfa 58%, #c4b5fd 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              {s.value}
-            </div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 700,
-                color: "var(--text)",
-                marginBottom: 10,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              {s.label}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "var(--text-dim)",
-                lineHeight: 1.6,
-              }}
-            >
-              {s.detail}
-            </div>
-          </m.div>
-        ))}
-      </div>
+            The design is opinionated: keep the model focused, keep tools accountable, and make long-running tasks survive real project complexity.
+          </m.p>
+        </div>
 
-      {/* differentiator rows */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-        {DIFFERENTIATORS.map((d, i) => (
-          <m.div
-            key={d.index}
-            initial={{ opacity: 0, x: -16 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-30px" }}
-            transition={{ duration: 0.5, delay: i * 0.08 }}
-            className="resp-diff"
-            style={{
-              padding: "32px 0",
-              borderBottom: i < DIFFERENTIATORS.length - 1 ? "1px solid var(--border)" : "none",
-            }}
-          >
-            <span
+        <div
+          className="resp-grid-3"
+          style={{
+            background:   "var(--border)",
+            border:       "1px solid var(--border)",
+            borderRadius:  12,
+            gap:          1,
+            marginBottom: 68,
+            overflow:     "hidden",
+          }}
+        >
+          {STATS.map(([value, label, detail], index) => (
+            <m.div
+              key={label}
+              initial={{ opacity: 0, y: 16 }}
+              transition={{ delay: index * 0.08, duration: 0.48 }}
+              viewport={{ once: true, margin: "-40px" }}
+              whileInView={{ opacity: 1, y: 0 }}
+              style={{ background: "var(--bg-alt)", padding: "34px 32px" }}
+            >
+              <div className="mono" style={{ color: "var(--accent)", fontSize: 42, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                {value}
+              </div>
+              <h3 style={{ color: "var(--text)", fontSize: 18, fontWeight: 600, marginTop: 16 }}>
+                {label}
+              </h3>
+              <p className="mono" style={{ color: "var(--text-muted)", fontSize: 12.5, lineHeight: 1.65, marginTop: 10 }}>
+                {detail}
+              </p>
+            </m.div>
+          ))}
+        </div>
+
+        <div>
+          {DIFFERENTIATORS.map((item, index) => (
+            <m.div
+              key={item.index}
+              className="resp-diff"
+              initial={{ opacity: 0, x: -14 }}
+              transition={{ delay: index * 0.06, duration: 0.45 }}
+              viewport={{ once: true, margin: "-30px" }}
+              whileInView={{ opacity: 1, x: 0 }}
               style={{
-                fontFamily: "var(--font-geist-mono)",
-                fontSize: 12,
-                color: "var(--text-muted)",
-                letterSpacing: "0.04em",
-                paddingTop: 3,
+                borderBottom: index < DIFFERENTIATORS.length - 1 ? "1px solid var(--border)" : "none",
+                padding:      "28px 0",
               }}
             >
-              {d.index}
-            </span>
-            <h3
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: "var(--text)",
-                letterSpacing: "-0.02em",
-                lineHeight: 1.4,
-              }}
-            >
-              {d.title}
-            </h3>
-            <p
-              style={{
-                fontSize: 14,
-                color: "var(--text-dim)",
-                lineHeight: 1.7,
-              }}
-            >
-              {d.body}
-            </p>
-          </m.div>
-        ))}
+              <span className="mono" style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                {item.index}
+              </span>
+              <h3 style={{ color: "var(--text)", fontSize: 18, fontWeight: 600, lineHeight: 1.35 }}>
+                {item.title}
+              </h3>
+              <p className="section-copy" style={{ fontSize: 15, margin: 0 }}>
+                {item.body}
+              </p>
+            </m.div>
+          ))}
+        </div>
       </div>
     </section>
   )

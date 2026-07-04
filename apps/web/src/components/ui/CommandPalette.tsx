@@ -13,6 +13,8 @@ interface CommandItem {
 const COMMANDS: CommandItem[] = [
   // Pages
   { label: "Home", href: "/", category: "Pages", icon: "🏠" },
+  { label: "About", href: "/about", category: "Pages", icon: "▣" },
+  { label: "Roadmap", href: "/roadmap", category: "Pages", icon: "▤" },
   { label: "Documentation", href: "/docs", category: "Pages", icon: "📖" },
   { label: "Changelog", href: "/changelog", category: "Pages", icon: "📋" },
   { label: "Blog", href: "/blog", category: "Pages", icon: "✍️" },

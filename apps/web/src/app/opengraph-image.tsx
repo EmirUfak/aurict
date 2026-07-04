@@ -30,7 +30,7 @@ export default function OgImage() {
             left:       0,
             right:      0,
             height:     3,
-            background: "linear-gradient(90deg, #38bdf8, #a78bfa, #c4b5fd)",
+            background: "linear-gradient(90deg, #818cf8, #a78bfa, #c4b5fd)",
             display:    "flex",
           }}
         />
@@ -44,7 +44,7 @@ export default function OgImage() {
             width:        700,
             height:       700,
             borderRadius: "50%",
-            background:   "radial-gradient(ellipse, rgba(56,189,248,0.08) 0%, transparent 65%)",
+            background:   "radial-gradient(ellipse, rgba(129,140,248,0.08) 0%, transparent 65%)",
             display:      "flex",
           }}
         />
@@ -57,14 +57,14 @@ export default function OgImage() {
               style={{
                 width:        44,
                 height:       44,
-                background:   "rgba(56,189,248,0.15)",
-                border:       "1px solid rgba(56,189,248,0.3)",
+                background:   "rgba(129,140,248,0.15)",
+                border:       "1px solid rgba(129,140,248,0.3)",
                 borderRadius: 10,
                 display:      "flex",
                 alignItems:   "center",
                 justifyContent: "center",
                 fontSize:     22,
-                color:        "#38bdf8",
+                color:        "#818cf8",
               }}
             >
               ◈
@@ -77,9 +77,9 @@ export default function OgImage() {
           <div
             style={{
               fontSize:     14,
-              color:        "#38bdf8",
-              background:   "rgba(56,189,248,0.1)",
-              border:       "1px solid rgba(56,189,248,0.25)",
+              color:        "#818cf8",
+              background:   "rgba(129,140,248,0.1)",
+              border:       "1px solid rgba(129,140,248,0.25)",
               borderRadius: 8,
               padding:      "6px 16px",
               letterSpacing: "1px",
@@ -111,7 +111,7 @@ export default function OgImage() {
               fontWeight:    800,
               lineHeight:    1.05,
               letterSpacing: "-3px",
-              background:    "linear-gradient(135deg, #38bdf8, #a78bfa, #c4b5fd)",
+              background:    "linear-gradient(135deg, #818cf8, #a78bfa, #c4b5fd)",
               WebkitBackgroundClip: "text",
               color:         "transparent",
               display:       "flex",
@@ -145,7 +145,7 @@ export default function OgImage() {
                   padding:      "14px 20px",
                 }}
               >
-                <span style={{ fontSize: 28, fontWeight: 800, color: "#38bdf8", lineHeight: 1 }}>{val}</span>
+                <span style={{ fontSize: 28, fontWeight: 800, color: "#818cf8", lineHeight: 1 }}>{val}</span>
                 <span style={{ fontSize: 13, color: "#71717a" }}>{label}</span>
               </div>
             ))}
@@ -165,7 +165,7 @@ export default function OgImage() {
               color:        "#f5f5f5",
             }}
           >
-            <span style={{ color: "#38bdf8" }}>$</span>
+            <span style={{ color: "#818cf8" }}>$</span>
             <span>npm install -g aurict</span>
           </div>
         </div>

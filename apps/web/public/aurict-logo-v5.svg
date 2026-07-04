@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="aurict-logo-title">
+  <title id="aurict-logo-title">Aurict v5 monogram logo</title>
+  <defs>
+    <linearGradient id="aurictWineV5" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF3355" />
+      <stop offset="1" stop-color="#6E0B1C" />
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M24 76L47 20Q50 14 53 20L73 62C76 70 69 82 54 82C39 82 35 71 43 59L57 38"
+    stroke="url(#aurictWineV5)"
+    stroke-width="6.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <rect x="78" y="70" width="4" height="12" rx="0.5" fill="#FFFFFF" />
+</svg>

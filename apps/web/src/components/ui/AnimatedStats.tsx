@@ -97,7 +97,7 @@ export function AnimatedStats({ stats }: AnimatedStatsProps) {
               letterSpacing: "-0.04em",
               lineHeight: 1,
               marginBottom: 10,
-              background: "linear-gradient(135deg, #38bdf8 0%, #c4b5fd 100%)",
+              background: "linear-gradient(135deg, #818cf8 0%, #c4b5fd 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               backgroundClip: "text",

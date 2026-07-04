@@ -1,12 +1,9 @@
-import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import type { Metadata, Viewport } from "next"
 import { ScrollProgress } from "@/components/ui/ScrollProgress"
 import { BackToTop } from "@/components/ui/BackToTop"
 import { CommandPalette } from "@/components/ui/CommandPalette"
+import { RuntimeSignal } from "@/components/ui/RuntimeSignal"
 import "./globals.css"
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] })
 
 const BASE_URL = "https://aurict.com"
 
@@ -19,10 +16,14 @@ export const metadata: Metadata = {
   },
 
   description:
-    "Open-source terminal AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and support for Anthropic, OpenAI, Google, and 6 more providers. No IDE required. Works in macOS, Linux, and Windows.",
+    "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and support for Anthropic, OpenAI, Google, and 6 more providers. No IDE required. Works in macOS, Linux, and Windows.",
 
   keywords: [
+    "open source terminal agent",
+    "open-source terminal agent",
     "terminal AI coding assistant",
+    "terminal agent",
+    "AI terminal agent",
     "AI coding tool",
     "AI terminal assistant",
     "Claude Code alternative",
@@ -58,7 +59,7 @@ export const metadata: Metadata = {
     url:         BASE_URL,
     siteName:    "Aurict",
     title:       "Aurict — Terminal AI Coding Assistant",
-    description: "Open-source terminal AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and multi-provider support. One command to rule your codebase.",
+    description: "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and multi-provider support. One command to rule your codebase.",
     images: [
       {
         url:    "/opengraph-image",
@@ -74,12 +75,21 @@ export const metadata: Metadata = {
     site:        "@aurictdev",
     creator:     "@aurictdev",
     title:       "Aurict — Terminal AI Coding Assistant",
-    description: "Open-source terminal AI assistant — 9 agents, 218+ skills, 9 providers. No IDE required.",
+    description: "Open-source terminal agent and AI assistant — 9 agents, 218+ skills, 9 providers. No IDE required.",
     images:      ["/opengraph-image"],
   },
 
   alternates: {
     canonical: BASE_URL,
+  },
+
+  icons: {
+    icon: [
+      { url: "/aurict-logo-v5.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/aurict-logo-v5.svg",
+    apple: "/aurict-logo-v5.svg",
   },
 
   // Add verification tokens here when setting up Google/Bing Search Console:
@@ -88,25 +98,38 @@ export const metadata: Metadata = {
   category: "technology",
 }
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#171110",
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en">
       <head>
         {/* Preconnect — reduce latency for external origins */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font -- next/font fetches Google Fonts during build; runtime link keeps offline builds stable. */}
+        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <link rel="dns-prefetch" href="https://github.com" />
         <link rel="dns-prefetch" href="https://registry.npmjs.org" />
+        <link rel="icon" href="/aurict-logo-v5.svg" type="image/svg+xml" />
+        <link rel="shortcut icon" href="/aurict-logo-v5.svg" />
         {/* Web App Manifest */}
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#a78bfa" />
+        <meta name="theme-color" content="#171110" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
         <ScrollProgress />
         <CommandPalette />
-        <div className="noise" aria-hidden="true" />
+        <RuntimeSignal />
+        <div className="site-grain" aria-hidden="true" />
+        <div className="top-accent" aria-hidden="true" />
         {children}
         <BackToTop />
       </body>

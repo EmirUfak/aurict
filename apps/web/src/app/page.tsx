@@ -1,15 +1,5 @@
 import type { Metadata } from "next"
-import { Nav } from "@/components/Nav"
-import { MotionProvider } from "@/components/MotionProvider"
-import { Hero } from "@/components/sections/Hero"
-import { WhyAurict } from "@/components/sections/WhyAurict"
-import { Features } from "@/components/sections/Features"
-import { ProviderGrid } from "@/components/ui/ProviderGrid"
-import { IntegrationGrid } from "@/components/ui/IntegrationGrid"
-import { Install } from "@/components/sections/Install"
-import { SocialProof } from "@/components/sections/SocialProof"
-import { FAQ } from "@/components/sections/FAQ"
-import { Footer } from "@/components/sections/Footer"
+import { AurictLandingExact } from "@/components/landing/AurictLandingExact"
 
 export const metadata: Metadata = {
   alternates: { canonical: "https://aurict.com" },
@@ -22,7 +12,7 @@ const faqJsonLd = {
     {
       "@type":          "Question",
       "name":           "Is Aurict free?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes — Aurict is fully open source under the MIT license. You bring your own API key for whichever AI provider you choose. There are no subscription fees for the core tool." },
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes — Aurict is open source under the GNU Affero General Public License v3. You bring your own API key for whichever AI provider you choose. There are no subscription fees for the core tool." },
     },
     {
       "@type":          "Question",
@@ -41,6 +31,11 @@ const faqJsonLd = {
     },
     {
       "@type":          "Question",
+      "name":           "What does the Aurict mobile app do?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Aurict mobile is a bring-your-own-key AI assistant and CLI companion. Users can chat with providers like OpenAI, Anthropic, Google, and OpenRouter, run research tasks, generate PDFs and reports, and approve terminal actions from their phone." },
+    },
+    {
+      "@type":          "Question",
       "name":           "Do I need Node.js installed to run Aurict?",
       "acceptedAnswer": { "@type": "Answer", "text": "No. Aurict installs via npm install -g aurict but runs as a self-contained native binary. Node.js is only needed for the install step itself." },
     },
@@ -56,7 +51,7 @@ const howToJsonLd = {
   "@context": "https://schema.org",
   "@type":    "HowTo",
   "name":     "How to install and run Aurict",
-  "description": "Install the open-source terminal AI coding assistant in three steps.",
+  "description": "Install the open-source terminal agent and AI coding assistant in three steps.",
   "totalTime": "PT1M",
   "step": [
     {
@@ -91,13 +86,13 @@ const jsonLd = {
       "name":                "Aurict",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem":     "macOS, Linux, Windows",
-      "description":         "Open-source terminal AI coding assistant with 9 specialist agents, 218+ auto-injected contextual skills, bash classifier, MCP client, and support for 9 AI providers. Install with one npm command.",
+      "description":         "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected contextual skills, bash classifier, MCP client, and support for 9 AI providers. Install with one npm command.",
       "url":                 "https://aurict.com",
       "downloadUrl":         "https://www.npmjs.com/package/aurict",
       "installUrl":          "https://www.npmjs.com/package/aurict",
-      "softwareVersion":     "1.1.5",
+      "softwareVersion":     "1.1.3",
       "releaseNotes":        "https://aurict.com/changelog",
-      "license":             "https://opensource.org/licenses/MIT",
+      "license":             "https://www.gnu.org/licenses/agpl-3.0.html",
       "author": {
         "@type": "Organization",
         "name":  "aurict",
@@ -115,6 +110,8 @@ const jsonLd = {
         "Bash command classifier — dangerous commands require confirmation",
         "MCP client — reads claude_desktop_config.json",
         "Multi-provider: Anthropic, OpenAI, OpenRouter, Google, xAI, Azure, AWS Bedrock, Ollama",
+        "Mobile BYOK AI assistant for chat, research, PDF generation, and reports",
+        "Mobile CLI companion for browser login, permission approvals, and live session control",
         "Design agent wizard with 150+ design systems",
         "Persistent memory across sessions",
         "Custom tool and skill loader",
@@ -125,7 +122,7 @@ const jsonLd = {
       "@type":       "WebSite",
       "url":         "https://aurict.com",
       "name":        "Aurict",
-      "description": "Open-source terminal AI coding assistant",
+      "description": "Open-source terminal agent and AI coding assistant",
     },
     {
       "@type":  "Organization",
@@ -145,20 +142,7 @@ export default function Home() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
-      <Nav />
-      <MotionProvider>
-        <main>
-          <Hero />
-          <WhyAurict />
-          <Features />
-          <ProviderGrid />
-          <IntegrationGrid />
-          <SocialProof />
-          <Install />
-          <FAQ />
-        </main>
-      </MotionProvider>
-      <Footer />
+      <AurictLandingExact />
     </>
   )
 }

@@ -1,10 +1,26 @@
 node_modules/
 dist/
+__pycache__/
+*.pyc
+*.pyo
+*.tsbuildinfo
 .env
 .env.local
+google-services.json
+GoogleService-Info.plist
+*.jks
+*.keystore
+key.properties
+mobile/android/key.properties
+mobile/android/app/*.jks
+mobile/android/app/*.keystore
 *.db
 *.db-shm
 *.db-wal
+
+# Local backend prototype
+apps/backend/
+docker-compose.backend.yml
 
 # Platform binary files — built at CI time, not committed
 packages/cli-*/bin/aurict
@@ -12,6 +28,11 @@ packages/cli-*/bin/aurict.exe
 
 # Local package verification cache
 .npm-cache/
+.bun-tmp/
 
 # Runtime data
 .aurict/
+AGENTS.md
+
+# Locally generated private documentation packs
+private-docs/

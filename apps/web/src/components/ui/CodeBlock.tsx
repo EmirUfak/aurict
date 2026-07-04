@@ -20,9 +20,9 @@ export function CodeBlock({ code, language = "bash", filename }: CodeBlockProps)
     <div
       style={{
         position: "relative",
-        background: "var(--bg-card)",
+        background: "var(--bg-deep)",
         border: "1px solid var(--border)",
-        borderRadius: 10,
+        borderRadius: 8,
         overflow: "hidden",
       }}
     >
@@ -34,13 +34,13 @@ export function CodeBlock({ code, language = "bash", filename }: CodeBlockProps)
           justifyContent: "space-between",
           padding: "8px 16px",
           borderBottom: "1px solid var(--border)",
-          background: "rgba(255,255,255,0.02)",
+          background: "oklch(1 0 0 / 0.025)",
         }}
       >
         <span
           style={{
             fontSize: 12,
-            fontFamily: "var(--font-geist-mono)",
+            fontFamily: "var(--font-mono)",
             color: "var(--text-muted)",
           }}
         >
@@ -58,7 +58,7 @@ export function CodeBlock({ code, language = "bash", filename }: CodeBlockProps)
             padding: "4px 8px",
             borderRadius: 4,
             fontSize: 12,
-            fontFamily: "var(--font-geist-mono)",
+            fontFamily: "var(--font-mono)",
             color: copied ? "var(--success)" : "var(--text-muted)",
             transition: "all 0.2s",
           }}
@@ -95,7 +95,7 @@ export function CodeBlock({ code, language = "bash", filename }: CodeBlockProps)
           margin: 0,
           overflowX: "auto",
           fontSize: 13,
-          fontFamily: "var(--font-geist-mono)",
+          fontFamily: "var(--font-mono)",
           lineHeight: 1.65,
           color: "var(--text)",
         }}

@@ -1,169 +1,137 @@
 "use client"
 
 import { m } from "framer-motion"
-import {
-  Activity,
-  Boxes,
-  BrainCircuit,
-  Cpu,
-  Gauge,
-  GitBranch,
-  RadioTower,
-  ShieldCheck,
-  Terminal,
-  Zap,
-} from "lucide-react"
 import { TerminalWindow } from "@/components/terminal/TerminalWindow"
 
-const AGENTS = [
-  { name: "Explore",  status: "mapping repo",       load: 92, color: "#a78bfa" },
-  { name: "Code",     status: "patch queued",       load: 76, color: "#38bdf8" },
-  { name: "Review",   status: "risk pass",          load: 68, color: "#f59e0b" },
-  { name: "Security", status: "gateguard armed",    load: 84, color: "#ff6b6b" },
-  { name: "Perf",     status: "trace sampling",     load: 51, color: "#06b6d4" },
-]
-
-const TELEMETRY = [
-  { label: "Context", value: "184k", detail: "tokens available", icon: Gauge },
-  { label: "Providers", value: "9", detail: "hot-swappable", icon: RadioTower },
-  { label: "Skills", value: "218+", detail: "auto-injected", icon: BrainCircuit },
-  { label: "Sandbox", value: "Policy", detail: "approval gated", icon: ShieldCheck },
-]
-
-const PIPELINE = [
-  "Repo scan",
-  "Task split",
-  "Agent swarm",
-  "Patch plan",
-  "Verify",
-  "Ship",
+const SYSTEM_LINES = [
+  ["agents", "explore · code · review · test · docs · security"],
+  ["context", "skills loaded lazily, cache boundary preserved"],
+  ["guardrails", "sandbox policy active, approvals required"],
 ]
 
 export function Hero() {
   return (
-    <section className="hero-cockpit">
-      <div className="cockpit-grid-bg" aria-hidden="true" />
-      <div className="cockpit-scanline" aria-hidden="true" />
-      <div className="cockpit-warp-lines" aria-hidden="true" />
+    <section
+      style={{
+        overflow: "hidden",
+        padding:   "112px 0 96px",
+        position:  "relative",
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          background: "radial-gradient(circle, color-mix(in oklch, var(--accent) 22%, transparent), transparent 64%)",
+          filter:     "blur(6px)",
+          height:     620,
+          left:       "58%",
+          opacity:    0.42,
+          position:   "absolute",
+          top:        12,
+          transform:  "translateX(-50%)",
+          width:      820,
+        }}
+      />
 
-      <div className="hero-cockpit-inner">
-        <m.div
-          className="hero-copy"
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55 }}
-        >
-          <div className="cockpit-kicker">
-            <span className="signal-dot" />
-            <span>Multi-agent engineering cockpit</span>
-            <span className="kicker-divider" />
-            <span>v1.1.5</span>
-          </div>
+      <div
+        className="section-shell"
+        style={{
+          alignItems:           "center",
+          display:              "grid",
+          gap:                  56,
+          gridTemplateColumns:  "repeat(auto-fit, minmax(min(100%, 460px), 1fr))",
+          position:             "relative",
+          zIndex:               1,
+        }}
+      >
+        <div>
+          <m.div
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 14 }}
+            transition={{ duration: 0.55 }}
+            className="eyebrow mono"
+            style={{ marginBottom: 18 }}
+          >
+            open-source terminal ai agent
+          </m.div>
 
-          <h1>
-            Command a full AI engineering crew from your terminal.
-          </h1>
+          <m.h1
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            transition={{ delay: 0.08, duration: 0.65 }}
+            className="section-title"
+            style={{
+              fontSize:     "clamp(52px, 7vw, 88px)",
+              marginBottom: 24,
+              maxWidth:     760,
+            }}
+          >
+            Your terminal, rebuilt as an agent runtime.
+          </m.h1>
 
-          <p>
-            Aurict turns a local shell into a mission control surface: specialist agents split the task,
-            run tools, check risk, verify patches, and keep provider choice under your control.
-          </p>
+          <m.p
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 14 }}
+            transition={{ delay: 0.18, duration: 0.55 }}
+            className="section-copy"
+            style={{ marginBottom: 34, maxWidth: 610 }}
+          >
+            Aurict coordinates specialist agents, project-aware skills, sandboxed tools, and any model provider without forcing you into an IDE or proprietary cloud.
+          </m.p>
 
-          <div className="hero-actions">
-            <a className="primary-action" href="#install">
-              <Zap size={16} aria-hidden="true" />
-              Launch the cockpit
+          <m.div
+            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 12 }}
+            transition={{ delay: 0.28, duration: 0.5 }}
+            style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 14 }}
+          >
+            <a className="aur-button aur-button-primary" href="#install">
+              $ npm install -g aurict
             </a>
-            <a className="secondary-action" href="/docs">
-              <Terminal size={16} aria-hidden="true" />
-              Read the flight manual
+            <a className="aur-button aur-button-secondary" href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">
+              star on GitHub
             </a>
-            <code>npm install -g aurict</code>
-          </div>
-        </m.div>
+          </m.div>
+
+          <m.div
+            animate={{ opacity: 1 }}
+            initial={{ opacity: 0 }}
+            transition={{ delay: 0.44, duration: 0.55 }}
+            style={{ display: "grid", gap: 10, marginTop: 42 }}
+          >
+            {SYSTEM_LINES.map(([label, value]) => (
+              <div key={label} className="mono" style={{ alignItems: "center", display: "flex", gap: 12 }}>
+                <span style={{ color: "var(--accent)", fontSize: 12, width: 76 }}>{label}</span>
+                <span style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{value}</span>
+              </div>
+            ))}
+          </m.div>
+        </div>
 
         <m.div
-          className="cockpit-shell"
-          initial={{ opacity: 0, y: 24, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.7, delay: 0.12 }}
+          initial={{ opacity: 0, y: 28, scale: 0.985 }}
+          transition={{ delay: 0.18, duration: 0.72, ease: [0.16, 0.8, 0.2, 1] }}
+          style={{ display: "grid", gap: 16 }}
         >
-          <div className="cockpit-header">
-            <div>
-              <span className="cockpit-label">Aurict Control Deck</span>
-              <strong>Parallel task runtime</strong>
-            </div>
-            <div className="cockpit-health">
-              <Activity size={15} aria-hidden="true" />
-              live
-            </div>
-          </div>
-
-          <div className="cockpit-layout">
-            <aside className="agent-rail" aria-label="Active agents">
-              <div className="panel-title">
-                <Boxes size={14} aria-hidden="true" />
-                Agent swarm
-              </div>
-              <div className="agent-list">
-                {AGENTS.map((agent, index) => (
-                  <div className="agent-row" key={agent.name}>
-                    <div className="agent-main">
-                      <span className="agent-pulse" style={{ background: agent.color, animationDelay: `${index * 0.18}s` }} />
-                      <div>
-                        <strong>{agent.name}</strong>
-                        <span>{agent.status}</span>
-                      </div>
-                    </div>
-                    <div className="agent-load">
-                      <span style={{ width: `${agent.load}%`, background: agent.color }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="portal-note">
-                <Cpu size={14} aria-hidden="true" />
-                Tiny portal anomaly contained in worker thread 04.
-              </div>
-            </aside>
-
-            <div className="terminal-stage">
-              <TerminalWindow />
-            </div>
-
-            <aside className="telemetry-rail" aria-label="Runtime telemetry">
-              <div className="panel-title">
-                <GitBranch size={14} aria-hidden="true" />
-                Runtime telemetry
-              </div>
-              <div className="telemetry-grid">
-                {TELEMETRY.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <div className="telemetry-tile" key={item.label}>
-                      <div>
-                        <Icon size={15} aria-hidden="true" />
-                        <span>{item.label}</span>
-                      </div>
-                      <strong>{item.value}</strong>
-                      <small>{item.detail}</small>
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="risk-console">
-                <span>GateGuard</span>
-                <strong>dangerous command held</strong>
-                <small>rm -rf request moved to approval orbit</small>
-              </div>
-            </aside>
-          </div>
-
-          <div className="pipeline-strip" aria-label="Task pipeline">
-            {PIPELINE.map((step, index) => (
-              <div className="pipeline-step" key={step}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                {step}
+          <TerminalWindow />
+          <div
+            className="aur-card mono"
+            style={{
+              display:              "grid",
+              gap:                  1,
+              gridTemplateColumns:  "repeat(3, minmax(0, 1fr))",
+              overflow:             "hidden",
+            }}
+          >
+            {[
+              ["9", "specialist agents"],
+              ["218+", "contextual skills"],
+              ["3", "native platforms"],
+            ].map(([value, label]) => (
+              <div key={label} style={{ background: "var(--bg-alt)", padding: "18px 20px" }}>
+                <div style={{ color: "var(--accent)", fontSize: 24, fontWeight: 700, lineHeight: 1 }}>{value}</div>
+                <div style={{ color: "var(--text-muted)", fontSize: 11.5, marginTop: 8 }}>{label}</div>
               </div>
             ))}
           </div>

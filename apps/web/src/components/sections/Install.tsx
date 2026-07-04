@@ -83,7 +83,6 @@ export function Install() {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {INSTALL_STEPS.map((s, i) => (
           <m.div
-            className="install-step"
             key={s.step}
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -126,7 +125,6 @@ export function Install() {
               {s.title}
             </span>
             <div
-              className="install-code"
               style={{
                 flex: 1,
                 fontFamily: "var(--font-geist-mono)",
@@ -149,7 +147,7 @@ export function Install() {
                 {!s.code.startsWith("#") && (
                   <span style={{ color: "var(--accent)", marginRight: 8 }}>$</span>
                 )}
-                <span className="install-code-text" style={{ color: s.code.startsWith("#") ? "var(--text-muted)" : "var(--text)" }}>
+                <span style={{ color: s.code.startsWith("#") ? "var(--text-muted)" : "var(--text)" }}>
                   {s.code}
                 </span>
               </span>
@@ -164,7 +162,6 @@ export function Install() {
               </span>
             </div>
             <span
-              className="install-note"
               style={{
                 fontSize: 13,
                 color: "var(--text-muted)",

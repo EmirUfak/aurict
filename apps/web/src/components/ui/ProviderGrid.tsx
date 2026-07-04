@@ -30,7 +30,7 @@ const PROVIDERS: Provider[] = [
   {
     name: "OpenRouter",
     models: ["200+ models", "One API key"],
-    color: "#38bdf8",
+    color: "#6366F1",
     icon: "◇",
   },
   {
@@ -60,7 +60,7 @@ const PROVIDERS: Provider[] = [
   {
     name: "OpenCode",
     models: ["OpenCode", "Zenmux"],
-    color: "#38bdf8",
+    color: "#8B5CF6",
     icon: "◎",
   },
 ]

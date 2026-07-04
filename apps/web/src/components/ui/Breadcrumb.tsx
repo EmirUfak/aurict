@@ -18,10 +18,11 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
         display: "flex",
         alignItems: "center",
         gap: 8,
-        fontSize: 13,
-        fontFamily: "var(--font-geist-mono)",
+        fontSize: 12,
+        fontFamily: "var(--font-mono)",
         color: "var(--text-muted)",
-        marginBottom: 24,
+        letterSpacing: "0.02em",
+        marginBottom: 28,
       }}
     >
       {items.map((item, i) => (
@@ -40,7 +41,7 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
             </svg>
           )}
           {i === items.length - 1 ? (
-            <span style={{ color: "var(--text-dim)" }}>{item.label}</span>
+            <span style={{ color: "var(--accent)" }}>{item.label}</span>
           ) : (
             <Link
               href={item.href}

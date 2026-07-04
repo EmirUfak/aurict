@@ -202,6 +202,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
+export function generateStaticParams() {
+  return POSTS.map((post) => ({ slug: post.slug }))
+}
+
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const post = POSTS.find((p) => p.slug === slug)
@@ -223,7 +227,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       <Nav />
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "100px 24px 80px" }}>
+      <main className="marketing-main marketing-main-narrow">
         <Breadcrumb
           items={[
             { label: "Home", href: "/" },
@@ -234,39 +238,17 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
         <article>
           {/* Header */}
-          <header style={{ marginBottom: 48 }}>
+          <header className="marketing-hero">
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily: "var(--font-geist-mono)",
-                  color: "var(--accent)",
-                  background: "var(--accent-glow)",
-                  border: "1px solid rgba(56,189,248,0.3)",
-                  borderRadius: 4,
-                  padding: "3px 8px",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {post.category}
-              </span>
-              <span style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "var(--font-geist-mono)" }}>
+              <span className="marketing-tag">{post.category}</span>
+              <span className="marketing-meta">
                 {post.date} · {post.readTime}
               </span>
             </div>
-            <h1
-              style={{
-                fontSize: "clamp(28px, 4vw, 40px)",
-                fontWeight: 800,
-                letterSpacing: "-0.03em",
-                color: "var(--text)",
-                lineHeight: 1.2,
-                marginBottom: 16,
-              }}
-            >
+            <h1 className="marketing-title marketing-title-sm">
               {post.title}
             </h1>
-            <p style={{ fontSize: 17, color: "var(--text-dim)", lineHeight: 1.7 }}>
+            <p className="marketing-lede">
               {post.description}
             </p>
           </header>
@@ -280,11 +262,12 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                     <h2
                       key={i}
                       style={{
-                        fontSize: 22,
-                        fontWeight: 700,
+                        fontFamily: "var(--font-serif)",
+                        fontSize: 28,
+                        fontWeight: 600,
                         color: "var(--text)",
-                        letterSpacing: "-0.02em",
-                        marginTop: 16,
+                        letterSpacing: "-0.01em",
+                        marginTop: 20,
                       }}
                     >
                       {block.text}
@@ -294,11 +277,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                   return (
                     <p
                       key={i}
-                      style={{
-                        fontSize: 15,
-                        color: "var(--text-dim)",
-                        lineHeight: 1.8,
-                      }}
+                      className="marketing-copy"
                     >
                       {block.text}
                     </p>
@@ -309,15 +288,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                   return (
                     <ul
                       key={i}
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 8,
-                        paddingLeft: 20,
-                        fontSize: 15,
-                        color: "var(--text-dim)",
-                        lineHeight: 1.7,
-                      }}
+                      className="marketing-list"
                     >
                       {block.items?.map((item, j) => (
                         <li key={j}>{item}</li>
@@ -345,6 +316,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                 alignItems: "center",
                 gap: 8,
                 fontSize: 14,
+                fontFamily: "var(--font-mono)",
                 color: "var(--accent)",
                 textDecoration: "none",
               }}

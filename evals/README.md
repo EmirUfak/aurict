@@ -24,3 +24,13 @@ Current task coverage includes:
 - formatting/string utility changes
 
 `--json` emits a machine-readable summary with pass/fail counts, failed task IDs, and per-task details for CI dashboards or regression tracking.
+
+## Public benchmark preparation
+
+Aurict is prepared for two external benchmark tracks, but the real CLI integration should be wired later when a stable headless command exists.
+
+- [Benchmark Contract](benchmark-contract.md) defines the non-interactive CLI behavior benchmark adapters expect.
+- [Terminal-Bench](terminal_bench/README.md) contains the Harbor custom-agent scaffold for terminal-native tasks.
+- [SWE-bench](swe_bench/README.md) contains the prediction-generation scaffold for issue-to-patch tasks.
+
+Do not treat these adapters as benchmark claims. They are integration scaffolds so Aurict can later be measured against public suites with reproducible commands, captured patches, and comparable result metadata.

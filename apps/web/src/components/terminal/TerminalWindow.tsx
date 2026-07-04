@@ -12,8 +12,8 @@ interface Line {
 const LINE_COLORS: Record<LineType, string> = {
   input:  "var(--text)",
   system: "var(--text-dim)",
-  tool:   "var(--accent-blue)",
-  output: "#d8ccff",
+  tool:   "var(--accent)",
+  output: "var(--success)",
 }
 
 const PAUSE_BETWEEN = 1200
@@ -59,13 +59,12 @@ export function TerminalWindow() {
 
   return (
     <div
-      className="terminal-window"
       style={{
-        background: "linear-gradient(135deg, rgba(56,189,248,0.035), var(--bg-card))",
-        border: "1px solid rgba(56,189,248,0.18)",
-        borderRadius: 8,
+        background: "linear-gradient(180deg, var(--bg-card), var(--bg-deep))",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
         overflow: "hidden",
-        boxShadow: "0 0 0 1px rgba(255,255,255,0.04), 0 30px 70px rgba(0,0,0,0.48)",
+        boxShadow: "var(--shadow-hard), inset 0 1px 0 oklch(1 0 0 / 0.04)",
       }}
     >
       {/* title bar */}
@@ -75,9 +74,8 @@ export function TerminalWindow() {
           alignItems: "center",
           padding: "12px 16px",
           borderBottom: "1px solid var(--border)",
-          background: "linear-gradient(90deg, rgba(56,189,248,0.06), rgba(167,139,250,0.04))",
+          background: "oklch(1 0 0 / 0.025)",
           gap: 12,
-          minHeight: 48,
         }}
       >
         <div style={{ display: "flex", gap: 6 }}>
@@ -89,29 +87,28 @@ export function TerminalWindow() {
           style={{
             flex: 1,
             textAlign: "center",
-            fontFamily: "var(--font-geist-mono)",
+            fontFamily: "var(--font-mono)",
             fontSize: 12,
             color: "var(--text-muted)",
-            minWidth: 140,
           }}
         >
-          aurict-control // repo: my-project
+          aurict — my-project
         </div>
         {/* scenario tabs */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: 6 }}>
           {TERMINAL_SCENARIOS.map((s, i) => (
             <button
               key={s.label}
               onClick={() => setScenarioIdx(i)}
               style={{
-                fontFamily: "var(--font-geist-mono)",
+                fontFamily: "var(--font-mono)",
                 fontSize: 11,
                 padding: "3px 10px",
-                borderRadius: 6,
+                borderRadius: 4,
                 border: "1px solid",
-                borderColor: i === scenarioIdx ? "var(--accent-blue)" : "var(--border)",
-                background: i === scenarioIdx ? "rgba(56,189,248,0.1)" : "transparent",
-                color: i === scenarioIdx ? "var(--accent-blue)" : "var(--text-muted)",
+                borderColor: i === scenarioIdx ? "var(--accent)" : "var(--border)",
+                background: i === scenarioIdx ? "var(--accent-soft)" : "transparent",
+                color: i === scenarioIdx ? "var(--accent)" : "var(--text-muted)",
                 cursor: "pointer",
                 transition: "all 0.15s",
               }}
@@ -124,14 +121,13 @@ export function TerminalWindow() {
 
       {/* terminal body */}
       <div
-        className="terminal-body"
         ref={containerRef}
         style={{
-          fontFamily: "var(--font-geist-mono)",
+          fontFamily: "var(--font-mono)",
           fontSize: 13,
           lineHeight: 1.7,
           padding: "20px 24px",
-          height: 338,
+          height: 360,
           overflowY: "auto",
           display: "flex",
           flexDirection: "column",
@@ -145,7 +141,7 @@ export function TerminalWindow() {
         ))}
         {/* cursor line */}
         <div style={{ color: "var(--accent)", display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-          <span>❯</span>
+          <span>$</span>
           <span
             style={{
               display: "inline-block",
