@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useRef } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { Box, Text, useInput } from "ink"
 import { useTheme } from "../utils/theme.js"
 import { Typo } from "./design-system/index.js"
+import { useTerminalSize } from "./TerminalSizeContext.js"
 import type { CommandDef } from "../commands/types.js"
 import {
   COMMAND_CATEGORY_META,
@@ -43,32 +44,27 @@ function score(cmd: CommandDef, query: string): number {
   return qi === q.length ? (hits / q.length) * 20 : 0
 }
 
-function highlight(text: string, query: string): Array<{ s: string; bold: boolean }> {
-  if (!query) return [{ s: text, bold: false }]
-  const q = query.toLowerCase()
-  const result: Array<{ s: string; bold: boolean }> = []
-  let i = 0
-  while (i < text.length) {
-    const sub = text.slice(i).toLowerCase()
-    if (sub.startsWith(q)) {
-      result.push({ s: text.slice(i, i + q.length), bold: true })
-      i += q.length
-    } else {
-      const last = result[result.length - 1]
-      if (last && !last.bold) { last.s += text[i] }
-      else { result.push({ s: text[i]!, bold: false }) }
-      i++
-    }
-  }
-  return result
+function clip(text: string, width: number): string {
+  if (text.length <= width) return text
+  if (width <= 1) return "…"
+  return `${text.slice(0, width - 1)}…`
+}
+
+function padClip(text: string, width: number): string {
+  return clip(text, width).padEnd(width, " ")
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function CommandPalette({ commands, recentCommands, onSelect, onClose }: Props) {
   const theme  = useTheme()
+  const { columns, rows } = useTerminalSize()
   const [query, setQuery]   = useState("")
   const [cursor, setCursor] = useState(0)
+  const compact = rows <= 26 || columns < 88
+  const paletteWidth = Math.max(48, columns - 4)
+  const contentWidth = paletteWidth - 4
+  const maxResults = compact ? 2 : 8
 
   const results = useMemo(() => {
     if (!query.trim()) {
@@ -81,7 +77,7 @@ export function CommandPalette({ commands, recentCommands, onSelect, onClose }: 
       return [
         ...recent.map(c => ({ cmd: c, isRecent: true,  sc: 0 })),
         ...rest.map(c   => ({ cmd: c, isRecent: false, sc: 0 })),
-      ].slice(0, 14)
+      ].slice(0, maxResults)
     }
 
     // With query: fuzzy filter+sort
@@ -89,27 +85,55 @@ export function CommandPalette({ commands, recentCommands, onSelect, onClose }: 
       .map(c => ({ cmd: c, isRecent: recentCommands.includes(c.name), sc: score(c, query.trim()) }))
       .filter(r => r.sc > 0)
       .sort((a, b) => b.sc - a.sc || commandSortKey(a.cmd).localeCompare(commandSortKey(b.cmd)))
-      .slice(0, 14)
-  }, [commands, recentCommands, query])
+      .slice(0, maxResults)
+  }, [commands, recentCommands, query, maxResults])
 
   const clampedCursor = Math.min(cursor, Math.max(0, results.length - 1))
 
+  useEffect(() => {
+    setCursor((c) => Math.min(c, Math.max(0, results.length - 1)))
+  }, [results.length])
+
   useInput((input, key) => {
     if (key.escape) { onClose(); return }
+    if (key.ctrl && input === "c") { onClose(); return }
     if (key.upArrow)   { setCursor(c => Math.max(0, c - 1)); return }
-    if (key.downArrow) { setCursor(c => Math.min(results.length - 1, c + 1)); return }
+    if (key.downArrow) { setCursor(c => Math.min(Math.max(0, results.length - 1), c + 1)); return }
     if (key.return) {
       const r = results[clampedCursor]
       if (r) onSelect(r.cmd, "", key.ctrl ? "run" : "fill")
       return
     }
     if (key.backspace || key.delete) { setQuery(q => q.slice(0, -1)); setCursor(0); return }
-    if (!key.ctrl && !key.meta && !key.escape && !key.return && input && input.length === 1) {
+    if (!key.ctrl && !key.meta && !key.escape && !key.return && !key.tab && input) {
       setQuery(q => q + input); setCursor(0)
     }
   })
 
   const showRecentHeader = !query.trim() && recentCommands.length > 0
+  const selectedResult = results[clampedCursor]
+
+  if (compact) {
+    const aliasText = selectedResult?.cmd.aliases?.length ? `/${selectedResult.cmd.aliases[0]}` : ""
+    const commandText = selectedResult
+      ? `▶ /${selectedResult.cmd.name}${aliasText ? ` ${aliasText}` : ""} · ${selectedResult.cmd.description}`
+      : `No match for /${query}`
+    const prefix = query ? `Palette /${query} ` : "Palette "
+
+    return (
+      <Box
+        flexDirection="column"
+        borderStyle="round"
+        borderColor={theme.accent}
+        paddingX={1}
+        width={paletteWidth}
+      >
+        <Text color={selectedResult ? theme.textPrimary : theme.textDim} bold={Boolean(selectedResult)}>
+          {clip(`${prefix}${commandText} · Enter fill · Esc close`, Math.max(12, contentWidth - 8))}
+        </Text>
+      </Box>
+    )
+  }
 
   return (
     <Box
@@ -117,22 +141,27 @@ export function CommandPalette({ commands, recentCommands, onSelect, onClose }: 
       borderStyle="round"
       borderColor={theme.accent}
       paddingX={1}
-      width={60}
+      width={paletteWidth}
     >
       {/* Header */}
-      <Box justifyContent="space-between">
-        <Typo variant="bodyEmphasis" tone="primary">Command Palette</Typo>
-        <Typo variant="caption" tone="muted">Esc close  ↑↓ select  Enter fill  Ctrl+Enter run</Typo>
-      </Box>
+      {!compact && (
+        <Box justifyContent="space-between">
+          <Typo variant="bodyEmphasis" tone="primary">Command Palette</Typo>
+          <Typo variant="caption" tone="muted">Esc close  ↑↓ select  Enter fill  Ctrl+Enter run</Typo>
+        </Box>
+      )}
 
       {/* Search */}
-      <Box>
-        <Text color={theme.accent}>/ </Text>
-        <Text color={theme.textPrimary}>{query || " "}</Text>
-        <Text color={theme.accent}>▋</Text>
-      </Box>
-
-      <Text color={theme.borderDim}>{"─".repeat(56)}</Text>
+      {!compact && (
+        <>
+          <Box>
+            <Text color={theme.accent}>/ </Text>
+            <Text color={theme.textPrimary}>{query || " "}</Text>
+            <Text color={theme.accent}>▋</Text>
+          </Box>
+          <Text color={theme.borderDim}>{"─".repeat(contentWidth)}</Text>
+        </>
+      )}
 
       {/* Results */}
       {results.length === 0 && (
@@ -141,14 +170,26 @@ export function CommandPalette({ commands, recentCommands, onSelect, onClose }: 
 
       {results.map((r, i) => {
         const selected = i === clampedCursor
-        const showSectionHeader = showRecentHeader && !r.isRecent && (i === 0 || results[i-1]?.isRecent === true)
-        const showRecentSectionHeader = showRecentHeader && r.isRecent && i === 0
+        const showSectionHeader = !compact && showRecentHeader && !r.isRecent && (i === 0 || results[i-1]?.isRecent === true)
+        const showRecentSectionHeader = !compact && showRecentHeader && r.isRecent && i === 0
         const prevCategory = i > 0 ? commandCategory(results[i - 1]!.cmd) : null
         const category = commandCategory(r.cmd)
-        const showCategoryHeader = !showRecentHeader && (!prevCategory || prevCategory !== category)
+        const showCategoryHeader = !compact && !showRecentHeader && (!prevCategory || prevCategory !== category)
         const categoryMeta = COMMAND_CATEGORY_META[category]
 
-        const nameParts = highlight(r.cmd.name, query)
+        const aliasText = r.cmd.aliases?.length ? r.cmd.aliases.slice(0, 2).map(a => `/${a}`).join(" ") : ""
+        const nameText = `/${r.cmd.name}`
+        const descText = r.cmd.description
+        const nameWidth = compact ? 18 : 22
+        const aliasWidth = compact ? 11 : 14
+        const descWidth = Math.max(8, contentWidth - 8 - nameWidth - aliasWidth)
+        const line = [
+          selected ? "▶" : " ",
+          commandIcon(r.cmd),
+          padClip(nameText, nameWidth),
+          padClip(aliasText, aliasWidth),
+          clip(descText, descWidth),
+        ].join(" ")
 
         return (
           <React.Fragment key={r.cmd.name}>
@@ -161,44 +202,24 @@ export function CommandPalette({ commands, recentCommands, onSelect, onClose }: 
             {showCategoryHeader && (
               <Text color={theme.textDim} dimColor>  {categoryMeta.icon} {categoryMeta.label}</Text>
             )}
-            <Box gap={1} paddingLeft={1}>
-              <Text color={selected ? theme.accent : theme.textDim}>
-                {selected ? "▶" : " "}
-              </Text>
-              <Text color={selected ? theme.accent : theme.textSecondary}>
-                {commandIcon(r.cmd)}
-              </Text>
-              <Box flexGrow={1}>
-                <Text color={selected ? theme.textDim : theme.borderBright}>/</Text>
-                {nameParts.map((p, j) => (
-                  <Text
-                    key={j}
-                    color={selected ? theme.textPrimary : theme.textSecondary}
-                    bold={p.bold || selected}
-                  >{p.s}</Text>
-                ))}
-              </Box>
-              {r.cmd.aliases?.length ? (
-                <Text color={theme.textDim} dimColor>{r.cmd.aliases.slice(0, 2).map(a => `/${a}`).join(" ")}</Text>
-              ) : null}
-              <Text color={theme.textDim} dimColor wrap="truncate-end">
-                {r.cmd.description.slice(0, 34)}
-              </Text>
-              {r.isRecent && !query && (
-                <Text color={theme.textDim} dimColor>★</Text>
-              )}
-            </Box>
+            <Text
+              color={selected ? theme.textPrimary : theme.textSecondary}
+              bold={selected}
+            >{line}</Text>
           </React.Fragment>
         )
       })}
 
       {/* Usage hint for selected */}
-      {results[clampedCursor]?.cmd.usage && (
+      {results[clampedCursor]?.cmd.usage && !compact && (
         <>
-          <Text color={theme.borderDim}>{"─".repeat(56)}</Text>
+          <Text color={theme.borderDim}>{"─".repeat(contentWidth)}</Text>
           <Text color={theme.textDim} dimColor>  {results[clampedCursor]!.cmd.usage}</Text>
           <Text color={theme.borderBright} dimColor>  Enter fills input. Ctrl+Enter runs the selected command.</Text>
         </>
+      )}
+      {compact && (
+        <Text color={theme.textDim} dimColor>{clip(query ? `Palette /${query} · Esc close` : "Palette · Enter fill · Esc close · Ctrl+C close", contentWidth)}</Text>
       )}
     </Box>
   )

@@ -1,5 +1,5 @@
 import { ProviderRegistry, SessionManager, mcpManager, loadCustomAgents, memoryStore, getAllSessionAgents, pinStore, setApiKey, setDefault, setSecuritySandbox, setLongTaskRuntime, resolveSecuritySandboxConfig, resolveLongTaskRuntimeConfig, SECURITY_SANDBOX_PROFILE_DEFAULTS, getConfigPath, loadConfig, exportToMarkdown, exportToHtml, defaultExportFilename, setCompaction, gateGuard, getCircuitState, getContextBreakdown, snapshotManager, installRemoteSkill, listInstalledSkills, uninstallSkill, getLoadedPlugins, PLUGIN_DIR, diagnosticsStore, skillScoreStore, installRemotePlugin, listInstalledPlugins, uninstallPlugin, fetchRegistry, searchRegistry, findInRegistry, readLatestTraceEvents, buildSecurityAssessmentLedger, formatSecurityLedgerAnchor, evaluateSecurityOperatorStep, formatSecurityOperatorDecision, readSecurityAssessmentLedger, updateSecurityAssessmentLedger, writeSecurityAssessmentLedger, resetSecurityAssessmentLedger, verifySecurityFinding, applySecurityVerification, buildAttackGraphFromFindings, formatAttackGraph } from "@aurict/core"
-import type { SecurityAssessmentLedger, SecurityDistilledFinding } from "@aurict/core"
+import type { ModelInfo, SecurityAssessmentLedger, SecurityDistilledFinding } from "@aurict/core"
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs"
 import { spawnSync } from "child_process"
 import { resolve, join } from "path"
@@ -49,6 +49,33 @@ function ensureLine(path: string, line: string): boolean {
   const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : ""
   writeFileSync(path, `${existing}${prefix}${line}\n`, "utf8")
   return true
+}
+
+export function mergeModelLists(base: ModelInfo[], remote: ModelInfo[]): ModelInfo[] {
+  const merged = new Map<string, ModelInfo>()
+  const order: string[] = []
+
+  const put = (model: ModelInfo) => {
+    const existing = merged.get(model.id)
+    if (!existing) {
+      order.push(model.id)
+      merged.set(model.id, model)
+      return
+    }
+    const next: ModelInfo = {
+      ...existing,
+      ...model,
+      name: existing.name,
+    }
+    const supportsThinking = existing.supportsThinking ?? model.supportsThinking
+    if (supportsThinking !== undefined) next.supportsThinking = supportsThinking
+    merged.set(model.id, next)
+  }
+
+  base.forEach(put)
+  remote.forEach(put)
+
+  return order.map((id) => merged.get(id)!)
 }
 
 function securityConfigLines(cfg: ReturnType<typeof loadConfig>): string[] {
@@ -228,7 +255,7 @@ const commands: CommandDef[] = [
       let models = plugin.listModels()
       if (plugin.listModelsRemote) {
         try {
-          models = await plugin.listModelsRemote()
+          models = mergeModelLists(models, await plugin.listModelsRemote())
         } catch { /* remote başarısız → hardcoded fallback */ }
       }
       const items: PickerItem[] = models.map((m) => ({

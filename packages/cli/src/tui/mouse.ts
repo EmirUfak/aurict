@@ -48,6 +48,70 @@ const _origStdinEmit = process.stdin.emit.bind(process.stdin) as (...a: any[]) =
   return _origStdinEmit(event, ...args)
 }
 
+// ── stdin.read() interception ─────────────────────────────────────────────────
+// Ink 5 tüketimi 'data' event'i ile DEĞİL, 'readable' + stdin.read() ile yapar.
+// Bu yüzden asıl filtreleme/parçalama burada olmalı:
+//
+//   1. Mouse escape sequence'ları gerçek okuma yolundan da temizlenir
+//      (yukarıdaki emit patch'i yalnızca flowing moddaki akışları yakalar).
+//   2. Coalesced tuş dizileri ayrıştırılır: tuş basılı tutulduğunda terminal
+//      "\x1b[B\x1b[B\x1b[B" gibi TEK chunk gönderir; Ink chunk başına yalnızca
+//      BİR keypress parse eder ve kalan basışlar kaybolur (seçim listelerinde
+//      "kayma"/takılma hissi). Chunk tamamen ≥2 navigasyon sequence'ından
+//      oluşuyorsa tek tek kuyruklanır — Ink'in `while (read())` döngüsü her
+//      çağrıda bir keypress alır, hiçbir basış kaybolmaz.
+//   3. injectInput(): Ink'e programatik tuş göndermek için güvenilir yol
+//      (mouse wheel → ok tuşu sentezi gibi). stdin.emit("data") readable
+//      modda hiçbir listener'a ulaşmadığı için çalışmıyordu.
+//
+// Bracketed paste (\x1b[200~ ... \x1b[201~) navigasyon regex'iyle eşleşmediği
+// için parçalanmaz; normal metin ve karışık chunk'lar da olduğu gibi geçer.
+
+// Tek bir navigasyon/edit tuşunun escape sequence'ı:
+//   CSI:  \x1b[A/B/C/D (ok), \x1b[H/F (home/end), \x1b[1;5C gibi modifierlı,
+//         \x1b[3~ (del) \x1b[5~/6~ (pgup/pgdn) ve modifierlı \x1b[3;5~ türevleri
+//   SS3:  \x1bOA..\x1bOD, \x1bOH/\x1bOF
+const NAV_SEQ_RE = /\x1b(?:\[(?:\d+(?:;\d+)*)?(?:[ABCDHF]|~)|O[ABCDHF])/g
+
+export function splitCoalescedKeys(chunk: string): string[] | null {
+  if (chunk.length < 6 || chunk.charCodeAt(0) !== 0x1b) return null
+  const tokens = chunk.match(NAV_SEQ_RE)
+  if (!tokens || tokens.length < 2) return null
+  if (tokens.join("") !== chunk) return null   // saf navigasyon chunk'ı değil
+  return tokens
+}
+
+const pendingReads: string[] = []
+const _origStdinRead = process.stdin.read.bind(process.stdin)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+;(process.stdin as any).read = (size?: number): unknown => {
+  if (pendingReads.length > 0) return pendingReads.shift()!
+  const raw = _origStdinRead(size)
+  if (raw === null || raw === undefined) return raw
+  const str = typeof raw === "string" ? raw : String(raw)
+  if (enabled) parseMouseEvents(str)
+  const clean = str
+    .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, "")  // SGR mouse events
+    .replace(/\x1b\[M[\s\S]{3}/g, "")          // X10 mouse events
+  if (!clean) return null
+  const tokens = splitCoalescedKeys(clean)
+  if (tokens) {
+    pendingReads.push(...tokens.slice(1))
+    return tokens[0]!
+  }
+  return clean
+}
+
+/**
+ * Ink'e programatik tuş gönder — kuyruğa ekler ve 'readable' tetikleyerek
+ * Ink'in read() döngüsünü çalıştırır. (stdin.emit("data") Ink 5'in
+ * readable-mode tüketiminde hiçbir işleyiciye ulaşmaz.)
+ */
+export function injectInput(sequence: string): void {
+  pendingReads.push(sequence)
+  process.stdin.emit("readable")
+}
+
 function enableMouseTracking(): () => void {
   if (enabled) return () => {}
   enabled = true

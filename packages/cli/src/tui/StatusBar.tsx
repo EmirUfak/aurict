@@ -63,8 +63,10 @@ function bp(cols: number | undefined): BP {
 }
 
 export function StatusBar({
-  model, tokens, contextTokens, workdir, contextWindow,
-  coordinatorMode, branch, wasCompacted, cols, scrollLocked,
+  provider, model, tokens, contextTokens, workdir, skills, turnSkills, contextWindow,
+  isUndercover, coordinatorMode, branch, wasCompacted, activeAgent, agentColor,
+  bgTaskCount, taskCount, taskSummary, taskPanelOpen, localServer, sandboxBackend,
+  effort, autopilotMode, cols, activeAgentCount, hasBtwNote, scrollLocked,
 }: Props) {
   const theme   = useTheme()
   const mode    = bp(cols)
@@ -76,11 +78,28 @@ export function StatusBar({
   const ctxColor = pct >= 0.85 ? theme.error : pct >= 0.6 ? theme.warning : theme.success
   const cumTotal = tokens.input + tokens.output
   const sm       = shortModel(model)
+  const providerLabel = provider.slice(0, 12)
+  const serverLabel = localServer === undefined || !localServer.enabled
+    ? "server off"
+    : localServer.port !== undefined
+      ? `server ${localServer.reused ? "reused" : localServer.started ? "up" : "idle"}:${localServer.port}`
+      : `server ${localServer.started ? "up" : "idle"}`
+  const sandboxLabel = sandboxBackend === "docker" ? "docker" : sandboxBackend === "none" ? "no sandbox" : "policy"
+  const taskLabel = taskSummary
+    ? `tasks ${taskSummary.inProgress}/${taskSummary.pending}/${taskSummary.done}${taskSummary.error > 0 ? `/${taskSummary.error}!` : ""}`
+    : taskCount !== undefined ? `tasks ${taskCount}` : undefined
+  const skillCount = (skills?.length ?? 0) + (turnSkills?.length ?? 0)
+
+  // ── Hücre ayracı: instrument strip hissi için ────────────────────────────────
+  const Sep = () => <Text color={theme.borderDim}>│</Text>
 
   if (mode === "tiny") {
     return (
       <Surface variant="flat" tone="muted" paddingX="md" paddingY="none">
-        <Text color={theme.warning}>{sm}</Text>
+        <HStack justify="space-between">
+          <Text color={theme.accentAlt}>{providerLabel}/{sm}</Text>
+          {pctStr && <Text color={ctxColor}>{pctStr}</Text>}
+        </HStack>
       </Surface>
     )
   }
@@ -89,13 +108,15 @@ export function StatusBar({
     return (
       <Surface variant="flat" tone="muted" paddingX="md" paddingY="none">
         <HStack justify="space-between">
-          <Text color={theme.accent} bold>{truncDir(dir, 20)}</Text>
+          <Text color={theme.accent} bold>{truncDir(dir, 18)}</Text>
           <HStack gap="sm">
             {scrollLocked && <Text color={theme.warning}>⏸</Text>}
-            <Text color={theme.warning}>{sm}</Text>
+            {taskSummary && taskSummary.error > 0 && <Text color={theme.error}>{taskSummary.error}!</Text>}
+            {bgTaskCount !== undefined && <Text color={theme.accentAlt}>bg {bgTaskCount}</Text>}
+            <Text color={theme.accentAlt}>{sm}</Text>
             {pctStr && (
               <>
-                <Text color={theme.borderBright}>·</Text>
+                <Sep />
                 <Text color={ctxColor}>{pctStr}</Text>
               </>
             )}
@@ -110,34 +131,60 @@ export function StatusBar({
   return (
     <Surface variant="flat" tone="muted" paddingX="md" paddingY="none">
       <HStack justify="space-between">
-        <HStack gap="xs">
-          <Text color={theme.accent} bold>{dirStr}</Text>
-          {branch && <Text color={theme.borderBright}>[{branch}]</Text>}
-          {coordinatorMode && <Text color={theme.accent} dimColor> coord</Text>}
-        </HStack>
+        {/* ── Sol blok: konum · dal · agent · bayraklar ── */}
         <HStack gap="sm">
-          {scrollLocked  && <Text color={theme.warning}>⏸</Text>}
+          <Text color={theme.accent} bold>{dirStr}</Text>
+          {branch && <Text color={theme.borderBright}>⌥ {branch}</Text>}
+          {isUndercover && <Text color={theme.warning} dimColor>undercover</Text>}
+          {coordinatorMode && <Text color={theme.accentAlt} dimColor>coord</Text>}
+          {activeAgent && (
+            <>
+              <Sep />
+              <Text color={agentColor ?? theme.accent}>@{activeAgent}</Text>
+            </>
+          )}
+        </HStack>
+        {/* ── Sağ blok: segmentli instrument strip ── */}
+        <HStack gap="sm">
+          {scrollLocked  && <Text color={theme.warning}>⏸ lock</Text>}
           {wasCompacted  && <Text color={theme.warning} dimColor>cmpct</Text>}
-          <Text color={theme.warning}>{sm}</Text>
+          {hasBtwNote && <Text color={theme.accentAlt}>btw</Text>}
+          {autopilotMode && <Text color={theme.warning}>auto</Text>}
+          {taskPanelOpen && <Text color={theme.accent}>panel</Text>}
+          {bgTaskCount !== undefined && <Text color={theme.accentAlt}>bg {bgTaskCount}</Text>}
+          {taskLabel && (
+            <>
+              <Sep />
+              <Text color={taskSummary && taskSummary.error > 0 ? theme.error : theme.textDim}>{taskLabel}</Text>
+            </>
+          )}
+          {activeAgentCount !== undefined && <Text color={theme.textDim}>{activeAgentCount} agents</Text>}
+          {skillCount > 0 && <Text color={theme.textDim}>{skillCount} skills</Text>}
+          <Sep />
+          <Text color={theme.accentAlt}>{providerLabel}/{sm}</Text>
+          {effort !== undefined && <Text color={theme.textDim}>effort {effort}</Text>}
+          <Sep />
+          <Text color={sandboxBackend === "none" ? theme.warning : theme.textDim}>{sandboxLabel}</Text>
+          {mode === "wide" && <Text color={localServer?.started ? theme.success : theme.textDim}>{localServer?.started ? "● " : "○ "}{serverLabel}</Text>}
           {pctStr && (
             <>
-              <Text color={theme.borderBright}>·</Text>
+              <Sep />
               <Text color={ctxColor}>ctx {pctStr}</Text>
             </>
           )}
           {cumTotal > 0 && (
             <>
-              <Text color={theme.borderBright}>·</Text>
-              <Text color={theme.textDim}>{fmtK(cumTotal)}tok</Text>
+              <Sep />
+              <Text color={theme.textDim}>{fmtK(cumTotal)} tok</Text>
             </>
           )}
           {mode === "wide"
             ? (
               <>
-                <Text color={theme.borderBright}>·</Text>
+                <Sep />
                 <Text color={theme.textDim} dimColor>/cmd</Text>
                 <Text color={theme.textDim} dimColor>Esc</Text>
-                <Text color={theme.textDim} dimColor>Ctrl+C</Text>
+                <Text color={theme.textDim} dimColor>⌃C</Text>
               </>
             )
             : <Text color={theme.textDim} dimColor>  /cmd Esc</Text>

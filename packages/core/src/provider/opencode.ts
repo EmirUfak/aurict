@@ -22,7 +22,9 @@ export class OpenCodePlugin extends ProviderPlugin {
   }
 
   defaultModel(): string {
-    return "claude-sonnet-4-5"
+    // Not: listModels() ile senkron tut — listede olmayan bayat bir id,
+    // provider'a geçişte doğrudan 400/404 üretir.
+    return "claude-sonnet-4-6"
   }
 
   listModels(): ModelInfo[] {

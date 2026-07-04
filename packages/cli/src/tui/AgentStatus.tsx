@@ -21,7 +21,7 @@ const EVICT_AFTER_MS = 6_000
 
 const TYPE_COLOR: Record<string, string> = {
   explore:     "#0ea5e9",
-  code:        "#10b981",
+  code:        "#38bdf8",
   review:      "#f59e0b",
   test:        "#a78bfa",
   docs:        "#64748b",
@@ -38,6 +38,9 @@ const TYPE_COLOR: Record<string, string> = {
   data:        "#14b8a6",
   critic:      "#94a3b8",
 }
+
+const RADAR_FRAMES = ["◜", "◠", "◝", "◞", "◡", "◟"]
+const SCAN_FRAMES = ["▰▱▱▱", "▱▰▱▱", "▱▱▰▱", "▱▱▱▰"]
 
 function fmtElapsed(startedAt: number, now: number): string {
   const s = (now - startedAt) / 1000
@@ -62,6 +65,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
   const theme = useTheme()
   const [visible, setVisible] = useState<VisibleAgent[]>([])
   const [now, setNow]         = useState(() => Date.now())
+  const [frame, setFrame]     = useState(0)
   const visibleRef            = useRef<VisibleAgent[]>([])
   visibleRef.current          = visible
 
@@ -102,6 +106,12 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
     return () => clearInterval(t)
   }, [visible.length])
 
+  useEffect(() => {
+    if (!visible.length) return
+    const t = setInterval(() => setFrame((n) => n + 1), 160)
+    return () => clearInterval(t)
+  }, [visible.length])
+
   // Manuel evict: x tuşuyla seçili tamamlanmış agentı kaldır
   useInput((input, key) => {
     if (!visible.length) return
@@ -119,9 +129,15 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
   const cols = useTerminalSize().columns
 
   return (
-    <Box flexDirection="column" marginTop={1} paddingLeft={1}>
+    <Box flexDirection="column" marginTop={1} paddingLeft={1} borderStyle="single" borderColor={theme.borderDim} borderTop={false} borderRight={false} borderBottom={false}>
+      <Box gap={1} paddingLeft={1}>
+        <Text color={theme.accentAlt}>{RADAR_FRAMES[frame % RADAR_FRAMES.length]}</Text>
+        <Text color={theme.textSecondary} bold>agent radar</Text>
+        <Text color={theme.textDim}>{visible.filter((v) => v.info.status === "running").length} active</Text>
+        <Text color={theme.borderBright}>{SCAN_FRAMES[frame % SCAN_FRAMES.length]}</Text>
+      </Box>
       {/* Main line — OpenClaude'da her zaman gösterilir */}
-      <Box>
+      <Box paddingLeft={1}>
         <Text dimColor={viewingSessionId != null}>
           {"  "}
           <Text>{viewingSessionId == null ? "●" : "○"}</Text>
@@ -140,7 +156,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
         const color       = TYPE_COLOR[info.type] ?? theme.accent
         const prefix      = isSelected ? "▶ " : "  "
         const bullet      = isViewed ? "●" : "○"
-        const statusIcon  = isRunning ? "▶" : "⏸"
+        const statusIcon  = isRunning ? (frame + i) % 2 === 0 ? "◆" : "◇" : isDone ? "✓" : "!"
         const elapsedStr  = fmtElapsed(info.startedAt, now)
         const callsSuffix = info.toolCount > 0 ? ` · ${info.toolCount} calls` : ""
 
@@ -165,10 +181,10 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
         const dim = !isSelected && !isViewed
 
         return (
-          <Box key={info.id}>
+          <Box key={info.id} paddingLeft={1}>
             <Text dimColor={dim} bold={isViewed}>
               {prefix}
-              <Text color={color}>{bullet}</Text>
+              <Text color={color}>{isRunning && (frame + i) % 3 === 0 ? "◉" : bullet}</Text>
               {" "}
               <Text color={isError ? theme.error : color} bold>{info.desc}</Text>
               {activity ? <Text color={theme.textDim}>{" "}{activity}</Text> : null}

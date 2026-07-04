@@ -26,13 +26,13 @@ export const THEMES: Record<string, Theme> = {
   // 1. Aurict Ion (varsayılan)
   dark: {
     name: "Aurict Ion",
-    accent: "#22d3ee", accentAlt: "#34d399",
+    accent: "#a78bfa", accentAlt: "#38bdf8",
     success: "#34d399", error: "#fb7185", warning: "#facc15",
-    userColor: "#e6f7fb", assistantDot: "#22d3ee",
-    toolColor: "#78909c", systemColor: "#78909c",
-    textPrimary: "#e6f7fb", textSecondary: "#b8d7df", textDim: "#78909c",
-    borderDim: "#1e2a32", borderBright: "#304854", borderActive: "#22d3ee",
-    bgHighlight: "#0d1820", buddyMain: "#22d3ee", buddyEar: "#0e7490",
+    userColor: "#f7f3ff", assistantDot: "#38bdf8",
+    toolColor: "#8fa8bf", systemColor: "#817694",
+    textPrimary: "#f7f3ff", textSecondary: "#c8bedc", textDim: "#817694",
+    borderDim: "#27314a", borderBright: "#2f8fca", borderActive: "#38bdf8",
+    bgHighlight: "#12172a", buddyMain: "#a78bfa", buddyEar: "#38bdf8",
   },
   "aurict-obsidian": {
     name: "Aurict Obsidian",

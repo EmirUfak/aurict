@@ -45,6 +45,7 @@ export interface DisplayMessage {
 
 const MAX_TOOL_LINES   = 7   // 6 head + 1 tail = 7 shown, rest hidden
 const MAX_STREAM_LINES = 8
+const TOOL_RAIL = ["╞═╪════", "══╞╪═══", "═══╞╪══", "════╞╪═", "═════╞╪", "╪═════╞"]
 
 import { useTerminalSize } from "./TerminalSizeContext.js"
 
@@ -153,6 +154,35 @@ function Timestamp({ ts }: { ts: number }) {
   return <Typo variant="caption" tone="muted">  {hh}:{mm}</Typo>
 }
 
+// ── Mesaj rayı + rol başlığı (Cockpit v2) ──────────────────────────────────────
+// Sol kenar bar (borderLeft) + üst meta etiketi. user/assistant mesajlarına
+// rol kimliği veren renkli ray. Tool blokları için ayrı kart bracket'i kullanılır.
+
+function RoleHeader({ color, label, timestamp }: { color: string; label: string; timestamp?: number }) {
+  return (
+    <HStack gap="sm">
+      <Text color={color} bold>{label}</Text>
+      {timestamp !== undefined && <Timestamp ts={timestamp} />}
+    </HStack>
+  )
+}
+
+function Rail({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <Box
+      flexDirection="column"
+      borderStyle="single"
+      borderTop={false}
+      borderRight={false}
+      borderBottom={false}
+      borderColor={color}
+      paddingLeft={1}
+    >
+      {children}
+    </Box>
+  )
+}
+
 // ── Tool arg özeti ────────────────────────────────────────────────────────────
 
 function summarizeArgs(tool: string, raw: string): string {
@@ -220,6 +250,8 @@ function PendingToolCall({
     return () => clearInterval(t)
   }, [])
   const elapsed = ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+  const frame = Math.floor(ms / 120)
+  const rail = TOOL_RAIL[frame % TOOL_RAIL.length]!
 
   const streamLines = streamingOutput
     ? stripAnsi(streamingOutput).split("\n").slice(-MAX_STREAM_LINES)
@@ -227,12 +259,23 @@ function PendingToolCall({
 
   return (
     <VStack marginBottom="md" paddingX="sm">
-      <HStack gap="sm">
-        <ToolUseLoader shouldAnimate isUnresolved isError={false} />
-        <Typo variant="bodyEmphasis" tone="primary">{tool}</Typo>
-        <Typo variant="body" tone="muted">{command.slice(0, 65)}{command.length > 65 ? "…" : ""}</Typo>
-        <Typo variant="caption" tone="muted" dimColor>{elapsed}</Typo>
-      </HStack>
+      <Box flexDirection="column" borderStyle="single" borderColor={theme.borderDim} borderTop={false} borderRight={false} borderBottom={false} paddingLeft={1}>
+        <HStack gap="sm">
+          <ToolUseLoader shouldAnimate isUnresolved isError={false} />
+          <Text color={theme.accentAlt}>{rail}</Text>
+          <Typo variant="bodyEmphasis" tone="primary">{tool}</Typo>
+          <Typo variant="body" tone="muted">{command.slice(0, 65)}{command.length > 65 ? "…" : ""}</Typo>
+          <Typo variant="caption" tone="muted" dimColor>{elapsed}</Typo>
+        </HStack>
+        <HStack gap="xs">
+          <Text color={theme.textDim}>timeline</Text>
+          <Text color={theme.accentAlt}>queued</Text>
+          <Text color={theme.borderBright}>→</Text>
+          <Text color={theme.warning}>executing</Text>
+          <Text color={theme.borderBright}>→</Text>
+          <Text color={theme.textDim}>verify</Text>
+        </HStack>
+      </Box>
       {streamLines && streamLines.length > 0 && (
         <Box
           marginLeft={3}
@@ -245,7 +288,7 @@ function PendingToolCall({
           {streamLines.map((line, i) => (
             <Text key={i} color={theme.textSecondary} dimColor>{line || " "}</Text>
           ))}
-          <Text color={theme.accent}>▋</Text>
+          <Text color={theme.accentAlt}>{frame % 2 === 0 ? "▋" : "▌"}</Text>
         </Box>
       )}
     </VStack>
@@ -278,6 +321,7 @@ function InlineCompletedTool({
   return (
     <VStack marginBottom="md">
       <HStack gap="sm">
+        <Text color={color}>╭</Text>
         <ToolUseLoader shouldAnimate={false} isUnresolved={false} isError={isError} />
         <Typo variant="bodyEmphasis" tone="primary">{block.tool}</Typo>
         <Typo variant="body" tone="muted">{summary}</Typo>
@@ -366,13 +410,12 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
   if (message.role === "user") {
     return (
       <VStack marginBottom="sm" paddingX="sm">
-        <HStack gap="sm">
-          <Text color={theme.textDim}>{">"}</Text>
+        <Rail color={theme.accent}>
+          <RoleHeader color={theme.accent} label="you" {...(message.timestamp !== undefined ? { timestamp: message.timestamp } : {})} />
           <Box width={userWidth}>
             <Text wrap="wrap" color={theme.textPrimary}>{message.content}</Text>
           </Box>
-          {message.timestamp && <Timestamp ts={message.timestamp} />}
-        </HStack>
+        </Rail>
       </VStack>
     )
   }
@@ -384,10 +427,8 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
 
     return (
       <VStack marginBottom="sm" paddingX="sm">
-        <Box flexDirection="row">
-          <Box width={2} flexShrink={0}>
-            <Text color={pending && !hasActiveTool ? theme.accent : theme.assistantDot}>●</Text>
-          </Box>
+        <Rail color={pending && !hasActiveTool ? theme.accent : theme.assistantDot}>
+          <RoleHeader color={theme.assistantDot} label="aurict" />
           <Box flexDirection="column" flexShrink={1} width={bodyWidth}>
             {message.blocks.map((block, i) => {
               if (block.type === "text") {
@@ -417,7 +458,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
             })}
             {pending && !hasActiveTool && <Text color={theme.accent}>▋</Text>}
           </Box>
-        </Box>
+        </Rail>
         {message.timestamp && !pending && <Timestamp ts={message.timestamp} />}
       </VStack>
     )
@@ -440,19 +481,15 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
           />
         )}
 
-        {/* ● dot + içerik — OpenClaude AssistantTextMessage pattern */}
-        <Box flexDirection="row">
-          <Box width={2} flexShrink={0}>
-            <Text color={pending && !hasText ? theme.accent : theme.assistantDot}>
-              {pending && !hasText ? "○" : "●"}
-            </Text>
-          </Box>
+        {/* renkli ray + meta + içerik — Cockpit v2 AssistantTextMessage */}
+        <Rail color={pending && !hasText ? theme.accent : theme.assistantDot}>
+          <RoleHeader color={theme.assistantDot} label="aurict" />
           <Box flexDirection="column" flexShrink={1} width={bodyWidth}>
             {hasText && <Markdown content={message.content} width={Math.max(10, bodyWidth - 2)} />}
             {pending  && <Text color={theme.accent}>▋</Text>}
             {!hasText && !pending && <Text color={theme.textDim} dimColor italic>…</Text>}
           </Box>
-        </Box>
+        </Rail>
 
         {message.timestamp && !pending && <Timestamp ts={message.timestamp} />}
       </VStack>
@@ -496,6 +533,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
       <VStack marginBottom="md" paddingX="sm">
         {/* Header: loader, tool, args, timing */}
         <HStack gap="sm">
+          <Text color={color}>╭</Text>
           <ToolUseLoader shouldAnimate={false} isUnresolved={false} isError={isError} />
           <Typo variant="bodyEmphasis" tone="primary">{message.tool ?? "tool"}</Typo>
           <Typo variant="body" tone="muted">{summary}</Typo>
@@ -593,11 +631,11 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
   // ── System ────────────────────────────────────────────────────────────────────
   if (message.role === "system") {
     return (
-      <HStack marginBottom="sm" paddingX="md" gap="sm">
-        <Text color={theme.borderBright} dimColor>·</Text>
-        <Typo variant="body" tone="secondary">{message.content}</Typo>
+      <Box marginBottom={1} paddingX={2}>
+        <Text color={theme.borderBright} dimColor>· </Text>
+        <Text color={theme.textSecondary}>{message.content}</Text>
         {message.timestamp && <Timestamp ts={message.timestamp} />}
-      </HStack>
+      </Box>
     )
   }
 

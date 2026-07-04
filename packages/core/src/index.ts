@@ -84,7 +84,7 @@ export type { RemotePluginMeta }                         from "./plugin/remote.j
 export { fetchRegistry, searchRegistry, findInRegistry, REGISTRY_URL } from "./plugin/registry.js"
 export type { Registry, RegistryEntry }                  from "./plugin/registry.js"
 
-export { runAgent }                                      from "./agent/loop.js"
+export { runAgent, parseProviderError }                  from "./agent/loop.js"
 export type { AgentRunOptions, AgentFinishResult, AgentStatus, TokenBreakdown, AgentContinuationOptions } from "./agent/types.js"
 export { buildAttentionAnchor }                          from "./agent/attention-anchor.js"
 export type { AttentionAnchorInput }                      from "./agent/attention-anchor.js"

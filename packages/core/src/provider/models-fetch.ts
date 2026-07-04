@@ -1,6 +1,6 @@
 import { join } from "path"
 import { homedir } from "os"
-import { statSync } from "fs"
+import { statSync, readFileSync } from "fs"
 import type { ModelInfo } from "./plugin.js"
 
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 dakika
@@ -24,6 +24,15 @@ function isFresh(path: string): boolean {
     const stat = statSync(path)
     return Date.now() - stat.mtimeMs < CACHE_TTL_MS
   } catch { return false }
+}
+
+async function readCachedModels(path: string): Promise<ModelInfo[] | null> {
+  try {
+    const raw = await Bun.file(path).text()
+    return JSON.parse(raw) as ModelInfo[]
+  } catch {
+    return null
+  }
 }
 
 // Model ID'den capability tahmini — remote list için
@@ -64,15 +73,28 @@ async function fetchFromEndpoint(url: string, apiKey: string): Promise<ModelInfo
   }
 }
 
+/**
+ * Uzak listeden seçilmiş bir modelin bilgisini cache'ten senkron bul.
+ * Statik listModels()'te olmayan modeller için loop.ts bunu kullanır —
+ * aksi halde capability'ler bilinmez ve tool desteklemeyen modellere
+ * tool gönderilip 400 Bad Request alınır.
+ */
+export function findCachedModelInfo(providerId: string, modelId: string): ModelInfo | undefined {
+  try {
+    const raw = readFileSync(cachePath(providerId), "utf8")
+    const models = JSON.parse(raw) as ModelInfo[]
+    return models.find((m) => m.id === modelId)
+  } catch {
+    return undefined
+  }
+}
+
 export async function getCachedModels(providerId: string, url: string, apiKey: string): Promise<ModelInfo[]> {
   const path = cachePath(providerId)
+  const cachedModels = await readCachedModels(path)
 
-  if (isFresh(path)) {
-    try {
-      const raw = await Bun.file(path).text()
-      return JSON.parse(raw) as ModelInfo[]
-    } catch { /* cache bozuksa yeniden fetch */ }
-  }
+  if (cachedModels && isFresh(path)) return cachedModels
+  if (!apiKey && cachedModels) return cachedModels
 
   // Fetch + retry
   let lastError: unknown
@@ -89,5 +111,6 @@ export async function getCachedModels(providerId: string, url: string, apiKey: s
       if (attempt === 0) await new Promise((r) => setTimeout(r, 500)) // 0.5s backoff
     }
   }
+  if (cachedModels) return cachedModels
   throw lastError
 }

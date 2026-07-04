@@ -317,7 +317,7 @@ export function Markdown({ content, width }: Props) {
           case "hr":
             return (
               <Box key={bi} marginY={1}>
-                <Text color="#3b4048">{"─".repeat(Math.min(60, termWidth - 4))}</Text>
+                <Text color="#3b4048">{"─".repeat(Math.max(0, termWidth - 4))}</Text>
               </Box>
             )
 

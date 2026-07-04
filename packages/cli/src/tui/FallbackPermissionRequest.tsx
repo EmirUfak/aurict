@@ -57,9 +57,14 @@ export function FallbackPermissionRequest({ request, onDecide }: Props) {
   }, [onDecide])
 
   const subtitle = isDanger ? "destructive operation" : isWarning ? "elevated privileges" : undefined
+  const blast = isDanger ? "high" : isWarning ? "medium" : supportsDir ? "scoped" : "low"
 
   const header = (
     <Box flexDirection="column" marginBottom={1}>
+      <Box gap={2}>
+        <Text color={accentColor}>blast radius: {blast}</Text>
+        <Text color={theme.accentAlt}>tool bus armed</Text>
+      </Box>
       <Text color={isDanger ? theme.error : theme.textPrimary} bold={isDanger}>
         {request.pattern}
       </Text>

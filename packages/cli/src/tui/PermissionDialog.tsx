@@ -1,6 +1,7 @@
 import React from "react"
-import { Box } from "ink"
+import { Box, Text } from "ink"
 import { PermissionRequestTitle } from "./PermissionRequestTitle.js"
+import { useTheme } from "../utils/theme.js"
 
 interface Props {
   title:          string
@@ -11,18 +12,24 @@ interface Props {
 }
 
 export function PermissionDialog({ title, subtitle, color, innerPaddingX = 2, children }: Props) {
+  const theme = useTheme()
   return (
     <Box
       flexDirection="column"
-      borderStyle="single"
+      borderStyle="round"
       borderColor={color}
       borderTop={true}
-      borderLeft={false}
-      borderRight={false}
-      borderBottom={false}
+      borderLeft={true}
+      borderRight={true}
+      borderBottom={true}
       marginY={1}
     >
       <Box paddingX={2} paddingTop={1} flexDirection="column" marginBottom={1}>
+        <Box gap={1}>
+          <Text color={color}>◆</Text>
+          <Text color={theme.textDim}>PERMISSION GATE</Text>
+          <Text color={theme.borderBright}>╞══════╪══════╡</Text>
+        </Box>
         <PermissionRequestTitle title={title} subtitle={subtitle} color={color} />
       </Box>
       <Box flexDirection="column" paddingX={innerPaddingX} paddingBottom={1}>

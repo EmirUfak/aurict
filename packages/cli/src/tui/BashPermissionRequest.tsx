@@ -51,9 +51,16 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
   const sandbox  = sandboxLine(request)
   const title    = request.sandbox?.backend === "none" ? "Bash command (unsandboxed)" : "Bash command"
   const subtitle = isDanger ? "destructive operation" : isWarning ? "elevated privileges" : undefined
+  const blast = isDanger ? "high" : isWarning ? "medium" : "low"
 
   const header = (
     <Box flexDirection="column" marginBottom={1}>
+      <Box gap={2}>
+        <Text color={accentColor}>blast radius: {blast}</Text>
+        <Text color={request.sandbox?.backend === "none" ? theme.warning : theme.accentAlt}>
+          {request.sandbox?.backend === "none" ? "unsandboxed" : request.sandbox?.backend === "docker" ? "docker shield" : "policy shield"}
+        </Text>
+      </Box>
       <Text color={isDanger ? theme.error : isWarning ? theme.warning : theme.textPrimary} bold={isDanger}>
         $ {request.pattern}
       </Text>
