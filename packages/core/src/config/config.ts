@@ -121,9 +121,43 @@ export const SECURITY_SANDBOX_PROFILE_DEFAULTS: Record<SecuritySandboxProfile, R
   },
 }
 
+/** Multi-agent orkestrasyon — Faz 3 tüketir. Kapalı/off iken davranış değişmez. */
+export interface OrchestrationConfig {
+  enabled?: boolean
+  mode?: "off" | "auto" | "always"
+  maxDepth?: number
+}
+
+/** Zorlaşan görevlerde reasoning effort/step limitini yükseltme — Faz 2 tüketir. */
+export interface EscalationConfig {
+  enabled?: boolean
+  maxReasoningEffort?: number
+  escalateOnRepeatedFailure?: boolean
+}
+
+/** Dile-agnostik post-edit doğrulama (tsc dışı diller) — Faz 4 tüketir. */
+export interface VerificationRuntimeConfig {
+  languages?: Record<string, boolean>
+  autoLint?: boolean
+}
+
+/** Zorunlu/otomatik critique tetikleme — Faz 4 tüketir. */
+export interface CritiqueConfig {
+  enabled?: boolean
+  adversarial?: boolean
+  minLinesForAuto?: number
+}
+
 export interface OmniConfig {
   providers?:  Record<string, { apiKey?: string; baseUrl?: string }>
-  defaults?:   { provider?: string; model?: string; effort?: number }
+  defaults?:   {
+    provider?: string
+    model?: string
+    effort?: number
+    /** Continuation bütçesi — Faz 6 CLI'ye taşır (şu an CLI'de hardcoded). */
+    maxContinuations?: number
+    maxTaskContinuations?: number
+  }
   compaction?: { tailTurns?: number; strategy?: CompactionStrategy; messageCountThreshold?: number }
   truncation?: {
     maxChars?: number
@@ -158,6 +192,14 @@ export interface OmniConfig {
   securitySandbox?: SecuritySandboxConfig
   /** Core long-task guardrails. Soft mode reports/continues through existing completion gate; strict can block finalization. */
   longTaskRuntime?: LongTaskRuntimeConfig
+  /** Multi-agent orkestrasyon (Faz 3). Opt-in — henüz hiçbir runtime yolu tüketmiyor. */
+  orchestration?: OrchestrationConfig
+  /** Adaptif reasoning eskalasyonu (Faz 2). Opt-in — henüz hiçbir runtime yolu tüketmiyor. */
+  escalation?: EscalationConfig
+  /** Dile-agnostik post-edit doğrulama (Faz 4). Opt-in — henüz hiçbir runtime yolu tüketmiyor. */
+  verification?: VerificationRuntimeConfig
+  /** Zorunlu adversarial critique (Faz 4). Opt-in — henüz hiçbir runtime yolu tüketmiyor. */
+  critique?: CritiqueConfig
 }
 
 const GLOBAL_PATH = join(homedir(), ".aurict", "config.json")
@@ -202,6 +244,10 @@ function merge(a: OmniConfig, b: OmniConfig): OmniConfig {
     mcpServers: { ...(a.mcpServers ?? {}), ...(b.mcpServers ?? {}) },
     securitySandbox: { ...(a.securitySandbox ?? {}), ...(b.securitySandbox ?? {}) },
     longTaskRuntime: { ...(a.longTaskRuntime ?? {}), ...(b.longTaskRuntime ?? {}) },
+    orchestration: { ...(a.orchestration ?? {}), ...(b.orchestration ?? {}) },
+    escalation: { ...(a.escalation ?? {}), ...(b.escalation ?? {}) },
+    verification: { ...(a.verification ?? {}), ...(b.verification ?? {}) },
+    critique: { ...(a.critique ?? {}), ...(b.critique ?? {}) },
   }
 }
 

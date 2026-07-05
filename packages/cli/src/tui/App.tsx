@@ -20,8 +20,6 @@ import {
   extractSymbolBody,
   taskManager,
   detectUndercoverRepo,
-  getCoordinatorSystemPrompt,
-  getCoordinatorContext,
   getSessionAgent,
   getAllSessionAgents,
   notifyTaskDone,
@@ -74,7 +72,7 @@ import type { UpdateInfo } from "../util/update-check.js"
 import { CURRENT_VERSION }  from "../util/update-check.js"
 import { readClipboard }     from "../util/clipboard.js"
 import { useMouseEvents, injectInput } from "./mouse.js"
-import { buildDesignPrompt, recordSystemUsed, recordSkillUsed, slugify } from "@aurict/core"
+import { buildDesignPrompt, recordSystemUsed, recordSkillUsed, slugify, loadConfig, metrics } from "@aurict/core"
 import { clearDraft, hasPendingCrashReport, writeCrashReport } from "../util/draft.js"
 import { getTerminalCaps }   from "../util/terminal-caps.js"
 import { useOverlayState }   from "./hooks/useOverlayState.js"
@@ -1154,6 +1152,11 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
     autoContinueSubmittingRef.current = false
     if (!isAutoContinueSubmit) autoContinueRef.current.count = 0
 
+    // Faz 6.1: continuation bütçesi artık config'ten (defaults.maxContinuations/maxTaskContinuations).
+    const continuationDefaults = (() => {
+      try { return loadConfig(workdirState).defaults ?? {} } catch { return {} as { maxContinuations?: number; maxTaskContinuations?: number } }
+    })()
+
     // @path.ext[:symbol] syntax — file attachment or symbol context injection
     // @auth.ts          → attach whole file (image) or inline code for text files
     // @auth.ts:validate → inject only that function/class body as code block
@@ -1228,10 +1231,11 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
 
     try {
       const agentDef = getSessionAgent(activeAgent, workdirState)
+      // Faz 3A: coordinator promptu artık burada değil, loop.ts'te karmaşıklık-kapılı
+      // olarak enjekte ediliyor (cfg.orchestration.mode). coordinatorMode state'i hâlâ
+      // /coordinator komutuyla TAMAMEN kapatma yetkisine sahip (aşağıda runAgent'a geçiliyor).
       const effectiveSystem = [
         agentDef.system || null,
-        coordinatorMode ? getCoordinatorSystemPrompt() : null,
-        coordinatorMode ? getCoordinatorContext(agentPool.active) : null,
         system,
       ].filter(Boolean).join("\n\n---\n\n")
 
@@ -1274,6 +1278,9 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
         provider, model, workdir: workdirState,
         sessionId: mainSessionId.current,
         ...(effectiveSystem ? { system: effectiveSystem } : {}),
+        // /coordinator ile kapatılırsa (false) loop.ts hiç enjekte etmez; true/undefined
+        // ise loop.ts kendi karmaşıklık-kapılı kararını (cfg.orchestration.mode) verir.
+        coordinatorMode,
         undercover: isUndercover || (undercover ?? false),
         ...(effort !== undefined ? { effort } : {}),
         ...(agentDef.allowedTools ? { toolsOverride: agentDef.allowedTools } : {}),
@@ -1476,6 +1483,18 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
           // Allow end-of-session extraction to run again after compaction
           extractedRef.current = false
         },
+        onProviderFallback: (fromProvider, toProvider) => {
+          addSystemMsg(`⚠ ${fromProvider} unavailable — switched to ${toProvider}`)
+        },
+        onStreamRestart: () => {
+          // Faz 1: retry/fallback denemesi başlıyor — önceki (başarısız) denemeden
+          // akmış kısmi metni at, aksi halde yeni denemenin metniyle yan yana görünür.
+          if (streamTimerRef.current) { clearTimeout(streamTimerRef.current); streamTimerRef.current = null }
+          streamTextRef.current   = ""
+          streamReasonRef.current = ""
+          setStreamingText(null)
+          setStreamingReason(null)
+        },
         onSkillsActivated: (skills) => {
           if (skills.length === 0) return
           setTurnSkillNames(skills.map((skill) => skill.id))
@@ -1484,8 +1503,9 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
         continuation: {
           getTasks: () => taskManager.getTasks(),
           previousContinuations: autoContinueRef.current.count,
-          maxContinuations: 5,
-          maxTaskContinuations: 15,
+          // Faz 6.1: eskiden hardcoded — artık .aurict/config.json > defaults'tan okunur.
+          maxContinuations: continuationDefaults.maxContinuations ?? 5,
+          maxTaskContinuations: continuationDefaults.maxTaskContinuations ?? 15,
         },
         onPromptCacheHealth: setPromptCacheHealth,
         onFinish: ({ tokens: t, text: finalText, newMessages, continuation, completionGate, longTask }) => {
@@ -1512,7 +1532,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
             extractedRef.current = true
             extractAndStoreMemories(provider, model, [...newHistory, ...newMessages], workdirState)
               .then(() => { try { setMemoryCount(memoryStore.list(workdirState).length) } catch { /* ignore */ } })
-              .catch(() => {})
+              .catch(() => metrics.recordError("memory_extract"))
           }
           const updatedHistory = [...newHistory, ...newMessages] as CoreMessage[]
           historyRef.current = updatedHistory
@@ -1595,7 +1615,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
       if (Date.now() - startTime > 15_000) notifyError(text)
       if (!extractedRef.current && newHistory.length >= 4) {
         extractedRef.current = true
-        extractAndStoreMemories(provider, model, newHistory, workdirState).catch(() => {})
+        extractAndStoreMemories(provider, model, newHistory, workdirState).catch(() => metrics.recordError("memory_extract"))
       }
     } finally {
       setLoading(false)

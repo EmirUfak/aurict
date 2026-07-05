@@ -2,7 +2,7 @@ import { streamText, generateText, tool } from "ai"
 import type { CoreMessage, ToolSet } from "ai"
 import { resolve } from "path"
 import { ProviderRegistry } from "../provider/registry.js"
-import { findCachedModelInfo } from "../provider/models-fetch.js"
+import { findCachedModelInfo, resolveModelInfo } from "../provider/models-fetch.js"
 import { ToolRegistry } from "../tool/registry.js"
 import { executeTool } from "../tool/executor.js"
 import { SessionManager } from "../session/manager.js"
@@ -18,7 +18,7 @@ import { extractAndStoreMemories, extractPerTurnMemories } from "../memory/extra
 import { buildGitSection, buildProactiveFileSection, buildIntentSkillSection, getSkillsForProject, matchIntentSkills } from "../skill/injector.js"
 import { joinPromptSections, splitPromptSectionsByCache, type ResolvedPromptSection } from "./prompt-sections.js"
 import { skillScoreStore } from "../skill/score-store.js"
-import { ProviderFallback, loadFallbackFromConfig } from "../provider/fallback.js"
+import { ProviderFallback, loadFallbackFromConfig, NonRetryableStreamError } from "../provider/fallback.js"
 import { ModelRouter, loadRouterFromConfig } from "../provider/router.js"
 import { metrics } from "../util/metrics.js"
 import { extractText } from "../session/context-compactor.js"
@@ -32,6 +32,8 @@ import { evaluateContinuation } from "./continuation.js"
 import { extractVerificationSnapshot, readSessionResumeState, writeSessionResumeState } from "../session/resume-state.js"
 import { restoreWorkingSet, getWorkingSetSnapshot } from "./working-set.js"
 import { restoreFailureCooldown, getFailureCooldownSnapshot } from "./failure-cooldown.js"
+import { failedStrategiesStore } from "./failed-strategies-store.js"
+import { summarizeFragileAreas } from "./fragile-areas.js"
 import { buildAttentionAnchor } from "./attention-anchor.js"
 import { evaluateCompletionGate } from "./completion-gate.js"
 import { recordRunTrace } from "./run-trace.js"
@@ -40,43 +42,9 @@ import type { OmniConfig } from "../config/config.js"
 import { evaluateLongTaskContinuation } from "./continuation-controller.js"
 import { buildTaskLedger, formatTaskLedgerAnchor } from "./task-ledger.js"
 import { isTaskContinuationTurn } from "./turn-intent.js"
-
-const DEFAULT_MAX_STEPS = 80
-
-// ─── Faz 3: Adaptive Step Limit ───────────────────────────────────────────────
-/**
- * Task complexity'ye göre max steps hesaplar.
- * Basit sorular için az step, karmaşık görevler için çok step.
- */
-function computeAdaptiveMaxSteps(
-  messages: CoreMessage[],
-  hasAttachments: boolean,
-): number {
-  const lastUserMsg = [...messages].reverse().find(m => m.role === "user")
-  const text = lastUserMsg ? extractText(lastUserMsg) : ""
-  const lower = text.toLowerCase()
-  const looksActionable = /\b(fix|implement|build|create|add|update|refactor|debug|test|run|verify|make|change|edit|write|generate|complete|finish|continue|devam|tamamla|d[uü]zelt|ekle|olu[sş]tur|g[uü]ncelle|test et|do[gğ]rula|bitir|yap)\b/i.test(lower)
-
-  if (hasAttachments) {
-    return 80
-  }
-
-  // Very short non-action questions should stay cheap, but short actionable
-  // prompts like "fix tests" can still require many tool steps.
-  if (text.length < 100 && !looksActionable) {
-    return 20
-  }
-
-  if (text.length < 500) {
-    return looksActionable ? DEFAULT_MAX_STEPS : 40
-  }
-
-  if (text.length < 2000) {
-    return 100
-  }
-
-  return 120
-}
+import { assessComplexity, stepsForComplexity, deriveReasoningEffort } from "./complexity.js"
+import { getCoordinatorSystemPrompt, getCoordinatorContext, shouldInjectCoordinatorPrompt } from "./coordinator.js"
+import { agentPool } from "./pool.js"
 
 // AI SDK tool() fonksiyonunun dönüş tipiyle exactOptionalPropertyTypes çakışıyor
 // — ToolSet cast'i kullanıyoruz
@@ -95,6 +63,9 @@ function buildAITools(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
   for (const def of ToolRegistry.list()) {
+    // Faz 3B: orchestrate tool sadece orchestration.enabled true iken modele görünür —
+    // kapalıyken model onu bir seçenek olarak bile görmemeli.
+    if (def.id === "orchestrate" && cfg.orchestration?.enabled !== true) continue
     const filteredDef = prepareToolForSecurityCapability(def, cfg)
     if (!filteredDef) continue
     const captured = filteredDef
@@ -172,7 +143,6 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   const providerName = opts.provider ?? "anthropic"
   const plugin       = ProviderRegistry.get(providerName)
   const modelId      = opts.model ?? plugin.defaultModel()
-  const model        = plugin.getModel(modelId)
   const workdir      = opts.workdir ?? process.cwd()
   const sessionId    = opts.sessionId
   const resumedState = sessionId ? await readSessionResumeState(workdir, sessionId) : null
@@ -235,13 +205,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   const tailTurns        = compCfg?.tailTurns            ?? DEFAULT_TAIL_TURNS
   const strategy         = compCfg?.strategy             ?? "balanced"
   const msgThreshold     = compCfg?.messageCountThreshold
-  // Önce statik liste, yoksa uzak /models cache'i — uzak listeden seçilen
-  // modellerin capability'leri (ör. supportsTools: false) kaybolmasın.
-  const modelInfo = plugin.listModels().find((m) => m.id === modelId)
-    ?? findCachedModelInfo(providerName, modelId)
+  // 3 katmanlı çözüm: statik liste → uzak /models cache'i → models.dev/heuristik.
+  // Her zaman dolu döner — bilinmeyen (BYOK) modelde artık sessiz 200k/8k
+  // varsayımı yerine gerçek ya da bilgiye dayalı bir context/output tahmini var.
+  const modelInfo = await resolveModelInfo(plugin, providerName, modelId)
   const compCfgFull = {
-    contextLimit:          modelInfo?.contextWindow ?? 200_000,
-    maxOutput:             modelInfo?.maxOutput     ?? 8_000,
+    contextLimit:          modelInfo.contextWindow,
+    maxOutput:             modelInfo.maxOutput,
     tailTurns,
     strategy,
     provider:              providerName,
@@ -250,13 +220,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(msgThreshold !== undefined ? { messageCountThreshold: msgThreshold } : {}),
   }
-  if (modelInfo) {
-    messages = microCompactOldToolResults(messages, compCfgFull)
-  }
+  messages = microCompactOldToolResults(messages, compCfgFull)
 
-  if (modelInfo && (isOverflow(messages, compCfgFull) || isOverflowByMessages(messages, compCfgFull))) {
+  if (isOverflow(messages, compCfgFull) || isOverflowByMessages(messages, compCfgFull)) {
     // Extract memories from messages about to be lost to compaction (fire-and-forget)
-    extractAndStoreMemories(providerName, modelId, messages, workdir).catch(() => {})
+    extractAndStoreMemories(providerName, modelId, messages, workdir).catch(() => metrics.recordError("memory_extract"))
     const compacted = await compact(messages, compCfgFull)
     if (!compacted) return { text: "", tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, newMessages: [], ...(sessionId !== undefined ? { sessionId } : {}) }
     messages  = compacted
@@ -264,7 +232,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   }
 
   // supportsTools: false olan modeller tool API'si desteklemez — boş geç
-  const hasToolSupport   = modelInfo?.supportsTools !== false
+  const hasToolSupport   = modelInfo.supportsTools !== false
   const failureTracker   = new Map<string, number>()
   const recentReads      = new Map<string, number>()
   const toolCallIndexRef = { current: 0 }
@@ -314,12 +282,35 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
 
   const workingSet = getWorkingSetSnapshot(sessionId ?? "")
   const failureCooldown = getFailureCooldownSnapshot(sessionId ?? "")
+
+  // ─── Faz 2: Karmaşıklık değerlendirmesi — adaptif step limit + reasoning effort
+  // aynı skordan türetilir (tek kaynak: agent/complexity.ts). Coordinator injection
+  // kararı (Faz 3A) da bu skordan yararlanır, bu yüzden runtimeSystemSections
+  // henüz join edilmeden önce, erken hesaplanıyor. ────────────────────────────
+  const changedFilesCount = workingSet.items.filter(
+    item => item.kind === "file" && item.reason === "changed file"
+  ).length
+  const complexity = assessComplexity({
+    text: lastUserMsg ? extractText(lastUserMsg) : "",
+    hasAttachments: !!opts.attachments,
+    priorToolCalls: workingSet.items.length,
+    changedFiles: changedFilesCount,
+    priorFailures: failureCooldown.active.length,
+  })
+  const maxSteps = stepsForComplexity(complexity.level)
+
   const attentionAnchor = buildAttentionAnchor({
     objective: lastUserText,
     activeSkill: getSkillLifecycleSnapshot(sessionId ?? "").active,
     workingSet,
     verification: resumedState?.lastVerification,
     cooldown: failureCooldown,
+    // Faz 5.1b: bu session'a özel değil — projede geçmiş session'larda da
+    // tekrarlanmış (strategyShiftRequired) başarısız stratejiler.
+    knownDeadEnds: failedStrategiesStore.recent(workdir),
+    // Faz 6.3: run-trace geçmişinden (tool_result_distilled olayları) çıkarılan
+    // "bu projede en çok hata veren tool'lar" özeti — 5dk cache'li, session'a özel değil.
+    fragileAreas: await summarizeFragileAreas(workdir).catch(() => []),
   })
   if (attentionAnchor) {
     runtimeSystemSections.push({ name: "attention_anchor", cache: "dynamic", content: attentionAnchor })
@@ -330,6 +321,33 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
       cache: "dynamic",
       content: formatTaskLedgerAnchor(resumedState.taskLedger),
     })
+  }
+
+  // ─── Faz 3A: Coordinator prompt — karmaşıklık-kapılı ────────────────────────
+  // Önceden CLI'de (App.tsx) coordinatorMode=true iken HER turn'e opts.system
+  // üzerinden giriyordu; bu hem gereksiz maliyet hem de opts.system her zaman
+  // dolu olduğu için TÜM core system bloğunun cache dışı kalmasına yol açıyordu
+  // (buildSystemPromptSections: base truthy → dynamicPromptSection). Artık
+  // sadece "complex" seviye veya çok-boyutlu/broad-scan istekte enjekte edilir;
+  // orchestration.mode: "off" hiç, "always" eski davranış (geriye dönük uyum).
+  const orchestrationMode = cfg.orchestration?.mode ?? "auto"
+  const coordinatorActive = opts.coordinatorMode === false
+    ? false  // kullanıcı /coordinator ile tamamen kapattı — config'e bakılmaksızın hiç enjekte etme
+    : orchestrationMode === "off"
+      ? false
+      : orchestrationMode === "always"
+        ? true
+        : shouldInjectCoordinatorPrompt(lastUserText, complexity.level)
+  if (coordinatorActive) {
+    runtimeSystemSections.push({ name: "coordinator", cache: "dynamic", content: getCoordinatorSystemPrompt() })
+    // agentPool.active best-effort — asla turu çökertmemeli (ör. testlerde/edge-case'lerde mock/eksik olabilir)
+    const activeWorkers = agentPool.active ?? []
+    if (activeWorkers.length > 0) {
+      const coordinatorContext = getCoordinatorContext(activeWorkers)
+      if (coordinatorContext) {
+        runtimeSystemSections.push({ name: "coordinator_context", cache: "dynamic", content: coordinatorContext })
+      }
+    }
   }
 
   const system = joinPromptSections(runtimeSystemSections)
@@ -358,161 +376,251 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   // Git context her turn'de fresh — Anthropic cache'e girmemeli
   const gitSection = buildGitSection(workdir)
 
-  // Anthropic prompt caching: static/session sections cache'lenir, dynamic/git cache dışı kalır
-  let systemParam: string | undefined = system || undefined
-  if (plugin.sdkType === "anthropic") {
-    const contentBlocks: Array<{ type: "text"; text: string; experimental_providerMetadata?: unknown }> = []
-    const splitSystem = splitPromptSectionsByCache(runtimeSystemSections)
-    const promptCachingEnabled = isPromptCachingEnabled(providerName, modelId)
-    if (splitSystem.cacheable) {
-      contentBlocks.push({
-        type: "text",
-        text: splitSystem.cacheable,
-        ...(promptCachingEnabled
-          ? { experimental_providerMetadata: { anthropic: { cacheControl: getPromptCacheControl() } } }
-          : {}),
-      })
-    }
-    if (splitSystem.dynamic) {
-      contentBlocks.push({ type: "text", text: splitSystem.dynamic })
-    }
-    if (gitSection) {
-      contentBlocks.push({ type: "text", text: gitSection })
-    }
-    if (contentBlocks.length > 0) {
-      const sysMsg: CoreMessage = { role: "system", content: contentBlocks as never }
-      messages = [sysMsg, ...messages]
-      systemParam = undefined
-    }
-  } else if (system || gitSection) {
-    // Non-Anthropic: git context dahil tek string
-    const fullSystem = [system, gitSection].filter(Boolean).join("\n\n")
-    systemParam = fullSystem || undefined
+  interface AttemptResult {
+    fullText:     string
+    breakdown:    TokenBreakdown
+    finishReason: string | undefined
+    newMessages:  CoreMessage[]
+    providerId:   string
+    modelId:      string
   }
 
-  // ─── Faz 3: Adaptive step limit ─────────────────────────────────────────────
-  const maxSteps = computeAdaptiveMaxSteps(messages, !!opts.attachments)
+  // attemptIndex>0 olan her çağrı bir retry veya fallback denemesidir — önceki
+  // denemeden UI'ye akmış olabilecek kısmi metni sıfırlamak için onStreamRestart
+  // tetiklenir (aksi halde başarısız denemenin parçası + yeni denemenin metni
+  // yan yana görünüp transcript'i bozar).
+  let attemptIndex = 0
 
-  const shared = {
-    model,
-    messages,
-    tools:    aiTools,
-    maxSteps,
-    experimental_continueSteps: true,
-    ...(systemParam ? { system: systemParam } : {}),
-    ...(opts.signal !== undefined ? { abortSignal: opts.signal } : {}),
-    ...(opts.effort ? (() => {
-      const thinkOpts = plugin.buildThinkingOptions(modelId, opts.effort!)
-      return thinkOpts ? { providerOptions: thinkOpts } : {}
-    })() : {})
-  }
+  // Faz 1: Tek bir provider denemesini uçtan uca çalıştırır — model/tool/thinking/
+  // prompt-cache çözümü dahil. withRetry (aynı provider) veya withFallback (farklı
+  // provider) bu fonksiyonu sarar; ikisi de retry kapsamına artık gerçek stream
+  // tüketimini de alır (öncesinde withRetry sadece senkron streamText çağrısını
+  // sarıyordu, asıl hata fullStream tüketimi sırasında kapsam dışında fırlıyordu).
+  async function runOneAttempt(attemptProviderId: string): Promise<AttemptResult> {
+    const isRetryOrFallbackAttempt = attemptIndex > 0
+    attemptIndex++
+    if (isRetryOrFallbackAttempt) opts.onStreamRestart?.()
 
-  let fullText = ""
-  let breakdown: TokenBreakdown = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }
-  let finishReason: string | undefined
+    const attemptPlugin = attemptProviderId === providerName ? plugin : ProviderRegistry.get(attemptProviderId)
+    // Fallback farklı bir provider'a geçtiyse orijinal model id o provider'da
+    // muhtemelen geçersizdir (provider-specific id) — o provider'ın varsayılan
+    // modelini kullan.
+    const attemptModelId = attemptProviderId === providerName ? modelId : attemptPlugin.defaultModel()
+    const attemptModel   = attemptPlugin.getModel(attemptModelId)
 
-  // opts.stream=false → pipe/non-interactive mod, kesinlikle generate
-  // opts.stream=true veya undefined → provider'ın streaming desteğine bak
-  const useStream = opts.stream !== false && plugin.supportsStreaming
-  let newMessages: CoreMessage[] = []
+    const attemptModelInfo = attemptPlugin.listModels().find((m) => m.id === attemptModelId)
+      ?? findCachedModelInfo(attemptProviderId, attemptModelId)
+    const attemptHasToolSupport = attemptModelInfo?.supportsTools !== false
+    const attemptRawTools = attemptHasToolSupport
+      ? buildAITools(workdir, sessionId ?? "", attemptProviderId, attemptModelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef)
+      : ({} as ToolSet)
+    const attemptAiTools: ToolSet = toolsOverride
+      ? Object.fromEntries(
+          Object.entries(attemptRawTools).filter(([id]) => toolsOverride!.includes(id))
+        ) as ToolSet
+      : attemptRawTools
 
-  if (useStream) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await withRetry(() => Promise.resolve(streamText(shared as any))) as any
-    const seenToolResults  = new Set<string>()
-    const toolCallTimes    = new Map<string, number>()
-    // Embedded <think>...</think> tag'lerini text stream'den ayıran filter
-    // (DeepSeek-R1, Qwen, Ollama modeller)
-    const thinkFilter = createThinkTagFilter()
-
-    for await (const part of result.fullStream) {
-      if (part.type === "text-delta") {
-        const raw = (part.textDelta as string) || ""
-        if (!raw) continue
-        const { text, thinking } = thinkFilter.feed(raw)
-        if (thinking) opts.onText?.(thinking, true)
-        if (text) {
-          fullText += text
-          opts.onText?.(text, false)
-        }
-      } else if (
-        part.type === "reasoning"       ||
-        part.type === "reasoning-delta" ||
-        part.type === "thinking"
-      ) {
-        // Native reasoning events (Anthropic extended thinking, AI SDK)
-        const delta: string =
-          (part as any).text      ??
-          (part as any).textDelta ??
-          (part as any).reasoning ??
-          (part as any).delta     ?? ""
-        if (delta) opts.onText?.(delta, true)
-      } else if (part.type === "reasoning-start" || part.type === "reasoning-end") {
-        // lifecycle sinyalleri — delta taşımaz, ignore
-      } else if (part.type === "error") {
-        throw new Error(parseProviderError((part as any).error))
-      } else if (part.type === "tool-call") {
-        toolCallTimes.set(part.toolCallId, Date.now())
-        opts.onToolCall?.({ id: part.toolCallId, tool: part.toolName, args: part.args })
-      } else if (part.type === "tool-result") {
-        // tool-result tek kaynak — step-finish'te tekrar emit edilmez
-        if (!seenToolResults.has(part.toolCallId)) {
-          seenToolResults.add(part.toolCallId)
-          const durationMs = Date.now() - (toolCallTimes.get(part.toolCallId) ?? Date.now())
-          toolCallTimes.delete(part.toolCallId)
-          // @ts-ignore: part.result
-          opts.onToolResult?.({ id: part.toolCallId, result: String(part.result), durationMs })
-        }
-      } else if (part.type === "step-finish") {
-        // Yalnızca step tamamlama sinyali — tool result emission yok (race condition önleme)
-        opts.onStepFinish?.()
+    // Anthropic prompt caching: static/session sections cache'lenir, dynamic/git
+    // cache dışı kalır. Dış kapsamdaki `messages` hiç mutasyona uğramaz — her
+    // attempt kendi system-wrap'li mesaj kopyasını kurar.
+    let attemptMessages: CoreMessage[] = messages
+    let attemptSystemParam: string | undefined = system || undefined
+    if (attemptPlugin.sdkType === "anthropic") {
+      const contentBlocks: Array<{ type: "text"; text: string; experimental_providerMetadata?: unknown }> = []
+      const splitSystem = splitPromptSectionsByCache(runtimeSystemSections)
+      const promptCachingEnabled = isPromptCachingEnabled(attemptProviderId, attemptModelId)
+      if (splitSystem.cacheable) {
+        contentBlocks.push({
+          type: "text",
+          text: splitSystem.cacheable,
+          ...(promptCachingEnabled
+            ? { experimental_providerMetadata: { anthropic: { cacheControl: getPromptCacheControl() } } }
+            : {}),
+        })
       }
+      if (splitSystem.dynamic) {
+        contentBlocks.push({ type: "text", text: splitSystem.dynamic })
+      }
+      if (gitSection) {
+        contentBlocks.push({ type: "text", text: gitSection })
+      }
+      if (contentBlocks.length > 0) {
+        const sysMsg: CoreMessage = { role: "system", content: contentBlocks as never }
+        attemptMessages = [sysMsg, ...messages]
+        attemptSystemParam = undefined
+      }
+    } else if (system || gitSection) {
+      // Non-Anthropic: git context dahil tek string
+      const fullSystem = [system, gitSection].filter(Boolean).join("\n\n")
+      attemptSystemParam = fullSystem || undefined
     }
 
-    // Stream bitti — buffer'da kalan fragmentleri boşalt
-    const tail = thinkFilter.flush()
-    if (tail.thinking) opts.onText?.(tail.thinking, true)
-    if (tail.text) { fullText += tail.text; opts.onText?.(tail.text, false) }
+    // Faz 2.2: opts.effort verilmemişse ve model thinking destekliyorsa,
+    // escalation.enabled iken karmaşıklık skorundan bir effort türet
+    // (escalation.maxReasoningEffort ile sınırlı). escalation kapalıyken
+    // davranış aynen korunur: sadece dışarıdan gelen opts.effort kullanılır.
+    const effectiveEffort = opts.effort ?? (
+      cfg.escalation?.enabled === true && attemptModelInfo?.supportsThinking
+        ? deriveReasoningEffort(complexity.score, cfg.escalation?.maxReasoningEffort)
+        : undefined
+    )
 
-    const u    = await result.usage as Record<string, unknown>
-    const meta = await (result as any).experimental_providerMetadata as Record<string, unknown> | undefined
-    breakdown  = extractTokenBreakdown(u, meta)
-    finishReason = String(await (result as any).finishReason ?? "")
+    const attemptShared = {
+      model:    attemptModel,
+      messages: attemptMessages,
+      tools:    attemptAiTools,
+      maxSteps,
+      experimental_continueSteps: true,
+      ...(attemptSystemParam ? { system: attemptSystemParam } : {}),
+      ...(opts.signal !== undefined ? { abortSignal: opts.signal } : {}),
+      ...(effectiveEffort ? (() => {
+        const thinkOpts = attemptPlugin.buildThinkingOptions(attemptModelId, effectiveEffort)
+        return thinkOpts ? { providerOptions: thinkOpts } : {}
+      })() : {})
+    }
 
-    const finalResponse = await result.response
-    newMessages = finalResponse.messages
+    let fullText = ""
+    let breakdown: TokenBreakdown = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }
+    let finishReason: string | undefined
+    let newMessages: CoreMessage[] = []
+
+    // opts.stream=false → pipe/non-interactive mod, kesinlikle generate
+    // opts.stream=true veya undefined → provider'ın streaming desteğine bak
+    const useStreamAttempt = opts.stream !== false && attemptPlugin.supportsStreaming
+
+    if (useStreamAttempt) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = streamText(attemptShared as any) as any
+      const seenToolResults  = new Set<string>()
+      const toolCallTimes    = new Map<string, number>()
+      // Embedded <think>...</think> tag'lerini text stream'den ayıran filter
+      // (DeepSeek-R1, Qwen, Ollama modeller)
+      const thinkFilter = createThinkTagFilter()
+      // En az bir tool call bu attempt'te çalıştı mı? Çalıştıysa gerçek yan
+      // etkiler oluşmuştur (dosya yazıldı, komut çalıştı) — sonraki bir hata
+      // bu attempt'i retry/fallback ile baştan tekrarlatmamalı.
+      let toolCallHappened = false
+
+      for await (const part of result.fullStream) {
+        if (part.type === "text-delta") {
+          const raw = (part.textDelta as string) || ""
+          if (!raw) continue
+          const { text, thinking } = thinkFilter.feed(raw)
+          if (thinking) opts.onText?.(thinking, true)
+          if (text) {
+            fullText += text
+            opts.onText?.(text, false)
+          }
+        } else if (
+          part.type === "reasoning"       ||
+          part.type === "reasoning-delta" ||
+          part.type === "thinking"
+        ) {
+          // Native reasoning events (Anthropic extended thinking, AI SDK)
+          const delta: string =
+            (part as any).text      ??
+            (part as any).textDelta ??
+            (part as any).reasoning ??
+            (part as any).delta     ?? ""
+          if (delta) opts.onText?.(delta, true)
+        } else if (part.type === "reasoning-start" || part.type === "reasoning-end") {
+          // lifecycle sinyalleri — delta taşımaz, ignore
+        } else if (part.type === "error") {
+          const rawErr = (part as any).error
+          const original = rawErr instanceof Error
+            ? rawErr
+            : new Error(typeof rawErr === "string" ? rawErr : JSON.stringify(rawErr))
+          if (toolCallHappened) {
+            const nonRetryable = new NonRetryableStreamError(original.message)
+            Object.assign(nonRetryable, original)
+            nonRetryable.message = `${original.message}\n\n[Tool calls already ran this turn — not auto-retried to avoid duplicate side effects. Review the results above.]`
+            throw nonRetryable
+          }
+          throw original
+        } else if (part.type === "tool-call") {
+          toolCallHappened = true
+          toolCallTimes.set(part.toolCallId, Date.now())
+          opts.onToolCall?.({ id: part.toolCallId, tool: part.toolName, args: part.args })
+        } else if (part.type === "tool-result") {
+          // tool-result tek kaynak — step-finish'te tekrar emit edilmez
+          if (!seenToolResults.has(part.toolCallId)) {
+            seenToolResults.add(part.toolCallId)
+            const durationMs = Date.now() - (toolCallTimes.get(part.toolCallId) ?? Date.now())
+            toolCallTimes.delete(part.toolCallId)
+            // @ts-ignore: part.result
+            opts.onToolResult?.({ id: part.toolCallId, result: String(part.result), durationMs })
+          }
+        } else if (part.type === "step-finish") {
+          // Yalnızca step tamamlama sinyali — tool result emission yok (race condition önleme)
+          opts.onStepFinish?.()
+        }
+      }
+
+      // Stream bitti — buffer'da kalan fragmentleri boşalt
+      const tail = thinkFilter.flush()
+      if (tail.thinking) opts.onText?.(tail.thinking, true)
+      if (tail.text) { fullText += tail.text; opts.onText?.(tail.text, false) }
+
+      const u    = await result.usage as Record<string, unknown>
+      const meta = await (result as any).experimental_providerMetadata as Record<string, unknown> | undefined
+      breakdown  = extractTokenBreakdown(u, meta)
+      finishReason = String(await (result as any).finishReason ?? "")
+
+      const finalResponse = await result.response
+      newMessages = finalResponse.messages
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await generateText(attemptShared as any)
+      fullText      = result.text
+      opts.onText?.(fullText)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const step of (result as any).steps ?? []) {
+        for (const tc of step.toolCalls ?? []) {
+          opts.onToolCall?.({ id: tc.toolCallId, tool: tc.toolName, args: tc.args })
+        }
+        for (const tr of step.toolResults ?? []) {
+          opts.onToolResult?.({ id: tr.toolCallId, result: String(tr.result), durationMs: 0 })
+        }
+      }
+
+      const u    = result.usage as Record<string, unknown>
+      const meta = (result as any).experimental_providerMetadata as Record<string, unknown> | undefined
+      breakdown  = extractTokenBreakdown(u, meta)
+      finishReason = String((result as any).finishReason ?? "")
+      newMessages = result.response.messages
+    }
+
+    return { fullText, breakdown, finishReason, newMessages, providerId: attemptProviderId, modelId: attemptModelId }
+  }
+
+  // --- Fallback zinciri sadece cfg.fallback.enabled + provider listesi varsa devrede ---
+  // Kapalıyken davranış değişmez: tek provider, withRetry ile 429 retry'i.
+  const fallbackEnabled = !!(cfg.fallback?.enabled && (cfg.fallback.providers?.length ?? 0) > 0)
+
+  let attemptResult: AttemptResult
+  if (fallbackEnabled) {
+    const { result, provider: resolvedProvider, switchedFrom } =
+      await withFallback(providerName, (attemptProviderId) => runOneAttempt(attemptProviderId))
+    attemptResult = result
+    if (switchedFrom) opts.onProviderFallback?.(switchedFrom, resolvedProvider)
   } else {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result = await withRetry(() => generateText(shared as any))
-    fullText      = result.text
-    opts.onText?.(fullText)
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const step of (result as any).steps ?? []) {
-      for (const tc of step.toolCalls ?? []) {
-        opts.onToolCall?.({ id: tc.toolCallId, tool: tc.toolName, args: tc.args })
-      }
-      for (const tr of step.toolResults ?? []) {
-        opts.onToolResult?.({ id: tr.toolCallId, result: String(tr.result), durationMs: 0 })
-      }
-    }
-
-    const u    = result.usage as Record<string, unknown>
-    const meta = (result as any).experimental_providerMetadata as Record<string, unknown> | undefined
-    breakdown  = extractTokenBreakdown(u, meta)
-    finishReason = String((result as any).finishReason ?? "")
-    newMessages = result.response.messages
+    attemptResult = await withRetry(() => runOneAttempt(providerName))
   }
+
+  const { fullText, breakdown, finishReason, newMessages, providerId: usedProviderName, modelId: usedModelId } = attemptResult
 
   if (sessionId !== undefined && fullText) {
-    SessionManager.ensureExists(sessionId, { provider: providerName, model: modelId })
+    // usedProviderName/usedModelId: fallback devredeyse gerçekten çalışan provider/model
+    // — birincisi değil (billing ve session geçmişi doğru kaynağı yansıtmalı).
+    SessionManager.ensureExists(sessionId, { provider: usedProviderName, model: usedModelId })
     SessionManager.addPart({ sessionId, role: "assistant", type: "text", content: fullText, tokens: breakdown.output })
     SessionManager.recordTurn(sessionId, {
       inputTokens:  breakdown.input,
       outputTokens: breakdown.output,
       cacheTokens:  (breakdown.cacheRead ?? 0) + (breakdown.cacheWrite ?? 0),
-      costUsd:      calculateCostUsd(modelId, breakdown),
-      model:        modelId,
+      costUsd:      calculateCostUsd(usedModelId, breakdown),
+      model:        usedModelId,
     })
   }
 
@@ -544,6 +652,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     tasks: continuationTasks,
     previous: resumedState?.taskLedger,
   })
+  // Faz 2.4: bu turdaki tool çalışmaları failure-cooldown'u güncellemiş olabilir —
+  // turn başında alınan `failureCooldown` snapshot'ı bayattır, taze bir tane çek.
+  const finalFailureCooldown = getFailureCooldownSnapshot(sessionId ?? "")
+  const shouldEscalateNudge = cfg.escalation?.enabled === true
+    && cfg.escalation?.escalateOnRepeatedFailure === true
+    && finalFailureCooldown.active.length > 0
+
   const longTask = evaluateLongTaskContinuation({
     text: fullText,
     ledger: taskLedger,
@@ -554,6 +669,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
       previousContinuations: continuation.previousContinuations,
     },
     taskIntent: taskContinuationTurn,
+    escalateReasoning: shouldEscalateNudge,
   })
   if (longTask.shouldContinue && !completionGate.shouldAutoContinue && !completionGate.shadowOnly) {
     completionGate.status = longTask.reason === "budget_exhausted" ? "budget_exhausted" : "continue_required"
@@ -580,8 +696,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     writeSessionResumeState({
       sessionId,
       workdir,
-      provider: providerName,
-      model: modelId,
+      provider: usedProviderName,
+      model: usedModelId,
       updatedAt: Date.now(),
       activeSkills: getSkillLifecycleSnapshot(sessionId).stack,
       workingSet: finalWorkingSet,
@@ -615,7 +731,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   // Her turn sonunda memory extraction yap (fire-and-forget)
   // Compaction'dan daha sık çalışır, sadece son birkaç mesaja bakar
   if (fullText && messages.length >= 2) {
-    extractPerTurnMemories(providerName, modelId, messages, workdir).catch(() => {})
+    extractPerTurnMemories(usedProviderName, usedModelId, messages, workdir).catch(() => metrics.recordError("memory_extract"))
   }
 
   return finish
@@ -641,13 +757,14 @@ function extractTokenBreakdown(
 }
 
 // 429 için basit retry — Retry-After header'ı yoksa 15s bekle, max 2 deneme
-// Provider fallback aktifse, fallback zincirini dener
+// NonRetryableStreamError: attempt sırasında tool call zaten çalıştı — asla retry etme
 export async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T> {
   let attempt = 0
   while (true) {
     try {
       return await fn()
     } catch (err) {
+      if (err instanceof NonRetryableStreamError) throw err
       const msg = err instanceof Error ? err.message : String(err)
       const isRateLimit = /429|rate.?limit|too.many/i.test(msg)
       if (!isRateLimit || attempt >= maxRetries) throw err
@@ -658,25 +775,15 @@ export async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promis
   }
 }
 
-// Provider fallback ile retry — fallback aktifse provider değiştirir
+// Provider fallback ile retry — fallback aktifse provider değiştirir.
+// fn provider ID string'i alır (plugin'i kendi çözer); NonRetryableStreamError
+// providerFallback.execute içinde isFallbackTrigger tarafından asla trigger sayılmaz.
 export async function withFallback<T>(
   primaryProvider: string,
   fn: (provider: string) => Promise<T>,
-  maxRetries = 2,
-): Promise<{ result: T; provider: string }> {
-  // Fallback devre dışıysa mevcut withRetry mantığını kullan
+): Promise<{ result: T; provider: string; switchedFrom?: string }> {
   const { providerFallback } = await import("../provider/fallback.js")
-  
-  try {
-    const { result, provider } = await providerFallback.execute(
-      primaryProvider,
-      async (plugin) => fn(plugin.id),
-    )
-    return { result, provider }
-  } catch (err) {
-    // Fallback başarısız — orijinal hatayı fırlat
-    throw err
-  }
+  return providerFallback.execute(primaryProvider, async (plugin) => fn(plugin.id))
 }
 
 function parseRetryAfter(msg: string): number | undefined {

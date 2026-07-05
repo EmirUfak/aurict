@@ -167,6 +167,46 @@ describe("long task runtime", () => {
     expect(isTaskContinuationTurn("devam et ve testleri çalıştır")).toBe(true)
     expect(isTaskContinuationTurn("version bump yap")).toBe(true)
   })
+
+  // Faz 2.4 — tekrarlayan başarısızlıkta nudge'a "maximum reasoning" notu eklenir
+  it("escalateReasoning=true iken nudge'a maximum reasoning notu ekler", () => {
+    const ledger = buildTaskLedger({
+      objective: "fix tests",
+      workingSet: workingSetWithChangedFile(),
+      continuation: completeContinuation,
+    })
+    const decision = evaluateLongTaskContinuation({
+      text: "Done.",
+      ledger,
+      completionGate: completeGate,
+      continuation: completeContinuation,
+      config: resolveLongTaskRuntimeConfig({ longTaskRuntime: { mode: "soft" } }),
+      budget: { previousContinuations: 0 },
+      escalateReasoning: true,
+    })
+
+    expect(decision.shouldContinue).toBe(true)
+    expect(decision.nudge).toContain("maximum reasoning")
+    expect(decision.nudge).toContain("failed repeatedly")
+  })
+
+  it("escalateReasoning verilmediğinde (varsayılan) nudge'da eskalasyon notu olmaz", () => {
+    const ledger = buildTaskLedger({
+      objective: "fix tests",
+      workingSet: workingSetWithChangedFile(),
+      continuation: completeContinuation,
+    })
+    const decision = evaluateLongTaskContinuation({
+      text: "Done.",
+      ledger,
+      completionGate: completeGate,
+      continuation: completeContinuation,
+      config: resolveLongTaskRuntimeConfig({ longTaskRuntime: { mode: "soft" } }),
+      budget: { previousContinuations: 0 },
+    })
+
+    expect(decision.nudge).not.toContain("maximum reasoning")
+  })
 })
 
 function workingSetWithChangedFile(): WorkingSetSnapshot {

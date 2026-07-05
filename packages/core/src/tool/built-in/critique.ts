@@ -1,7 +1,21 @@
 import { z } from "zod"
 import { agentPool } from "../../agent/pool.js"
 import { AGENT_TYPE_TOOLS } from "../../agent/protocol.js"
+import { ProviderRegistry } from "../../provider/registry.js"
+import { loadConfig } from "../../config/config.js"
+import { resolveCritiqueRequired } from "../../agent/working-set.js"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
+
+// Faz 4.2: düşman/adversarial reviewer persona — critique.adversarial açıkken
+// aynı modelden ikinci, bağımsız ve şüpheci bir görüş almak için normal
+// critic instructions'ının sonuna eklenir.
+const ADVERSARIAL_SUFFIX = `
+
+## Adversarial Mode
+You are a hostile senior reviewer who assumes this content is wrong and is actively trying to
+prove it. Do not be polite or balanced — find every plausible way this could fail, be exploited,
+or break under edge cases. Default to skepticism, not approval. If you genuinely cannot find
+anything wrong after really trying, say so explicitly — but only after trying hard.`
 
 // ── Loop prevention ───────────────────────────────────────────────────────────
 // sessionId → toplam critique çağrısı sayısı
@@ -175,6 +189,11 @@ export const critiqueTool: ToolDef = {
       return { output: "", error: "content is required — provide the code, plan, or description to review." }
     }
 
+    // Faz 4.2: critique gerçekten çağrıldı — working-set'teki (varsa) bekleyen
+    // zorunlu-critique kaydını çöz. Aşağıdaki her çıkış yolu (throttle/başarı/
+    // hata) için geçerli: model bir kez denedi, sonsuz nag döngüsü oluşmasın.
+    resolveCritiqueRequired(sid)
+
     // ── Loop prevention ───────────────────────────────────────────────────────
     const sessionTotal = critiqueCount.get(sid) ?? 0
     if (sessionTotal >= MAX_CRITIQUE_PER_SESSION) {
@@ -196,18 +215,21 @@ export const critiqueTool: ToolDef = {
     taskCritiqueCount.set(tHash, taskTotal + 1)
 
     const criticInstructions = CRITIC_PROMPTS[target] ?? CRITIC_PROMPTS["code"]!
-    const criticPrompt = [
-      criticInstructions,
+    const contentBlock = [
       `## Task Context\n${context}`,
       `## Content to Review\n\`\`\`\n${content}\n\`\`\``,
       "\nReview the above content. Be specific. Reference file paths and line numbers where known.",
     ].join("\n\n")
+    const criticPrompt = [criticInstructions, contentBlock].join("\n\n")
 
     const provider = ctx.provider ?? (process.env["ANTHROPIC_API_KEY"] ? "anthropic" : "opencode")
-    const model    = ctx.model ?? "claude-sonnet-4-6"
+    // BYOK: ctx.model verilmemişse provider'ın kendi varsayılan modelini kullan
+    // (hardcoded Anthropic model id, Anthropic dışı provider'da 400/404 alırdı).
+    const model = ctx.model ?? ProviderRegistry.get(provider).defaultModel()
+    const adversarial = loadConfig(ctx.workdir).critique?.adversarial === true
 
     try {
-      const result = await agentPool.spawn({
+      const primaryResult = await agentPool.spawn({
         id:            `critic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         agentType:     "critic",
         desc:          `Critic [${target}]`,
@@ -220,7 +242,29 @@ export const critiqueTool: ToolDef = {
         allowedTools:  AGENT_TYPE_TOOLS["critic"],
       })
 
-      return { output: `[critique:${target}]\n\n${result}` }
+      if (!adversarial) {
+        return { output: `[critique:${target}]\n\n${primaryResult}` }
+      }
+
+      // Faz 4.2c: ikinci, bağımsız ve düşman bir persona ile aynı modeli tekrar
+      // çağır. Tek modelden iki bağımsız bakış = self-consistency.
+      const adversarialPrompt = [criticInstructions + ADVERSARIAL_SUFFIX, contentBlock].join("\n\n")
+      const adversarialResult = await agentPool.spawn({
+        id:            `critic-adv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        agentType:     "critic",
+        desc:          `Critic [${target}] (adversarial)`,
+        prompt:        adversarialPrompt,
+        provider,
+        model,
+        workdir:       ctx.workdir,
+        sessionId:     sid,
+        workerSessionId: `critic-adv-${sid.slice(0, 8)}-${Date.now()}`,
+        allowedTools:  AGENT_TYPE_TOOLS["critic"],
+      })
+
+      return {
+        output: `[critique:${target}]\n\n${primaryResult}\n\n---\n\n[critique:${target}:adversarial]\n\n${adversarialResult}`,
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       // Critic başarısız → main flow devam etsin, engel olmasın

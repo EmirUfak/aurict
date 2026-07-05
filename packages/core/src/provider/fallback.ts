@@ -10,6 +10,19 @@ import type { ProviderPlugin } from "./plugin.js"
 
 export type FallbackTrigger = "429" | "503" | "timeout" | "auth_error"
 
+/**
+ * Bir attempt sırasında en az bir tool call zaten çalıştıysa (gerçek yan etkiler
+ * oluştu — dosya yazıldı, komut çalıştı) fırlatılır. isFallbackTrigger bunu asla
+ * retry/fallback tetikleyicisi saymaz: attempt'i baştan tekrarlamak aynı tool
+ * çağrılarını ikinci kez tetikleyip yan etkileri ikiye katlayabilir.
+ */
+export class NonRetryableStreamError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "NonRetryableStreamError"
+  }
+}
+
 export interface FallbackConfig {
   enabled: boolean
   providers: string[]           // Fallback sırası (primary hariç)
@@ -139,8 +152,9 @@ export class ProviderFallback {
    * Hata fallback trigger'larından biri mi?
    */
   private isFallbackTrigger(err: Error): boolean {
+    if (err instanceof NonRetryableStreamError) return false
     const msg = err.message.toLowerCase()
-    
+
     for (const trigger of this.config.triggerOn) {
       switch (trigger) {
         case "429":

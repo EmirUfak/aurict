@@ -1,4 +1,37 @@
 import type { AgentInfo } from "./pool.js"
+import type { TaskComplexity } from "../provider/router.js"
+
+// ── Faz 3A: karmaşıklık-kapılı injection ──────────────────────────────────────
+// Coordinator promptu (~4KB) önceden HER turn'e giriyordu (App.tsx'te
+// coordinatorMode default true) — bu hem "2+2 kaç" gibi trivial turn'lerde
+// gereksiz maliyet hem de opts.system her zaman dolu olduğundan tüm core system
+// bloğunun dynamic (cache dışı) sayılmasına yol açıyordu (bkz. skill/injector.ts
+// buildSystemPromptSections: base truthy ise dynamicPromptSection kullanılıyor).
+// Bu regex, coordinator.ts'in kendi prompt metnindeki "Trigger patterns" bölümünü
+// (2+ boyut, "review the whole project" vb.) kod tarafında yaklaşık olarak yakalar.
+const DIMENSION_WORD_RE = /\b(security|performance|architecture|quality|testing|documentation)\b/gi
+const BROAD_SCAN_RE = /\b(analy[sz]e|audit|scan|review)\b[^.?!]{0,40}\b(whole|entire|all|codebase|project|system)\b/i
+const FIND_ALL_RE = /\bfind all\b/i
+
+/** Kullanıcı metni coordinator promptunun tarif ettiği "multi-dim"/"broad-scan" kalıplarından birine uyuyor mu? */
+export function looksMultiDimensional(userText: string): boolean {
+  if (!userText) return false
+  const dimensionMatches = userText.match(DIMENSION_WORD_RE) ?? []
+  const uniqueDimensions = new Set(dimensionMatches.map(d => d.toLowerCase()))
+  if (uniqueDimensions.size >= 2) return true
+  if (BROAD_SCAN_RE.test(userText)) return true
+  if (FIND_ALL_RE.test(userText)) return true
+  return false
+}
+
+/**
+ * Coordinator promptunun bu turn'e enjekte edilip edilmeyeceğine karar verir.
+ * "complex" seviye VEYA çok-boyutlu/broad-scan bir istek varsa true.
+ */
+export function shouldInjectCoordinatorPrompt(userText: string, complexityLevel: TaskComplexity): boolean {
+  if (complexityLevel === "complex") return true
+  return looksMultiDimensional(userText)
+}
 
 // ── Tool allowlist'leri ───────────────────────────────────────────────────────
 

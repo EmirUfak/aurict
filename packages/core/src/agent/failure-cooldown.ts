@@ -3,6 +3,8 @@ import type { DistilledToolResult } from "../tool/result-distiller.js"
 export interface FailureCooldownEntry {
   fingerprint: string
   tool: string
+  /** Faz 5.1: fingerprint'ten ayrı, doğrudan kullanılabilir path (attention-anchor/persistence için). */
+  path?: string
   count: number
   firstSeenAt: number
   lastSeenAt: number
@@ -26,13 +28,15 @@ export function recordFailureCooldown(
   if (process.env["AURICT_DISABLE_FAILURE_COOLDOWN"] === "1") return null
   if (distilled.status !== "error" && distilled.errors.length === 0) return null
   const key = normalizeSessionId(sessionId)
-  const fingerprint = makeFingerprint(tool, args, distilled)
+  const path = String(args["path"] ?? distilled.filePaths[0] ?? "")
+  const fingerprint = makeFingerprint(tool, path, args, distilled)
   const now = Date.now()
   const byFingerprint = failures.get(key) ?? new Map<string, FailureCooldownEntry>()
   const existing = byFingerprint.get(fingerprint)
   const next: FailureCooldownEntry = {
     fingerprint,
     tool,
+    ...(path ? { path } : {}),
     count: (existing?.count ?? 0) + 1,
     firstSeenAt: existing?.firstSeenAt ?? now,
     lastSeenAt: now,
@@ -72,8 +76,7 @@ export function failureCooldownBlocksRetry(): boolean {
   return process.env["AURICT_ENABLE_FAILURE_COOLDOWN_BLOCK"] === "1"
 }
 
-function makeFingerprint(tool: string, args: Record<string, unknown>, distilled: DistilledToolResult): string {
-  const path = String(args["path"] ?? distilled.filePaths[0] ?? "")
+function makeFingerprint(tool: string, path: string, args: Record<string, unknown>, distilled: DistilledToolResult): string {
   const command = tool === "bash" ? String(args["command"] ?? "").replace(/\s+/g, " ").slice(0, 160) : ""
   const error = (distilled.errors[0] ?? distilled.outputPreview).toLowerCase().replace(/\s+/g, " ").slice(0, 180)
   return `${tool}:${path}:${command}:${error}`

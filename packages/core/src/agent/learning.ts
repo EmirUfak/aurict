@@ -1,15 +1,23 @@
+import { join, dirname } from "node:path"
+import { homedir } from "node:os"
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import type { AgentType } from "./protocol.js"
 
 /**
  * Agent Specialization Learning
- * 
+ *
  * Her agent tipinin performansını takip eder:
  * - Görev tamamlama oranı
  * - Ortalama tool call sayısı
  * - Hata oranı
- * 
+ *
  * Düşük performanslı agent'lara skill önerisi yapar.
+ *
+ * Faz 5.2: agent tipi etkinliği proje-bağımsız bir sinyaldir (bu model/agent
+ * tipinin genel yetkinliği hakkında) — skillScoreStore'un aksine workdir değil
+ * `~/.aurict/agent-perf.json` (home dir) altında, projeler arasında paylaşılır.
  */
+const DEFAULT_PERSIST_PATH = join(homedir(), ".aurict", "agent-perf.json")
 
 export interface AgentPerformance {
   agentType: AgentType
@@ -62,9 +70,45 @@ const SKILL_SUGGESTIONS: Record<AgentType, string[]> = {
 class AgentLearnerImpl {
   private performances = new Map<AgentType, AgentPerformance>()
   private config: AgentLearningConfig
+  /** null = salt in-memory (varsayılan; ad-hoc/test instance'ları diske dokunmaz). */
+  private persistPath: string | null
+  private loaded = false
 
-  constructor(config: Partial<AgentLearningConfig> = {}) {
+  constructor(config: Partial<AgentLearningConfig> = {}, persistPath: string | null = null) {
     this.config = { ...DEFAULT_CONFIG, ...config }
+    this.persistPath = persistPath
+  }
+
+  private ensureLoaded(): void {
+    if (this.loaded) return
+    this.loaded = true
+    if (!this.persistPath) return
+    try {
+      const data = JSON.parse(readFileSync(this.persistPath, "utf8")) as Record<string, AgentPerformance>
+      for (const [type, perf] of Object.entries(data)) {
+        this.performances.set(type as AgentType, perf)
+      }
+    } catch {
+      /* dosya yok/bozuk — boş başla */
+    }
+  }
+
+  private save(): void {
+    if (!this.persistPath) return
+    try {
+      mkdirSync(dirname(this.persistPath), { recursive: true })
+      const data = Object.fromEntries(this.performances.entries())
+      writeFileSync(this.persistPath, JSON.stringify(data, null, 2))
+    } catch {
+      /* persistence opsiyonel — disk yazılamazsa sessizce devam et */
+    }
+  }
+
+  /** Test-only: farklı bir dosyaya izole edip in-memory state'i sıfırlar. */
+  setPersistPathForTests(path: string): void {
+    this.persistPath = path
+    this.loaded = false
+    this.performances.clear()
   }
 
   /**
@@ -76,8 +120,9 @@ class AgentLearnerImpl {
     toolCalls: number,
     durationMs: number,
   ): void {
+    this.ensureLoaded()
     let perf = this.performances.get(agentType)
-    
+
     if (!perf) {
       perf = {
         agentType,
@@ -108,12 +153,14 @@ class AgentLearnerImpl {
     perf.effectivenessScore = Math.round(successRate * 100)
 
     this.performances.set(agentType, perf)
+    this.save()
   }
 
   /**
    * Agent performansını döner.
    */
   getPerformance(agentType: AgentType): AgentPerformance | null {
+    this.ensureLoaded()
     return this.performances.get(agentType) ?? null
   }
 
@@ -121,6 +168,7 @@ class AgentLearnerImpl {
    * Tüm agent performanslarını döner.
    */
   getAllPerformances(): AgentPerformance[] {
+    this.ensureLoaded()
     return [...this.performances.values()]
   }
 
@@ -142,6 +190,7 @@ class AgentLearnerImpl {
    * Agent için skill önerisi döner.
    */
   getSuggestions(agentType: AgentType): string[] {
+    this.ensureLoaded()
     const perf = this.performances.get(agentType)
     if (!perf) return []
 
@@ -208,11 +257,14 @@ class AgentLearnerImpl {
    */
   reset(): void {
     this.performances.clear()
+    this.loaded = true
+    this.save()
   }
 }
 
-export const agentLearner = new AgentLearnerImpl()
+export const agentLearner = new AgentLearnerImpl({}, DEFAULT_PERSIST_PATH)
 
+/** Ad-hoc/test instance'ı: varsayılan olarak in-memory'dir, disk'e dokunmaz. */
 export function createAgentLearner(config?: Partial<AgentLearningConfig>): AgentLearnerImpl {
   return new AgentLearnerImpl(config)
 }

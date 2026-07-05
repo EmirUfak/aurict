@@ -2,6 +2,7 @@ import type { z } from "zod"
 import type { DistilledToolResult } from "./result-distiller.js"
 import type { FailureCooldownEntry } from "../agent/failure-cooldown.js"
 import type { SecurityDistillation } from "../security/distiller.js"
+import type { VerificationCheck, VerificationCheckResult } from "../verification/pipeline.js"
 
 export type ToolCategory = "read" | "write" | "execute" | "network" | "system"
 export type RiskLevel    = "low" | "medium" | "high" | "critical"
@@ -41,13 +42,8 @@ export interface ExecuteResult {
     distilled?: DistilledToolResult
     security?: SecurityDistillation
     failureCooldown?: FailureCooldownEntry
-    verification?: {
-      tsc?: {
-        status: "passed" | "failed" | "skipped" | "timeout"
-        reason?: string
-        output?: string
-      }
-    }
+    // Faz 4.1: tsc dışında dile-agnostik doğrulama check'leri de burada (ruff/mypy/govet/cargo/ruby/rubocop)
+    verification?: Partial<Record<VerificationCheck, VerificationCheckResult>>
     patch?: {
       files: Array<{
         path: string

@@ -36,6 +36,7 @@ import { mermaidTool }     from "./built-in/mermaid-tool.js"
 import { verifyTool }      from "./built-in/verify.js"
 import { scratchpadTool }  from "./built-in/scratchpad.js"
 import { critiqueTool }    from "./built-in/critique.js"
+import { orchestrateTool } from "./built-in/orchestrate.js"
 import { envInspectTool }  from "./built-in/env-inspect.js"
 import { checkpointTool }  from "./built-in/checkpoint.js"
 import { diffViewTool }    from "./built-in/diff-view.js"
@@ -71,7 +72,7 @@ for (const t of [
   loadSkillTool,
   httpRequestTool, jwtDecodeTool, regexTestTool, jqTool,
   pptxTool, renderPdfTool, chartTool, mermaidTool,
-  verifyTool, scratchpadTool, critiqueTool,
+  verifyTool, scratchpadTool, critiqueTool, orchestrateTool,
   envInspectTool, checkpointTool, diffViewTool, fileStatTool, processMonitorTool, patchTestTool,
   trackVariableTaintTool, atomicPatchAndTestTool, inspectLiveProcessTool,
   blastRadiusTool,

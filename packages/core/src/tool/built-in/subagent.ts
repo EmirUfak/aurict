@@ -4,6 +4,7 @@ import { AGENT_TYPE_TOOLS, AGENT_MAX_STEPS } from "../../agent/protocol.js"
 import { getAgentPrompt } from "../../agent/agent-prompts.js"
 import { SessionManager } from "../../session/manager.js"
 import { loadConfig } from "../../config/config.js"
+import { ProviderRegistry } from "../../provider/registry.js"
 import { filterToolIdsForSecurityCapability, isAgentTypeVisibleForSecurityCapability } from "../../security/capability.js"
 import type { AgentType } from "../../agent/protocol.js"
 import type { Part } from "../../session/types.js"
@@ -84,7 +85,10 @@ Focus your prompt on the specific task — no need to repeat what was already di
     const allowedTools = filterToolIdsForSecurityCapability(AGENT_TYPE_TOOLS[agentType], cfg)
 
     const provider  = ctx.provider ?? (process.env["ANTHROPIC_API_KEY"] ? "anthropic" : "opencode")
-    const model     = ctx.model ?? undefined
+    // BYOK: ctx.model verilmemişse provider'ın KENDİ varsayılan modelini kullan.
+    // Önceden Anthropic'e özgü bir model id hardcoded'du — ollama/openrouter gibi
+    // başka provider'larda geçersiz bir model id gönderilip 400/404 alınıyordu.
+    const model     = ctx.model ?? ProviderRegistry.get(provider).defaultModel()
     const sessionId = ctx.sessionId ?? "main"
 
     const recentParts   = SessionManager.getPartsTail(sessionId, 12)
@@ -100,7 +104,7 @@ Focus your prompt on the specific task — no need to repeat what was already di
         desc:            role,
         prompt,
         provider,
-        model:           model ?? "claude-sonnet-4-6",
+        model,
         workdir:         ctx.workdir,
         sessionId,
         workerSessionId: `${id}-session`,
@@ -114,7 +118,7 @@ Focus your prompt on the specific task — no need to repeat what was already di
         const { runAgent } = await import("../../agent/loop.js")
         const r = await runAgent({
           provider,
-          ...(model !== undefined ? { model } : {}),
+          model,
           workdir:  ctx.workdir,
           system:   getAgentPrompt(agentType, AGENT_MAX_STEPS[agentType]),
           messages: [{ role: "user", content: prompt }],

@@ -247,8 +247,11 @@ export { decomposeTask, flattenTaskTree, getTaskProgress } from "./agent/decompo
 export type { TaskNode, DecompositionLevel, DecompositionRequest } from "./agent/decomposition.js"
 export { agentLearner, createAgentLearner } from "./agent/learning.js"
 export type { AgentPerformance, AgentLearningConfig } from "./agent/learning.js"
-export { contextBus, createContextBus } from "./agent/context-bus.js"
-export type { FileLock, ContextBusConfig } from "./agent/context-bus.js"
+// Faz 3C: context-bus.ts silindi — in-memory lock'u agentPool'un ayrı Worker
+// thread mimarisi yüzünden hiçbir çakışmayı önlemiyordu (0 gerçek kullanıcı).
+// Yerini dosya-tabanlı agent/file-lock.ts aldı.
+export { acquireFileLock, releaseFileLock, getFileLockInfo } from "./agent/file-lock.js"
+export type { FileLockInfo } from "./agent/file-lock.js"
 export { computeOptimalWorkers, adjustForComplexity, getPoolSizingReport } from "./agent/pool-sizing.js"
 export type { PoolSizingConfig } from "./agent/pool-sizing.js"
 

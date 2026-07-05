@@ -5,6 +5,7 @@ import { loadConfig }     from "../config/config.js"
 import type { Session }   from "../session/types.js"
 import type { WorkerRequest, WorkerMessage, WorkerControl, AgentType } from "./protocol.js"
 import { AGENT_TYPE_TOOLS } from "./protocol.js"
+import { agentLearner }   from "./learning.js"
 
 export class PoolFullError extends Error {
   constructor(max: number) {
@@ -130,6 +131,7 @@ class AgentPool {
     return setTimeout(() => {
       const entry = this.entries.get(id)
       if (!entry) return
+      agentLearner.recordTask(entry.info.type, false, entry.info.toolCount, Date.now() - entry.info.startedAt)
       this.terminate(id, "timeout")
       entry.reject(new Error(`Agent ${id} timed out`))
     }, ms)
@@ -353,6 +355,7 @@ class AgentPool {
         SessionManager.end(sessionId, "complete")
         hooks.emit("v1.agent.complete", { childSessionId: sessionId, result: msg.result })
         sseManager.emit(parentSessionId, { type: "agent_done", data: { id, result: msg.result } })
+        agentLearner.recordTask(entry.info.type, true, entry.info.toolCount, Date.now() - entry.info.startedAt)
         this.entries.delete(id)
         this.byName.delete(entry.info.name.toLowerCase())
         this.notify()
@@ -369,6 +372,7 @@ class AgentPool {
         SessionManager.end(sessionId, "error")
         hooks.emit("v1.agent.error", { childSessionId: sessionId, error: msg.message })
         sseManager.emit(parentSessionId, { type: "agent_error", data: { id, error: msg.message } })
+        agentLearner.recordTask(entry.info.type, false, entry.info.toolCount, Date.now() - entry.info.startedAt)
         this.entries.delete(id)
         this.byName.delete(entry.info.name.toLowerCase())
         this.notify()

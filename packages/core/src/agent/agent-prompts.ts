@@ -1,4 +1,5 @@
 import type { AgentType } from "./protocol.js"
+import { agentLearner } from "./learning.js"
 
 export const AGENT_TYPE_PROMPTS: Record<AgentType, string> = {
 
@@ -1009,7 +1010,14 @@ Run before and after every transformation:
 
 export function getAgentPrompt(type: AgentType, maxSteps: number): string {
   const prompt = AGENT_TYPE_PROMPTS[type]
-  return type === "coordinator"
+  const base = type === "coordinator"
     ? prompt.replace("You have 10 steps.", `You have ${maxSteps} steps.`)
     : prompt
+
+  // Faz 5.2: bu agent tipi bu projede/geçmişte düşük başarı oranı gösterdiyse,
+  // ilgili skill'leri açıkça öner — model kendi zayıf noktasını telafi eder.
+  const suggestions = agentLearner.getSuggestions(type)
+  if (suggestions.length === 0) return base
+
+  return `${base}\n\n### Performance note\nPast runs of this agent type had a lower-than-expected success rate. Consider loading these skills if relevant: ${suggestions.join(", ")}.`
 }

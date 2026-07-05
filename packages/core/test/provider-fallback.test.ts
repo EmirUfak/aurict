@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "bun:test"
-import { ProviderFallback, DEFAULT_FALLBACK_CONFIG } from "../src/provider/fallback.js"
+import { ProviderFallback, DEFAULT_FALLBACK_CONFIG, NonRetryableStreamError } from "../src/provider/fallback.js"
 import type { ProviderPlugin } from "../src/provider/plugin.js"
 
 describe("ProviderFallback", () => {
@@ -107,6 +107,24 @@ describe("ProviderFallback", () => {
       })
 
       expect(result.provider).toBe("openai")
+    })
+
+    it("never treats NonRetryableStreamError as a fallback trigger, even if its message matches a trigger pattern", async () => {
+      const fallback = new ProviderFallback({
+        enabled: true,
+        providers: ["openai"],
+        triggerOn: ["429"],
+        maxRetries: 1,
+        retryDelayMs: 10,
+      })
+
+      // Mesaj literal olarak "429" içeriyor — ama NonRetryableStreamError olduğu
+      // için ne retry ne fallback tetiklenmeli (tool call zaten çalışmış demektir).
+      await expect(
+        fallback.execute("anthropic", async () => {
+          throw new NonRetryableStreamError("429 rate limit exceeded — tool calls already ran")
+        })
+      ).rejects.toThrow("tool calls already ran")
     })
 
     it("throws non-trigger errors immediately", async () => {

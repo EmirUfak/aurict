@@ -85,7 +85,13 @@ export class ModelRouter {
 
   /**
    * Task complexity'yi tespit et.
-   * 
+   *
+   * Not (Faz 2): `agent/complexity.ts:assessComplexity` artık asıl canlı yoldaki
+   * (loop.ts) tek karmaşıklık kaynağı — orası ham metin alıp actionable-regex de
+   * çalıştırabiliyor. Bu metod sadece `lastMessageLength` (sayı) aldığı için
+   * bire bir delege edilemiyor; ModelRouter hâlâ hiçbir yerden çağrılmadığından
+   * (dead code) burada eski, bağımsız haliyle bırakıldı.
+   *
    * @param messageCount Mesaj sayısı
    * @param toolCallCount Tool çağrı sayısı
    * @param hasAttachments Dosya eki var mı

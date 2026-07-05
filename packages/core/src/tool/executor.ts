@@ -13,15 +13,19 @@ import { toolResultCache } from "./cache.js"
 import { metrics } from "../util/metrics.js"
 import { shouldRunTsc, runIncrementalTsc, filterTscForFile } from "../verification/tsc.js"
 import { detectHallucinations, formatHallucinationWarnings } from "../verification/hallucination.js"
-import { withTscVerification } from "../verification/pipeline.js"
+import { withTscVerification, withVerification } from "../verification/pipeline.js"
+import { runLanguageChecks } from "../verification/language-runners.js"
+import { loadConfig } from "../config/config.js"
 import { progressTracker, getToolProgressMessage } from "../util/progress.js"
 import { prefetchManager, extractPrefetchHints } from "../util/prefetch.js"
 import { changedFileAffectsSkillCache, invalidatePromptSectionsForChangedFile } from "../agent/prompt-invalidation.js"
 import { clearSkillCache } from "../skill/injector.js"
 import { isToolAllowedByActiveSkillPolicy } from "../skill/runtime-policy.js"
 import { distillToolResult } from "./result-distiller.js"
-import { updateWorkingSetFromTool } from "../agent/working-set.js"
+import { updateWorkingSetFromTool, recordLinesChangedForCritique } from "../agent/working-set.js"
+import { acquireFileLock, releaseFileLock } from "../agent/file-lock.js"
 import { recordFailureCooldown } from "../agent/failure-cooldown.js"
+import { failedStrategiesStore } from "../agent/failed-strategies-store.js"
 import { recordRunTrace } from "../agent/run-trace.js"
 import type { ToolDef, ToolContext, ExecuteResult } from "./types.js"
 import type { PermissionRequest, PermissionResponse } from "../permission/types.js"
@@ -536,6 +540,24 @@ export async function executeTool(
     }
   }
 
+  // --- Faz 3C: worker'lar arası dosya lock'u ---
+  // Sadece worker/subagent session'larında (ctx.isSubagent) devreye girer — solo
+  // ana session'da overhead yok. agentPool.spawn her worker'ı AYRI bir Worker
+  // thread'de çalıştırdığından (bkz. agent/pool.ts) in-memory bir lock hiçbir
+  // çakışmayı önlemez; bu yüzden dosya tabanlı bir lock kullanılıyor.
+  const lockTargetPath = (def.id === "edit" || def.id === "write") ? String(args["path"] ?? "") : ""
+  let fileLockAcquired = false
+  if (ctx.isSubagent && lockTargetPath) {
+    const absLockPath = resolve(ctx.workdir, lockTargetPath)
+    fileLockAcquired = await acquireFileLock(ctx.workdir, absLockPath, ctx.sessionId, ctx.sessionId)
+    if (!fileLockAcquired) {
+      return {
+        output: "",
+        error: `[file-lock] '${lockTargetPath}' is currently being edited by another worker. Wait and retry, or work on a different file.`,
+      }
+    }
+  }
+
   // --- Faz 6: Progress tracking başlat ---
   const progressMessage = getToolProgressMessage(def.id, args)
   progressTracker.start(def.id, progressMessage)
@@ -566,6 +588,10 @@ export async function executeTool(
     result    = { output: "", error: execError }
   } finally {
     ctx.signal.removeEventListener("abort", mirrorFn)
+    if (fileLockAcquired) {
+      const absLockPath = resolve(ctx.workdir, lockTargetPath)
+      releaseFileLock(ctx.workdir, absLockPath, ctx.sessionId).catch(() => {})
+    }
   }
 
   // --- Faz 6: Progress tracking bitir ---
@@ -626,6 +652,24 @@ export async function executeTool(
   // --- Dual-path: TypeScript verification after edit/write ---
   if (!result.error && (def.id === "edit" || def.id === "write")) {
     const filePath = String(args["path"] ?? "")
+    const postEditCfg = loadConfig(ctx.workdir)
+
+    // Faz 4.2: zorunlu adversarial critique — dil bağımsız, kritik-yol kod
+    // hacmini (bu edit/write'ın değiştirdiği satır sayısı) session bazında
+    // biriktirir. Sadece critique.enabled true iken devrede (kaynağında kapalı).
+    if (postEditCfg.critique?.enabled === true) {
+      const changedText = def.id === "write" ? String(args["content"] ?? "") : String(args["new_string"] ?? "")
+      const linesChangedEstimate = changedText ? changedText.split("\n").length : 0
+      if (linesChangedEstimate > 0) {
+        recordLinesChangedForCritique(
+          ctx.sessionId,
+          [filePath],
+          linesChangedEstimate,
+          postEditCfg.critique.minLinesForAuto ?? 50,
+        )
+      }
+    }
+
     if (TYPED_FILE_RE.test(filePath)) {
       const absPath = resolve(ctx.workdir, filePath)
       let postWriteContent: string
@@ -677,6 +721,42 @@ export async function executeTool(
       } catch {
         // Hallucination detection hatası tool sonucunu engellemez
       }
+    } else {
+      // Faz 4.1: dile-agnostik doğrulama — TSC'nin TS/JS için yaptığının Python/
+      // Go/Rust/Ruby muadili. Runner yoksa (binary kurulu değil) sessizce
+      // "skipped" — hiçbir proje bu araçları kurmaya zorlanmaz.
+      const absPath = resolve(ctx.workdir, filePath)
+      const verificationCfg = postEditCfg.verification
+      try {
+        const checks = await withTimeout(
+          runLanguageChecks(absPath, ctx.workdir, {
+            ...(verificationCfg?.languages ? { languages: verificationCfg.languages } : {}),
+            ...(verificationCfg?.autoLint !== undefined ? { autoLint: verificationCfg.autoLint } : {}),
+          }),
+          POST_EDIT_TSC_TIMEOUT_MS,
+        )
+        for (const check of checks) {
+          result = withVerification(result, check.checkId, {
+            status: check.status,
+            ...(check.reason ? { reason: check.reason } : {}),
+            ...(check.output ? { output: check.output } : {}),
+          })
+          if (check.status === "failed") {
+            result = { ...result, output: result.output + `\n\n[${check.checkId}] failed — errors in this file after edit:\n${check.output ?? ""}` }
+          } else if (check.status === "passed") {
+            result = { ...result, output: result.output + `\n[${check.checkId}] ✓ no errors` }
+          } else if (check.status === "skipped") {
+            // "not installed" reason'ı completion-gate'in environmental-skip
+            // tanımasıyla eşleşir — asla tamamlanamayacak bir continuation
+            // döngüsü oluşturmaz (bkz. completion-gate.ts).
+            result = { ...result, output: result.output + `\n[${check.checkId}] skipped — ${check.reason ?? "unavailable"}` }
+          } else if (check.status === "timeout") {
+            result = { ...result, output: result.output + `\n[${check.checkId}] skipped (post-edit check timed out)` }
+          }
+        }
+      } catch {
+        // Dile-agnostik doğrulama hatası tool sonucunu asla engellemez
+      }
     }
   }
 
@@ -714,6 +794,11 @@ export async function executeTool(
 
   const distilled = distillToolResult(def.id, args, result)
   const cooldown = recordFailureCooldown(ctx.sessionId, def.id, args, distilled)
+  // Faz 5.1b: strategyShiftRequired olmuş bir strateji projenin KENDİ .aurict/'ine
+  // kalıcı olarak yazılır — session bittiğinde kaybolmaz, gelecek session'lar uyarılır.
+  if (cooldown?.strategyShiftRequired) {
+    failedStrategiesStore.record(ctx.workdir, cooldown)
+  }
   result = {
     ...result,
     metadata: {

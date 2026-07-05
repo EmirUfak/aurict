@@ -7,6 +7,7 @@ export type CompletionGateStatus =
   | "continue_required"
   | "blocked"
   | "verification_required"
+  | "critique_required"
   | "budget_exhausted"
 
 export interface CompletionGateDecision {
@@ -41,10 +42,19 @@ export function evaluateCompletionGate(input: CompletionGateInput): CompletionGa
   const allowTaskAutoContinue = input.allowTaskAutoContinue ?? true
 
   const changedFiles = input.workingSet.items.filter(item => item.kind === "file" && item.reason === "changed file")
-  const failedVerification = input.workingSet.items.find(item => item.kind === "verification" && item.status === "failed")
+  const verificationItems = input.workingSet.items.filter(item => item.kind === "verification")
+  const failedVerification = verificationItems.find(item => item.status === "failed")
   const skippedRisky = input.verification?.status === "timeout"
   const hasPassedVerification = input.verification?.status === "passed" ||
-    input.workingSet.items.some(item => item.kind === "verification" && item.status === "passed")
+    verificationItems.some(item => item.status === "passed")
+
+  // Faz 4.1: bir dil için doğrulama aracı kurulu değilse (ör. mypy/ruff yok) bu
+  // çevresel bir kısıttır, modelin çözebileceği bir şey değil — working-set'teki
+  // TÜM verification item'ları "not installed" nedeniyle skip edildiyse (hiçbiri
+  // failed değilse), TSC'nin "non-type change" skip'i gibi kabul edilebilir sayılır.
+  // Aksi halde araç kurulu olmayan her proje sonsuz "verification gerekli" döngüsüne girer.
+  const hasOnlyEnvironmentalSkips = verificationItems.length > 0 &&
+    verificationItems.every(item => item.status === "passed" || (item.status === "skipped" && /not installed/i.test(item.label)))
 
   if (failedVerification) {
     return {
@@ -55,7 +65,8 @@ export function evaluateCompletionGate(input: CompletionGateInput): CompletionGa
     }
   }
   if (changedFiles.length > 0 && !hasPassedVerification) {
-    const safeSkip = input.verification?.status === "skipped" && /non-type change|comment/i.test(input.verification.summary)
+    const safeSkip = (input.verification?.status === "skipped" && /non-type change|comment/i.test(input.verification.summary))
+      || hasOnlyEnvironmentalSkips
     if (!safeSkip) {
       return {
         status: "verification_required",
@@ -63,6 +74,19 @@ export function evaluateCompletionGate(input: CompletionGateInput): CompletionGa
         reason: !allowTaskAutoContinue ? "changed files outside task turn" : skippedRisky ? "verification timed out" : "changed files lack passing verification",
         shadowOnly: !allowTaskAutoContinue || process.env["AURICT_COMPLETION_GATE_SHADOW"] === "1",
       }
+    }
+  }
+
+  // Faz 4.2: zorunlu adversarial critique — executor.ts sadece critique.enabled
+  // true iken bu working-set item'ını oluşturur, o yüzden burada ek bir config
+  // kontrolüne gerek yok (kaynağında kapalı).
+  const pendingCritique = input.workingSet.items.find(item => item.kind === "critique" && item.status === "active")
+  if (pendingCritique) {
+    return {
+      status: "critique_required",
+      shouldAutoContinue: allowTaskAutoContinue,
+      reason: allowTaskAutoContinue ? "critique_required" : "critique pending outside task turn",
+      shadowOnly: !allowTaskAutoContinue,
     }
   }
 

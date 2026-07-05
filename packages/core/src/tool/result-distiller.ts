@@ -31,6 +31,9 @@ export function distillToolResult(
     ...extractPaths(text),
   ]).slice(0, 20)
   const errors = collectLines(text, /\b(error|failed|exception|enoent|cannot find|not assignable|permission denied|ts\d+)\b/i, 8)
+  // Not (Faz 4.1): dile-agnostik runner çıktıları (executor.ts) bilerek "passed|failed|
+  // skipped|✓ no errors" kelimelerini kullanır, bu yüzden bu genel regex onları da
+  // tsc gibi otomatik yakalar — check ismine özel bir dal eklemeye gerek yok.
   const verification = collectLines(text, /\b(type.?script|tsc|bun test|vitest|jest|playwright|passed|failed|0 fail|✓ no errors|skipped)\b/i, 8)
   const importantLines = collectImportantLines(text, tool, 10)
   const status: DistilledToolStatus = result.error ? "error" : "success"

@@ -1,6 +1,6 @@
 import type { DistilledToolResult } from "../tool/result-distiller.js"
 
-export type WorkingSetKind = "file" | "test" | "command" | "error" | "decision" | "verification"
+export type WorkingSetKind = "file" | "test" | "command" | "error" | "decision" | "verification" | "critique"
 
 export interface WorkingSetItem {
   id: string
@@ -20,6 +20,8 @@ export interface WorkingSetSnapshot {
 }
 
 const workingSets = new Map<string, Map<string, WorkingSetItem>>()
+// Faz 4.2: son critique'ten (veya session başından) beri biriken değişen satır sayısı.
+const critiqueLineCounters = new Map<string, number>()
 
 export function updateWorkingSetFromTool(
   sessionId: string,
@@ -84,6 +86,57 @@ export function updateWorkingSetFromTool(
   return getWorkingSetSnapshot(sessionId)
 }
 
+// Faz 4.2: zorunlu adversarial critique — büyük bir değişiklikten sonra
+// bekleyen bir critique kaydı bırakır. completion-gate bunu görüp critique
+// çalışana kadar auto-continue tetikler.
+export function markCritiqueRequired(sessionId: string, changedFiles: string[], linesChanged: number): WorkingSetSnapshot {
+  if (isDisabled()) return getWorkingSetSnapshot(sessionId)
+  upsert(sessionId, {
+    id: "critique:pending",
+    kind: "critique",
+    label: `${linesChanged} critical-path lines changed in ${changedFiles.slice(0, 5).join(", ") || "this turn"}`,
+    score: 90,
+    lastSeenAt: Date.now(),
+    source: "executor",
+    reason: "large change requires adversarial review",
+    status: "active",
+  })
+  return getWorkingSetSnapshot(sessionId)
+}
+
+/** critique tool çalıştığında bekleyen kaydı çözülmüş olarak işaretler. */
+export function resolveCritiqueRequired(sessionId: string): WorkingSetSnapshot {
+  if (isDisabled()) return getWorkingSetSnapshot(sessionId)
+  const set = workingSets.get(normalizeSessionId(sessionId))
+  const existing = set?.get("critique:pending")
+  if (existing) set!.set("critique:pending", { ...existing, status: "resolved", lastSeenAt: Date.now() })
+  critiqueLineCounters.delete(normalizeSessionId(sessionId))
+  return getWorkingSetSnapshot(sessionId)
+}
+
+/**
+ * Her edit/write çağrısında değişen satır sayısını session bazında biriktirir;
+ * eşik (minLinesForAuto) aşılınca markCritiqueRequired'ı tetikler ve sayacı
+ * sıfırlar. Tek büyük bir edit yerine birden fazla küçük edit'in toplamda
+ * kritik-yol kodunu büyük ölçüde değiştirdiği durumu da yakalar.
+ */
+export function recordLinesChangedForCritique(
+  sessionId: string,
+  changedFiles: string[],
+  linesChanged: number,
+  minLinesForAuto: number,
+): WorkingSetSnapshot {
+  if (isDisabled() || linesChanged <= 0) return getWorkingSetSnapshot(sessionId)
+  const key = normalizeSessionId(sessionId)
+  const total = (critiqueLineCounters.get(key) ?? 0) + linesChanged
+  if (total >= Math.max(1, minLinesForAuto)) {
+    critiqueLineCounters.set(key, 0)
+    return markCritiqueRequired(sessionId, changedFiles, total)
+  }
+  critiqueLineCounters.set(key, total)
+  return getWorkingSetSnapshot(sessionId)
+}
+
 export function restoreWorkingSet(sessionId: string, snapshot?: WorkingSetSnapshot | null): void {
   const key = normalizeSessionId(sessionId)
   if (!snapshot || snapshot.items.length === 0) {
@@ -104,8 +157,13 @@ export function getWorkingSetSnapshot(sessionId: string, limit = 24): WorkingSet
 }
 
 export function clearWorkingSet(sessionId?: string): void {
-  if (sessionId === undefined) workingSets.clear()
-  else workingSets.delete(normalizeSessionId(sessionId))
+  if (sessionId === undefined) {
+    workingSets.clear()
+    critiqueLineCounters.clear()
+  } else {
+    workingSets.delete(normalizeSessionId(sessionId))
+    critiqueLineCounters.delete(normalizeSessionId(sessionId))
+  }
 }
 
 function upsert(sessionId: string, item: WorkingSetItem): void {

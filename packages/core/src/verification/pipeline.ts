@@ -1,6 +1,7 @@
 import type { ExecuteResult } from "../tool/types.js"
 
-export type VerificationCheck = "tsc"
+// Faz 4.1: TS/JS dışı diller için de post-edit doğrulama — dile-agnostik.
+export type VerificationCheck = "tsc" | "ruff" | "mypy" | "govet" | "cargo" | "ruby" | "rubocop"
 export type VerificationStatus = "passed" | "failed" | "skipped" | "timeout"
 
 export interface VerificationCheckResult {
@@ -33,11 +34,31 @@ export function withTscVerification(
   return withVerification(result, "tsc", checkResult)
 }
 
+const ALL_CHECKS: VerificationCheck[] = ["tsc", "ruff", "mypy", "govet", "cargo", "ruby", "rubocop"]
+
+/**
+ * Bir tool sonucundaki TÜM doğrulama kontrollerini (tsc + dile-agnostik
+ * runner'lar) özetler. Önceden sadece .tsc okunuyordu — Python/Go/Rust/Ruby
+ * projelerinde hiçbir doğrulama sinyali completion-gate'e ulaşmıyordu.
+ * Birden fazla check varsa en kötü durumu (failed > timeout > skipped > passed)
+ * öne çıkarır; her check'in özetini "check:status" olarak birleştirir.
+ */
 export function verificationSummary(result: ExecuteResult): string {
-  const tsc = result.metadata?.verification?.tsc
-  if (!tsc) return "not_verified"
-  if (tsc.status === "passed") return "verified:tsc"
-  if (tsc.status === "failed") return "failed:tsc"
-  if (tsc.status === "timeout") return "timeout:tsc"
-  return `skipped:tsc${tsc.reason ? `:${tsc.reason}` : ""}`
+  const verification = result.metadata?.verification
+  if (!verification) return "not_verified"
+
+  const entries = ALL_CHECKS
+    .map((check) => ({ check, result: verification[check] }))
+    .filter((entry): entry is { check: VerificationCheck; result: VerificationCheckResult } => !!entry.result)
+
+  if (entries.length === 0) return "not_verified"
+
+  const parts = entries.map(({ check, result: r }) => {
+    if (r.status === "passed")  return `verified:${check}`
+    if (r.status === "failed")  return `failed:${check}`
+    if (r.status === "timeout") return `timeout:${check}`
+    return `skipped:${check}${r.reason ? `:${r.reason}` : ""}`
+  })
+
+  return parts.join(", ")
 }

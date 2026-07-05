@@ -8,6 +8,7 @@ export type LongTaskContinuationReason =
   | "not_task_turn"
   | "completion_gate"
   | "verification_pending"
+  | "critique_required"
   | "recovery_required"
   | "open_steps"
   | "future_tense"
@@ -35,6 +36,9 @@ export interface EvaluateLongTaskContinuationInput {
   config: ResolvedLongTaskRuntimeConfig
   budget: LongTaskBudgetState
   taskIntent?: boolean | undefined
+  /** Faz 2.4: tekrarlayan başarısızlık + escalation.escalateOnRepeatedFailure aktifse
+   *  nudge'a "maximum reasoning kullan" notu eklenir. */
+  escalateReasoning?: boolean | undefined
 }
 
 export function evaluateLongTaskContinuation(input: EvaluateLongTaskContinuationInput): LongTaskContinuationDecision {
@@ -58,6 +62,9 @@ export function evaluateLongTaskContinuation(input: EvaluateLongTaskContinuation
   }
   if (ledger.phase === "blocked" || input.completionGate.status === "blocked") {
     return { shouldContinue: false, reason: "blocked", phase: ledger.phase, shadowOnly: false }
+  }
+  if (input.completionGate.status === "critique_required" && input.completionGate.shouldAutoContinue) {
+    return continueDecision("critique_required", input)
   }
   if (input.continuation.shouldContinue || input.completionGate.shouldAutoContinue) {
     return continueDecision("completion_gate", input)
@@ -84,17 +91,19 @@ function continueDecision(reason: LongTaskContinuationReason, input: EvaluateLon
     reason,
     phase: input.ledger.phase,
     shadowOnly: input.config.mode === "shadow",
-    nudge: buildNudge(reason, input.ledger),
+    nudge: buildNudge(reason, input.ledger, input.escalateReasoning),
   }
 }
 
-function buildNudge(reason: LongTaskContinuationReason, ledger: TaskLedger): string {
+function buildNudge(reason: LongTaskContinuationReason, ledger: TaskLedger, escalateReasoning?: boolean): string {
   const parts = [
     "Continue the task. Do not summarize yet.",
     `Current phase: ${ledger.phase}.`,
   ]
   if (reason === "verification_pending") {
     parts.push("Changed files exist and passing verification is missing. Run relevant verification or explain a real blocker.")
+  } else if (reason === "critique_required") {
+    parts.push("A significant amount of critical-path code changed this turn. Run critique(target=\"code\") with an adversarial reviewer persona before finalizing.")
   } else if (reason === "recovery_required") {
     parts.push("A tool or verification error remains unresolved. Diagnose the root cause and try a different fix before finalizing.")
   } else if (reason === "open_steps") {
@@ -107,6 +116,9 @@ function buildNudge(reason: LongTaskContinuationReason, ledger: TaskLedger): str
   if (ledger.changedFiles.length > 0) parts.push(`Changed files: ${ledger.changedFiles.slice(0, 8).join(", ")}`)
   if (ledger.verification.status !== "none") parts.push(`Verification: ${ledger.verification.status}`)
   if (ledger.lastToolError) parts.push(`Last error: ${ledger.lastToolError.message.slice(0, 240)}`)
+  if (escalateReasoning) {
+    parts.push("The previous approach failed repeatedly. Use maximum reasoning effort and try a fundamentally different strategy — do not repeat what already failed.")
+  }
   return parts.join("\n")
 }
 

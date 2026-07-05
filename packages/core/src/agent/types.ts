@@ -21,6 +21,10 @@ export interface AgentRunOptions {
   model?:       string
   system?:      string
   undercover?:  boolean
+  /** false ise coordinator promptu bu turn'e hiç enjekte edilmez (kullanıcı /coordinator ile
+   *  kapattı). true/undefined ise loop.ts kendi karmaşıklık-kapılı kararını verir
+   *  (cfg.orchestration.mode — bkz. Faz 3A). */
+  coordinatorMode?: boolean
   effort?:      number
   workdir?:     string
   messages:     CoreMessage[]
@@ -36,6 +40,11 @@ export interface AgentRunOptions {
   onChunk?:       (chunk: string) => void
   onStepFinish?:  () => void
   onCompaction?:  () => void
+  /** Provider fallback zinciri farklı bir provider'a geçtiğinde bir kez tetiklenir. */
+  onProviderFallback?: (fromProvider: string, toProvider: string) => void
+  /** Bir retry/fallback denemesi başlıyor — UI önceki (başarısız) denemeden akmış
+   *  kısmi stream metnini/reasoning buffer'ını sıfırlamalı. */
+  onStreamRestart?: () => void
   onSkillsActivated?: (skills: ActivatedSkillInfo[]) => void
   onPromptDiagnostics?: (diagnostics: PromptDiagnostics) => void
   onPromptCacheHealth?: (result: PromptCacheHealthResult) => void
