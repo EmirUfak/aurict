@@ -9,6 +9,7 @@ import 'mobile_device_identity.dart';
 import 'mobile_remote_event_codec.dart';
 import 'mobile_remote_models.dart';
 import 'mobile_remote_transport.dart';
+import 'mobile_webrtc_transport.dart';
 
 enum MobileRemoteStatus {
   signedOut,
@@ -32,7 +33,7 @@ class MobileRemoteRuntime extends ChangeNotifier {
     FlutterSecureStorage? secureStorage,
   }) : _auth = auth,
        _backend = backend ?? MobileBackendClient(auth: auth),
-       _transport = transport ?? MockMobileRemoteTransport(),
+       _transport = transport ?? WebRtcMobileTransport(),
        _secureStorage = secureStorage ?? const FlutterSecureStorage() {
     _identityStore =
         identityStore ?? MobileDeviceIdentityStore(backend: _backend);

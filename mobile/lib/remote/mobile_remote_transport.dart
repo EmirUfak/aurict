@@ -11,6 +11,15 @@ abstract class MobileRemoteTransport {
     MobileTurnCredential? turnCredential,
   });
 
+  /// Veri kanalı açıldığında (P2P bağlantı kullanıma hazır) tetiklenir.
+  void onChannelOpen(void Function() handler);
+
+  /// Karşı taraftan (CLI) gelen ham mesaj — event-codec ile çözülür.
+  void onMessage(void Function(String data) handler);
+
+  /// Açık kanaldan ham mesaj gönderir; kanal henüz açık değilse kuyruklanır.
+  void send(String data);
+
   Future<void> close();
 }
 
@@ -44,6 +53,21 @@ class MockMobileRemoteTransport implements MobileRemoteTransport {
       signingKeyFingerprint: identity.signingKeyFingerprint,
       signature: await signPayload(payload),
     );
+  }
+
+  @override
+  void onChannelOpen(void Function() handler) {
+    // no-op — gerçek kanal yok
+  }
+
+  @override
+  void onMessage(void Function(String data) handler) {
+    // no-op
+  }
+
+  @override
+  void send(String data) {
+    // no-op — gönderilecek gerçek bir kanal yok
   }
 
   @override

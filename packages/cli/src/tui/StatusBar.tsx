@@ -32,6 +32,7 @@ interface Props {
   activeAgentCount?: number | undefined
   hasBtwNote?:       boolean | undefined
   scrollLocked?:     boolean | undefined
+  remoteConnected?:  boolean | undefined
 }
 
 function fmtK(n: number): string {
@@ -72,7 +73,7 @@ export function StatusBar({
   provider, model, tokens, contextTokens, workdir, skills, turnSkills, contextWindow,
   isUndercover, coordinatorMode, branch, wasCompacted, activeAgent, agentColor,
   bgTaskCount, taskCount, taskSummary, taskPanelOpen, localServer, sandboxBackend,
-  effort, autopilotMode, cols, activeAgentCount, hasBtwNote, scrollLocked,
+  effort, autopilotMode, cols, activeAgentCount, hasBtwNote, scrollLocked, remoteConnected,
 }: Props) {
   const theme     = useTheme()
   const mode      = bp(cols)
@@ -161,6 +162,12 @@ export function StatusBar({
             <>
               <Sep />
               <Text color={theme.accentAlt} dimColor>coord</Text>
+            </>
+          )}
+          {remoteConnected && (
+            <>
+              <Sep />
+              <Text color={theme.success}>📱 remote</Text>
             </>
           )}
           {activeAgent && (

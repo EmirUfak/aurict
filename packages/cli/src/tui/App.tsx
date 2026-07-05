@@ -37,6 +37,9 @@ import type { PermissionRequest, PermissionResponse, QuestionRequest, QuestionAn
 
 import { parseSlashCommand, getCommand, allCommands } from "../commands/registry.js"
 import type { CommandResult, PickerItem } from "../commands/types.js"
+// Hafif — werift yalnızca webrtc-transport.js'te (lazy import edilir, bkz. startRemoteSession).
+import { CliRemoteRuntime, type CliRemoteStatus } from "../remote/runtime.js"
+import { RemoteEventTypes, type RemoteEvent } from "../remote/event-codec.js"
 import { ThemeContext, THEMES, DEFAULT_THEME } from "../utils/theme.js"
 import { TerminalSizeContext } from "./TerminalSizeContext.js"
 import { KeybindingsProvider } from "../keybindings/index.js"
@@ -304,6 +307,16 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   const autoContinueRef  = useRef<{ needed: boolean; count: number; prompt?: string }>({ needed: false, count: 0 })
   const autoContinueSubmittingRef = useRef(false)
 
+  // Remote control (WebRTC): telefon eşleşmesi — /remote start|stop ile yönetilir.
+  const remoteRuntimeRef = useRef<CliRemoteRuntime | null>(null)
+  const [remoteStatus, setRemoteStatus] = useState<CliRemoteStatus | "off">("off")
+  const remoteConnected = remoteStatus === "connected"
+  // startRemoteSession/stopRemoteSession handleSubmit'ten SONRA tanımlanıyor (aşağıda);
+  // buildCtx ise ondan ÖNCE — dep array'de doğrudan referans TDZ'ye çarpar. Ref
+  // dolaylamasıyla tanım sırasından bağımsızlaşır (buildCtx yalnızca stabil ref'i tutar,
+  // gerçek fonksiyonlar tanımlandıktan sonra bir useEffect'le ref'e yazılır).
+  const remoteBridgeRef = useRef<{ start: () => void; stop: () => void }>({ start: () => {}, stop: () => {} })
+
   // Scroll lock: Ctrl+L ile aktif edilir, animation timer'ları ve stream flush'ı dondurur
   const [scrollLocked, setScrollLocked] = useState(false)
   const scrollLockedRef = useRef(false)
@@ -428,6 +441,15 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
         return
       }
       setPermissionQueue(q => [...q, e.request])
+      // İzin köprüsü: remote bağlıysa aynı isteği telefona da ilet — kullanıcı
+      // PC başında değilken telefondan onay/ret verebilir (bkz. permission.response
+      // handler'ı startRemoteSession içinde).
+      remoteRuntimeRef.current?.publish(RemoteEventTypes.permissionRequest, {
+        id: e.request.id, tool: e.request.tool, pattern: e.request.pattern,
+        ...(e.request.level ? { level: e.request.level } : {}),
+        ...(e.request.reason ? { reason: e.request.reason } : {}),
+        ...(e.request.summary ? { summary: e.request.summary } : {}),
+      }).catch(() => {})
     }
   }), [])
   useEffect(() => {
@@ -941,6 +963,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
     isUndercover,
     coordinatorMode,
     activeAgent,
+    addSystemMsg,
     setAgent: (id: string) => {
       setActiveAgent(id)
       const def = getSessionAgent(id, workdirState)
@@ -1088,7 +1111,10 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
       setDesignInitialBrief(brief?.trim() || undefined)
       setDesignWizardOpen(true)
     },
-  }), [provider, model, workdir, skillNames, setProvider, setModel, messages, history, tokens, promptDiagnostics, promptCacheHealth, checkpoints, branches, activeBranchIdx, watchedPaths])
+    startRemoteSession: () => remoteBridgeRef.current.start(),
+    stopRemoteSession:  () => remoteBridgeRef.current.stop(),
+    remoteConnected,
+  }), [provider, model, workdir, skillNames, setProvider, setModel, messages, history, tokens, promptDiagnostics, promptCacheHealth, checkpoints, branches, activeBranchIdx, watchedPaths, remoteConnected])
 
   // ── Command executor ──────────────────────────────────────────────────────
   const executeCommand = useCallback((raw: string): boolean => {
@@ -1243,6 +1269,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
     abortControllerRef.current = controller
     setLoading(true)
     setIsStreaming(true)
+    remoteRuntimeRef.current?.publish(RemoteEventTypes.agentStatus, { state: "working" }).catch(() => {})
     turnHadToolRef.current     = false
     turnAssistantIdRef.current = null
 
@@ -1264,6 +1291,13 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
       // Adaptive throttle flush — text + reasoning birlikte flush edilir
       const flushStream = () => {
         streamTimerRef.current = null
+        // Remote bağlıysa aynı akış aralığında telefona da coalesced bir güncelleme gönder
+        // (ham onText delta'sı değil — mevcut adaptif throttle kadenceına biner).
+        if (streamTextRef.current || streamReasonRef.current) {
+          remoteRuntimeRef.current?.publish(RemoteEventTypes.terminalOutput, {
+            text: streamTextRef.current, reasoning: streamReasonRef.current,
+          }).catch(() => {})
+        }
         // Araç çağrısı sonrası streaming: StreamingView'de gösterme — cümle bölünmesini önle.
         // Metin streamTextRef'te birikmeye devam eder; onFinish stableAssistantId ile
         // pre-tool mesajını tam metinle (pre+post araç) güncelleyecek.
@@ -1363,6 +1397,9 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
           })
         },
         onToolCall: (tc) => {
+          remoteRuntimeRef.current?.publish(RemoteEventTypes.toolCall, {
+            id: tc.id, tool: tc.tool, args: tc.args,
+          }).catch(() => {})
           if (streamTimerRef.current) { clearTimeout(streamTimerRef.current); streamTimerRef.current = null }
           turnHadToolRef.current = true
           const textBefore   = streamTextRef.current
@@ -1453,6 +1490,14 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
           ])
         },
         onToolResult: (tr) => {
+          const remoteSummarySource = typeof tr.result === "object" ? JSON.stringify(tr.result) : String(tr.result)
+          const REMOTE_SUMMARY_MAX = 2_000
+          remoteRuntimeRef.current?.publish(RemoteEventTypes.toolResultSummary, {
+            id: tr.id, durationMs: tr.durationMs,
+            summary: remoteSummarySource.length > REMOTE_SUMMARY_MAX
+              ? remoteSummarySource.slice(0, REMOTE_SUMMARY_MAX) + "…"
+              : remoteSummarySource,
+          }).catch(() => {})
           setMessages((prev) => {
             let parsedResult = tr.result
             if (typeof parsedResult === "object") parsedResult = JSON.stringify(parsedResult, null, 2)
@@ -1642,6 +1687,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
     } finally {
       setLoading(false)
       setIsStreaming(false)
+      remoteRuntimeRef.current?.publish(RemoteEventTypes.agentStatus, { state: "idle" }).catch(() => {})
           setActiveTool(undefined)
           turnHadToolRef.current = false
           setTurnSkillNames([])
@@ -1662,6 +1708,63 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
       })
     }
   }, [loading, history, provider, model, workdir, system, executeCommand])
+
+  // ── Remote control (WebRTC) ─────────────────────────────────────────────────
+  // werift yalnızca burada, gerçek bir oturum başlatılırken lazy-import edilir —
+  // remote control hiç kullanılmasa bile CLI'nin varsayılan başlangıç yoluna girmez.
+  const startRemoteSession = useCallback(async () => {
+    if (remoteRuntimeRef.current) {
+      addSystemMsg("Remote session already active. Use /remote stop first.")
+      return
+    }
+    addSystemMsg("🔗 Starting remote session…")
+    try {
+      const { WebRtcCliTransport } = await import("../remote/webrtc-transport.js")
+      const runtime = new CliRemoteRuntime({ transport: new WebRtcCliTransport() })
+      remoteRuntimeRef.current = runtime
+      runtime.onStatusChange((s) => setRemoteStatus(s))
+      runtime.onEvent((event: RemoteEvent) => {
+        if (event.type === RemoteEventTypes.promptSubmit) {
+          const prompt = typeof event.payload["prompt"] === "string" ? (event.payload["prompt"] as string) : ""
+          if (prompt.trim()) void handleSubmit(prompt)
+          return
+        }
+        if (event.type === RemoteEventTypes.interrupt) {
+          if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
+          return
+        }
+        if (event.type === RemoteEventTypes.permissionResponse) {
+          const id = typeof event.payload["id"] === "string" ? (event.payload["id"] as string) : undefined
+          const decision = event.payload["decision"]
+          if (id && (decision === "allow" || decision === "deny" || decision === "allow_once")) {
+            PermissionGate.respond(id, decision)
+            setPermissionQueue((q) => q.filter((p) => p.id !== id))
+          }
+        }
+      })
+      await runtime.start()
+      addSystemMsg("✓ Remote connected — the phone can now control this session.")
+    } catch (err) {
+      remoteRuntimeRef.current = null
+      setRemoteStatus("off")
+      addSystemMsg(`⚠ Remote session failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleSubmit])
+
+  const stopRemoteSession = useCallback(() => {
+    const runtime = remoteRuntimeRef.current
+    if (!runtime) { addSystemMsg("No active remote session."); return }
+    remoteRuntimeRef.current = null
+    setRemoteStatus("off")
+    runtime.close().then(() => addSystemMsg("Remote session closed.")).catch(() => {})
+  }, [])
+
+  // buildCtx (yukarıda, handleSubmit'ten önce tanımlı) startRemoteSession/stopRemoteSession'ı
+  // doğrudan referans alamıyor (TDZ) — ref üzerinden dolaylı bağlanır, her zaman güncel kalır.
+  useEffect(() => {
+    remoteBridgeRef.current = { start: () => { void startRemoteSession() }, stop: stopRemoteSession }
+  }, [startRemoteSession, stopRemoteSession])
 
   // ── Render ────────────────────────────────────────────────────────────────
   const activeTheme = THEMES[themeName] ?? THEMES[DEFAULT_THEME]!
@@ -2025,6 +2128,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
             activeAgentCount={activeAgentCount > 0 ? activeAgentCount : undefined}
             hasBtwNote={btwState !== null}
             scrollLocked={scrollLocked}
+            remoteConnected={remoteConnected}
             {...(branch !== undefined ? { branch } : {})}
             {...(currentContextWindow !== undefined ? { contextWindow: currentContextWindow } : {})}
           />

@@ -2586,6 +2586,95 @@ const commands: CommandDef[] = [
       return { type: "text", content: `Crash reports (${reports.length}):\n${lines.join("\n")}\n\nUse /crashes clear to delete.` }
     },
   },
+
+  // ── /remote ──────────────────────────────────────────────────────────────
+  // Hesap girişi (tarayıcı tabanlı cihaz girişi) + cihaz kimliği (Ed25519) +
+  // WebRTC oturumu (start/stop — gerçek ajan köprüsü App.tsx'te canlandırılır).
+  {
+    name:        "remote",
+    description: "Sign in and connect a phone for mobile remote control (real WebRTC session)",
+    usage:       "/remote login | status | device | start | stop | logout",
+    handler: async (args, ctx): Promise<CommandResult> => {
+      const sub = (args[0] ?? "status").toLowerCase()
+      const remote   = await import("../remote/auth.js")
+      const identity = await import("../remote/identity.js")
+
+      const describeDevice = (id: { verified: boolean; signingKeyFingerprint: string } | null): string => {
+        if (!id) return "Device: not registered yet — run /remote device to register."
+        return `Device: ${id.verified ? "verified" : "registered (unverified)"} — ${id.signingKeyFingerprint}`
+      }
+
+      if (sub === "login") {
+        const announced = new Set<string>()
+        try {
+          const user = await remote.loginWithBrowser((event) => {
+            // "polling" her ~5sn'de bir tekrarlanır — transcript'i kirletmemek
+            // için yalnızca ilk kez görülen fazları (starting/waiting) bas.
+            if (event.phase === "polling" || announced.has(event.phase)) return
+            announced.add(event.phase)
+            if (event.phase === "waiting") ctx.addSystemMsg(`🔗 ${event.message}`)
+          })
+          let deviceLine: string
+          try {
+            const dev = await identity.ensureDeviceIdentity()
+            deviceLine = describeDevice(dev)
+          } catch (err) {
+            deviceLine = `⚠ Device registration failed: ${err instanceof Error ? err.message : String(err)} (run /remote device to retry)`
+          }
+          return { type: "text", content: `✓ Signed in as ${user.email}.\n${deviceLine}` }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          return { type: "error", message: `Remote login failed: ${message}` }
+        }
+      }
+
+      if (sub === "device") {
+        try {
+          const dev = await identity.ensureDeviceIdentity()
+          return { type: "text", content: describeDevice(dev) }
+        } catch (err) {
+          return { type: "error", message: `Device registration failed: ${err instanceof Error ? err.message : String(err)}` }
+        }
+      }
+
+      if (sub === "logout") {
+        if (ctx.remoteConnected) ctx.stopRemoteSession()
+        await remote.logout()
+        return { type: "text", content: "Signed out of Aurict remote." }
+      }
+
+      if (sub === "start") {
+        if (ctx.remoteConnected) return { type: "text", content: "Remote session is already connected." }
+        const status = await remote.getAuthStatus()
+        if (!status.signedIn) {
+          return { type: "error", message: "Not signed in. Run /remote login first." }
+        }
+        ctx.startRemoteSession()
+        return { type: "text", content: "🔗 Starting remote session — waiting for a phone to accept…" }
+      }
+
+      if (sub === "stop") {
+        if (!ctx.remoteConnected) return { type: "text", content: "No active remote session." }
+        ctx.stopRemoteSession()
+        return { type: "text", content: "Remote session stopped." }
+      }
+
+      if (sub === "status") {
+        const status = await remote.getAuthStatus()
+        if (!status.signedIn) {
+          return { type: "text", content: "Not signed in. Run /remote login to authorize this CLI from your browser or phone." }
+        }
+        const dev = identity.readDeviceIdentity()
+        const connLine = ctx.remoteConnected ? "Session: ● connected — phone can control this session" : "Session: not connected. Run /remote start."
+        return {
+          type: "text",
+          content: `Signed in as ${status.email}.\n${describeDevice(dev)}\n${connLine}`,
+        }
+      }
+
+      return { type: "error", message: `Unknown /remote subcommand: ${sub}. Use login, status, device, start, stop, or logout.` }
+    },
+  },
 ]
 
 // ── Lookup + execute ──────────────────────────────────────────────────────────

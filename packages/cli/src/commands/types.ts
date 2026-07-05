@@ -76,4 +76,10 @@ export interface CommandContext {
     snapshot: { sectionCount: number; toolCount: number; cacheableHash: string; dynamicHash: string; toolHash: string }
   } | undefined
   openDesign:        (brief?: string) => void
+  /** Uzun süren komutlar için ara ilerleme mesajı basar (transcript'e sistem mesajı ekler). */
+  addSystemMsg:      (content: string) => void
+  /** Telefon eşleşmesi için WebRTC remote-control oturumunu başlatır/kapatır. */
+  startRemoteSession: () => void
+  stopRemoteSession:  () => void
+  remoteConnected:    boolean
 }
