@@ -2,8 +2,12 @@ import { createContext, useContext } from "react"
 
 export interface Theme {
   name:          string
+  /** Brand palette id (`whiskey-amber`, `oxblood`, `ink-sapphire`, `deep-emerald`) or undefined for legacy themes */
+  brandId?:      string
   accent:        string
   accentAlt:     string
+  /** Dark ink color used for text rendered on top of `accent` (button labels). Brand spec: oklch(0.16 0.02 H). */
+  accentInk?:    string
   success:       string
   error:         string
   warning:       string
@@ -14,15 +18,85 @@ export interface Theme {
   textPrimary:   string
   textSecondary: string
   textDim:       string
+  /** Warm-neutral eyebrow/label tone used for mono uppercase labels (eyebrow). */
+  textLabel?:    string
   borderDim:     string
   borderBright:  string
   borderActive:  string
   bgHighlight:   string
+  /** Darkest background — used for terminal/code-block surfaces. Brand spec: oklch(0.09 c*0.7 h). */
+  bgDeep?:       string
+  /** Card background — used for surfaces/panels. Brand spec: oklch(0.175 c h). */
+  bgCard?:       string
+  /** Card hover background — Brand spec: oklch(0.195 c h). */
+  bgCardHover?:  string
+  /** Alternate section background — Brand spec: oklch(0.155 c h). */
+  bgAlt?:        string
   buddyMain:     string
   buddyEar:      string
 }
 
 export const THEMES: Record<string, Theme> = {
+  // ── Brand palettes (Aurict Design System — Whiskey Amber default) ──────────
+  // oklch() targets from the design spec, calibrated to hex for ANSI 24-bit.
+  // Functional safe/warning/danger hues kept ≥40° from accent, all on a
+  // warm-neutral dark background (hue ~75–80° family).
+  "whiskey-amber": {
+    name: "Whiskey Amber",
+    brandId: "whiskey-amber",
+    accent: "#d9974a", accentAlt: "#e6b06a",
+    accentInk: "#1f1809",
+    success: "#5fbf74", error: "#d04736", warning: "#e8c34a",
+    userColor: "#f3ecd9", assistantDot: "#e6b06a",
+    toolColor: "#9a8e74", systemColor: "#8a7e64",
+    textPrimary: "#f3ecd9", textSecondary: "#c4baa1", textDim: "#7a715c",
+    textLabel: "#8a7e64",
+    borderDim: "#2a251c", borderBright: "#3d3526", borderActive: "#d9974a",
+    bgHighlight: "#1c1810", bgDeep: "#0d0b07", bgCard: "#1a160e", bgCardHover: "#221d13", bgAlt: "#16120c",
+    buddyMain: "#d9974a", buddyEar: "#e6b06a",
+  },
+  "oxblood": {
+    name: "Oxblood",
+    brandId: "oxblood",
+    accent: "#c0594a", accentAlt: "#d27567",
+    accentInk: "#1d0a08",
+    success: "#5fbf74", error: "#d04736", warning: "#e8c34a",
+    userColor: "#f0e2d6", assistantDot: "#d27567",
+    toolColor: "#988878", systemColor: "#877566",
+    textPrimary: "#f0e2d6", textSecondary: "#c2b3a4", textDim: "#7a6c5d",
+    textLabel: "#877566",
+    borderDim: "#28160f", borderBright: "#3a2218", borderActive: "#c0594a",
+    bgHighlight: "#1a0e0a", bgDeep: "#0b0604", bgCard: "#180c08", bgCardHover: "#21110b", bgAlt: "#140906",
+    buddyMain: "#c0594a", buddyEar: "#d27567",
+  },
+  "ink-sapphire": {
+    name: "Ink Sapphire",
+    brandId: "ink-sapphire",
+    accent: "#5d8fd6", accentAlt: "#7aa6e6",
+    accentInk: "#08111f",
+    success: "#5fbf74", error: "#d04736", warning: "#e8c34a",
+    userColor: "#e8ecf3", assistantDot: "#7aa6e6",
+    toolColor: "#869aa8", systemColor: "#7a8a98",
+    textPrimary: "#e8ecf3", textSecondary: "#bcc6d6", textDim: "#6b7886",
+    textLabel: "#7a8a98",
+    borderDim: "#161d2c", borderBright: "#222c41", borderActive: "#5d8fd6",
+    bgHighlight: "#0c111c", bgDeep: "#06080d", bgCard: "#0a1020", bgCardHover: "#10182c", bgAlt: "#08091a",
+    buddyMain: "#5d8fd6", buddyEar: "#7aa6e6",
+  },
+  "deep-emerald": {
+    name: "Deep Emerald",
+    brandId: "deep-emerald",
+    accent: "#4ea886", accentAlt: "#6cc0a0",
+    accentInk: "#06140e",
+    success: "#5fbf74", error: "#d04736", warning: "#e8c34a",
+    userColor: "#e8f0eb", assistantDot: "#6cc0a0",
+    toolColor: "#86a094", systemColor: "#7a9084",
+    textPrimary: "#e8f0eb", textSecondary: "#b8cac0", textDim: "#6a7a70",
+    textLabel: "#7a9084",
+    borderDim: "#10241a", borderBright: "#163225", borderActive: "#4ea886",
+    bgHighlight: "#0a140f", bgDeep: "#050a07", bgCard: "#08140e", bgCardHover: "#0d1c14", bgAlt: "#0a120d",
+    buddyMain: "#4ea886", buddyEar: "#6cc0a0",
+  },
   // 1. Aurict Ion (varsayılan)
   dark: {
     name: "Aurict Ion",
@@ -276,8 +350,15 @@ export const THEMES: Record<string, Theme> = {
   },
 }
 
-export const DEFAULT_THEME = "dark"
+export const DEFAULT_THEME = "oxblood"
 export const THEME_NAMES   = Object.keys(THEMES)
+
+export const BRAND_PALETTE_IDS = ["whiskey-amber", "oxblood", "ink-sapphire", "deep-emerald"] as const
+export type BrandPaletteId = (typeof BRAND_PALETTE_IDS)[number]
+
+export function isBrandTheme(id: string): boolean {
+  return (BRAND_PALETTE_IDS as readonly string[]).includes(id)
+}
 
 export const ThemeContext = createContext<Theme>(THEMES[DEFAULT_THEME]!)
 export const useTheme     = () => useContext(ThemeContext)

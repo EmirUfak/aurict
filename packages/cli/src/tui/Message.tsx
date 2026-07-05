@@ -533,7 +533,6 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
       <VStack marginBottom="md" paddingX="sm">
         {/* Header: loader, tool, args, timing */}
         <HStack gap="sm">
-          <Text color={color}>╭</Text>
           <ToolUseLoader shouldAnimate={false} isUnresolved={false} isError={isError} />
           <Typo variant="bodyEmphasis" tone="primary">{message.tool ?? "tool"}</Typo>
           <Typo variant="body" tone="muted">{summary}</Typo>
@@ -594,7 +593,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
           }
           return (
             <Box
-              marginLeft={3}
+              marginLeft={0}
               width={Math.max(20, termCols - 8)}
               flexDirection="column"
               borderStyle="single"

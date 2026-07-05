@@ -25,7 +25,10 @@ export function FullscreenLayout({
   useLayoutEffect(() => {
     if (!scrollableRef.current || !onScrollableHeight) return
     const { height } = measureElement(scrollableRef.current)
-    if (height > 0 && height !== lastHeightRef.current) {
+    // Histeresis: yalnızca ≥2 satırlık değişimde bildir. Header/bottom geçişlerinde
+    // (banner→sohbet, permission prompt) 1 satırlık salınımların measure→setState→
+    // re-render döngüsünü tetikleyip kareyi bozmasını engeller.
+    if (height > 0 && Math.abs(height - lastHeightRef.current) >= 2) {
       lastHeightRef.current = height
       onScrollableHeight(height)
     }

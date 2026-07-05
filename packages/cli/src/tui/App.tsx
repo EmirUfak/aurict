@@ -54,6 +54,7 @@ import { StatusBar }         from "./StatusBar.js"
 import { CommandSuggest, getCommandMatches } from "./CommandSuggest.js"
 import { StartupBanner }     from "./StartupBanner.js"
 import { CockpitHeader }     from "./CockpitHeader.js"
+import { McpStatusPanel }    from "./McpStatusPanel.js"
 import { AgentStatus }       from "./AgentStatus.js"
 import { ConversationViewport } from "./ConversationViewport.js"
 import { FullscreenLayout }     from "./FullscreenLayout.js"
@@ -147,6 +148,8 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [isStreaming,    setIsStreaming]     = useState(false)
   const [startupBannerVisible, setStartupBannerVisible] = useState(true)
+  // MCP log olaylarında artan sayaç — McpStatusPanel'i tazeler.
+  const [mcpRefresh, setMcpRefresh] = useState(0)
 
   // Streaming display — messages array'den ayrı tutulur (render storm önlenir)
   const [streamingText,   setStreamingText]   = useState<string | null>(null)
@@ -306,6 +309,8 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   const scrollLockedRef = useRef(false)
   useEffect(() => { scrollLockedRef.current = scrollLocked }, [scrollLocked])
   const [conversationOffsetRows, setConversationOffsetRows] = useState(0)
+  // Viewport'un raporladığı üst scroll sınırı — scrollConversation iki uçtan clamp'ler.
+  const maxScrollOffsetRef = useRef(0)
   // Unseen count: scroll lock olduğunda yeni gelen mesaj sayısı
   const scrollLockMsgCountRef = useRef(0)
   useEffect(() => { if (scrollLocked) scrollLockMsgCountRef.current = messages.length }, [scrollLocked])
@@ -351,7 +356,16 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
 
   const scrollConversation = useCallback((deltaRows: number) => {
     if (deltaRows === 0) return
-    setConversationOffsetRows((prev) => Math.max(0, prev + deltaRows))
+    // İki uçtan clamp: en üstte ekstra tur atmaz (aşağı inişte ölü mesafe olmaz),
+    // en altta 0'da kalır. Üst sınır viewport'tan gelir (onScrollRange).
+    setConversationOffsetRows((prev) =>
+      Math.max(0, Math.min(maxScrollOffsetRef.current, prev + deltaRows)),
+    )
+  }, [])
+  const handleScrollRange = useCallback((maxOffset: number) => {
+    maxScrollOffsetRef.current = maxOffset
+    // Görünür bölge büyüdüyse (örn. terminal büyüdü) mevcut offset'i sınırın içine çek.
+    setConversationOffsetRows((prev) => (prev > maxOffset ? maxOffset : prev))
   }, [])
 
   const pageConversation = useCallback((direction: -1 | 1) => {
@@ -427,9 +441,12 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
   const inputRef = useRef(input)
   useEffect(() => { inputRef.current = input }, [input])
 
-  // MCP log handler — MCP bağlantı mesajlarını TUI'ye system message olarak ekle
+  // MCP log handler — `[mcp]` bağlantı olayları transcript'i kirletmez; bunun
+  // yerine McpStatusPanel'i tazeler (konsolide görünüm). Diğer mesajlar system
+  // message olarak akışa eklenir.
   useEffect(() => {
     setMCPLogHandler((message: string, isError: boolean) => {
+      if (message.startsWith("[mcp]")) { setMcpRefresh((n) => n + 1); return }
       addSystemMsg(isError ? `⚠ ${message}` : message)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -608,12 +625,17 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
         setMessages((prev) => prev.map(m => m.pending ? { ...m, pending: false } : m))
         setStreamingText(null)
         setStreamingReason(null)
+        // Abort sonrası: scroll'u dibe pinle ve kilidi aç — bayat scroll durumu +
+        // değişen içerik yüksekliği kısmi çizimde üst üste binmeye yol açıyordu.
+        setScrollLocked(false)
+        setConversationOffsetRows(0)
         addSystemMsg("Aborted.")
         return
       }
       ctrlCCountRef.current += 1
       if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current)
       if (ctrlCCountRef.current >= 2) { agentPool.active.forEach((a) => agentPool.cancel(a.id)); exit(); return }
+      setConversationOffsetRows(0)
       addSystemMsg("Press Ctrl+C again to exit.")
       ctrlCTimerRef.current = setTimeout(() => { ctrlCCountRef.current = 0 }, 3000)
       return
@@ -1709,16 +1731,20 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
           {showStartupBanner && (
             <StartupBanner version={`v${CURRENT_VERSION}`} provider={provider} model={model} workdir={workdir} cols={termCols} rows={termRows} />
           )}
+          {/* MCP sunucu paneli — yalnızca açılışta, konsolide */}
+          {showStartupBanner && (
+            <McpStatusPanel refresh={mcpRefresh} width={termCols} />
+          )}
           {/* Update notification */}
           {updateInfo && !updateDismissed && (
             <Box paddingX={2} marginBottom={1}>
-              <Text color="#f59e0b">◆ </Text>
-              <Text color="#fbbf24">Update available: </Text>
-              <Text color="#94a3b8">v{updateInfo.current}</Text>
-              <Text color="#64748b"> → </Text>
-              <Text color="#34d399" bold>v{updateInfo.latest}  </Text>
-              <Text color="#64748b">npm install -g aurict</Text>
-              <Text color="#475569">  (esc to dismiss)</Text>
+              <Text color={activeTheme.warning}>◆ </Text>
+              <Text color={activeTheme.warning}>Update available: </Text>
+              <Text color={activeTheme.textSecondary}>v{updateInfo.current}</Text>
+              <Text color={activeTheme.textDim}> → </Text>
+              <Text color={activeTheme.success} bold>v{updateInfo.latest}  </Text>
+              <Text color={activeTheme.textSecondary}>npm install -g aurict</Text>
+              <Text color={activeTheme.textDim}>  (esc to dismiss)</Text>
             </Box>
           )}
           {/* Session title */}
@@ -1743,6 +1769,8 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
               streamingError={streamingError}
               scrollLocked={scrollLocked}
               offsetRowsFromBottom={conversationOffsetRows}
+              onScrollRange={handleScrollRange}
+              onAnchorShift={scrollConversation}
               {...(unseenCount > 0 ? { unseenCount } : {})}
               {...(activeTool !== undefined ? { activeTool } : {})}
               onExpandTool={(content, toolName) => setExpandedContent({ content, toolName })}

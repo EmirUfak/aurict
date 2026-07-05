@@ -3,7 +3,7 @@ import type { ModelInfo, SecurityAssessmentLedger, SecurityDistilledFinding } fr
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs"
 import { spawnSync } from "child_process"
 import { resolve, join } from "path"
-import { THEMES, THEME_NAMES } from "../utils/theme.js"
+import { THEMES, THEME_NAMES, BRAND_PALETTE_IDS, isBrandTheme } from "../utils/theme.js"
 import type { CommandDef, CommandResult, PickerItem } from "./types.js"
 import { CURRENT_VERSION } from "../util/update-check.js"
 
@@ -223,7 +223,7 @@ const commands: CommandDef[] = [
     description: "List all available commands",
     handler: () => {
       const CATEGORIES: Record<string, string[]> = {
-        "Setup & Config":      ["init", "doctor", "providers", "models", "config", "theme", "keys", "settings", "version"],
+        "Setup & Config":      ["init", "doctor", "providers", "models", "config", "theme", "palette", "keys", "settings", "version"],
         "Session & History":   ["status", "history", "diffs", "session", "sessions", "clear", "fork", "branch", "undo", "rewind", "replay", "checkpoints"],
         "Agents & AI":         ["agent", "agents", "coordinator", "autopilot", "undercover", "background", "btw"],
         "Context & Memory":    ["pin", "memory", "ctx", "trace", "compact", "worktree"],
@@ -928,6 +928,48 @@ const commands: CommandDef[] = [
         title: "Select theme",
         items,
         onSelect: (item) => ctx.setTheme(item.id),
+      }
+    },
+  },
+
+  // ── /palette ──────────────────────────────────────────────────────────────
+  {
+    name:        "palette",
+    aliases:     ["palettes", "brand"],
+    description: "Switch brand color palette (amber, oxblood, sapphire, emerald)",
+    usage:       "/palette whiskey-amber",
+    handler: (args, ctx): CommandResult => {
+      if (args[0]) {
+        const name = args[0].toLowerCase()
+        const inBrand = (BRAND_PALETTE_IDS as readonly string[]).includes(name)
+        if (!inBrand && !Object.prototype.hasOwnProperty.call(THEMES, name)) {
+          return { type: "error", message: `Unknown palette: '${name}'. Brand palettes: ${BRAND_PALETTE_IDS.join(", ")}` }
+        }
+        ctx.setTheme(name)
+        return { type: "text", content: `Palette changed: ${THEMES[name]!.name}` }
+      }
+      const brandItems: PickerItem[] = BRAND_PALETTE_IDS.map((id) => ({
+        id:    id,
+        label: THEMES[id]!.name,
+        ...(id === ctx.currentTheme ? { hint: "active" } : {}),
+      }))
+      const legacyItems: PickerItem[] = THEME_NAMES
+        .filter((n) => !isBrandTheme(n))
+        .map((n) => ({
+          id:    n,
+          label: THEMES[n]!.name,
+          ...(n === ctx.currentTheme ? { hint: "active" } : {}),
+        }))
+      const sep: PickerItem = { id: "__sep__", label: "──────────" }
+      const items: PickerItem[] = [...brandItems, sep, ...legacyItems]
+      return {
+        type:  "picker",
+        title: "Select palette",
+        items,
+        onSelect: (item) => {
+          if (item.id === "__sep__") return
+          ctx.setTheme(item.id)
+        },
       }
     },
   },

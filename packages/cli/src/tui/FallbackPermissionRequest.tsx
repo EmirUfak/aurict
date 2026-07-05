@@ -6,6 +6,7 @@ import { Select, type SelectOption } from "./Select.js"
 import type { PermissionPromptDecision } from "./PermissionPrompt.js"
 import type { PermissionDecision } from "@aurict/core"
 import { PermissionScaffold } from "./PermissionScaffold.js"
+import { StatusDot } from "./design-system/StatusDot.js"
 
 type Decision = PermissionDecision | "deny_abort" | "edit"
 
@@ -28,6 +29,13 @@ function toolLabel(tool: string): string {
     todo:        "Task update",
   }
   return map[tool] ?? `Tool use: ${tool}`
+}
+
+function blastGauge(level: string, supportsDir: boolean): { tone: "safe" | "warning" | "danger"; bars: number } {
+  if (level === "danger")  return { tone: "danger",  bars: 5 }
+  if (level === "warning") return { tone: "warning", bars: 3 }
+  if (supportsDir)         return { tone: "safe",    bars: 2 }
+  return { tone: "safe", bars: 1 }
 }
 
 export function FallbackPermissionRequest({ request, onDecide }: Props) {
@@ -58,12 +66,16 @@ export function FallbackPermissionRequest({ request, onDecide }: Props) {
 
   const subtitle = isDanger ? "destructive operation" : isWarning ? "elevated privileges" : undefined
   const blast = isDanger ? "high" : isWarning ? "medium" : supportsDir ? "scoped" : "low"
+  const gauge = blastGauge(isDanger ? "danger" : isWarning ? "warning" : "safe", supportsDir)
 
   const header = (
     <Box flexDirection="column" marginBottom={1}>
-      <Box gap={2}>
-        <Text color={accentColor}>blast radius: {blast}</Text>
-        <Text color={theme.accentAlt}>tool bus armed</Text>
+      <Box gap={2} marginBottom={1}>
+        <Box gap={1}>
+          <Text color={theme.textDim}>blast</Text>
+          <StatusDot tone={gauge.tone} active />
+          <Text color={accentColor} bold>{`[${"▮".repeat(gauge.bars)}${"▯".repeat(5 - gauge.bars)}] ${blast}`}</Text>
+        </Box>
       </Box>
       <Text color={isDanger ? theme.error : theme.textPrimary} bold={isDanger}>
         {request.pattern}

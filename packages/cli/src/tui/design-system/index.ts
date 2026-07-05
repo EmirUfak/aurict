@@ -50,3 +50,28 @@ export {
   parseKeyString, formatKey, formatChord, detectPlatform,
   type KeySymbol, type KbdStyle, type KbdProps, type KeyHintProps, type Platform,
 } from "./Kbd.js"
+
+export {
+  Corners, cornerColorFor,
+  type CornersProps, type CornerTone,
+} from "./Corners.js"
+
+export {
+  StatusDot,
+  type StatusDotProps, type StatusTone,
+} from "./StatusDot.js"
+
+export {
+  Eyebrow, MonoStat,
+  type EyebrowProps, type MonoStatProps,
+} from "./Eyebrow.js"
+
+export {
+  PaletteSwatch, PaletteSwatchRow,
+  type PaletteSwatchProps,
+} from "./PaletteSwatch.js"
+
+export {
+  motionEnabled, useBlinkFrame, usePulseFrame,
+  BLINK_INTERVAL_MS, PULSE_INTERVAL_MS,
+} from "./motion.js"

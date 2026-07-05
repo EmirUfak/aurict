@@ -2,6 +2,7 @@ import React from "react"
 import { Box, Text } from "ink"
 import { tokenizeLine, detectLang, C, type Lang } from "../utils/highlight.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
+import { useTheme } from "../utils/theme.js"
 
 interface Props {
   content: string
@@ -226,6 +227,7 @@ function SyntaxLine({ line, lang }: { line: string; lang: Lang }) {
 function TableView({
   header, align, rows, termWidth,
 }: { header: string[]; align: Align[]; rows: string[][]; termWidth: number }) {
+  const theme = useTheme()
   const cols = header.length
   // Her sütun için max genişlik hesapla
   const colWidths = header.map((h, ci) => {
@@ -265,13 +267,13 @@ function TableView({
 
   return (
     <Box flexDirection="column" marginY={1} marginLeft={1}>
-      <Text color="#3b4048">{top}</Text>
-      <Text color="#3b4048">{"│"}<Text bold color="#e2e2e8">{headerLine.slice(1, -1)}</Text>{"│"}</Text>
-      <Text color="#3b4048">{sep}</Text>
+      <Text color={theme.borderDim}>{top}</Text>
+      <Text color={theme.borderDim}>{"│"}<Text bold color={theme.textPrimary}>{headerLine.slice(1, -1)}</Text>{"│"}</Text>
+      <Text color={theme.borderDim}>{sep}</Text>
       {dataLines.map((dl, i) => (
-        <Text key={i} color="#3b4048">{"│"}<Text color="#c9d1d9">{dl.slice(1, -1)}</Text>{"│"}</Text>
+        <Text key={i} color={theme.borderDim}>{"│"}<Text color={theme.textSecondary}>{dl.slice(1, -1)}</Text>{"│"}</Text>
       ))}
-      <Text color="#3b4048">{bot}</Text>
+      <Text color={theme.borderDim}>{bot}</Text>
     </Box>
   )
 }
@@ -279,6 +281,7 @@ function TableView({
 // ── Render ────────────────────────────────────────────────────────────────────
 
 export function Markdown({ content, width }: Props) {
+  const theme     = useTheme()
   const blocks    = parseBlocks(content)
   const terminalCols = useTerminalSize().columns
   const termWidth = Math.max(20, width ?? terminalCols)
@@ -292,49 +295,49 @@ export function Markdown({ content, width }: Props) {
             return (
               <Box key={bi} flexDirection="column" marginTop={1} marginBottom={0}>
                 <Box gap={1}>
-                  <Text bold color="#e2e2e8">{renderInline(b.text, 0, termWidth)}</Text>
+                  <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth)}</Text>
                 </Box>
-                <Text color="#3b4048">{"─".repeat(Math.min(b.text.length + 2, termWidth - 4))}</Text>
+                <Text color={theme.borderDim}>{"─".repeat(Math.min(b.text.length + 2, termWidth - 4))}</Text>
               </Box>
             )
 
           case "h2":
             return (
               <Box key={bi} marginTop={1} marginBottom={0} gap={1}>
-                <Text bold color="#7ab4e8">◆</Text>
-                <Text bold color="#e2e2e8">{renderInline(b.text, 0, termWidth - 4)}</Text>
+                <Text bold color={theme.accent}>◆</Text>
+                <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth - 4)}</Text>
               </Box>
             )
 
           case "h3":
             return (
               <Box key={bi} marginTop={1} marginBottom={0} gap={1}>
-                <Text color="#5a7a9a">▸</Text>
-                <Text bold color="#c9d1d9">{renderInline(b.text, 0, termWidth - 4)}</Text>
+                <Text color={theme.accentAlt}>▸</Text>
+                <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth - 4)}</Text>
               </Box>
             )
 
           case "hr":
             return (
               <Box key={bi} marginY={1}>
-                <Text color="#3b4048">{"─".repeat(Math.max(0, termWidth - 4))}</Text>
+                <Text color={theme.borderDim}>{"─".repeat(Math.max(0, termWidth - 4))}</Text>
               </Box>
             )
 
           case "quote":
             return (
               <Box key={bi} flexDirection="column" paddingLeft={2} marginY={1}
-                   borderStyle="single" borderColor="#52525b"
+                   borderStyle="single" borderColor={theme.borderBright}
                    borderTop={false} borderBottom={false} borderRight={false}>
                 {b.lines.map((l, li) => (
-                  <Text key={li} color="#8b949e" italic>{l}</Text>
+                  <Text key={li} color={theme.textSecondary} italic>{l}</Text>
                 ))}
               </Box>
             )
 
           case "list":
             return (
-              <Box key={bi} flexDirection="column" paddingLeft={1}>
+              <Box key={bi} flexDirection="column" paddingLeft={1} marginTop={bi > 0 ? 1 : 0}>
                 {b.items.map((item, ii) => {
                   const indent = item.indent * 2
 
@@ -342,8 +345,8 @@ export function Markdown({ content, width }: Props) {
                     // ✓ tamamlanmış task
                     return (
                       <Box key={ii} gap={1} paddingLeft={indent}>
-                        <Text color="#3fb950">●</Text>
-                        <Text color="#8b949e" strikethrough>{item.text}</Text>
+                        <Text color={theme.success}>●</Text>
+                        <Text color={theme.textDim} strikethrough>{item.text}</Text>
                       </Box>
                     )
                   }
@@ -351,7 +354,7 @@ export function Markdown({ content, width }: Props) {
                     // ○ yapılmamış task
                     return (
                       <Box key={ii} gap={1} paddingLeft={indent}>
-                        <Text color="#52525b">○</Text>
+                        <Text color={theme.textDim}>○</Text>
                         {renderInline(item.text, ii, Math.max(10, termWidth - indent - 4))}
                       </Box>
                     )
@@ -359,7 +362,7 @@ export function Markdown({ content, width }: Props) {
                   // Normal liste maddesi
                   return (
                     <Box key={ii} gap={1} paddingLeft={indent}>
-                      <Text color="#7ab4e8">{b.ordered ? `${ii + 1}.` : "•"}</Text>
+                      <Text color={theme.accent}>{b.ordered ? `${ii + 1}.` : "•"}</Text>
                       {renderInline(item.text, ii, Math.max(10, termWidth - indent - 4))}
                     </Box>
                   )
@@ -381,12 +384,12 @@ export function Markdown({ content, width }: Props) {
           case "code":
             return (
               <Box key={bi} flexDirection="column" borderStyle="round"
-                   borderColor="#3b4048" marginY={1} paddingX={1} marginLeft={1}>
-                {b.hint && <Text color="#52525b" dimColor>{b.hint}</Text>}
+                   borderColor={theme.borderDim} marginY={1} paddingX={1} marginLeft={1}>
+                {b.hint && <Text color={theme.textDim} dimColor>{b.hint}</Text>}
                 {b.body.split("\n").map((line, li) => (
                   <Box key={li} gap={1}>
-                    <Text color="#52525b" dimColor>{String(li + 1).padStart(3)}</Text>
-                    <Text color="#52525b" dimColor>│</Text>
+                    <Text color={theme.textDim} dimColor>{String(li + 1).padStart(3)}</Text>
+                    <Text color={theme.borderDim} dimColor>│</Text>
                     <SyntaxLine line={line} lang={b.lang as Lang} />
                   </Box>
                 ))}
@@ -396,7 +399,7 @@ export function Markdown({ content, width }: Props) {
           case "text":
           default:
             return (
-              <Box key={bi} flexDirection="column">
+              <Box key={bi} flexDirection="column" marginTop={bi > 0 ? 1 : 0}>
                 {(b as { kind: "text"; lines: string[] }).lines.map((line, li) =>
                   renderInline(line, li, termWidth)
                 )}

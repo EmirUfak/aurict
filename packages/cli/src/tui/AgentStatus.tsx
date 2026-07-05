@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { Box, Text, useInput } from "ink"
 import { agentPool } from "@aurict/core"
+import { motionEnabled } from "./design-system/motion.js"
 import type { AgentInfo } from "@aurict/core"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
@@ -107,7 +108,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
   }, [visible.length])
 
   useEffect(() => {
-    if (!visible.length) return
+    if (!visible.length || !motionEnabled()) return
     const t = setInterval(() => setFrame((n) => n + 1), 160)
     return () => clearInterval(t)
   }, [visible.length])

@@ -3,6 +3,7 @@ import { Box, Text } from "ink"
 import { agentPool } from "@aurict/core"
 import type { AgentInfo } from "@aurict/core"
 import { HStack } from "./design-system/index.js"
+import { motionEnabled } from "./design-system/motion.js"
 import { useTheme } from "../utils/theme.js"
 
 const WAVE = ["▁▂▃▄▅▆▇", "▂▃▄▅▆▇█", "▃▄▅▆▇█▇", "▄▅▆▇█▇▆", "▅▆▇█▇▆▅", "▆▇█▇▆▅▄", "▇█▇▆▅▄▃", "█▇▆▅▄▃▂"]
@@ -12,7 +13,7 @@ const SPARK = ["✦", "✧", "◆", "◇"]
 function useTicker(active: boolean, interval: number): number {
   const [frame, setFrame] = useState(0)
   useEffect(() => {
-    if (!active) return
+    if (!active || !motionEnabled()) return
     const t = setInterval(() => setFrame((n) => n + 1), interval)
     return () => clearInterval(t)
   }, [active, interval])
@@ -41,7 +42,8 @@ export function ContextHeatMeter({ percent, width = 10 }: { percent: number; wid
 
 export function ToolFlux({ active, label }: { active: boolean; label?: string | undefined }) {
   const theme = useTheme()
-  const frame = useTicker(active, 90)
+  // 200ms: her tick tam-kare Ink çizimi tetiklediği için streaming ile yarışmasın.
+  const frame = useTicker(active, 200)
   const wave = active ? WAVE[frame % WAVE.length]! : "▁▁▁▁▁▁▁"
   const spark = active ? SPARK[frame % SPARK.length]! : "◇"
   return (
@@ -77,7 +79,7 @@ export function AgentRadar({ compact = false, activeAgent }: { compact?: boolean
 
   const visible = agents.slice(0, compact ? 3 : 5)
   const running = agents.filter((a) => a.status === "running").length
-  const frame = useTicker(running > 0, 160)
+  const frame = useTicker(running > 0, 240)
   const radar = RADAR[frame % RADAR.length]!
 
   if (compact) {

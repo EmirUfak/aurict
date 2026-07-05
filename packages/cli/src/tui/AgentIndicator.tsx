@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { Box, Text } from "ink"
 import { useTheme } from "../utils/theme.js"
+import { motionEnabled } from "./design-system/motion.js"
 
 export type IndicatorState = "idle" | "thinking" | "working"
 
@@ -23,7 +24,7 @@ export function AgentIndicator({ state, activeTool }: Props) {
   const [quipIdx, setQuipIdx] = useState(0)
 
   useEffect(() => {
-    if (state !== "idle") return
+    if (state !== "idle" || !motionEnabled()) return
     const t = setInterval(() => setQuipIdx(i => (i + 1) % IDLE_QUIPS.length), 5000)
     return () => clearInterval(t)
   }, [state])

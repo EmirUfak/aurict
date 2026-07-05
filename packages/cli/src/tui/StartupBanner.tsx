@@ -10,26 +10,44 @@
 import React from "react"
 import { Text } from "ink"
 import { HStack, VStack, Center } from "./design-system/index.js"
+import { Eyebrow, motionEnabled } from "./design-system/index.js"
 import { useTheme } from "../utils/theme.js"
 
-// Kerning uygulanarak sağa doğru genişletilmiş 3D AURICT logosu.
+// Wordmark satırları renksiz tanımlanır; renk, render sırasında aktif marka
+// temasından üretilen bir gradyanla verilir (varsayılan: oxblood).
 const ASCII_LOGO = [
-  { text: "  █████╗  ██╗   ██╗  ██████╗  ██╗  ██████╗  ████████╗", color: "#38bdf8" },
-  { text: " ██╔══██╗ ██║   ██║  ██╔══██╗ ██║ ██╔════╝  ╚══██╔══╝", color: "#60a5fa" },
-  { text: " ███████║ ██║   ██║  ██████╔╝ ██║ ██║          ██║   ", color: "#818cf8" },
-  { text: " ██╔══██║ ██║   ██║  ██╔══██╗ ██║ ██║          ██║   ", color: "#a78bfa" },
-  { text: " ██║  ██║ ╚██████╔╝  ██║  ██║ ██║ ╚██████╗     ██║   ", color: "#c4b5fd" },
-  { text: " ╚═╝  ╚═╝  ╚═════╝   ╚═╝  ╚═╝ ╚═╝  ╚═════╝     ╚═╝   ", color: "#38bdf8" },
+  "  █████╗  ██╗   ██╗  ██████╗  ██╗  ██████╗  ████████╗",
+  " ██╔══██╗ ██║   ██║  ██╔══██╗ ██║ ██╔════╝  ╚══██╔══╝",
+  " ███████║ ██║   ██║  ██████╔╝ ██║ ██║          ██║   ",
+  " ██╔══██║ ██║   ██║  ██╔══██╗ ██║ ██║          ██║   ",
+  " ██║  ██║ ╚██████╔╝  ██║  ██║ ██║ ╚██████╗     ██║   ",
+  " ╚═╝  ╚═╝  ╚═════╝   ╚═╝  ╚═╝ ╚═╝  ╚═════╝     ╚═╝   ",
 ]
 
 // Dar terminaller için özel kompakt AURICT ASCII logo.
 const COMPACT_ASCII_LOGO = [
-  { text: "  █   █ ███  ███ ███ ███ ███", color: "#38bdf8" },
-  { text: " █ █  █ █  █  █  █   █    █ ", color: "#60a5fa" },
-  { text: " ███  █ ███   █  █   █    █ ", color: "#a78bfa" },
-  { text: " █ █  █ █ █   █  █   █    █ ", color: "#c4b5fd" },
-  { text: " █ █  █ █  █ ███ ███ ███  █ ", color: "#38bdf8" },
+  "  █   █ ███  ███ ███ ███ ███",
+  " █ █  █ █  █  █  █   █    █ ",
+  " ███  █ ███   █  █   █    █ ",
+  " █ █  █ █ █   █  █   █    █ ",
+  " █ █  █ █  █ ███ ███ ███  █ ",
 ]
+
+// İki hex arası doğrusal renk interpolasyonu — marka gradyanı için.
+function hexGradient(from: string, to: string, steps: number): string[] {
+  const parse = (h: string): [number, number, number] => {
+    const s = h.replace("#", "")
+    return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)]
+  }
+  const [r1, g1, b1] = parse(from)
+  const [r2, g2, b2] = parse(to)
+  const hex = (n: number) => Math.round(n).toString(16).padStart(2, "0")
+  if (steps <= 1) return [from]
+  return Array.from({ length: steps }, (_, i) => {
+    const t = i / (steps - 1)
+    return `#${hex(r1 + (r2 - r1) * t)}${hex(g1 + (g2 - g1) * t)}${hex(b1 + (b2 - b1) * t)}`
+  })
+}
 
 const SIGNAL_POOL = [
   "Command deck online. Keep the blast radius visible.",
@@ -109,10 +127,12 @@ interface Props {
 function Cell({ label, value, valueColor, labelColor, width }: {
   label: string; value: string; valueColor: string; labelColor: string; width: number
 }) {
+  const labelMax = 10
+  const valueMax = Math.max(8, width - labelMax - 2)
   return (
     <HStack width={width} justify="space-between">
-      <Text color={labelColor}>{label}</Text>
-      <Text color={valueColor}>{value}</Text>
+      <Text color={labelColor}>{truncate(label, labelMax)}</Text>
+      <Text color={valueColor}>{truncate(value, valueMax)}</Text>
     </HStack>
   )
 }
@@ -146,14 +166,19 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
 
   React.useEffect(() => {
     const maxFrame = BOOT_PHASES.length * 2 - 1
+    if (!motionEnabled()) { setBootFrame(maxFrame); return }
     const t = setInterval(() => setBootFrame((n) => n >= maxFrame ? n : n + 1), 220)
     return () => clearInterval(t)
   }, [])
 
   const bootPhase = BOOT_PHASES[Math.min(BOOT_PHASES.length - 1, Math.floor(bootFrame / 2) % BOOT_PHASES.length)]!
   const portalFrame = PORTAL_FRAMES[bootFrame % PORTAL_FRAMES.length]!
-  const bannerWidth = Math.max(24, (cols ?? 80) - 4)
-  const outerContentWidth = Math.max(18, bannerWidth - 6)
+  // Banner tam terminal genişliğini kaplar — üst bar ve input ile aynı kenar.
+  const bannerWidth = Math.max(24, cols ?? 80)
+  const outerContentWidth = Math.max(18, bannerWidth - 4)
+  // Marka gradyanı: üstte accentAlt (açık), altta accent (koyu) — oxblood tonları.
+  const logoColors = hexGradient(theme.accentAlt, theme.accent, ASCII_LOGO.length)
+  const compactLogoColors = hexGradient(theme.accentAlt, theme.accent, COMPACT_ASCII_LOGO.length)
   const panelWidth = outerContentWidth
   const panelContentWidth = Math.max(18, panelWidth - 6)
   const dividerWidth = outerContentWidth
@@ -205,7 +230,7 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
         <Center>
           <VStack gap="none">
             {COMPACT_ASCII_LOGO.map((row, i) => (
-              <Text key={i} color={row.color} bold>{row.text}</Text>
+              <Text key={i} color={compactLogoColors[i] ?? theme.accent} bold>{row}</Text>
             ))}
           </VStack>
         </Center>
@@ -257,7 +282,7 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
         <Center>
           <VStack gap="none">
             {ASCII_LOGO.map((row, i) => (
-              <Text key={i} color={row.color} bold>{row.text}</Text>
+              <Text key={i} color={logoColors[i] ?? theme.accent} bold>{row}</Text>
             ))}
           </VStack>
         </Center>
@@ -270,10 +295,14 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
         <Text color={theme.accent}>✦</Text>
       </HStack>
 
-      {/* ── SYSTEMS ONLINE instrument paneli ── */}
-      <VStack width={panelWidth} borderStyle="round" borderColor={theme.borderActive} paddingX="md" paddingY="sm" gap="xs">
+      <HStack width={panelWidth} gap="none">
+        <Text color={theme.borderActive}>┌</Text>
+        <Text color={theme.textDim}> systems online </Text>
+        <Text color={theme.borderActive}>{"─".repeat(Math.max(0, panelWidth - 18))}</Text>
+      </HStack>
+      <VStack width={panelWidth} borderStyle="round" borderColor={theme.borderActive} borderTop={false} paddingX="md" paddingY="sm" gap="xs">
         <HStack justify="space-between">
-          <Text color={theme.textDim} bold>SYSTEMS ONLINE</Text>
+          <Eyebrow tone="muted">cockpit</Eyebrow>
           <Text color={theme.success}>◉ ready · {version}</Text>
         </HStack>
         <SafeDivider color={theme.borderDim} width={panelDividerWidth} />
@@ -304,14 +333,12 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
         </HStack>
       </VStack>
 
-      {/* ── Mission signal ── */}
       <HStack paddingX="sm" gap="sm">
         <Text color={theme.accentAlt}>◆</Text>
         <Text color={theme.textSecondary}>{signal}</Text>
         <Text color={theme.textDim} dimColor>· mission signal</Text>
       </HStack>
 
-      {/* ── Welcome + ipuçları ── */}
       <HStack justify="space-between" paddingX="sm">
         <Text color={theme.textDim}>Welcome back, {user}</Text>
         <HStack gap="md">
@@ -321,6 +348,11 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
             </Text>
           ))}
         </HStack>
+      </HStack>
+
+      <HStack width={panelWidth} gap="none">
+        <Text color={theme.borderActive}>└</Text>
+        <Text color={theme.borderActive}>{"─".repeat(Math.max(0, panelWidth - 2))}</Text>
       </HStack>
     </VStack>
   )

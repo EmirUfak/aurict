@@ -6,6 +6,7 @@ import { Select, type SelectOption } from "./Select.js"
 import { BashPermissionRequest } from "./BashPermissionRequest.js"
 import { FallbackPermissionRequest } from "./FallbackPermissionRequest.js"
 import { PermissionScaffold } from "./PermissionScaffold.js"
+import { DesignBox as Box2 } from "./design-system/types.js"
 
 type Decision = PermissionDecision | "deny_abort" | "edit"
 export type PermissionPromptDecision = Decision | PermissionResponse
@@ -85,7 +86,6 @@ function GranularPatchRequest({ request, onDecide }: Props) {
 
   const header = (
     <Box flexDirection="column" marginBottom={1}>
-      {/* File selector */}
       <Box flexDirection="column" marginBottom={1}>
         <Box gap={2} marginBottom={1}>
           <Text color={theme.textDim} dimColor>←/→ navigate  Space toggle</Text>
@@ -103,22 +103,33 @@ function GranularPatchRequest({ request, onDecide }: Props) {
           )
         })}
       </Box>
-      {/* Patch preview */}
       {patchText && showPatch && (
-        <Box flexDirection="column" marginBottom={1}
-             borderStyle="single" borderColor={theme.borderDim} paddingX={1}>
-          <Box gap={2}>
-            <Text color={theme.textDim} dimColor>diff</Text>
-            <Text color={theme.textDim} dimColor>d hide</Text>
+        <Box flexDirection="column" marginBottom={1} borderStyle="single" borderColor={theme.borderDim}>
+          <Box2 paddingX={1} {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
+            <Text color={theme.textDim}> patch </Text>
+            <Text color={theme.accent}>▊</Text>
+            <Text color={theme.textDim}> d hide</Text>
+          </Box2>
+          <Box flexDirection="column" paddingX={1}>
+            {patchPreviewLines(patchText).map((line, i) => {
+              const isAdd     = line.startsWith("+")
+              const isRem     = line.startsWith("-")
+              const isHunk     = line.startsWith("@@")
+              const isFileHdr  = line.startsWith("***") || line.startsWith("---")
+              const color = isAdd    ? theme.success
+                : isRem      ? theme.error
+                : isHunk     ? theme.warning
+                : isFileHdr  ? theme.accent
+                :               theme.textDim
+              const prefix = isAdd ? "+" : isRem ? "-" : " "
+              return (
+                <Text key={i} color={color}>
+                  <Text color={isAdd ? theme.success : isRem ? theme.error : color} bold={isAdd || isRem}>{prefix}</Text>
+                  {line}
+                </Text>
+              )
+            })}
           </Box>
-          {patchPreviewLines(patchText).map((line, i) => {
-            const color = line.startsWith("+") ? theme.success
-              : line.startsWith("-") ? theme.error
-                : line.startsWith("***") ? theme.accent
-                  : line.startsWith("@@") ? theme.warning
-                    : theme.textDim
-            return <Text key={i} color={color}>{line}</Text>
-          })}
         </Box>
       )}
     </Box>

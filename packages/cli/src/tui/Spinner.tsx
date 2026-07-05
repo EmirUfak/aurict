@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, memo } from "react"
 import { Box, Text } from "ink"
 import { useTheme } from "../utils/theme.js"
+import { motionEnabled } from "./design-system/motion.js"
 
-// OpenClaude: 120ms per frame, 10 frames
 const FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 const FRAME_MS = 120
 
-// Glimmer sweep: her GLIMMER_MS'de bir adım, verb üzerinde parlak alan kayar
 const GLIMMER_MS = 60
 
 const VERBS: Record<string, string> = {
@@ -79,15 +78,15 @@ export const Spinner = memo(function Spinner({ activeTool }: Props) {
   useEffect(() => {
     startRef.current = Date.now()
     setElapsed(0)
-    const frameTimer   = setInterval(() => setFrame(f => (f + 1) % FRAMES.length), FRAME_MS)
-    const glimmerTimer = setInterval(() => setGlimmer(g => (g + 1) % (verbLabel.length + 4)), GLIMMER_MS)
+    const canMove = motionEnabled()
+    const frameTimer   = canMove ? setInterval(() => setFrame(f => (f + 1) % FRAMES.length), FRAME_MS) : null
+    const glimmerTimer = canMove ? setInterval(() => setGlimmer(g => (g + 1) % (verbLabel.length + 4)), GLIMMER_MS) : null
     const elapsedTimer = setInterval(() => setElapsed(Date.now() - startRef.current), 500)
     return () => {
-      clearInterval(frameTimer)
-      clearInterval(glimmerTimer)
+      if (frameTimer)   clearInterval(frameTimer)
+      if (glimmerTimer) clearInterval(glimmerTimer)
       clearInterval(elapsedTimer)
     }
-  // activeTool değişince sıfırla
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool])
 

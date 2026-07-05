@@ -2,6 +2,8 @@ import React, { useState } from "react"
 import { Box, Text, useInput } from "ink"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
+import { useBlinkFrame } from "./design-system/motion.js"
+import { DesignBox as Box2 } from "./design-system/types.js"
 
 interface Props {
   content:  string
@@ -26,6 +28,7 @@ function formatBytes(text: string): string {
 export function ExpandableOutput({ content, toolName, onClose }: Props) {
   const theme    = useTheme()
   const { columns: termCols, rows: termRows } = useTerminalSize()
+  const blink    = useBlinkFrame()
   const pageSize = Math.max(5, termRows - 8)
   const cols     = Math.max(40, termCols)
   const lines    = stripAnsi(content)
@@ -52,14 +55,16 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={theme.borderActive} width="100%">
-      {/* Başlık */}
-      <Box paddingX={1} justifyContent="space-between" borderStyle="single"
-           borderColor={theme.borderDim} borderTop={false} borderLeft={false} borderRight={false}>
-        <Text color={theme.accent} bold>⊞ {toolName}</Text>
-        <Text color={theme.textDim}>{totalLines} lines  {formatBytes(content)}  {pct}%</Text>
-      </Box>
+      <Box2 {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
+        <Box paddingX={1} justifyContent="space-between">
+          <Box gap={1}>
+            <Text color={theme.textDim}> {toolName} </Text>
+            <Text color={theme.accent}>{blink ? "▊" : " "}</Text>
+          </Box>
+          <Text color={theme.textDim}>{totalLines} lines  {formatBytes(content)}  {pct}%</Text>
+        </Box>
+      </Box2>
 
-      {/* İçerik */}
       <Box flexDirection="column" paddingX={1}>
         {content.length === 0 && (
           <Text color={theme.textDim} dimColor>(empty output)</Text>
@@ -76,7 +81,6 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
         })}
       </Box>
 
-      {/* Sayfalama */}
       {totalLines > pageSize && (
         <Box paddingX={1} borderStyle="single" borderColor={theme.borderDim}
              borderBottom={false} borderLeft={false} borderRight={false}>

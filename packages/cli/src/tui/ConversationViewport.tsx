@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useLayoutEffect, useReducer, useCallback, useSt
 import { Box, Text, measureElement } from "ink"
 import type { DOMElement } from "ink"
 import { Message, type DisplayMessage } from "./Message.js"
-import { StreamingView } from "./StreamingView.js"
+import { StreamingView, STREAM_REASONING_MAX, STREAM_TEXT_MAX } from "./StreamingView.js"
 import { Spinner } from "./Spinner.js"
 import { useTheme } from "../utils/theme.js"
 
@@ -15,26 +15,41 @@ function estimateWrappedLines(text: string, width: number): number {
     .reduce((sum, line) => sum + Math.max(1, Math.ceil((line.length || 1) / safeWidth)), 0)
 }
 
+// Tool çıktısı önizlemesi: Message.tsx MAX_TOOL_LINES=7 → 6 head + (varsa) 1 "hidden"
+// + 1 tail; kutuda en fazla ~8 satır görünür.
+const TOOL_PREVIEW_MAX = 8
+
+// Not: viewport'a geçen `width` zaten ~termCols-9 (bodyWidth). Message içeriği ray/
+// border+padding sonrası ≈ width-2'de sarılıyor; tahminin gerçek yüksekliğe yakın
+// olması settle sıçramasını (scroll-freeze idle-apply) neredeyse görünmez yapar.
 function estimateMessageRows(message: DisplayMessage, width: number): number {
-  const contentWidth = Math.max(20, width - 16)
+  const contentWidth = Math.max(12, width - 3)
   if (message.role === "user")
-    return estimateWrappedLines(message.content, contentWidth) + 1
+    // 1 header (you) + sarılı içerik + 1 marginBottom
+    return estimateWrappedLines(message.content, contentWidth) + 2
   if (message.role === "assistant") {
+    const thinking = message.reasoningContent ? 1 : 0  // collapsed ∴ satırı
     if (message.blocks && message.blocks.length > 0) {
       let rows = 0
       for (const b of message.blocks) {
         if (b.type === "text") rows += estimateWrappedLines(b.content || "…", contentWidth) + 1
-        else rows += Math.min(3, estimateWrappedLines(b.resultContent || "", contentWidth)) + 3
+        else {
+          const outLines = estimateWrappedLines(b.resultContent || "", contentWidth)
+          rows += Math.min(TOOL_PREVIEW_MAX, Math.max(1, outLines)) + 2  // header + kutu + margin
+        }
       }
-      return Math.max(3, rows)
+      return Math.max(3, rows + 1 + thinking + 1)  // aurict header + thinking + marginBottom
     }
-    return estimateWrappedLines(message.content || message.reasoningContent || "…", contentWidth) + 3
+    return estimateWrappedLines(message.content || message.reasoningContent || "…", contentWidth) + 2 + thinking
   }
   if (message.role === "tool_call") {
     const output = message.resultContent || message.content || ""
-    // 1 header + up to 3 visible lines + 1 "N hidden" indicator
-    return Math.min(3, estimateWrappedLines(output, contentWidth)) + 3
+    const outLines = estimateWrappedLines(output, contentWidth)
+    const shown = outLines > TOOL_PREVIEW_MAX ? TOOL_PREVIEW_MAX : Math.max(1, outLines)
+    // 1 header + kutu satırları + 1 marginBottom
+    return 1 + shown + 1
   }
+  // system / error: · prefix + sarılı içerik + marginBottom
   return estimateWrappedLines(message.content, contentWidth) + 1
 }
 
@@ -100,6 +115,10 @@ export interface ConversationViewportProps {
   scrollLocked:         boolean
   offsetRowsFromBottom: number
   unseenCount?:         number
+  /** En üst scroll sınırını (maxOffset) App'e raporlar — iki-uç clamp için. */
+  onScrollRange?:       (maxOffset: number) => void
+  /** Yukarı kaydırılmışken alta içerik eklendiğinde okuma konumunu korumak için offset kaydırır. */
+  onAnchorShift?:       (deltaRows: number) => void
   onExpandTool:         (content: string, toolName: string) => void
   onExpandThinking:     (content: string) => void
 }
@@ -153,6 +172,8 @@ export function ConversationViewport({
   scrollLocked,
   offsetRowsFromBottom,
   unseenCount,
+  onScrollRange,
+  onAnchorShift,
   onExpandTool,
   onExpandThinking,
 }: ConversationViewportProps) {
@@ -180,10 +201,40 @@ export function ConversationViewport({
   const heightCacheRef = useRef<Map<string, number>>(new Map())
   const [measureRevision, forceUpdate] = useReducer((x: number) => x + 1, 0)
 
+  // ── Scroll-freeze ──────────────────────────────────────────────────────────
+  // Kullanıcı aktif kaydırırken ölçüm reflow'u içeriği gözünün altında zıplatıyor.
+  // Bu yüzden jest boyunca ölçümler cache'e YAZILIR ama forceUpdate ERTELENİR;
+  // ~140ms sessizlikte biriken ölçümler tek seferde uygulanır.
+  const scrollingRef      = useRef(false)
+  const pendingMeasureRef = useRef(false)
+  const scrollIdleTimer   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevOffsetRef     = useRef(offsetRowsFromBottom)
+
+  useEffect(() => {
+    if (offsetRowsFromBottom !== prevOffsetRef.current) {
+      prevOffsetRef.current = offsetRowsFromBottom
+      scrollingRef.current = true
+      if (scrollIdleTimer.current) clearTimeout(scrollIdleTimer.current)
+      scrollIdleTimer.current = setTimeout(() => {
+        scrollingRef.current = false
+        if (pendingMeasureRef.current) {
+          pendingMeasureRef.current = false
+          forceUpdate()
+        }
+      }, 140)
+    }
+    return () => { if (scrollIdleTimer.current) clearTimeout(scrollIdleTimer.current) }
+  }, [offsetRowsFromBottom])
+
   const handleMeasure = useCallback((key: string, rows: number) => {
     if (heightCacheRef.current.get(key) !== rows) {
       heightCacheRef.current.set(key, rows)
-      forceUpdate()
+      if (scrollingRef.current) {
+        // Jest sürerken reflow'u erteleyerek zıplamayı önle.
+        pendingMeasureRef.current = true
+      } else {
+        forceUpdate()
+      }
     }
   }, [])
 
@@ -197,7 +248,13 @@ export function ConversationViewport({
     })
 
     if (streamingText || streamingReason || streamingError) {
-      list.push({ kind: "streaming", key: "streaming-entry", rows: 6 })
+      // StreamingView'in sınırlı (tail) yüksekliğiyle eşleşen tahmin — scroll
+      // matematiğinin gerçek çizilen yükseklikten sapmaması için.
+      const reasoningRows = streamingReason ? Math.min(STREAM_REASONING_MAX, streamingReason.split("\n").length) + 2 : 0
+      const textRows      = streamingText   ? Math.min(STREAM_TEXT_MAX, streamingText.split("\n").length) + 2 : 0
+      const errorRows     = streamingError  ? 2 : 0
+      const streamRows    = Math.max(3, reasoningRows + textRows + errorRows)
+      list.push({ kind: "streaming", key: "streaming-entry", rows: streamRows })
     } else if (loading && !activeTool) {
       list.push({ kind: "spinner", key: "spinner-entry", rows: 3 })
     }
@@ -213,6 +270,26 @@ export function ConversationViewport({
   const maxOffset      = Math.max(0, totalRows - scrollAreaRows)
   const clampedOffset  = Math.min(offsetRowsFromBottom, maxOffset)
   const scrollPosition = maxOffset - clampedOffset  // rows from top to start of visible area
+
+  // Üst scroll sınırını App'e raporla (iki-uç clamp için).
+  useEffect(() => { onScrollRange?.(maxOffset) }, [maxOffset, onScrollRange])
+
+  // Konum koruma: yukarı kaydırılmışken alta yeni mesaj eklenince (streaming değil,
+  // finalize mesajlar) offset'i eklenen satır kadar kaydır → görüntü sabit kalır.
+  // messages.length'e bağlı olduğu için ölçüm düzeltmeleri yanlış tetiklemez.
+  const prevMsgCountRef = useRef(messages.length)
+  const offsetRef = useRef(offsetRowsFromBottom)
+  useEffect(() => { offsetRef.current = offsetRowsFromBottom })
+  useEffect(() => {
+    const prev = prevMsgCountRef.current
+    prevMsgCountRef.current = messages.length
+    if (messages.length > prev && offsetRef.current > 0 && onAnchorShift) {
+      let added = 0
+      for (let i = prev; i < messages.length; i++) added += estimateMessageRows(messages[i]!, width)
+      if (added > 0) onAnchorShift(added)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length])
 
   // ── Slice-based rendering: büyük negatif marginTop yerine sadece görünen
   // entry'ler render edilir. Bu Yoga'nın içeriği sıkıştırmasını engeller.
@@ -233,7 +310,20 @@ export function ConversationViewport({
     }
   }
 
-  const visibleEntries = entries.slice(firstVisIdx, firstVisIdx + MAX_RENDERED)
+  const windowEntries = entries.slice(firstVisIdx, firstVisIdx + MAX_RENDERED)
+
+  // ── Alt-kırpma (taşma koruması) ────────────────────────────────────────────
+  // Ink'in overflow:hidden'ı dinamik metni her zaman kırpmıyor; görünür pencereyi
+  // aşan entry'ler alt alta binerek "sıkışma" yaratıyor. Bu yüzden görünür alan
+  // bütçesini (scrollAreaRows) dolduran entry'lerden sonrasını hiç render etme.
+  // İlk entry intraPad kadar yukarı kaydığı için sayacı -intraPad'den başlat.
+  const visibleEntries: TranscriptEntry[] = []
+  let acc = -intraPad
+  for (const e of windowEntries) {
+    visibleEntries.push(e)
+    acc += e.rows
+    if (acc >= scrollAreaRows) break
+  }
 
   return (
     <Box height={height} flexShrink={1} flexDirection="column" overflow="hidden">

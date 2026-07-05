@@ -1,7 +1,8 @@
 import React, { useState } from "react"
 import { Box, Text, useInput } from "ink"
 import { useTheme } from "../utils/theme.js"
-import { THEMES, THEME_NAMES } from "../utils/theme.js"
+import { THEMES, THEME_NAMES, BRAND_PALETTE_IDS, isBrandTheme } from "../utils/theme.js"
+import { Eyebrow } from "./design-system/index.js"
 import { Typo, HStack, VStack, Badge } from "./design-system/index.js"
 import { loadConfig } from "@aurict/core"
 
@@ -52,7 +53,9 @@ export function SettingsPanel({ provider, model, currentTheme, workdir, onTheme,
   const [cursor, setCursor] = useState(0)
 
   const tabIdx = TABS.findIndex(t => t.id === tab)
-  const maxCursor = tab === "theme" ? Math.max(0, THEME_NAMES.length - 1) : 0
+  const legacyNames = THEME_NAMES.filter((n) => !isBrandTheme(n))
+  const allNames    = [...BRAND_PALETTE_IDS, ...legacyNames]
+  const maxCursor = tab === "theme" ? Math.max(0, allNames.length - 1) : 0
 
   useInput((input, key) => {
     if (key.escape) { onClose(); return }
@@ -65,7 +68,7 @@ export function SettingsPanel({ provider, model, currentTheme, workdir, onTheme,
 
     // Theme tab: Enter to select theme
     if (tab === "theme" && key.return) {
-      const name = THEME_NAMES[cursor]
+      const name = allNames[cursor]
       if (name) onTheme(name)
       return
     }
@@ -125,9 +128,30 @@ export function SettingsPanel({ provider, model, currentTheme, workdir, onTheme,
       {/* Theme tab */}
       {tab === "theme" && (
         <VStack gap="none">
-          <Typo variant="caption" tone="muted">Enter to apply theme</Typo>
-          {THEME_NAMES.map((name, i) => {
-            const selected = i === Math.min(cursor, THEME_NAMES.length - 1)
+          <Typo variant="caption" tone="muted">Enter to apply · /palette to switch</Typo>
+          <HStack gap="sm" marginTop={1} marginBottom="xs">
+            <Eyebrow tone="accent">brand palettes</Eyebrow>
+          </HStack>
+          {BRAND_PALETTE_IDS.map((name, i) => {
+            const cursorIdx = i
+            const selected = cursorIdx === Math.min(cursor, allNames.length - 1)
+            const active   = name === currentTheme
+            return (
+              <HStack key={name} gap="sm">
+                <Text color={selected ? theme.accent : theme.borderDim}>{selected ? "▶" : " "}</Text>
+                <Text color={selected ? theme.textPrimary : theme.textSecondary} bold={active}>
+                  {THEMES[name]?.name ?? name}
+                </Text>
+                {active && <Badge tone="success" variant="ghost">active</Badge>}
+              </HStack>
+            )
+          })}
+          <HStack gap="sm" marginTop={1} marginBottom="xs">
+            <Eyebrow tone="muted">legacy themes</Eyebrow>
+          </HStack>
+          {legacyNames.map((name, i) => {
+            const cursorIdx = BRAND_PALETTE_IDS.length + i
+            const selected = cursorIdx === Math.min(cursor, allNames.length - 1)
             const active   = name === currentTheme
             return (
               <HStack key={name} gap="sm">

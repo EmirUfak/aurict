@@ -6,6 +6,7 @@ import { Select, type SelectOption } from "./Select.js"
 import type { PermissionPromptDecision } from "./PermissionPrompt.js"
 import type { PermissionDecision } from "@aurict/core"
 import { PermissionScaffold } from "./PermissionScaffold.js"
+import { StatusDot } from "./design-system/StatusDot.js"
 
 type Decision = PermissionDecision | "deny_abort" | "edit"
 
@@ -20,6 +21,12 @@ function sandboxLine(request: PermissionRequest): string | null {
   if (backend === "policy") return reason ? `sandboxed · ${reason}` : "sandboxed"
   if (backend === "docker") return "docker sandbox"
   return reason ?? null
+}
+
+function blastGauge(level: string): { tone: "safe" | "warning" | "danger"; bars: number } {
+  if (level === "danger")  return { tone: "danger",  bars: 5 }
+  if (level === "warning") return { tone: "warning", bars: 3 }
+  return { tone: "safe", bars: 1 }
 }
 
 export function BashPermissionRequest({ request, onDecide }: Props) {
@@ -51,14 +58,20 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
   const sandbox  = sandboxLine(request)
   const title    = request.sandbox?.backend === "none" ? "Bash command (unsandboxed)" : "Bash command"
   const subtitle = isDanger ? "destructive operation" : isWarning ? "elevated privileges" : undefined
-  const blast = isDanger ? "high" : isWarning ? "medium" : "low"
+  const blast    = isDanger ? "high" : isWarning ? "medium" : "low"
+  const gauge    = blastGauge(isDanger ? "danger" : isWarning ? "warning" : "safe")
+  const bareBackends = request.sandbox?.backend === "none"
 
   const header = (
     <Box flexDirection="column" marginBottom={1}>
-      <Box gap={2}>
-        <Text color={accentColor}>blast radius: {blast}</Text>
-        <Text color={request.sandbox?.backend === "none" ? theme.warning : theme.accentAlt}>
-          {request.sandbox?.backend === "none" ? "unsandboxed" : request.sandbox?.backend === "docker" ? "docker shield" : "policy shield"}
+      <Box gap={2} marginBottom={1}>
+        <Box gap={1}>
+          <Text color={theme.textDim}>blast</Text>
+          <StatusDot tone={gauge.tone} active />
+          <Text color={accentColor} bold>{`[${"▮".repeat(gauge.bars)}${"▯".repeat(5 - gauge.bars)}] ${blast}`}</Text>
+        </Box>
+        <Text color={bareBackends ? theme.warning : theme.accentAlt}>
+          {bareBackends ? "unsandboxed" : request.sandbox?.backend === "docker" ? "docker shield" : "policy shield"}
         </Text>
       </Box>
       <Text color={isDanger ? theme.error : isWarning ? theme.warning : theme.textPrimary} bold={isDanger}>
