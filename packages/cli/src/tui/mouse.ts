@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef } from "react"
+import { registerTerminalMode } from "./event-system/terminal-modes.js"
 
 export type MouseButton = "left" | "right" | "middle" | "scroll-up" | "scroll-down"
 
@@ -26,6 +27,24 @@ type MouseHandler = (e: MouseEvent) => void
 const handlers = new Set<MouseHandler>()
 let enabled = false
 
+// ── Terminal focus (DECSET 1004: CSI I / CSI O) ─────────────────────────────
+// Odak sequence'ları da mouse sequence'ları gibi burada, TEK stdin-tap
+// noktasında ayrıştırılır — ayrı bir modülün stdin.emit/read'i bağımsızca
+// yeniden yaması, bu dosyanın zaten hassas olan coalesced-key-splitting ve
+// pendingReads kuyruğu mantığıyla öngörülemeyen şekilde çakışabilirdi.
+type FocusHandler = (focused: boolean) => void
+const focusHandlers = new Set<FocusHandler>()
+const FOCUS_SEQ_RE = /\x1b\[([IO])/g
+
+function stripAndDispatchFocus(str: string): string {
+  if (!str.includes("\x1b[I") && !str.includes("\x1b[O")) return str
+  return str.replace(FOCUS_SEQ_RE, (_match, ch: string) => {
+    const focused = ch === "I"
+    for (const h of focusHandlers) h(focused)
+    return ""
+  })
+}
+
 // Installed at module load — strips mouse escape sequences from stdin before
 // Ink's useInput sees them. Runs unconditionally so sequences are filtered
 // even when the terminal or tmux enables mouse mode independently of Aurict,
@@ -39,9 +58,11 @@ const _origStdinEmit = process.stdin.emit.bind(process.stdin) as (...a: any[]) =
     const raw = args[0] as Buffer | string
     const str = typeof raw === "string" ? raw : raw.toString("binary")
     if (enabled) parseMouseEvents(str)
-    const clean = str
-      .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, "")  // SGR mouse events
-      .replace(/\x1b\[M[\s\S]{3}/g, "")          // X10 mouse events (3 raw bytes)
+    const clean = stripAndDispatchFocus(
+      str
+        .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, "")  // SGR mouse events
+        .replace(/\x1b\[M[\s\S]{3}/g, "")          // X10 mouse events (3 raw bytes)
+    )
     if (!clean) return true
     return _origStdinEmit("data", Buffer.from(clean, "binary"))
   }
@@ -90,9 +111,11 @@ const _origStdinRead = process.stdin.read.bind(process.stdin)
   if (raw === null || raw === undefined) return raw
   const str = typeof raw === "string" ? raw : String(raw)
   if (enabled) parseMouseEvents(str)
-  const clean = str
-    .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, "")  // SGR mouse events
-    .replace(/\x1b\[M[\s\S]{3}/g, "")          // X10 mouse events
+  const clean = stripAndDispatchFocus(
+    str
+      .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, "")  // SGR mouse events
+      .replace(/\x1b\[M[\s\S]{3}/g, "")          // X10 mouse events
+  )
   if (!clean) return null
   const tokens = splitCoalescedKeys(clean)
   if (tokens) {
@@ -115,12 +138,39 @@ export function injectInput(sequence: string): void {
 function enableMouseTracking(): () => void {
   if (enabled) return () => {}
   enabled = true
-  process.stdout.write("\x1b[?1000h")  // normal button events
-  process.stdout.write("\x1b[?1006h")  // SGR mode
+  // Kayıt merkezi (terminal-modes.ts) SIGINT/SIGTERM/exit'te bu sequence'ların
+  // yazıldığından emin olur — önceden yalnızca React effect unmount'una
+  // güveniliyordu, süreç sinyalle sonlandığında hiç çalışmıyordu.
+  const cleanup = registerTerminalMode(
+    "mouse-tracking",
+    "\x1b[?1000h\x1b[?1006h",  // normal button events + SGR mode
+    "\x1b[?1006l\x1b[?1000l",
+  )
   return () => {
-    process.stdout.write("\x1b[?1006l")
-    process.stdout.write("\x1b[?1000l")
+    cleanup()
     enabled = false
+  }
+}
+
+let focusModeCleanup: (() => void) | null = null
+
+/**
+ * Terminal odak değişikliklerini (DECSET 1004) dinle. İlk abone olan çağrı
+ * `\x1b[?1004h`'ı etkinleştirir; son abone ayrılınca `\x1b[?1004l` ile
+ * kapatılır (mouse tracking'deki ref-count deseniyle aynı).
+ * @returns Aboneliği iptal eden fonksiyon.
+ */
+export function onFocusChange(handler: FocusHandler): () => void {
+  if (focusHandlers.size === 0) {
+    focusModeCleanup = registerTerminalMode("terminal-focus", "\x1b[?1004h", "\x1b[?1004l")
+  }
+  focusHandlers.add(handler)
+  return () => {
+    focusHandlers.delete(handler)
+    if (focusHandlers.size === 0 && focusModeCleanup) {
+      focusModeCleanup()
+      focusModeCleanup = null
+    }
   }
 }
 

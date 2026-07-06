@@ -24,6 +24,7 @@ interface Props {
   queued?:            string | undefined
   inlineSuggestionActive?: boolean
   onPasteTruncated?:  (originalLen: number, truncatedLen: number) => void
+  onCopied?:          (charCount: number) => void
 }
 
 // Alt ipucu barı hücreleri — terminal genişliğine göre seçilir
@@ -41,7 +42,7 @@ const HINTS_SHORT: { key: string; label: string }[] = [
   { key: "@",  label: "file" },
 ]
 
-export function ChatInput({ value, onChange, onSubmit, disabled, history = [], queued, inlineSuggestionActive = false, onPasteTruncated }: Props) {
+export function ChatInput({ value, onChange, onSubmit, disabled, history = [], queued, inlineSuggestionActive = false, onPasteTruncated, onCopied }: Props) {
   const theme = useTheme()
   const [isPasting, setIsPasting] = useState(false)
   const promptChar = "❯"
@@ -96,6 +97,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
               history={history}
               inlineSuggestionActive={inlineSuggestionActive}
               {...(onPasteTruncated !== undefined ? { onPasteTruncated } : {})}
+              {...(onCopied !== undefined ? { onCopied } : {})}
               onPasteStart={() => setIsPasting(true)}
               onPasteEnd={() => setIsPasting(false)}
             />

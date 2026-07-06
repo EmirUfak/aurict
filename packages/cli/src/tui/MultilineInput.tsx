@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useRef } from "react"
-import { Box, Text, useInput } from "ink"
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react"
+import { Box, Text, useInput, measureElement, type DOMElement } from "ink"
 import { stripVTControlCharacters } from "node:util"
 import { useTheme } from "../utils/theme.js"
+import { useMouseEvents } from "./mouse.js"
+import { measureAbsolutePosition } from "./event-system/measure-position.js"
+import { writeClipboard } from "../util/clipboard.js"
 
 // Güvenli paste boyutu: çok büyük paste'ler terminal'i kilitler
 const MAX_PASTE_CHARS = 50_000
@@ -16,6 +19,23 @@ interface Props {
   onPasteTruncated?:  (originalLen: number, truncatedLen: number) => void
   onPasteStart?:      () => void
   onPasteEnd?:        () => void
+  onCopied?:          (charCount: number) => void
+}
+
+export interface LocalPoint { row: number; col: number }
+
+/** İki nokta arasındaki (satır, sütun) aralığındaki metni `lines`'tan çıkarır. */
+export function extractRange(lines: string[], a: LocalPoint, b: LocalPoint): string {
+  const [start, end] = a.row < b.row || (a.row === b.row && a.col <= b.col) ? [a, b] : [b, a]
+  if (start.row === end.row) {
+    const line = lines[start.row] ?? ""
+    return line.slice(Math.min(start.col, end.col), Math.max(start.col, end.col))
+  }
+  const parts: string[] = []
+  parts.push((lines[start.row] ?? "").slice(start.col))
+  for (let r = start.row + 1; r < end.row; r++) parts.push(lines[r] ?? "")
+  parts.push((lines[end.row] ?? "").slice(0, end.col))
+  return parts.join("\n")
 }
 
 function splitLines(v: string): string[] {
@@ -60,7 +80,7 @@ function sanitizeInput(raw: string): string {
     .replace(/\[201~/g, "")
 }
 
-export function MultilineInput({ value, onChange, onSubmit, disabled, history, inlineSuggestionActive = false, onPasteTruncated, onPasteStart, onPasteEnd }: Props) {
+export function MultilineInput({ value, onChange, onSubmit, disabled, history, inlineSuggestionActive = false, onPasteTruncated, onPasteStart, onPasteEnd, onCopied }: Props) {
   const theme = useTheme()
 
   const [lines, setLines]   = useState<string[]>(() => splitLines(value))
@@ -71,10 +91,65 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
   const pasteBufferRef      = useRef("")
   const linesRef            = useRef(lines)
   const cursorRef           = useRef(cursor)
-  
+  const boxRef              = useRef<DOMElement>(null)
+  const boundsRef           = useRef({ row: 0, col: 0, width: 0, height: 0 })
+  const dragStartRef        = useRef<LocalPoint | null>(null)
+
   // Keep refs in sync with state
   useEffect(() => { linesRef.current = lines }, [lines])
   useEffect(() => { cursorRef.current = cursor }, [cursor])
+
+  // Input kutusunun ekrandaki mutlak sınırlarını her render sonrası güncelle
+  // — click/release event'lerinin (mouse.ts'ten gelen mutlak terminal
+  // koordinatları) yerel satır/sütuna çevrilebilmesi için gerekli.
+  useLayoutEffect(() => {
+    if (!boxRef.current) return
+    const pos  = measureAbsolutePosition(boxRef.current)
+    const size = measureElement(boxRef.current)
+    boundsRef.current = { row: pos.row, col: pos.col, width: size.width, height: size.height }
+  })
+
+  // Mutlak terminal (x,y) [1-based] → kutu-içi yerel (row,col), sınırlar
+  // dışındaysa null (bu tıklama input kutusuyla ilgili değil demektir).
+  // Çok satırlı input'ta satır numarası gutter'ı ("N │ ") metni sağa kaydırır
+  // — bu yüzden sütun hesabından gutter genişliği düşülür.
+  function toLocalPoint(x: number, y: number): LocalPoint | null {
+    const b = boundsRef.current
+    const localRow = y - 1 - b.row
+    const rawCol   = x - 1 - b.col
+    if (localRow < 0 || localRow >= b.height || rawCol < 0 || rawCol > b.width) return null
+    const currentLines = linesRef.current
+    const showLineNum  = currentLines.length > 1
+    const gutterWidth  = showLineNum ? String(currentLines.length).length + 3 : 0
+    const clampedRow   = Math.min(localRow, currentLines.length - 1)
+    const lineLen      = (currentLines[clampedRow] ?? "").length
+    const textCol      = Math.max(0, rawCol - gutterWidth)
+    return { row: clampedRow, col: Math.min(textCol, lineLen) }
+  }
+
+  useMouseEvents((e) => {
+    if (disabled) return
+    if (e.type === "click") {
+      dragStartRef.current = toLocalPoint(e.x, e.y)
+      return
+    }
+    if (e.type === "release") {
+      const start = dragStartRef.current
+      dragStartRef.current = null
+      const end = toLocalPoint(e.x, e.y)
+      if (!start || !end) return
+      if (start.row === end.row && start.col === end.col) {
+        // Sürükleme yok — sade tıklama: imleci oraya konumlandır.
+        setCursor({ row: end.row, col: end.col })
+        return
+      }
+      const text = extractRange(linesRef.current, start, end)
+      if (text) {
+        writeClipboard(text)
+        onCopied?.(text.length)
+      }
+    }
+  })
 
   // lines → value
   useEffect(() => {
@@ -334,10 +409,28 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
     }
 
     // ── Ctrl+Backspace / Ctrl+W / Alt+Backspace: kelime sil ──────────────
-    // \x17 = Ctrl+W (Unix), \x08 = Ctrl+Backspace (gnome-terminal/alacritty/VTE),
-    // \x1b\x7f = Alt+Backspace veya Ctrl+Backspace (xterm/kitty)
-    // \x1b[127;5u = Ctrl+Backspace (kitty CSI-u modu)
-    if ((key.backspace && key.ctrl) || input === "\x17" || input === "\x1b\x7f" || input === "\x08" || input === "\x1b[127;5u") {
+    // AURICT_DEBUG_KEYS=1 ile gerçek kullanıcı verisiyle doğrulandı: Ink,
+    // `useInput`'a ulaşmadan ÖNCE bilinen escape sequence'ları kendi
+    // key.*/input çiftine çeviriyor — raw baytlar `input`'ta SAKLANMIYOR.
+    // Bu yüzden aşağıdaki iki kontrol GERÇEKTEN çalışıyor (uçtan uca test
+    // edildi):
+    //   - key.delete && key.meta  → gnome-terminal ailesinde Ctrl+Backspace
+    //     VEYA Alt+Backspace, Ink tarafından \x1b\x7f'den böyle üretiliyor.
+    //   - key.ctrl && input==="w" → Ctrl+W, Ink Ctrl+<harf>'i her zaman
+    //     {ctrl:true, input:"<harf>"} olarak veriyor (\x17 asla input'ta
+    //     literal olarak görünmüyor).
+    // Aşağıdaki ham string eşleşmeleri (\x17/\x1b\x7f/\x08/\x1b[127;5u)
+    // Ink'in bu sequence'ları YUKARIDA AÇIKLANAN şekilde tükettiği ink 5'te
+    // pratikte hiçbir zaman tutmuyor (aynı tanı süreciyle doğrulandı — \x08
+    // salt {backspace:true} olarak geliyor, düz backspace'ten ayırt edilemiyor;
+    // kitty CSI-u ise ESC ve "[127;5u" olarak İKİ AYRI event'e bölünüyor).
+    // Yine de zararsız oldukları ve gelecekte farklı bir terminal/Ink sürümü
+    // raw sequence'ı olduğu gibi bırakırsa çalışabilecekleri için savunma
+    // amaçlı bırakıldı.
+    if (
+      (key.backspace && key.ctrl) || (key.delete && key.meta) || (key.ctrl && input === "w") ||
+      input === "\x17" || input === "\x1b\x7f" || input === "\x08" || input === "\x1b[127;5u"
+    ) {
       const row = cursor.row
       const col = cursor.col
       setLines(prev => {
@@ -413,7 +506,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
   }, { isActive: !disabled })
 
   return (
-    <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+    <Box ref={boxRef} flexDirection="column" flexGrow={1} flexShrink={1}>
       {lines.map((line, i) => {
         // Çok satırlı input'ta satır numarası göster
         const showLineNum = lines.length > 1

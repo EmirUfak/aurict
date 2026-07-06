@@ -5,6 +5,7 @@ import type { AgentInfo } from "@aurict/core"
 import { HStack } from "./design-system/index.js"
 import { motionEnabled } from "./design-system/motion.js"
 import { useTheme } from "../utils/theme.js"
+import { useTerminalFocus } from "./event-system/use-terminal-focus.js"
 
 const WAVE = ["▁▂▃▄▅▆▇", "▂▃▄▅▆▇█", "▃▄▅▆▇█▇", "▄▅▆▇█▇▆", "▅▆▇█▇▆▅", "▆▇█▇▆▅▄", "▇█▇▆▅▄▃", "█▇▆▅▄▃▂"]
 const RADAR = ["◜", "◠", "◝", "◞", "◡", "◟"]
@@ -12,11 +13,15 @@ const SPARK = ["✦", "✧", "◆", "◇"]
 
 function useTicker(active: boolean, interval: number): number {
   const [frame, setFrame] = useState(0)
+  // Terminal odakta değilken (tab değişimi, minimize) dekoratif tickerları
+  // durdur — kullanıcı zaten bakmıyorken gereksiz setInterval + tam-kare
+  // Ink redraw'ı devam etmesin.
+  const focused = useTerminalFocus()
   useEffect(() => {
-    if (!active || !motionEnabled()) return
+    if (!active || !focused || !motionEnabled()) return
     const t = setInterval(() => setFrame((n) => n + 1), interval)
     return () => clearInterval(t)
-  }, [active, interval])
+  }, [active, focused, interval])
   return frame
 }
 

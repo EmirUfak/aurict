@@ -76,6 +76,8 @@ import type { UpdateInfo } from "../util/update-check.js"
 import { CURRENT_VERSION }  from "../util/update-check.js"
 import { readClipboard }     from "../util/clipboard.js"
 import { useMouseEvents, injectInput } from "./mouse.js"
+import { registerTerminalMode } from "./event-system/terminal-modes.js"
+import { installStdinResumeGuard } from "./event-system/stdin-resume.js"
 import { buildDesignPrompt, recordSystemUsed, recordSkillUsed, slugify, loadConfig, metrics } from "@aurict/core"
 import { clearDraft, hasPendingCrashReport, writeCrashReport } from "../util/draft.js"
 import { getTerminalCaps }   from "../util/terminal-caps.js"
@@ -499,21 +501,22 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
     }).catch(() => {})
   }, [initialProvider, workdir])
 
-  // Bracketed paste — sadece terminal destekliyorsa etkinleştir
+  // Bracketed paste — sadece terminal destekliyorsa etkinleştir.
+  // Kayıt merkezi (event-system/terminal-modes.ts) SIGINT (Ctrl+C) dahil her
+  // çıkış yolunda kapatma sequence'ının yazılmasını garanti eder — önceden
+  // yalnızca "exit"/"SIGTERM" dinleniyordu, Ctrl+C ile çıkışta \x1b[?2004l
+  // hiç yazılmıyor ve bir sonraki terminal oturumunda \x1b[200~/\x1b[201~
+  // görünür çöp metin olarak sızabiliyordu.
   useEffect(() => {
     const caps = getTerminalCaps()
     if (!caps.bracketedPaste) return
-    process.stdout.write("\x1b[?2004h")
-    const cleanup = () => { process.stdout.write("\x1b[?2004l") }
-    const onExit = () => cleanup()
-    process.on("exit", onExit)
-    process.on("SIGTERM", onExit)
-    return () => {
-      cleanup()
-      process.off("exit", onExit)
-      process.off("SIGTERM", onExit)
-    }
+    return registerTerminalMode("bracketed-paste", "\x1b[?2004h", "\x1b[?2004l")
   }, [])
+
+  // tmux detach/reattach veya SSH kopması sonrası stdin'de uzun bir sessizlik
+  // olursa, uzak terminalin sıfırlamış olabileceği mouse tracking/bracketed
+  // paste modlarını yeniden ilan et.
+  useEffect(() => installStdinResumeGuard(), [])
 
   // Dependency Sentinel
   useEffect(() => {
@@ -2096,6 +2099,7 @@ export function App({ initialProvider, initialModel, workdir, system, undercover
                 onPasteTruncated={(orig, trunc) =>
                   addSystemMsg(`Paste truncated: ${orig.toLocaleString()} → ${trunc.toLocaleString()} chars`)
                 }
+                onCopied={(n) => addSystemMsg(`📋 Copied (${n.toLocaleString()} chars)`)}
                 {...(queuedInput !== undefined ? { queued: queuedInput } : {})}
               />
             )

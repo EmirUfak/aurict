@@ -12,6 +12,59 @@ export type ClipboardResult =
 function isMac(): boolean  { return process.platform === "darwin" }
 function isLinux(): boolean { return process.platform === "linux" }
 
+// OSC 52: terminale doğrudan "sistem clipboard'ına şunu yaz" komutu. SSH/tmux
+// üzerinden bile çalışır (native komutların erişemeyeceği durumlarda tek
+// güvenilir yol) — terminal desteklemiyorsa sessizce yok sayılır (zararsız).
+// tmux/screen passthrough sarmalayıcısı olmadan iletilirse tmux bunu kendi
+// başına yorumlamaya çalışıp bozar, bu yüzden TMUX/STY ortam değişkenleri
+// varken \x1bPtmux;...\x1b\\ ile sarmalanır.
+function writeOsc52(text: string): void {
+  if (!process.stdout.isTTY) return
+  const sequence = `\x1b]52;c;${Buffer.from(text, "utf8").toString("base64")}\x07`
+  process.stdout.write(
+    process.env["TMUX"] || process.env["STY"]
+      ? `\x1bPtmux;\x1b${sequence}\x1b\\`
+      : sequence,
+  )
+}
+
+export function linuxCopyCommands(): string[] {
+  return ["wl-copy", "xclip -selection clipboard", "xsel --clipboard --input"]
+}
+
+type ExecFn = (command: string, options?: { input?: string }) => Buffer | string
+
+/**
+ * Metni sistem clipboard'ına yazar. OSC 52 her zaman denenir (SSH/tmux-safe,
+ * anında); ardından platforma özgü native komut best-effort denenir. Hiçbiri
+ * çalışmazsa sessizce başarısız olur — kopyalama arka plan bir kolaylık,
+ * kritik bir işlem değil.
+ *
+ * `exec` parametresi yalnızca test amaçlı dependency injection içindir
+ * (gerçek `child_process`'i `mock.module` ile global olarak sahtelemek,
+ * bun'da dosyalar arası izolasyon olmadığı için AYNI süreçte çalışan
+ * ilgisiz test dosyalarını — ör. gerçek git komutu çalıştıran testleri —
+ * sessizce bozar).
+ */
+export function writeClipboard(text: string, exec: ExecFn = execSync): void {
+  writeOsc52(text)
+
+  try {
+    if (isMac()) {
+      exec("pbcopy", { input: text })
+      return
+    }
+    if (isLinux()) {
+      for (const cmd of linuxCopyCommands()) {
+        try {
+          exec(cmd, { input: text })
+          return
+        } catch { /* sıradaki komutu dene */ }
+      }
+    }
+  } catch { /* OSC 52 zaten denendi, native komut yoksa sessizce geç */ }
+}
+
 export function readClipboard(): ClipboardResult {
   try {
     if (isMac()) return readMacClipboard()
