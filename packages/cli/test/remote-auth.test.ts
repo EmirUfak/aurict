@@ -194,6 +194,68 @@ describe("auth — device login orchestration", () => {
     } finally { restore() }
   }, 10_000)
 
+  it("survives a transient network failure during polling and succeeds on retry", async () => {
+    let pollCount = 0
+    const original = globalThis.fetch
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === "string" ? input : input.toString())
+      if (url.pathname === "/auth/device/start") {
+        return new Response(JSON.stringify({
+          ok: true, deviceCode: "dc_3", userCode: "NETW-0001",
+          verificationUri: "https://aurict.com/auth/device",
+          verificationUriComplete: "https://aurict.com/auth/device?code=NETW-0001",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          intervalSeconds: 1,
+        }), { status: 201 })
+      }
+      if (url.pathname === "/auth/device/poll") {
+        pollCount++
+        if (pollCount === 1) throw new Error("socket connection was closed unexpectedly")
+        return new Response(JSON.stringify({
+          ok: true, status: "approved",
+          user: { id: "usr_3", email: "c@d.com", createdAt: new Date().toISOString() },
+          accessToken: "at_3", refreshToken: "rt_3", tokenType: "Bearer",
+        }), { status: 200 })
+      }
+      throw new Error(`unexpected path ${url.pathname} ${init?.method ?? ""}`)
+    }) as typeof fetch
+    try {
+      const events: RemoteLoginEvent[] = []
+      const user = await loginWithBrowser((e) => events.push(e))
+      expect(user.email).toBe("c@d.com")
+      expect(pollCount).toBe(2)
+      expect(events.map((e) => e.phase)).toEqual(["starting", "waiting", "polling", "approved"])
+    } finally { globalThis.fetch = original }
+  }, 10_000)
+
+  it("gives up after too many consecutive network failures during polling", async () => {
+    let pollCount = 0
+    const original = globalThis.fetch
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = new URL(typeof input === "string" ? input : input.toString())
+      if (url.pathname === "/auth/device/start") {
+        return new Response(JSON.stringify({
+          ok: true, deviceCode: "dc_4", userCode: "NETW-0002",
+          verificationUri: "https://aurict.com/auth/device",
+          verificationUriComplete: "https://aurict.com/auth/device?code=NETW-0002",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          intervalSeconds: 1,
+        }), { status: 201 })
+      }
+      if (url.pathname === "/auth/device/poll") {
+        pollCount++
+        throw new Error("socket connection was closed unexpectedly")
+      }
+      throw new Error(`unexpected path ${url.pathname}`)
+    }) as typeof fetch
+    try {
+      const events: RemoteLoginEvent[] = []
+      await expect(loginWithBrowser((e) => events.push(e))).rejects.toThrow(RemoteApiError)
+      expect(pollCount).toBe(5)
+      expect(events.at(-1)?.phase).toBe("error")
+    } finally { globalThis.fetch = original }
+  }, 10_000)
+
   it("propagates denial as a rejected promise with a 'denied' event", async () => {
     const restore = mockFetchOnce((url) => {
       if (url.pathname === "/auth/device/start") {

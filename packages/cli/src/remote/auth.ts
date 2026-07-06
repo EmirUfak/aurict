@@ -24,6 +24,9 @@ const CLIENT_NAME  = "Aurict CLI"
 // the source of truth; this is just a reasonable client-side upper bound
 // (for clock drift etc.).
 const MAX_WAIT_MS  = 30 * 60 * 1000
+// A transient network blip (proxy connection drop, brief backend restart) must
+// not abort the whole login — only give up after this many CONSECUTIVE failures.
+const MAX_CONSECUTIVE_NETWORK_ERRORS = 5
 
 export interface DeviceLoginStart {
   deviceCode:              string
@@ -89,13 +92,24 @@ export async function loginWithBrowser(onEvent?: (event: RemoteLoginEvent) => vo
   const remainingMs = Math.max(0, new Date(start.expiresAt).getTime() - Date.now())
   const deadline     = Date.now() + Math.min(MAX_WAIT_MS, remainingMs || MAX_WAIT_MS)
   let intervalMs      = Math.max(1000, start.intervalSeconds * 1000)
+  let consecutiveNetworkErrors = 0
 
   while (Date.now() < deadline) {
     await sleep(intervalMs)
     let result: DeviceLoginPollResult
     try {
       result = await pollDeviceLoginOnce(start.deviceCode)
+      consecutiveNetworkErrors = 0
     } catch (error) {
+      if (error instanceof RemoteApiError && error.code === "network_error") {
+        consecutiveNetworkErrors++
+        if (consecutiveNetworkErrors < MAX_CONSECUTIVE_NETWORK_ERRORS) {
+          onEvent?.({ phase: "polling", message: "Connection hiccup — retrying…" })
+          continue
+        }
+        onEvent?.({ phase: "error", message: error.message })
+        throw error
+      }
       if (error instanceof RemoteApiError) {
         if (error.code === "access_denied") onEvent?.({ phase: "denied", message: "Login was denied." })
         else if (error.code === "device_login_expired") onEvent?.({ phase: "expired", message: "Login code expired." })
