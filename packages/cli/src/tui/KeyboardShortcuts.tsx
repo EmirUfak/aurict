@@ -1,8 +1,8 @@
 /**
- * KeyboardShortcuts — Tüm klavye kısayollarını gösteren overlay
+ * KeyboardShortcuts — an overlay showing all keyboard shortcuts
  *
- * ? tuşu ile açılır. Kategorize edilmiş kısayollar listesi gösterir.
- * Esc ile kapatılır.
+ * Opened with the ? key. Shows a categorized list of shortcuts.
+ * Closed with Esc.
  */
 
 import React from "react"
@@ -82,7 +82,7 @@ export function KeyboardShortcuts({ onClose }: Props) {
   return (
     <Surface variant="raised" tone="accent" paddingX="md" paddingY="sm" marginX="md">
       <VStack gap="sm">
-        {/* Başlık */}
+        {/* Title */}
         <HStack gap="sm">
           <Typo variant="heading" tone="accent">⌨ Keyboard Shortcuts</Typo>
         </HStack>

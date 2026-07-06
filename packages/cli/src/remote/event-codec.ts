@@ -1,10 +1,11 @@
 /**
- * Remote — event codec (mobil `mobile_remote_event_codec.dart`'ın TS eşi).
+ * Remote — event codec (TS counterpart of mobile's `mobile_remote_event_codec.dart`).
  *
- * Backend veri düzlemini görmez ("dataPlane: peer_to_peer") — bu event'ler yalnızca
- * P2P veri kanalı (Workstream D) üzerinden akar. Sözleşme birebir aynı olmalı:
+ * The backend never sees the data plane ("dataPlane: peer_to_peer") — these
+ * events only flow over the P2P data channel (Workstream D). The contract
+ * must be identical:
  *   signingPayload = JSON.stringify({sessionId, seq, timestamp, senderDeviceId, type, payload})
- *   (alan SIRASI sabit — karşı taraf aynı sırayla yeniden üretip imzayı doğrular)
+ *   (field ORDER is fixed — the other side reproduces it in the same order to verify the signature)
  */
 
 export const RemoteEventTypes = {
@@ -18,7 +19,7 @@ export const RemoteEventTypes = {
   heartbeat:          "heartbeat",
   close:              "close",
   error:              "error",
-  // İzin köprüsü (Workstream E) — backend protokolünde yok, P2P app-layer serbest.
+  // Permission bridge (Workstream E) — not in the backend protocol, free-form P2P app-layer.
   permissionRequest:  "permission.request",
   permissionResponse: "permission.response",
 } as const
@@ -37,7 +38,7 @@ export interface RemoteEvent {
 
 type UnsignedEvent = Omit<RemoteEvent, "signature">
 
-/** Alan sırası mobille aynı olmalı — bu string doğrudan imzalanır/doğrulanır. */
+/** Field order must match mobile exactly — this string is signed/verified directly. */
 export function signingPayload(event: UnsignedEvent): string {
   return JSON.stringify({
     sessionId:      event.sessionId,
@@ -81,7 +82,7 @@ export class RemoteEventLedger {
     return { ...unsigned, signature }
   }
 
-  /** Monotonik sıra korunur — eski/tekrar eden event'i reddeder (replay koruması). */
+  /** Preserves a monotonic sequence — rejects old/duplicate events (replay protection). */
   acceptIncoming(event: RemoteEvent): boolean {
     if (event.seq <= this.incomingSeq) return false
     this.incomingSeq = event.seq

@@ -1,9 +1,9 @@
 /**
- * measureAbsolutePosition() doğrulaması — Ink'in resmi measureElement()'i
- * yalnızca genişlik/yükseklik verdiği için, mutlak konum hesaplamamızın
- * gerçek render çıktısıyla (lastFrame() satır indeksleriyle) birebir
- * eşleştiğini doğrudan doğruluyoruz. Bu, Faz 2 (input kutusu tıklama/seçim)
- * ve Faz 4'ün (sohbet seçimi) üzerine kurulacağı temel varsayım.
+ * measureAbsolutePosition() verification — since Ink's official measureElement()
+ * only gives width/height, we directly verify that our absolute position
+ * calculation matches the real render output (via lastFrame()'s line indices)
+ * exactly. This is the foundational assumption that Phase 2 (input box
+ * click/selection) and Phase 4's (chat selection) will be built on.
  */
 import React, { useRef, useLayoutEffect } from "react"
 import { describe, it, expect, afterEach } from "bun:test"

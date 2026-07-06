@@ -7,9 +7,9 @@ const SPIN_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"
 
 interface Props {
   question: string
-  answer:   string   // boşsa yükleniyor
+  answer:   string   // loading when empty
   loading:  boolean
-  frame:    number   // spinner frame (App'den geliyor)
+  frame:    number   // spinner frame (comes from App)
   onClose:  () => void
 }
 
@@ -28,7 +28,7 @@ export function BtwPanel({ question, answer, loading, frame, onClose }: Props) {
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={theme.accentAlt}
          marginX={1} marginY={1} paddingX={1}>
-      {/* Başlık */}
+      {/* Title */}
       <Box justifyContent="space-between" marginBottom={1}>
         <Box gap={1}>
           <Text color={theme.accentAlt} bold>btw</Text>
@@ -37,7 +37,7 @@ export function BtwPanel({ question, answer, loading, frame, onClose }: Props) {
         <Text color={theme.textDim}>Esc close</Text>
       </Box>
 
-      {/* İçerik */}
+      {/* Content */}
       {loading ? (
         <Box gap={1} paddingY={1}>
           <Text color={theme.accent}>{SPIN_FRAMES[frame % SPIN_FRAMES.length]}</Text>

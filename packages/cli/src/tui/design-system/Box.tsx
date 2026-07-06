@@ -1,16 +1,16 @@
 /**
  * Design System — Layout primitives
  *
- * Tutarlı, semantik layout bileşenleri. Ink Box'ın üzerine inşa edilir.
- * - HStack/VStack: yatay/dikey yığın
- * - Center: içeriği ortalar
- * - Spacer: esnek boşluk
- * - Cluster: inline grup (wrap'lı)
+ * Consistent, semantic layout components. Built on top of Ink's Box.
+ * - HStack/VStack: horizontal/vertical stack
+ * - Center: centers content
+ * - Spacer: flexible spacing
+ * - Cluster: inline group (with wrap)
  *
- * Tüm bileşenler tema-uyumlu ve density-aware'dır.
+ * All components are theme-matched and density-aware.
  *
- * Not: Ink 5.2.1 BoxProps `backgroundColor`'ı type'da barındırmıyor (render'da
- * var). `DesignBoxProps` (`./types`) bu eksiği kapatır.
+ * Note: Ink 5.2.1's BoxProps type doesn't include `backgroundColor` (though
+ * it works at render time). `DesignBoxProps` (`./types`) fills this gap.
  */
 
 import React from "react"
@@ -21,7 +21,7 @@ import type { DesignBoxProps } from "./types.js"
 
 // ── Spacing scale ──────────────────────────────────────────────────────────────
 // "none" = 0, "xs" = 0, "sm" = 1, "md" = 2, "lg" = 3, "xl" = 4
-// (Ink gap değerleri; padding için aynı ölçek kullanılır)
+// (Ink gap values; the same scale is used for padding)
 
 export type Spacing = "none" | "xs" | "sm" | "md" | "lg" | "xl" | number
 
@@ -40,10 +40,10 @@ export function spacingValue(s: Spacing | undefined): number {
   return SPACING_MAP[s] ?? 0
 }
 
-// ── Ortak omit listesi ─────────────────────────────────────────────────────────
-// Tüm stack variantları için BoxProps'tan çıkardığımız property'ler.
-// Padding/margin/gap'i Spacing tipiyle override ediyoruz; backgroundColor Ink'te
-// yok ama DesignBoxProps'ta var — onu olduğu gibi geçiriyoruz.
+// ── Common omit list ─────────────────────────────────────────────────────────
+// Properties we drop from BoxProps for all stack variants.
+// We override padding/margin/gap with the Spacing type; backgroundColor
+// isn't in Ink but is in DesignBoxProps — we pass it through as-is.
 
 type StackOmit =
   | "flexDirection"
@@ -55,7 +55,7 @@ type StackOmit =
   | "marginTop" | "marginBottom" | "marginLeft" | "marginRight"
   | "gap"
 
-// ── Tüm spacing-aware prop'lar için Spacing tipi tanımı ─────────────────────
+// ── Spacing type definition for all spacing-aware props ─────────────────────
 
 interface SpacingBoxExtras {
   padding?:     Spacing
@@ -75,8 +75,8 @@ interface SpacingBoxExtras {
   gap?:         Spacing
 }
 
-// ── Tüm Spacing kabul eden anahtarlar ────────────────────────────────────────
-// (resolveSpacing helper'ı için)
+// ── All keys that accept Spacing ────────────────────────────────────────
+// (for the resolveSpacing helper)
 
 const SPACING_KEYS: readonly (keyof SpacingBoxExtras)[] = [
   "padding", "paddingX", "paddingY",
@@ -87,9 +87,9 @@ const SPACING_KEYS: readonly (keyof SpacingBoxExtras)[] = [
 ]
 
 /**
- * Bir rest objesini Spacing-aware (sayıya çevrilmiş) ve geri kalan Ink
- * prop'ları olarak ikiye ayırır. Ink Box `margin/padding/gap`'i `number`
- * olarak bekler; biz `Spacing` kabul edip burada çözümleriz.
+ * Splits a rest object into Spacing-aware (converted to numbers) props and
+ * the remaining Ink props. Ink's Box expects `margin/padding/gap` as
+ * `number`; we accept `Spacing` and resolve it here.
  */
 function splitSpacing(rest: Record<string, unknown>): { spacing: Record<string, number>; inkRest: Record<string, unknown> } {
   const spacing: Record<string, number> = {}
@@ -105,7 +105,7 @@ function splitSpacing(rest: Record<string, unknown>): { spacing: Record<string, 
 }
 
 // ── HStack ────────────────────────────────────────────────────────────────────
-// Yatay yığın: soldan sağa, opsiyonel gap, align, justify.
+// Horizontal stack: left to right, with optional gap, align, justify.
 
 export interface HStackProps extends Omit<DesignBoxProps, StackOmit>, SpacingBoxExtras {
   align?:    "flex-start" | "center" | "flex-end" | "stretch"
@@ -130,7 +130,7 @@ export function HStack({ align, justify, wrap, children, ...rest }: HStackProps)
 }
 
 // ── VStack ────────────────────────────────────────────────────────────────────
-// Dikey yığın: yukarıdan aşağı.
+// Vertical stack: top to bottom.
 
 export interface VStackProps extends Omit<DesignBoxProps, StackOmit>, SpacingBoxExtras {
   align?:    "flex-start" | "center" | "flex-end" | "stretch"
@@ -153,8 +153,8 @@ export function VStack({ align, justify, children, ...rest }: VStackProps) {
 }
 
 // ── Spacer ────────────────────────────────────────────────────────────────────
-// Esnek boşluk. flexGrow=1 ile diğer elementleri iter.
-// Kullanım: <HStack><Text>sol</Text><Spacer /><Text>sağ</Text></HStack>
+// Flexible spacing. Pushes other elements apart via flexGrow=1.
+// Usage: <HStack><Text>left</Text><Spacer /><Text>right</Text></HStack>
 
 export function Spacer({ minSize = 1 }: { minSize?: number }) {
   return <Box flexGrow={1} flexShrink={0} minWidth={minSize} />
@@ -165,7 +165,7 @@ export function VSpacer({ minSize = 1 }: { minSize?: number }) {
 }
 
 // ── Center ────────────────────────────────────────────────────────────────────
-// İçeriği hem yatay hem dikey ortalar.
+// Centers content both horizontally and vertically.
 
 export interface CenterProps extends Omit<DesignBoxProps, "alignItems" | "justifyContent"> {
   minHeight?: number | string
@@ -187,8 +187,9 @@ export function Center({ minHeight, minWidth, children, ...rest }: CenterProps) 
 }
 
 // ── Cluster ───────────────────────────────────────────────────────────────────
-// Wrap'lı inline grup — birçok küçük element için (tag, badge listesi).
-// wrap threshold vermen gerekir; otomatik hesaplanmaz (terminal genişliği bilinmiyor render-time).
+// Inline group with wrap — for many small elements (tag/badge lists).
+// You must provide a wrap threshold; it isn't computed automatically
+// (terminal width isn't known at render time).
 
 export interface ClusterProps {
   children:  React.ReactNode
@@ -216,7 +217,7 @@ export function Cluster({ children, gap = "sm", align = "center", paddingX, padd
 }
 
 // ── Divider ───────────────────────────────────────────────────────────────────
-// Yatay ince çizgi — genelde Stack'ler arası ayraç.
+// A thin horizontal line — typically a separator between Stacks.
 
 export function Divider({
   orientation = "horizontal",
@@ -236,7 +237,7 @@ export function Divider({
     return <Box flexDirection="column" alignItems="center" paddingX={0}><Text color={c}>│</Text></Box>
   }
 
-  // Yatay: terminal genişliğini alıp çizgi çiz
+  // Horizontal: take the terminal width and draw a line
   const width = useTerminalSize().columns
   const fillWidth = Math.max(0, width - indent)
   const line = "─".repeat(fillWidth)
@@ -245,7 +246,7 @@ export function Divider({
     return <Box paddingLeft={indent}><Text color={c}>{line}</Text></Box>
   }
 
-  // Label'lı: ─── label ───
+  // With a label: ─── label ───
   const dashSide = "─".repeat(2)
   return (
     <Box paddingLeft={indent}>
@@ -256,7 +257,7 @@ export function Divider({
   )
 }
 
-// ── Re-export Box (mevcut kullanımlar için) ───────────────────────────────────
+// ── Re-export Box (for existing usages) ───────────────────────────────────
 export { Box, Text }
 
 // ── DesignBoxProps re-export ──────────────────────────────────────────────────

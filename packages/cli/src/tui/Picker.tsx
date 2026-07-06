@@ -29,12 +29,12 @@ export function Picker({ title, items, onSelect, onCancel }: Props) {
   const [idx, setIdx] = useState(0)
   const [offset, setOffset] = useState(0)
   const [query, setQuery] = useState("")
-  // Aynı tick'te art arda gelen (coalesced) ok tuşları için güncel index —
-  // closure'daki `idx` bayat kalır, ref her tuşta senkron güncellenir.
+  // The current index for coalesced (back-to-back within the same tick) arrow keys —
+  // the closure's `idx` goes stale; the ref updates synchronously on every keypress.
   const idxRef = useRef(0)
-  // Panel chrome'u (2 border + başlık + filtre + pager + yardım) ≈ 6 satır;
-  // input alanı + status bar için de pay bırak. Eski `rows <= 26 ? 1 : ...`
-  // eşiği küçük terminalde TEK seçenek gösteriyordu.
+  // Panel chrome (2 borders + title + filter + pager + help) ≈ 6 rows;
+  // also leave room for the input area + status bar. The old `rows <= 26 ? 1 : ...`
+  // threshold showed only a SINGLE option on small terminals.
   const pageSize = Math.max(2, Math.min(PAGE_SIZE, rows - 14))
   const panelWidth = Math.max(40, Math.min(columns - 2, 88))
   const contentWidth = Math.max(20, panelWidth - 4)
@@ -103,12 +103,12 @@ export function Picker({ title, items, onSelect, onCancel }: Props) {
           const selected = offset + i === idx
           const marker = selected ? "▶ " : "  "
           const hint = item.hint ? `  ${item.hint}` : ""
-          // contentWidth - 1: çift hücreli glyph payı — sondaki "…" görünmesin
+          // contentWidth - 1: reserve room for the double-cell glyph — so the trailing "…" stays visible
           const line = padClip(`${marker}${item.label}${hint}`, contentWidth - 1)
           const key = `${item.id}:${selected ? "selected" : "idle"}`
-          // wrap="truncate-end": "●" gibi glyph'ler string-width'te 2 hücre
-          // sayılınca padlenmiş satır sarıyor ve altta hayalet boş satır
-          // bırakıyordu — sarma yerine kes.
+          // wrap="truncate-end": glyphs like "●" count as 2 cells in string-width, which
+          // was causing the padded line to wrap and leave a ghost empty line below —
+          // truncate instead of wrapping.
           if (selected) {
             return <Text key={key} color={theme.accent} bold wrap="truncate-end">{line}</Text>
           }

@@ -1,10 +1,10 @@
 /**
  * Design System — Badge
  *
- * Etiket/rozet bileşeni. Status göstergesi olarak kullanılır.
- * Tone × variant kombinasyonları.
+ * Label/badge component. Used as a status indicator.
+ * Tone × variant combinations.
  *
- * Kullanım:
+ * Usage:
  *   <Badge tone="success" icon="check">Saved</Badge>
  *   <Badge tone="warning" variant="outline">3 warnings</Badge>
  *   <Badge tone="error" variant="solid">Failed</Badge>
@@ -60,7 +60,7 @@ function toneStyles(tone: BadgeTone, theme: ReturnType<typeof useTheme>): ToneSt
   }
 }
 
-// ── Ana bileşen ───────────────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────────────
 
 export function Badge({
   tone = "neutral",
@@ -86,7 +86,7 @@ export function Badge({
     return <Box>{text}</Box>
   }
 
-  // Dot variant: sadece ● + etiket (kompakt)
+  // Dot variant: just ● + label (compact)
   if (variant === "dot") {
     return (
       <Box>
@@ -97,7 +97,7 @@ export function Badge({
     )
   }
 
-  // Solid: dolgulu kutu, koyu arkaplan, açık yazı
+  // Solid: filled box, dark background, light text
   if (variant === "solid") {
     return (
       <Box paddingX={1} backgroundColor={s.fg}>
@@ -109,7 +109,7 @@ export function Badge({
     )
   }
 
-  // Ghost: sadece renkli yazı + icon
+  // Ghost: just colored text + icon
   if (variant === "ghost") {
     return (
       <Box>
@@ -124,7 +124,7 @@ export function Badge({
     )
   }
 
-  // Outline (default): sınır + yazı
+  // Outline (default): border + text
   return (
     <Box
       paddingX={1}

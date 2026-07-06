@@ -1,8 +1,8 @@
 /**
- * Remote — auth token'larının yerel saklanması.
+ * Remote — local storage of auth tokens.
  *
- * Cihaz imzalama anahtarları (Ed25519) ayrı bir dosyada tutulacak (bkz. plan
- * Workstream B); bu dosya yalnızca backend erişim/yenileme token'larını kapsar.
+ * Device signing keys (Ed25519) will be kept in a separate file (see plan
+ * Workstream B); this file only covers backend access/refresh tokens.
  */
 
 import { readSecureJson, writeSecureJson, deleteSecureFile } from "./secure-store.js"
@@ -29,7 +29,7 @@ export function clearStoredTokens(): void {
   deleteSecureFile(TOKENS_FILE)
 }
 
-/** JWT'nin ikinci (payload) segmentini çözüp `exp` claim'ini (epoch saniye) döner. */
+/** Decodes the JWT's second (payload) segment and returns the `exp` claim (epoch seconds). */
 export function decodeJwtExpirySeconds(token: string): number | null {
   const parts = token.split(".")
   if (parts.length !== 3 || !parts[1]) return null
@@ -42,7 +42,7 @@ export function decodeJwtExpirySeconds(token: string): number | null {
   }
 }
 
-/** exp bilinmiyorsa (parse hatası) güvenli taraf: "süresi dolmak üzere" say — yenilemeye zorla. */
+/** If exp is unknown (parse error), err on the safe side: treat it as "about to expire" — force a refresh. */
 export function isAccessTokenExpiringSoon(token: string, bufferSeconds = 60): boolean {
   const exp = decodeJwtExpirySeconds(token)
   if (exp === null) return true

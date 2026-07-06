@@ -15,20 +15,20 @@ function estimateWrappedLines(text: string, width: number): number {
     .reduce((sum, line) => sum + Math.max(1, Math.ceil((line.length || 1) / safeWidth)), 0)
 }
 
-// Tool çıktısı önizlemesi: Message.tsx MAX_TOOL_LINES=7 → 6 head + (varsa) 1 "hidden"
-// + 1 tail; kutuda en fazla ~8 satır görünür.
+// Tool output preview: Message.tsx MAX_TOOL_LINES=7 → 6 head + (if any) 1 "hidden"
+// + 1 tail; at most ~8 lines are visible in the box.
 const TOOL_PREVIEW_MAX = 8
 
-// Not: viewport'a geçen `width` zaten ~termCols-9 (bodyWidth). Message içeriği ray/
-// border+padding sonrası ≈ width-2'de sarılıyor; tahminin gerçek yüksekliğe yakın
-// olması settle sıçramasını (scroll-freeze idle-apply) neredeyse görünmez yapar.
+// Note: the `width` passed to the viewport is already ~termCols-9 (bodyWidth). Message
+// content wraps at ≈ width-2 after the rail/border+padding; keeping the estimate close
+// to the real height makes the settle jump (scroll-freeze idle-apply) nearly invisible.
 function estimateMessageRows(message: DisplayMessage, width: number): number {
   const contentWidth = Math.max(12, width - 3)
   if (message.role === "user")
-    // 1 header (you) + sarılı içerik + 1 marginBottom
+    // 1 header (you) + wrapped content + 1 marginBottom
     return estimateWrappedLines(message.content, contentWidth) + 2
   if (message.role === "assistant") {
-    const thinking = message.reasoningContent ? 1 : 0  // collapsed ∴ satırı
+    const thinking = message.reasoningContent ? 1 : 0  // the collapsed ∴ line
     if (message.blocks && message.blocks.length > 0) {
       let rows = 0
       for (const b of message.blocks) {
@@ -46,10 +46,10 @@ function estimateMessageRows(message: DisplayMessage, width: number): number {
     const output = message.resultContent || message.content || ""
     const outLines = estimateWrappedLines(output, contentWidth)
     const shown = outLines > TOOL_PREVIEW_MAX ? TOOL_PREVIEW_MAX : Math.max(1, outLines)
-    // 1 header + kutu satırları + 1 marginBottom
+    // 1 header + box lines + 1 marginBottom
     return 1 + shown + 1
   }
-  // system / error: · prefix + sarılı içerik + marginBottom
+  // system / error: · prefix + wrapped content + marginBottom
   return estimateWrappedLines(message.content, contentWidth) + 1
 }
 
@@ -89,9 +89,9 @@ function MeasuredBox({ cacheKey, onMeasure, children }: MeasuredBoxProps) {
   return <Box ref={ref}>{children}</Box>
 }
 
-// Render penceresi: çok uzun konuşmalarda fiber sayısını sınırlamak için
-// yalnızca son MAX_RENDERED entry DOM'a yazılır. Scroll math tüm entry'leri
-// kapsar (estimate veya ölçülmüş yükseklik), bu sayede offset'ler doğru kalır.
+// Render window: to cap the fiber count in very long conversations, only
+// the last MAX_RENDERED entries are written to the DOM. Scroll math covers
+// all entries (estimated or measured height), so offsets stay correct.
 const MAX_RENDERED = 200
 
 // ── Transcript types ──────────────────────────────────────────────────────────
@@ -115,9 +115,9 @@ export interface ConversationViewportProps {
   scrollLocked:         boolean
   offsetRowsFromBottom: number
   unseenCount?:         number
-  /** En üst scroll sınırını (maxOffset) App'e raporlar — iki-uç clamp için. */
+  /** Reports the top scroll bound (maxOffset) to App — for two-end clamping. */
   onScrollRange?:       (maxOffset: number) => void
-  /** Yukarı kaydırılmışken alta içerik eklendiğinde okuma konumunu korumak için offset kaydırır. */
+  /** Shifts the offset to preserve reading position when content is appended below while scrolled up. */
   onAnchorShift?:       (deltaRows: number) => void
   onExpandTool:         (content: string, toolName: string) => void
   onExpandThinking:     (content: string) => void
@@ -177,7 +177,7 @@ export function ConversationViewport({
   onExpandTool,
   onExpandThinking,
 }: ConversationViewportProps) {
-  // Completion flash: loading true→false geçişinde 1.8s göster
+  // Completion flash: shown for 1.8s on the loading true→false transition
   const loadingStartRef = useRef<number | null>(null)
   const [completionFlash, setCompletionFlash] = useState<number | null>(null)
 
@@ -197,14 +197,15 @@ export function ConversationViewport({
 
   const theme = useTheme()
 
-  // Height cache: tüm mesajların gerçek yüksekliklerini tutar (scroll math için)
+  // Height cache: holds the real height of every message (for scroll math)
   const heightCacheRef = useRef<Map<string, number>>(new Map())
   const [measureRevision, forceUpdate] = useReducer((x: number) => x + 1, 0)
 
   // ── Scroll-freeze ──────────────────────────────────────────────────────────
-  // Kullanıcı aktif kaydırırken ölçüm reflow'u içeriği gözünün altında zıplatıyor.
-  // Bu yüzden jest boyunca ölçümler cache'e YAZILIR ama forceUpdate ERTELENİR;
-  // ~140ms sessizlikte biriken ölçümler tek seferde uygulanır.
+  // While the user is actively scrolling, a measurement reflow makes the
+  // content jump right under their eyes. So during the gesture, measurements
+  // are STILL WRITTEN to the cache but forceUpdate is DEFERRED; accumulated
+  // measurements are applied in one shot after ~140ms of silence.
   const scrollingRef      = useRef(false)
   const pendingMeasureRef = useRef(false)
   const scrollIdleTimer   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -230,7 +231,7 @@ export function ConversationViewport({
     if (heightCacheRef.current.get(key) !== rows) {
       heightCacheRef.current.set(key, rows)
       if (scrollingRef.current) {
-        // Jest sürerken reflow'u erteleyerek zıplamayı önle.
+        // Defer the reflow during the gesture to prevent jumping.
         pendingMeasureRef.current = true
       } else {
         forceUpdate()
@@ -238,7 +239,7 @@ export function ConversationViewport({
     }
   }, [])
 
-  // Tüm mesajlar + canlı tail
+  // All messages + the live tail
   const entries = useMemo<TranscriptEntry[]>(() => {
     const list: TranscriptEntry[] = messages.map((message, index) => {
       const ck      = contentKey(message, width)
@@ -248,8 +249,8 @@ export function ConversationViewport({
     })
 
     if (streamingText || streamingReason || streamingError) {
-      // StreamingView'in sınırlı (tail) yüksekliğiyle eşleşen tahmin — scroll
-      // matematiğinin gerçek çizilen yükseklikten sapmaması için.
+      // An estimate matching StreamingView's capped (tail) height — so the
+      // scroll math doesn't drift from the actual rendered height.
       const reasoningRows = streamingReason ? Math.min(STREAM_REASONING_MAX, streamingReason.split("\n").length) + 2 : 0
       const textRows      = streamingText   ? Math.min(STREAM_TEXT_MAX, streamingText.split("\n").length) + 2 : 0
       const errorRows     = streamingError  ? 2 : 0
@@ -271,12 +272,13 @@ export function ConversationViewport({
   const clampedOffset  = Math.min(offsetRowsFromBottom, maxOffset)
   const scrollPosition = maxOffset - clampedOffset  // rows from top to start of visible area
 
-  // Üst scroll sınırını App'e raporla (iki-uç clamp için).
+  // Report the top scroll bound to App (for two-end clamping).
   useEffect(() => { onScrollRange?.(maxOffset) }, [maxOffset, onScrollRange])
 
-  // Konum koruma: yukarı kaydırılmışken alta yeni mesaj eklenince (streaming değil,
-  // finalize mesajlar) offset'i eklenen satır kadar kaydır → görüntü sabit kalır.
-  // messages.length'e bağlı olduğu için ölçüm düzeltmeleri yanlış tetiklemez.
+  // Position preservation: when a new message is appended below while
+  // scrolled up (not streaming, finalized messages), shift the offset by
+  // the number of rows added → the view stays fixed. Since this depends on
+  // messages.length, measurement corrections don't trigger it incorrectly.
   const prevMsgCountRef = useRef(messages.length)
   const offsetRef = useRef(offsetRowsFromBottom)
   useEffect(() => { offsetRef.current = offsetRowsFromBottom })
@@ -291,9 +293,9 @@ export function ConversationViewport({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length])
 
-  // ── Slice-based rendering: büyük negatif marginTop yerine sadece görünen
-  // entry'ler render edilir. Bu Yoga'nın içeriği sıkıştırmasını engeller.
-  // intraPad: ilk görünen entry içindeki satır offseti (küçük sayı, max ~30).
+  // ── Slice-based rendering: instead of a large negative marginTop, only
+  // the visible entries are rendered. This prevents Yoga from squashing
+  // the content. intraPad: the row offset within the first visible entry (a small number, max ~30).
   let cum = 0
   let firstVisIdx = 0
   let intraPad = 0
@@ -312,11 +314,12 @@ export function ConversationViewport({
 
   const windowEntries = entries.slice(firstVisIdx, firstVisIdx + MAX_RENDERED)
 
-  // ── Alt-kırpma (taşma koruması) ────────────────────────────────────────────
-  // Ink'in overflow:hidden'ı dinamik metni her zaman kırpmıyor; görünür pencereyi
-  // aşan entry'ler alt alta binerek "sıkışma" yaratıyor. Bu yüzden görünür alan
-  // bütçesini (scrollAreaRows) dolduran entry'lerden sonrasını hiç render etme.
-  // İlk entry intraPad kadar yukarı kaydığı için sayacı -intraPad'den başlat.
+  // ── Bottom-clipping (overflow protection) ────────────────────────────────────────
+  // Ink's overflow:hidden doesn't always clip dynamic text; entries beyond
+  // the visible window stack on top of each other, creating a "squash".
+  // So entries past whatever fills the visible-area budget (scrollAreaRows)
+  // are never rendered at all. Since the first entry shifts up by intraPad,
+  // start the counter at -intraPad.
   const visibleEntries: TranscriptEntry[] = []
   let acc = -intraPad
   for (const e of windowEntries) {

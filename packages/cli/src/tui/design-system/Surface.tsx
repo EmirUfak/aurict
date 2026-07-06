@@ -1,18 +1,18 @@
 /**
  * Design System — Surface
  *
- * Kutu/sınır dekorasyonu wrapper. Tutarlı border, padding, background.
+ * Box/border decoration wrapper. Consistent border, padding, background.
  *
- * Variantlar:
+ * Variants:
  * - "raised": round border + padding
  * - "flat":   single line border
- * - "double": double line border (vurgu)
- * - "heavy":  thick border (önemli uyarı)
- * - "sunken": arkaplan rengi (vurgulu içerik)
- * - "ghost":  sınır yok, sadece padding
- * - "ascii":  ascii karakterler (terminal uyumluluğu)
+ * - "double": double line border (emphasis)
+ * - "heavy":  thick border (important warning)
+ * - "sunken": background color (highlighted content)
+ * - "ghost":  no border, padding only
+ * - "ascii":  ascii characters (terminal compatibility)
  *
- * Elevation: 0 (düz) - 3 (gölge)
+ * Elevation: 0 (flat) - 3 (shadow)
  */
 
 import React from "react"
@@ -21,7 +21,7 @@ import type { Spacing } from "./Box.js"
 import { spacingValue } from "./Box.js"
 import { DesignBox as Box, type DesignBoxProps } from "./types.js"
 
-// ── Tipler ────────────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
 
 export type SurfaceVariant = "raised" | "flat" | "double" | "heavy" | "sunken" | "ghost" | "ascii"
 export type SurfaceTone = "default" | "muted" | "accent" | "success" | "warning" | "error" | "info"
@@ -42,16 +42,16 @@ export interface SurfaceProps extends Omit<DesignBoxProps,
   margin?:     Spacing
   marginX?:    Spacing
   marginY?:    Spacing
-  /** Vurgu rengi (tone accent/success vb. için) */
+  /** Accent color (for tone accent/success etc.) */
   accentColor?: string
-  /** Header (üst bant) */
+  /** Header (top band) */
   header?:     React.ReactNode
-  /** Footer (alt bant) */
+  /** Footer (bottom band) */
   footer?:     React.ReactNode
   children:    React.ReactNode
 }
 
-// ── Border style + color çözümleme ───────────────────────────────────────────
+// ── Border style + color resolution ───────────────────────────────────────────
 
 type BoxStyleKey = "single" | "double" | "round" | "bold" | "singleDouble" | "doubleSingle" | "classic" | "arrow"
 
@@ -82,7 +82,7 @@ function resolveBorderColor(tone: SurfaceTone, theme: ReturnType<typeof useTheme
   }
 }
 
-// ── Ana bileşen ───────────────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────────────
 
 export function Surface({
   variant = "raised",
@@ -108,7 +108,7 @@ export function Surface({
   const px = paddingX !== undefined ? spacingValue(paddingX) : spacingValue(padding)
   const py = paddingY !== undefined ? spacingValue(paddingY) : spacingValue(padding)
 
-  // Sunken: backgroundColor ile vurgu
+  // Sunken: highlight via backgroundColor
   if (variant === "sunken") {
     return (
       <Box
@@ -128,7 +128,7 @@ export function Surface({
     )
   }
 
-  // Ghost: sınır yok
+  // Ghost: no border
   if (variant === "ghost") {
     return (
       <Box
@@ -167,7 +167,7 @@ export function Surface({
   )
 }
 
-// ── Card (özelleşmiş surface) ────────────────────────────────────────────────
+// ── Card (specialized surface) ────────────────────────────────────────────────
 
 export function Card(props: Omit<SurfaceProps, "variant">) {
   return <Surface {...props} variant="raised" />

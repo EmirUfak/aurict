@@ -1,9 +1,9 @@
 /**
- * Remote — güvenli yerel depolama.
+ * Remote — secure local storage.
  *
- * Auth token'ları ve (ileride) cihaz imzalama anahtarları `~/.aurict/remote/`
- * altında, dosya izinleri 0600 (yalnızca sahip okur/yazar) ile saklanır.
- * config.ts'teki `~/.aurict/config.json` deseniyle aynı yaklaşım.
+ * Auth tokens and (later) device signing keys are stored under
+ * `~/.aurict/remote/` with 0600 file permissions (only the owner can
+ * read/write). Same approach as the `~/.aurict/config.json` pattern in config.ts.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, unlinkSync } from "fs"

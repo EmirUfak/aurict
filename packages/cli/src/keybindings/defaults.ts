@@ -1,36 +1,37 @@
 /**
  * Keybindings — Default bindings
  *
- * Aurict için varsayılan key eşlemeleri. Context bazlı organize edilmiş.
- * Kullanıcı ~/.aurict/keybindings.json ile override edebilir.
+ * Default key mappings for Aurict. Organized by context.
+ * The user can override these via ~/.aurict/keybindings.json.
  *
- * Her context'te tüm action'lar olmalı (boş array = bağlanmamış). Pratik için
- * `emptyBindings()` ile boş default'ları spread edip sadece override'ları yazıyoruz.
+ * Every context should have all actions (empty array = unbound). For
+ * convenience, we spread empty defaults via `emptyBindings()` and only
+ * write the overrides.
  */
 
 import type { Action, ContextBindings, Context } from "./types.js"
 
-// ── Tüm action listesi (boş default üretmek için) ────────────────────────────
+// ── Full action list (for generating empty defaults) ────────────────────────
 
 export const ALL_ACTIONS: readonly Action[] = [
-  // Çıkış / iptal
+  // Quit / cancel
   "quit", "abort", "cancel", "exit",
-  // Gönder / onayla
+  // Submit / confirm
   "submit", "approve", "deny", "confirm",
-  // Navigasyon
+  // Navigation
   "nav.up", "nav.down", "nav.left", "nav.right",
   "nav.top", "nav.bottom", "nav.next", "nav.prev",
   "nav.first", "nav.last",
-  // Geçmiş
+  // History
   "history.up", "history.down",
   // Autocomplete
   "autocomplete.next", "autocomplete.prev", "autocomplete.close",
-  // Düzenleme
+  // Editing
   "edit.delete-word-back", "edit.delete-word-forward",
   "edit.delete-line", "edit.clear", "edit.swap",
   "edit.cursor-start", "edit.cursor-end",
   "edit.cursor-prev", "edit.cursor-next",
-  // Çok satırlı
+  // Multiline
   "multiline.newline", "multiline.toggle",
   // Chat
   "chat.new", "chat.clear", "chat.copy", "chat.paste", "chat.queue-toggle",
@@ -41,7 +42,7 @@ export const ALL_ACTIONS: readonly Action[] = [
   "ui.command-palette",
   // Picker
   "picker.next", "picker.prev", "picker.filter",
-  // Mesaj
+  // Message
   "msg.expand", "msg.collapse", "msg.copy", "msg.regenerate",
   "msg.edit", "msg.delete",
   // Scroll
@@ -67,7 +68,7 @@ export { emptyBindings }
 // ── Default bindings ─────────────────────────────────────────────────────────
 
 export const DEFAULT_BINDINGS: ContextBindings = {
-  // ── global — her zaman aktif ─────────────────────────────────────────────
+  // ── global — always active ─────────────────────────────────────────────
   global: {
     ...emptyBindings(),
     "quit":                       ["ctrl+c"],
@@ -83,7 +84,7 @@ export const DEFAULT_BINDINGS: ContextBindings = {
     "ui.command-palette":         ["ctrl+/"],
   },
 
-  // ── ready — chat input odakta ───────────────────────────────────────────
+  // ── ready — chat input focused ───────────────────────────────────────────
   ready: {
     ...emptyBindings(),
     "submit":                     ["enter"],
@@ -115,7 +116,7 @@ export const DEFAULT_BINDINGS: ContextBindings = {
     "chat.queue-toggle":          ["ctrl+q"],
   },
 
-  // ── streaming — model cevap verirken (input kilitli) ────────────────────
+  // ── streaming — while the model is responding (input locked) ────────────────────
   streaming: {
     ...emptyBindings(),
     "abort":                      ["escape", "ctrl+x"],
@@ -132,7 +133,7 @@ export const DEFAULT_BINDINGS: ContextBindings = {
     "ui.show-help":               ["ctrl+?"],
   },
 
-  // ── permission — y/n seçim ─────────────────────────────────────────────
+  // ── permission — y/n choice ─────────────────────────────────────────────
   permission: {
     ...emptyBindings(),
     "approve":                    ["y", "enter"],
@@ -155,7 +156,7 @@ export const DEFAULT_BINDINGS: ContextBindings = {
     "exit":                       ["ctrl+d"],
   },
 
-  // ── picker — model/provider seçici ─────────────────────────────────────
+  // ── picker — model/provider selector ─────────────────────────────────────
   picker: {
     ...emptyBindings(),
     "submit":                     ["enter"],
@@ -169,7 +170,7 @@ export const DEFAULT_BINDINGS: ContextBindings = {
     "exit":                       ["ctrl+d"],
   },
 
-  // ── autocomplete — / komutu tamamlama açık ─────────────────────────────
+  // ── autocomplete — / command completion open ─────────────────────────────
   autocomplete: {
     ...emptyBindings(),
     "autocomplete.next":          ["tab", "down", "ctrl+n"],
@@ -183,7 +184,7 @@ export const DEFAULT_BINDINGS: ContextBindings = {
     "exit":                       ["ctrl+d"],
   },
 
-  // ── history — ↑/↓ history navigasyonu ──────────────────────────────────
+  // ── history — ↑/↓ history navigation ──────────────────────────────────
   history: {
     ...emptyBindings(),
     "history.up":                 ["up"],
@@ -196,7 +197,7 @@ export const DEFAULT_BINDINGS: ContextBindings = {
     "exit":                       ["ctrl+d"],
   },
 
-  // ── task-panel — task floating panel açık ──────────────────────────────
+  // ── task-panel — the floating task panel is open ──────────────────────────────
   "task-panel": {
     ...emptyBindings(),
     "ui.toggle-tasks":            ["escape", "ctrl+t"],
@@ -207,7 +208,7 @@ export const DEFAULT_BINDINGS: ContextBindings = {
     "quit":                       ["ctrl+c"],
   },
 
-  // ── modal — help/btw/skills vb. modal açık ─────────────────────────────
+  // ── modal — a modal like help/btw/skills is open ─────────────────────────────
   modal: {
     ...emptyBindings(),
     "cancel":                     ["escape", "q"],

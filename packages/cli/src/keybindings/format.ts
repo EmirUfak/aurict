@@ -1,7 +1,7 @@
 /**
  * Keybindings — format helper for /keys command
  *
- * Default binding'leri text formatına çevirir (CLI komut çıktısı için).
+ * Converts default bindings into text format (for CLI command output).
  */
 
 import { DEFAULT_BINDINGS, ALL_ACTIONS } from "./defaults.js"
@@ -9,7 +9,7 @@ import { detectPlatform } from "./persistence.js"
 import { formatKey, parseKeyString } from "../tui/design-system/Kbd.js"
 import type { Context } from "./types.js"
 
-/** Platform sembol eşlemesi (Kbd.tsx ile aynı). */
+/** Platform symbol mapping (same as Kbd.tsx). */
 function platformLabel(pf: ReturnType<typeof detectPlatform>): "macos" | "linux" | "windows" {
   if (pf === "mac")  return "macos"
   if (pf === "win")  return "windows"
@@ -24,8 +24,8 @@ export interface FormattedBinding {
 }
 
 /**
- * Belirli context için binding'leri formatlanmış olarak döner.
- * Boş array olanları filtreler.
+ * Returns the formatted bindings for a given context.
+ * Filters out ones with an empty array.
  */
 export function formatBindingsForContext(
   context: Context,
@@ -60,8 +60,8 @@ export function formatBindingsForContext(
 }
 
 /**
- * Tüm context'ler için binding'leri gruplanmış text olarak döner.
- * /keys komut çıktısı için.
+ * Returns bindings for all contexts as grouped text.
+ * For the /keys command output.
  */
 export function formatAllBindings(overrides: Record<string, string> = {}): string {
   const lines: string[] = ["Keybindings:"]
@@ -72,7 +72,7 @@ export function formatAllBindings(overrides: Record<string, string> = {}): strin
     if (items.length === 0) continue
     lines.push("")
     lines.push(`  [${ctx}]`)
-    // En geniş action adını bul, hizalama için
+    // Find the widest action name, for alignment
     const maxAction = Math.min(28, Math.max(...items.map(i => i.action.length)))
     for (const { action, display, source } of items) {
       const marker = source === "user" ? "★" : " "

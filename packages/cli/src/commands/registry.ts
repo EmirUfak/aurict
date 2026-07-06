@@ -256,7 +256,7 @@ const commands: CommandDef[] = [
       if (plugin.listModelsRemote) {
         try {
           models = mergeModelLists(models, await plugin.listModelsRemote())
-        } catch { /* remote başarısız → hardcoded fallback */ }
+        } catch { /* remote failed → hardcoded fallback */ }
       }
       const items: PickerItem[] = models.map((m) => ({
         id:    m.id,
@@ -277,13 +277,13 @@ const commands: CommandDef[] = [
           const hasThinking = modelInfo?.supportsThinking
             ?? (item.id.includes("claude") && !item.id.includes("haiku"))
 
-          // Built-in thinking modeller (DeepSeek-R1, QwQ): effort ayarlanamaz
-          // buildThinkingOptions null döndürmesi = effort göndermiyoruz demek
+          // Built-in thinking models (DeepSeek-R1, QwQ): effort can't be configured
+          // buildThinkingOptions returning null = we don't send an effort value
           const plugin      = ProviderRegistry.get(ctx.provider)
           const isBuiltIn   = hasThinking && plugin.buildThinkingOptions(item.id, 4000) === null
 
           if (isBuiltIn) {
-            // Thinking otomatik — effort picker gösterme, sadece bilgilendir
+            // Thinking is automatic — don't show the effort picker, just inform
             ctx.setEffort(undefined)
             return
           }
@@ -331,7 +331,7 @@ const commands: CommandDef[] = [
         const defaultModel = plugin.defaultModel()
         ctx.setProvider(id, defaultModel)
 
-        // Ardından model picker aç
+        // Then open the model picker
         ctx.showPicker(
           `Select model  [${id}]`,
           plugin.listModels().map((m) => ({
@@ -372,15 +372,15 @@ const commands: CommandDef[] = [
         onSelect: (item) => {
           const provider = all.find((p) => p.id === item.id)!
 
-          // Ollama key gerektirmiyor — direkt geç
+          // Ollama doesn't require a key — go straight through
           if (item.id === "ollama") {
             switchToProvider(item.id)
             return
           }
 
-          // Key var mı?
+          // Is there a key already?
           if (provider.hasKey) {
-            // Key var — mevcut key'i kullan veya sıfırla
+            // Key exists — use the existing key or reset it
             ctx.showPicker(
               `${provider.name} — API key already configured`,
               [
@@ -396,7 +396,7 @@ const commands: CommandDef[] = [
               },
             )
           } else {
-            // Key yok — önce key iste
+            // No key — ask for one first
             ctx.showPicker(
               `${provider.name} — No API key configured`,
               [
@@ -987,7 +987,7 @@ const commands: CommandDef[] = [
     aliases:     ["gc"],
     description: "AI-assisted git commit — stages all changes and generates a commit message",
     handler: (_args, ctx): CommandResult => {
-      // Coordinator'a özel bir prompt gönder — git diff bak, commit mesajı üret
+      // Send the coordinator a dedicated prompt — look at git diff, generate a commit message
       const prompt = `Run git status and git diff to see what changed, then create a conventional commit message and commit with: git(action:"commit", message:"<your message>"). Use format: type(scope): description`
       return {
         type:    "picker",
@@ -998,7 +998,7 @@ const commands: CommandDef[] = [
         ],
         onSelect: (item) => {
           if (item.id === "ai") {
-            // BTW kanalıyla agent'a sor — conversation'ı bozmadan
+            // Ask the agent via the BTW channel — without disrupting the conversation
             ctx.openBtw(prompt)
           }
         },
@@ -1012,20 +1012,20 @@ const commands: CommandDef[] = [
     aliases:     ["bg"],
     description: "Move current task to background or list background tasks",
     handler: (args, ctx): CommandResult => {
-      // /bg <id> → belirli task çıktısını göster
+      // /bg <id> → show a specific task's output
       if (args[0] && args[0] !== "list") {
         ctx.showBgTask(args[0])
         return { type: "text", content: "" }
       }
 
-      // /bg list veya /bg (argümansız + task yoksa)
+      // /bg list or /bg (no args + no task)
       if (!ctx.bgTasks.length) {
-        // Yükleme varsa arka plana al
+        // Move the current load to the background if there is one
         ctx.sendToBackground()
         return { type: "text", content: "Task sent to background." }
       }
 
-      // Task listesi
+      // Task list
       const lines = ctx.bgTasks.map((t) => {
         const elapsed = Math.round((Date.now() - t.startedAt) / 1000)
         const icon    = t.status === "running" ? "⠹" : t.status === "done" ? "✓" : "✗"
@@ -1179,7 +1179,7 @@ const commands: CommandDef[] = [
         return { type: "text", content: `Long task runtime set to ${mode}.` }
       }
 
-      // /config (argümansız) → mevcut durumu göster
+      // /config (no args) → show the current state
       const cfg = loadConfig(ctx.workdir)
       const lines: string[] = [`Config: ${getConfigPath()}`, ""]
       lines.push("API Keys:")
@@ -1214,7 +1214,7 @@ const commands: CommandDef[] = [
     handler: (args, ctx): CommandResult => {
       const sub = args[0]
 
-      // /pins veya /pin (argümansız) → listele
+      // /pins or /pin (no args) → list them
       if (!sub || sub === "list") {
         const list = pinStore.list(ctx.workdir)
         if (!list.length) return { type: "text", content: "No pins yet. Use /pin <text> to add one." }
@@ -1802,18 +1802,18 @@ const commands: CommandDef[] = [
     usage:       "/fork [label]",
     handler: (args, ctx): CommandResult => {
       const label = args.join(" ").trim() || `Fork of session ${ctx.sessionId.slice(0, 8)}`
-      // Mevcut mesajları al (user+assistant rolleri)
+      // Get the current messages (user+assistant roles)
       const history = ctx.messages
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
 
-      // Yeni session oluştur — mevcut session'u parentId olarak kaydet
+      // Create a new session — record the current session as parentId
       const forkId = SessionManager.create(
         { provider: ctx.provider, model: ctx.model },
         { title: label, parentId: ctx.sessionId }
       )
 
-      // Mesajları fork session'ına kopyala
+      // Copy the messages into the fork session
       for (const msg of history) {
         SessionManager.addPart({
           sessionId: forkId,
@@ -2143,7 +2143,7 @@ const commands: CommandDef[] = [
       const pad = (n: number) => n.toLocaleString().padStart(10)
 
       if (stats && stats.turnCount > 0) {
-        // Gerçek DB verisi mevcut
+        // Real DB data is available
         const totalTok  = stats.totalInputTokens + stats.totalOutputTokens + stats.totalCacheTokens
         const hasCaching = stats.totalCacheTokens > 0
         const lines = [
@@ -2595,8 +2595,8 @@ const commands: CommandDef[] = [
   },
 
   // ── /remote ──────────────────────────────────────────────────────────────
-  // Hesap girişi (tarayıcı tabanlı cihaz girişi) + cihaz kimliği (Ed25519) +
-  // WebRTC oturumu (start/stop — gerçek ajan köprüsü App.tsx'te canlandırılır).
+  // Account sign-in (browser-based device login) + device identity (Ed25519) +
+  // WebRTC session (start/stop — the actual agent bridge is brought up in App.tsx).
   {
     name:        "remote",
     description: "Sign in and connect a phone for mobile remote control (real WebRTC session)",
@@ -2615,8 +2615,8 @@ const commands: CommandDef[] = [
         const announced = new Set<string>()
         try {
           const user = await remote.loginWithBrowser((event) => {
-            // "polling" her ~5sn'de bir tekrarlanır — transcript'i kirletmemek
-            // için yalnızca ilk kez görülen fazları (starting/waiting) bas.
+            // "polling" repeats roughly every ~5s — to avoid cluttering the
+            // transcript, only print phases (starting/waiting) the first time they're seen.
             if (event.phase === "polling" || announced.has(event.phase)) return
             announced.add(event.phase)
             if (event.phase === "waiting") ctx.addSystemMsg(`🔗 ${event.message}`)

@@ -1,9 +1,9 @@
 /**
  * Design System — ProgressBar
  *
- * Çoklu progress göstergesi: linear, segmented, circular, indeterminate.
+ * Multiple progress indicator types: linear, segmented, circular, indeterminate.
  *
- * Kullanım:
+ * Usage:
  *   <ProgressBar value={50} max={100} variant="linear" />
  *   <ProgressBar value={3} max={10} variant="segmented" />
  *   <ProgressBar value={0.42} variant="linear" indeterminate />
@@ -13,22 +13,22 @@ import React from "react"
 import { Box, Text } from "ink"
 import { useTheme } from "../../utils/theme.js"
 
-// ── Tipler ────────────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
 
 export type ProgressVariant = "linear" | "segmented" | "circular" | "stippled"
 
 export interface ProgressBarProps {
-  /** 0-max arası değer, ya number ya da oran (0-1) */
+  /** A value between 0-max, either a number or a ratio (0-1) */
   value?:    number
   max?:      number
-  /** Görsel genişlik (linear/stippled için) */
+  /** Visual width (for linear/stippled) */
   width?:    number
   variant?:  ProgressVariant
-  /** Gösterilecek etiket (örn. "52%") */
+  /** Show the label (e.g. "52%") */
   showLabel?: boolean
-  /** Animasyonlu indeterminate */
+  /** Animated indeterminate */
   indeterminate?: boolean
-  /** Renk tonu */
+  /** Color tone */
   tone?:     "accent" | "success" | "warning" | "error"
   /** Label formatter */
   formatLabel?: (value: number, max: number) => string
@@ -61,7 +61,7 @@ function LinearBar({ value, max, width, showLabel, tone, indeterminate, formatLa
     theme.accent
 
   if (indeterminate) {
-    // Basit staggered gösterim (state olmadan, sabit pattern)
+    // Simple staggered display (fixed pattern, no state)
     return (
       <Box>
         <Text color={color}>{FRAMES_INDETERMINATE[0]}</Text>
@@ -132,7 +132,7 @@ function CircularBar({ value, max, showLabel, tone, formatLabel }: ProgressBarPr
     tone === "error"   ? theme.error   :
     theme.accent
 
-  // 8 parçalı circular gösterim
+  // 8-segment circular display
   const filled = Math.round(pct * 8)
   const FRAMES_CIRCULAR = ["○","◔","◑","◕","●","◕","◑","◔"]
   const frame = FRAMES_CIRCULAR[filled] ?? "○"
@@ -151,7 +151,7 @@ function CircularBar({ value, max, showLabel, tone, formatLabel }: ProgressBarPr
   )
 }
 
-// ── Stippled bar (alternatif stil) ───────────────────────────────────────────
+// ── Stippled bar (alternative style) ───────────────────────────────────────────
 
 function StippledBar({ value, max, width, showLabel, tone, formatLabel }: ProgressBarProps) {
   const theme = useTheme()
@@ -182,7 +182,7 @@ function StippledBar({ value, max, width, showLabel, tone, formatLabel }: Progre
   )
 }
 
-// ── Ana bileşen ───────────────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────────────
 
 export function ProgressBar(props: ProgressBarProps) {
   const v = props.variant ?? "linear"
@@ -195,7 +195,7 @@ export function ProgressBar(props: ProgressBarProps) {
   }
 }
 
-// ── Context bar özelleşmiş (geriye uyumluluk) ────────────────────────────────
+// ── Specialized context bar (backwards compatibility) ────────────────────────────────
 
 export function ContextBar({ used, total }: { used: number; total: number }) {
   const theme = useTheme()

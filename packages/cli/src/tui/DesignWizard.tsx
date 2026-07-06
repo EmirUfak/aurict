@@ -247,7 +247,7 @@ function SystemStep({
           {total > 12 && <Text color={theme.textDim} dimColor>  …{total - 12} more</Text>}
         </Box>
 
-        {/* Önizleme */}
+        {/* Preview */}
         {cur && (
           <Box flexDirection="column" width={34} borderStyle="single" borderColor={theme.borderDim} paddingX={1}>
             <Text color={theme.accent} bold>{cur.name}</Text>

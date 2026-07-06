@@ -1,16 +1,18 @@
 /**
- * Remote — CLI oturum çalışma zamanı (offerer).
+ * Remote — CLI session runtime (offerer).
  *
- * Mobildeki `MobileRemoteRuntime` (mobile_remote_runtime.dart) ile aynı desen,
- * ama CLI **offer üreten taraf**: cihaz kimliği hazırla → offer imzala →
- * `/remote/sessions` oluştur → telefon kabul edene kadar poll et → answer'ı
- * transport'a uygula → `connected`. Bağlı kaldığı sürece heartbeat atar.
+ * Same pattern as mobile's `MobileRemoteRuntime` (mobile_remote_runtime.dart),
+ * but the CLI is **the side that creates the offer**: prepare device identity
+ * → sign the offer → create `/remote/sessions` → poll until the phone
+ * accepts → apply the answer to the transport → `connected`. Sends a
+ * heartbeat for as long as it stays connected.
  *
- * Önemli: `GET /remote/sessions/:id` (plain poll) backend'de `assertRemoteOpen`
- * çağırmaz — yalnızca `accept`/`resume`/`heartbeat` route'ları süresi geçmiş bir
- * oturumu DB'de "expired"e çevirir. Bu yüzden pasif poll sırasında sunucudaki
- * `status` alanı süresi geçmiş olsa bile "available" kalabilir; süre aşımı
- * `expiresAt` istemci tarafında ayrıca kontrol edilerek yakalanır.
+ * Important: `GET /remote/sessions/:id` (a plain poll) does NOT call
+ * `assertRemoteOpen` on the backend — only the `accept`/`resume`/`heartbeat`
+ * routes flip an expired session to "expired" in the DB. So during a
+ * passive poll, the server's `status` field can still read "available" even
+ * past expiry; the timeout is separately caught by checking `expiresAt` on
+ * the client side.
  */
 
 import { backendRequest, RemoteApiError } from "./backend-client.js"
@@ -26,8 +28,9 @@ interface TurnCredential {
   expiresAt:   string
 }
 
-/** Backend'in `urls: string[]` credential'ını werift'in TEKİL `urls: string` beklediği
- *  ICE server listesine çevirir — bir credential birden fazla TURN URI'sini kapsayabilir. */
+/** Converts the backend's `urls: string[]` credential into the ICE server list
+ *  werift expects with a SINGULAR `urls: string` — one credential can cover
+ *  multiple TURN URIs. */
 function toIceServers(credential: TurnCredential): IceServer[] {
   return credential.urls.map((urls) => ({ urls, username: credential.username, credential: credential.credential }))
 }
@@ -85,8 +88,9 @@ export class CliRemoteRuntime {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
   private cancelled = false
   private readonly listeners = new Set<(status: CliRemoteStatus) => void>()
-  // Ajan köprüsü (Workstream E): mobildeki `MobileRemoteRuntime.createPromptEvent`
-  // deseninin aynısı — runtime, event ledger'ı doğrudan sahiplenir.
+  // Agent bridge (Workstream E): same pattern as mobile's
+  // `MobileRemoteRuntime.createPromptEvent` — the runtime owns the event
+  // ledger directly.
   private readonly ledger = new RemoteEventLedger()
   private deviceId: string | null = null
   private readonly eventListeners = new Set<(event: RemoteEvent) => void>()
@@ -109,8 +113,9 @@ export class CliRemoteRuntime {
     for (const fn of this.listeners) fn(next)
   }
 
-  /** Karşı taraftan (telefon) gelen olayları dinler — `prompt.submit`, `interrupt`,
-   *  `permission.response` vb. Ajan köprüsü (App.tsx) bunu tüketir. */
+  /** Listens for events coming from the other side (the phone) —
+   *  `prompt.submit`, `interrupt`, `permission.response`, etc. Consumed by
+   *  the agent bridge (App.tsx). */
   onEvent(handler: (event: RemoteEvent) => void): () => void {
     this.eventListeners.add(handler)
     return () => this.eventListeners.delete(handler)
@@ -121,16 +126,17 @@ export class CliRemoteRuntime {
     try {
       event = JSON.parse(raw) as RemoteEvent
     } catch {
-      return  // bozuk mesaj — P2P app-layer serbest, backend zaten doğrulamıyor, sessizce yut
+      return  // malformed message — the P2P app-layer is free-form and the backend doesn't validate it anyway, swallow silently
     }
-    if (!this.ledger.acceptIncoming(event)) return  // replay/eski sıra — yut
+    if (!this.ledger.acceptIncoming(event)) return  // replay/stale sequence — swallow
     for (const fn of this.eventListeners) fn(event)
   }
 
   /**
-   * Ajan olaylarını (terminal.output/tool.call/.../permission.request) telefona
-   * yayınlar. Bağlı değilken (henüz `start()` çağrılmadı veya kapatıldı) sessizce
-   * no-op — çağıran taraf remote aktif olsun olmasın aynı kod yolunu kullanabilir.
+   * Broadcasts agent events (terminal.output/tool.call/.../permission.request)
+   * to the phone. Silently a no-op while not connected (`start()` hasn't
+   * been called yet, or it's closed) — the caller can use the same code
+   * path whether or not remote is active.
    */
   async publish(type: string, payload: Record<string, unknown>): Promise<void> {
     if (!this.deviceId || this.status !== "connected" || !this.session) return
@@ -145,8 +151,9 @@ export class CliRemoteRuntime {
   }
 
   /**
-   * Offer oluşturur, oturumu backend'de açar ve telefon kabul edene kadar bekler.
-   * Kabul edilince transport'a answer uygulanır ve heartbeat döngüsü başlar.
+   * Creates an offer, opens the session on the backend, and waits until the
+   * phone accepts it. Once accepted, applies the answer to the transport
+   * and starts the heartbeat loop.
    */
   async start(opts: StartOptions = {}): Promise<RemoteSessionPublic> {
     this.cancelled = false
@@ -186,10 +193,10 @@ export class CliRemoteRuntime {
   }
 
   /**
-   * TURN kimlik bilgisini alır ve werift'in beklediği ICE server listesine çevirir.
-   * Yapılandırılmamışsa (`turn_not_configured`) `undefined` döner — transport kendi
-   * varsayılan STUN sunucusuna sessizce düşer (cross-network bağlantı bu durumda
-   * yalnızca doğrudan/host-erişilebilir ağlarda çalışır).
+   * Fetches TURN credentials and converts them to the ICE server list werift
+   * expects. Returns `undefined` if not configured (`turn_not_configured`) —
+   * the transport silently falls back to its own default STUN server (in
+   * that case, cross-network connectivity only works on directly/host-reachable networks).
    */
   private async preflightTurn(deviceId: string): Promise<IceServer[] | undefined> {
     try {
@@ -222,12 +229,12 @@ export class CliRemoteRuntime {
       if (session.status === "accepted" && session.signedAnswer) {
         return session
       }
-      // "available" — telefon henüz kabul etmedi, beklemeye devam.
+      // "available" — the phone hasn't accepted yet, keep waiting.
     }
     throw new RemoteApiError("remote_session_cancelled", "Waiting for the phone to accept was cancelled.", "client")
   }
 
-  /** `start()` içindeki bekleme döngüsünü dışarıdan iptal eder (ör. kullanıcı Esc/Ctrl+C). */
+  /** Cancels the wait loop inside `start()` from the outside (e.g. the user pressed Esc/Ctrl+C). */
   cancelWaiting(): void {
     this.cancelled = true
   }
@@ -266,7 +273,7 @@ export class CliRemoteRuntime {
     }
   }
 
-  /** Oturumu kapatır (backend + transport); best-effort — ağ hatası kapanışı engellemez. */
+  /** Closes the session (backend + transport); best-effort — a network error doesn't block closing. */
   async close(): Promise<void> {
     this.cancelled = true
     this.stopHeartbeat()
@@ -275,7 +282,7 @@ export class CliRemoteRuntime {
         const accessToken = await ensureAccessToken()
         await backendRequest(`/remote/sessions/${this.session.id}/close`, { method: "POST", accessToken })
       } catch {
-        // best-effort — zaten kapanıyoruz
+        // best-effort — we're closing anyway
       }
     }
     await this.transport.close()

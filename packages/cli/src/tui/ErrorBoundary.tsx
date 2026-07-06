@@ -1,11 +1,11 @@
 /**
- * ErrorBoundary — TUI crash koruması
+ * ErrorBoundary — TUI crash protection
  *
- * React component tree'de bir hata oluştuğunda tüm uygulamanın çökmesini
- * engeller. Kullanıcıya anlamlı bir hata mesajı gösterir ve kurtarma
- * seçenekleri sunar.
+ * Prevents the whole app from crashing when an error occurs in the React
+ * component tree. Shows the user a meaningful error message and offers
+ * recovery options.
  *
- * Kullanım:
+ * Usage:
  *   <ErrorBoundary>
  *     <App />
  *   </ErrorBoundary>
@@ -16,7 +16,7 @@ import { Box, Text } from "ink"
 
 interface Props {
   children: React.ReactNode
-  /** Hata oluştuğunda çağrılır (crash report yazma vb.) */
+  /** Called when an error occurs (writing a crash report, etc.) */
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void
 }
 
@@ -77,7 +77,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 }
 
 /**
- * Crash report writer — ErrorBoundary onError callback'i olarak kullanılır
+ * Crash report writer — used as ErrorBoundary's onError callback
  */
 export function writeTUIcrashReport(error: Error, errorInfo: React.ErrorInfo): void {
   try {
@@ -103,6 +103,6 @@ export function writeTUIcrashReport(error: Error, errorInfo: React.ErrorInfo): v
     ].join("\n")
     writeCrashReport(report)
   } catch {
-    // non-fatal — crash report yazılamazsa sessizce geç
+    // non-fatal — pass silently if the crash report can't be written
   }
 }

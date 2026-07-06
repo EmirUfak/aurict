@@ -98,19 +98,19 @@ describe("TUI responsive regression", () => {
   })
 
   it("renders status bar across terminal breakpoints", () => {
-    // tiny: sadece kısa model adı gösterilir
+    // tiny: only the short model name is shown
     const tiny = render(<StatusBar {...DEFAULT_STATUS_PROPS} cols={50} />).lastFrame() ?? ""
     expect(tiny).toContain("opus-4-5")
     cleanup()
 
-    // compact: ctx yüzdesi gösterilir (ör. "25%")
+    // compact: the ctx percentage is shown (e.g. "25%")
     const compact = render(
       <StatusBar {...DEFAULT_STATUS_PROPS} cols={75} contextTokens={50_000} />,
     ).lastFrame() ?? ""
     expect(compact).toContain("25%")
     cleanup()
 
-    // normal: "ctx XX%" ve token sayısı
+    // normal: "ctx XX%" and the token count
     const normal = render(
       <StatusBar {...DEFAULT_STATUS_PROPS} cols={100} contextTokens={50_000} contextWindow={200_000} />,
     ).lastFrame() ?? ""
@@ -118,7 +118,7 @@ describe("TUI responsive regression", () => {
     expect(normal).toContain("15k")
     cleanup()
 
-    // wide: dir ve model görünür
+    // wide: dir and model are visible
     const wide = render(
       <StatusBar {...DEFAULT_STATUS_PROPS} cols={140} />,
     ).lastFrame() ?? ""

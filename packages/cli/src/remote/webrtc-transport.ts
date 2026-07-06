@@ -1,19 +1,22 @@
 /**
- * Remote — gerçek WebRTC transport (offerer), `werift` (saf TypeScript, native binding yok).
+ * Remote — real WebRTC transport (offerer), using `werift` (pure TypeScript,
+ * no native bindings).
  *
- * `MockCliRemoteTransport`'un yerini alır: gerçek `RTCPeerConnection` + veri kanalı ("aurict-remote").
- * Doğrulandı (bkz. proje dışı probe): Bun 1.3.12 üzerinde iki werift `RTCPeerConnection`
- * SDP/ICE değişimi yapıp veri kanalı açabiliyor ve mesaj alışverişi yapabiliyor.
+ * Replaces `MockCliRemoteTransport`: a real `RTCPeerConnection` + data
+ * channel ("aurict-remote"). Verified (see an out-of-project probe): on Bun
+ * 1.3.12, two werift `RTCPeerConnection`s can exchange SDP/ICE, open a data
+ * channel, and exchange messages.
  *
- * Sinyalleşme payload sözleşmesi (bu projede tanımlanan): `payload` alanı **ham SDP metnidir**
- * (JSON sarmalı yok) — backend `payload: z.string().min(16).max(128_000)` şemasında yalnızca
- * opak bir string bekliyor, yapıyı transport tipi belirliyor.
+ * Signaling payload contract (defined in this project): the `payload` field
+ * is the **raw SDP text** (no JSON wrapper) — the backend's schema,
+ * `payload: z.string().min(16).max(128_000)`, only expects an opaque
+ * string; the transport type determines the structure.
  *
- * Non-trickle ICE: sinyalleşme REST/poll tabanlı olduğu için (canlı soket yok) tüm ICE aday
- * bilgisi offer/answer SDP'sine gömülü gönderilir — `setLocalDescription` sonrası ICE toplama
- * bitene kadar beklenir, SDP `pc.localDescription.sdp`'den (offer'ı üreten `createOffer()`
- * çağrısının döndürdüğü ilk SDP'den DEĞİL — o, toplama başlamadan önceki an-lık görüntüdür)
- * okunur.
+ * Non-trickle ICE: since signaling is REST/poll-based (no live socket), all
+ * ICE candidate info is embedded directly in the offer/answer SDP — after
+ * `setLocalDescription`, we wait until ICE gathering completes, then read
+ * the SDP from `pc.localDescription.sdp` (NOT from the SDP returned by the
+ * initial `createOffer()` call — that's a snapshot taken before gathering starts).
  */
 
 import { RTCPeerConnection, type RTCDataChannel } from "werift"
@@ -29,10 +32,10 @@ async function waitForIceGatheringComplete(pc: RTCPeerConnection, timeoutMs = IC
     let settled = false
     const done = () => { if (!settled) { settled = true; resolve() } }
     pc.onicecandidate = ({ candidate }) => {
-      if (candidate === undefined) done()  // standart "aday bitti" sinyali
+      if (candidate === undefined) done()  // the standard "candidates done" signal
     }
     pc.iceGatheringStateChange.subscribe((state) => { if (state === "complete") done() })
-    setTimeout(done, timeoutMs)  // güvenlik ağı — kısıtlı ağlarda gathering hiç bitmeyebilir
+    setTimeout(done, timeoutMs)  // safety net — gathering may never finish on restricted networks
   })
 }
 
@@ -41,7 +44,7 @@ export class WebRtcCliTransport implements CliRemoteTransport {
   private channel: RTCDataChannel | null    = null
   private readonly openHandlers    = new Set<() => void>()
   private readonly messageHandlers = new Set<(data: string) => void>()
-  // Kanal açılmadan önce gönderilmeye çalışılan mesajlar — açılınca sırayla gönderilir.
+  // Messages we tried to send before the channel opened — sent in order once it opens.
   private readonly pendingOutbox: string[] = []
 
   async createOffer(opts: {

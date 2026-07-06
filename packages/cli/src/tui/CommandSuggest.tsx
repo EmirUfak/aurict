@@ -22,14 +22,14 @@ function fit(text: string, width: number): string {
 }
 
 interface Props {
-  filter:    string         // "/" sonrası yazılan metin
+  filter:    string         // the text typed after "/"
   commands:  CommandDef[]
   isActive:  boolean
-  onExecute: (cmdName: string) => void  // Enter: komutu çalıştır
-  onFill:    (cmdName: string) => void  // Tab: input'u doldur
+  onExecute: (cmdName: string) => void  // Enter: run the command
+  onFill:    (cmdName: string) => void  // Tab: fill the input
 }
 
-// Subsequence fuzzy match: "mdl" → "model". Eşleşirse 0-1 arası yoğunluk skoru.
+// Subsequence fuzzy match: "mdl" → "model". A density score between 0-1 if it matches.
 function fuzzySubsequence(text: string, query: string): number {
   let ti = 0; let qi = 0
   while (ti < text.length && qi < query.length) {
@@ -49,10 +49,10 @@ function matchScore(c: CommandDef, filter: string): number {
   if (aliases.some((a) => a === f)) return 95
   if (name.startsWith(f)) return 80
   if (aliases.some((a) => a.startsWith(f))) return 75
-  // Substring: tek karakterde bile isim/alias içinde ara — daha çok sonuç göster
+  // Substring: search within name/alias even for a single character — shows more results
   if (name.includes(f)) return 60
   if (aliases.some((a) => a.includes(f))) return 55
-  // Açıklama/kategori/usage içinde substring (1 karakter için çok gürültülü)
+  // Substring within description/category/usage (too noisy for 1 character)
   if (f.length >= 2 && commandSearchText(c).includes(f)) return 30
   // Fuzzy subsequence: "mdl" → /model, "cpt" → /checkpoints
   if (f.length >= 2) {
@@ -72,12 +72,12 @@ export function getCommandMatches(filter: string, commands: CommandDef[]): Comma
 
 export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }: Props) {
   const theme = useTheme()
-  // Seçim TÜM eşleşme listesi üzerinde gezinir; görünen pencere render'da
-  // türetilir (offsetRef). State yerine functional update + ref kullanımı:
-  // coalesced tuşlar aynı tick'te art arda geldiğinde closure'daki bayat
-  // değerlerle adım kaybetmemek için.
+  // Selection moves over the FULL match list; the visible window is derived
+  // at render time (offsetRef). Functional update + ref usage instead of
+  // state: so we don't lose a step to stale closure values when coalesced
+  // keypresses arrive back-to-back within the same tick.
   const [idx, setIdx] = useState(0)
-  const idxRef    = useRef(0)   // aynı tick içinde gelen ardışık tuşlar için güncel değer
+  const idxRef    = useRef(0)   // the current value for consecutive keypresses within the same tick
   const offsetRef = useRef(0)
 
   const moveSel = (compute: (current: number) => number) => {
@@ -85,7 +85,7 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
     setIdx(idxRef.current)
   }
 
-  // Filter değişince seçimi ve pencereyi sıfırla
+  // Reset the selection and window when the filter changes
   useEffect(() => { idxRef.current = 0; setIdx(0); offsetRef.current = 0 }, [filter])
 
   const { columns: termCols, rows: termRows } = useTerminalSize()
@@ -93,7 +93,7 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
   const allMatches = getCommandMatches(filter, commands)
   const matchCount = allMatches.length
 
-  // Liste küçüldüyse state'i sınırlar içine çek (bayat index bug'ını önler)
+  // If the list shrank, pull the state back within bounds (prevents a stale-index bug)
   useEffect(() => {
     if (idxRef.current > matchCount - 1) {
       idxRef.current = Math.max(0, matchCount - 1)
@@ -103,7 +103,7 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
 
   const activeIdx = Math.min(idx, Math.max(0, matchCount - 1))
 
-  // Pencereyi render'da türet: seçili öğe her zaman görünür kalır
+  // Derive the window at render time: the selected item always stays visible
   let winStart = offsetRef.current
   if (activeIdx < winStart) winStart = activeIdx
   if (activeIdx >= winStart + maxShow) winStart = activeIdx - maxShow + 1

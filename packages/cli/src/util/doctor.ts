@@ -16,11 +16,11 @@ interface Check {
 }
 
 /**
- * JSON şeması — `aurict doctor --json` çıktısı.
+ * JSON schema — output of `aurict doctor --json`.
  *
- * Bu arayüzü değiştirmek major sürüm artışı gerektirir; dış araçlar
- * (CI otomasyonu, dashboard'lar) bu alan adlarına bağlı olabilir.
- * Yeni alan eklemek serbesttir; mevcut alan adını yeniden adlandırmayın.
+ * Changing this interface requires a major version bump; external tools
+ * (CI automation, dashboards) may depend on these field names.
+ * Adding new fields is fine; do not rename existing field names.
  */
 export interface DoctorReport {
   schema:    "aurict.doctor/v1"
@@ -266,7 +266,7 @@ async function keystoreCapability(): Promise<Check> {
   }
 }
 
-/** Çekirdek check üreticisi — text ve JSON formatlayıcılar buna bağlı. */
+/** Core check generator — both the text and JSON formatters depend on this. */
 async function collectChecks(workdir: string): Promise<Check[]> {
   const securityImageCheck = dockerSecurityImage(workdir)
   return [
@@ -291,11 +291,11 @@ function summarize(checks: Check[]): { ok: number; warn: number; fail: number; t
 }
 
 export interface DoctorOptions {
-  /** JSON çıktı modu — `aurict doctor --json` ve otomasyon araçları için. */
+  /** JSON output mode — for `aurict doctor --json` and automation tools. */
   json?: boolean
 }
 
-/** Human-readable text raporu — `/doctor` slash komutu bunu kullanır. */
+/** Human-readable text report — used by the `/doctor` slash command. */
 export async function getDoctorReport(workdir: string): Promise<{ text: string; exitCode: number }> {
   const checks = await collectChecks(workdir)
   const summary = summarize(checks)
@@ -314,7 +314,7 @@ export async function getDoctorReport(workdir: string): Promise<{ text: string; 
   }
 }
 
-/** JSON raporu — `aurict doctor --json` ve CI/CD araçları için. Sabit şema (`DoctorReport`). */
+/** JSON report — for `aurict doctor --json` and CI/CD tools. Fixed schema (`DoctorReport`). */
 export async function getDoctorReportJson(workdir: string): Promise<{ json: string; exitCode: number }> {
   const checks = await collectChecks(workdir)
   const summary = summarize(checks)
@@ -333,7 +333,7 @@ export async function getDoctorReportJson(workdir: string): Promise<{ json: stri
   }
 }
 
-/** CLI entry — hem text hem JSON modunu yönetir. `--json` argümanı JSON raporu basar. */
+/** CLI entry — manages both text and JSON modes. The `--json` argument prints the JSON report. */
 export async function runDoctor(workdir: string, opts: DoctorOptions = {}): Promise<number> {
   if (opts.json) {
     const report = await getDoctorReportJson(workdir)

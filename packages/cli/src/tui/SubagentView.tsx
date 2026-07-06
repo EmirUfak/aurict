@@ -67,13 +67,13 @@ export function SubagentView({ sessionId, parentSessionId, onClose, onPrev, onNe
   const theme = useTheme()
   const [parts, setParts] = useState<Part[]>(() => SessionManager.getPartsTail(sessionId, MAX_PARTS))
   const [totalCount, setTotalCount] = useState(() => SessionManager.getPartsCount(sessionId))
-  // Canlı streaming metni — DB'ye henüz yazılmamış, tool call'lar arası LLM çıktısı
+  // Live streaming text — LLM output between tool calls, not yet written to the DB
   const [liveText, setLiveText] = useState(() => agentPool.getLiveText(sessionId))
   const PAGE = Math.max(10, useTerminalSize().rows - 8)
-  const [offset, setOffset] = useState<number>(-1)   // -1 = "tail" modu: en sona kilitli
+  const [offset, setOffset] = useState<number>(-1)   // -1 = "tail" mode: locked to the end
 
-  // agentPool.onChange → push-based: her text delta'sında anında güncelle
-  // DB part sayısı değişince de parts'ı yenile (tool_call / done gelince)
+  // agentPool.onChange → push-based: update immediately on every text delta
+  // Also refresh parts when the DB part count changes (on tool_call / done)
   useEffect(() => {
     const unsub = agentPool.onChange(() => {
       setLiveText(agentPool.getLiveText(sessionId))
@@ -89,7 +89,7 @@ export function SubagentView({ sessionId, parentSessionId, onClose, onPrev, onNe
     return unsub
   }, [sessionId])
 
-  // Session değişince parts'ı yenile + tail moduna dön
+  // Refresh parts + return to tail mode when the session changes
   useEffect(() => {
     const count = SessionManager.getPartsCount(sessionId)
     setTotalCount(count)
@@ -105,18 +105,18 @@ export function SubagentView({ sessionId, parentSessionId, onClose, onPrev, onNe
   const isRunning = agentPool.active.some((a) => a.sessionId === sessionId)
   const status    = isRunning ? "running" : session?.status === "complete" ? "done" : session?.status ?? "?"
 
-  // Memoized: parts array referansı değişmediği sürece yeniden hesaplanmaz
+  // Memoized: not recomputed unless the parts array reference changes
   const allLines = useMemo(() => parts.flatMap(partToLines), [parts])
   const total    = allLines.length
 
-  // offset=-1 → tail modu (son PAGE satırı göster)
+  // offset=-1 → tail mode (show the last PAGE lines)
   const effectiveOffset = offset === -1
     ? Math.max(0, total - PAGE)
     : Math.min(offset, Math.max(0, total - PAGE))
   const shown    = allLines.slice(effectiveOffset, effectiveOffset + PAGE)
   const isTail   = effectiveOffset >= Math.max(0, total - PAGE)
 
-  // Scroll handler — sol/sağ ok App.tsx'te yakalanıyor, yukarı/aşağı burada
+  // Scroll handler — left/right arrows are caught in App.tsx, up/down here
   useInput((_char, key) => {
     if (key.upArrow) {
       setOffset((o) => {
@@ -185,7 +185,7 @@ export function SubagentView({ sessionId, parentSessionId, onClose, onPrev, onNe
             <Text key={i} color={line.color} {...(line.dim ? { dimColor: true } : {})}>{line.text}</Text>
           ))
         )}
-        {/* Canlı streaming metni — tail modunda, DB'ye yazılmamış anlık LLM çıktısı */}
+        {/* Live streaming text — in tail mode, instant LLM output not yet written to the DB */}
         {isRunning && isTail && liveText && liveText
           .split("\n")
           .filter((l) => l.trim())
@@ -212,7 +212,7 @@ export function SubagentView({ sessionId, parentSessionId, onClose, onPrev, onNe
           </>
         )}
         {total > PAGE && (
-          <Text color={theme.textDim} dimColor>[↑↓] scroll  Ctrl+U/D yarım sayfa</Text>
+          <Text color={theme.textDim} dimColor>[↑↓] scroll  Ctrl+U/D half page</Text>
         )}
       </Box>
     </Box>

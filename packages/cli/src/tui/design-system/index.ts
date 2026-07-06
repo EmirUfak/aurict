@@ -1,7 +1,7 @@
 /**
  * Design System — Index
  *
- * Tüm primitive'leri tek noktadan export et. Kullanım:
+ * Export all primitives from a single point. Usage:
  *   import { HStack, VStack, Typo, Badge, Icon, Spinner, ProgressBar, Surface, Kbd, KeyHint } from "../tui/design-system"
  */
 

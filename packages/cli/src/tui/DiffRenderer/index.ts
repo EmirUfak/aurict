@@ -1,9 +1,9 @@
 /**
  * DiffRenderer — Index
  *
- * Gelişmiş diff görüntüleyici. Raw diff veya eski/yeni metin alır, üç modda
- * (unified/side-by-side/raw) renderlar. Hunk navigasyonu ve mode toggle
- * keybinding'ler ile entegre.
+ * Advanced diff viewer. Takes a raw diff or old/new text, renders in three
+ * modes (unified/side-by-side/raw). Integrated with hunk navigation and
+ * mode-toggle keybindings.
  */
 
 export {

@@ -1,9 +1,9 @@
 /**
- * ChatInput — Kullanıcı giriş alanı (Cockpit v2)
+ * ChatInput — User input area (Cockpit v2)
  *
- * Border'lı bir container içinde MultilineInput + mod göstergesi + prompt işareti
- * + (opsiyonel) queued mesaj göstergesi. Altta segmentli ipucu barı.
- * Border rengi disabled/paste durumuna göre değişir.
+ * MultilineInput + mode indicator + prompt marker inside a bordered
+ * container + an (optional) queued-message indicator. A segmented hint bar
+ * below. Border color changes based on disabled/paste state.
  *
  * Design system: VStack, HStack, Surface, Typo.
  */
@@ -27,7 +27,7 @@ interface Props {
   onCopied?:          (charCount: number) => void
 }
 
-// Alt ipucu barı hücreleri — terminal genişliğine göre seçilir
+// Bottom hint-bar cells — chosen based on terminal width
 const HINTS_WIDE: { key: string; label: string }[] = [
   { key: "/",   label: "cmd" },
   { key: "⌃P",  label: "palette" },
@@ -106,7 +106,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
         </HStack>
       </Surface>
 
-      {/* ── Segmentli ipucu barı ── */}
+      {/* ── Segmented hint bar ── */}
       {showHints && (
         <HStack paddingLeft="md" gap="none">
           {hints.map((h, i) => (

@@ -51,21 +51,21 @@ export function TaskList({ tasks }: Props) {
               )}
             </Box>
             
-            {/* Blocker'lar (beklenen görevler) */}
+            {/* Blockers (tasks being waited on) */}
             {task.blockedBy && task.blockedBy.length > 0 && (
                <Box paddingLeft={2}>
                  <Text color="#52525b">blocked by: {task.blockedBy.join(", ")}</Text>
                </Box>
             )}
 
-            {/* Durum metni */}
+            {/* Status text */}
             {isInProgress && (
               <Box paddingLeft={2}>
                 <Text color="#a1a1aa">Working...</Text>
               </Box>
             )}
             
-            {/* Hata metni */}
+            {/* Error text */}
             {isError && task.error && (
                <Box paddingLeft={2}>
                  <Text color="#ff4d4d">{task.error.slice(0, 25)}</Text>

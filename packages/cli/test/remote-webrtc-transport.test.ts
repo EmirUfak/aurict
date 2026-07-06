@@ -1,10 +1,11 @@
 /**
- * Remote — Faz 4 (gerçek WebRTC transport, `werift`) testleri.
+ * Remote — Phase 4 (real WebRTC transport, `werift`) tests.
  *
- * Gerçek iki `RTCPeerConnection` arasında SDP/ICE değişimi ve veri kanalı açılışını
- * doğrular (mock değil) — bir tarafta `WebRtcCliTransport` (offerer), diğer tarafta
- * mobilin gelecekteki gerçek answerer'ını taklit eden çıplak werift `RTCPeerConnection`.
- * Bu, `webrtc-transport.ts`'in yalnızca tip uyumlu değil, GERÇEKTEN çalıştığını kanıtlar.
+ * Verifies SDP/ICE exchange and data channel opening between two REAL
+ * `RTCPeerConnection`s (not a mock) — `WebRtcCliTransport` (offerer) on one
+ * side, and a bare werift `RTCPeerConnection` mimicking the mobile side's
+ * future real answerer on the other. This proves `webrtc-transport.ts` is
+ * not just type-compatible, but ACTUALLY works.
  */
 import { describe, it, expect, afterEach } from "bun:test"
 import { RTCPeerConnection } from "werift"
@@ -19,7 +20,7 @@ afterEach(async () => {
   for (const p of runningPeers.splice(0)) await p.close().catch(() => {})
 })
 
-/** Mobilin (Workstream F) gelecekteki gerçek answerer'ını taklit eden çıplak werift peer. */
+/** A bare werift peer mimicking mobile's (Workstream F) future real answerer. */
 async function answerWithBarePeer(offer: SignalEnvelope): Promise<{ answer: SignalEnvelope; pc: RTCPeerConnection; channelOpened: Promise<import("werift").RTCDataChannel> }> {
   const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] })
   runningPeers.push(pc)
@@ -63,10 +64,10 @@ describe("WebRtcCliTransport", () => {
     expect(offer.type).toBe("offer")
     expect(offer.transport).toBe("webrtc")
     expect(offer.signingKeyFingerprint).toBe("fp_cli_1")
-    expect(offer.payload.startsWith("v=0")).toBe(true)          // gerçek SDP, JSON değil
-    expect(offer.payload).toContain("a=candidate")               // non-trickle: adaylar gömülü
+    expect(offer.payload.startsWith("v=0")).toBe(true)          // real SDP, not JSON
+    expect(offer.payload).toContain("a=candidate")               // non-trickle: candidates are embedded
     expect(offer.signature).toBe(`sig(${offer.payload.length})`)
-    expect(signed[0]).toBe(offer.payload)                        // imzalanan tam olarak SDP'nin kendisi
+    expect(signed[0]).toBe(offer.payload)                        // what's signed is exactly the SDP itself
   }, 15_000)
 
   it("establishes a real data channel with a bare peer answerer and exchanges messages both ways", async () => {
@@ -107,7 +108,7 @@ describe("WebRtcCliTransport", () => {
       signingKeyFingerprint: "fp_cli_1",
       sign: async () => "sig",
     })
-    // Kanal henüz açık değil (answer uygulanmadı) — bu send() kuyruğa alınmalı, atılmamalı.
+    // The channel isn't open yet (answer not applied) — this send() must be queued, not dropped.
     transport.send("queued-before-open")
 
     const { answer, channelOpened } = await answerWithBarePeer(offer)
@@ -124,7 +125,7 @@ describe("WebRtcCliTransport", () => {
     const transport = new WebRtcCliTransport()
     await transport.createOffer({ signingKeyFingerprint: "fp_x", sign: async () => "sig" })
     await transport.close()
-    // Kapandıktan sonra applyAnswer çağrısı güvenli bir hata fırlatmalı (crash değil).
+    // After closing, calling applyAnswer must throw a safe error (not crash).
     await expect(transport.applyAnswer({
       version: 1, sessionProtocolVersion: 1, type: "answer", transport: "webrtc", payload: "v=0", signingKeyFingerprint: "x", signature: "x",
     })).rejects.toThrow()

@@ -76,9 +76,9 @@ export interface CommandContext {
     snapshot: { sectionCount: number; toolCount: number; cacheableHash: string; dynamicHash: string; toolHash: string }
   } | undefined
   openDesign:        (brief?: string) => void
-  /** Uzun süren komutlar için ara ilerleme mesajı basar (transcript'e sistem mesajı ekler). */
+  /** Prints an intermediate progress message for long-running commands (adds a system message to the transcript). */
   addSystemMsg:      (content: string) => void
-  /** Telefon eşleşmesi için WebRTC remote-control oturumunu başlatır/kapatır. */
+  /** Starts/stops the WebRTC remote-control session for phone pairing. */
   startRemoteSession: () => void
   stopRemoteSession:  () => void
   remoteConnected:    boolean

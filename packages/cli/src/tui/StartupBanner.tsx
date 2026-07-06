@@ -1,10 +1,10 @@
 /**
- * StartupBanner — Aurict başlangıç banner'ı (Cockpit v2)
+ * StartupBanner — Aurict's startup banner (Cockpit v2)
  *
  * Responsive terminal cockpit:
- *  - Geniş terminaller "SYSTEMS ONLINE" instrument ızgaralı bir komuta paneli gösterir.
- *  - Dar terminaller aynı bilgiyi tek okunur sütunda tutar.
- *  - Metin özgün sci-fi mühendislik tonunda; dış slogan yok.
+ *  - Wide terminals show a command-panel with a "SYSTEMS ONLINE" instrument grid.
+ *  - Narrow terminals keep the same info in a single readable column.
+ *  - The copy has an original sci-fi engineering tone; no external slogans.
  */
 
 import React from "react"
@@ -13,8 +13,8 @@ import { HStack, VStack, Center } from "./design-system/index.js"
 import { Eyebrow, motionEnabled } from "./design-system/index.js"
 import { useTheme } from "../utils/theme.js"
 
-// Wordmark satırları renksiz tanımlanır; renk, render sırasında aktif marka
-// temasından üretilen bir gradyanla verilir (varsayılan: oxblood).
+// Wordmark lines are defined without color; the color is applied at render
+// time via a gradient generated from the active brand theme (default: oxblood).
 const ASCII_LOGO = [
   "  █████╗  ██╗   ██╗  ██████╗  ██╗  ██████╗  ████████╗",
   " ██╔══██╗ ██║   ██║  ██╔══██╗ ██║ ██╔════╝  ╚══██╔══╝",
@@ -24,7 +24,7 @@ const ASCII_LOGO = [
   " ╚═╝  ╚═╝  ╚═════╝   ╚═╝  ╚═╝ ╚═╝  ╚═════╝     ╚═╝   ",
 ]
 
-// Dar terminaller için özel kompakt AURICT ASCII logo.
+// A dedicated compact AURICT ASCII logo for narrow terminals.
 const COMPACT_ASCII_LOGO = [
   "  █   █ ███  ███ ███ ███ ███",
   " █ █  █ █  █  █  █   █    █ ",
@@ -33,7 +33,7 @@ const COMPACT_ASCII_LOGO = [
   " █ █  █ █  █ ███ ███ ███  █ ",
 ]
 
-// İki hex arası doğrusal renk interpolasyonu — marka gradyanı için.
+// Linear color interpolation between two hex values — for the brand gradient.
 function hexGradient(from: string, to: string, steps: number): string[] {
   const parse = (h: string): [number, number, number] => {
     const s = h.replace("#", "")
@@ -101,7 +101,7 @@ const TIP_POOL: Tip[] = [
   { label: "autopilot", hint: "/config autopilot",   tone: "warning" },
 ]
 
-// Deterministik 30 dakikalık seed tabanlı ipucu seçici
+// Deterministic tip picker based on a 30-minute seed
 function seededPick(pool: Tip[], count: number): Tip[] {
   const seed  = Math.floor(Date.now() / (1000 * 60 * 30))
   const arr   = [...pool]
@@ -123,7 +123,7 @@ interface Props {
   rows?:    number
 }
 
-// İki sütunlu instrument ızgarası için tek hücre
+// A single cell for the two-column instrument grid
 function Cell({ label, value, valueColor, labelColor, width }: {
   label: string; value: string; valueColor: string; labelColor: string; width: number
 }) {
@@ -173,10 +173,10 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
 
   const bootPhase = BOOT_PHASES[Math.min(BOOT_PHASES.length - 1, Math.floor(bootFrame / 2) % BOOT_PHASES.length)]!
   const portalFrame = PORTAL_FRAMES[bootFrame % PORTAL_FRAMES.length]!
-  // Banner tam terminal genişliğini kaplar — üst bar ve input ile aynı kenar.
+  // The banner spans the full terminal width — the same edge as the top bar and input.
   const bannerWidth = Math.max(24, cols ?? 80)
   const outerContentWidth = Math.max(18, bannerWidth - 4)
-  // Marka gradyanı: üstte accentAlt (açık), altta accent (koyu) — oxblood tonları.
+  // Brand gradient: accentAlt (light) at the top, accent (dark) at the bottom — oxblood tones.
   const logoColors = hexGradient(theme.accentAlt, theme.accent, ASCII_LOGO.length)
   const compactLogoColors = hexGradient(theme.accentAlt, theme.accent, COMPACT_ASCII_LOGO.length)
   const panelWidth = outerContentWidth
@@ -223,7 +223,7 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
     )
   }
 
-  // ── Dar Ekran Düzeni (Tek Sütun) ──────────────────────────────────────────
+  // ── Narrow Screen Layout (Single Column) ──────────────────────────────────────────
   if (isNarrow) {
     return (
       <VStack width={bannerWidth} paddingX="md" paddingY="sm" gap="sm" borderStyle="round" borderColor={theme.borderDim}>
@@ -263,7 +263,7 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
         <VStack gap="none" paddingX="sm">
           <Text color={theme.textSecondary} bold>Welcome back, {user}</Text>
           <Text color={theme.textDim}>
-            • <Text color={theme.accent} bold>/help</Text> — tüm komutlar & kısayollar
+            • <Text color={theme.accent} bold>/help</Text> — all commands & shortcuts
           </Text>
           {tips.slice(0, 2).map((tip, i) => (
             <Text key={i} color={theme.textDim}>
@@ -275,7 +275,7 @@ export function StartupBanner({ version, provider, model, workdir, cols, rows }:
     )
   }
 
-  // ── Geniş Ekran Düzeni (komuta paneli) ──────────────────────────────────────
+  // ── Wide Screen Layout (command panel) ──────────────────────────────────────
   return (
     <VStack width={bannerWidth} paddingX="md" paddingY="sm" gap="sm">
       {showFullLogo && (

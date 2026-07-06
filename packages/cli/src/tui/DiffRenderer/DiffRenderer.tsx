@@ -1,17 +1,17 @@
 /**
- * DiffRenderer — Gelişmiş diff görüntüleyici
+ * DiffRenderer — Advanced diff viewer
  *
- * Üç mod:
- *  - "unified":     +/- işaretleriyle tek sütun
- *  - "side-by-side": eski/sol, yeni/sağ iki sütun
- *  - "raw":         olduğu gibi (renkli unified diff)
+ * Three modes:
+ *  - "unified":      single column with +/- markers
+ *  - "side-by-side": old/left, new/right two columns
+ *  - "raw":          as-is (colored unified diff)
  *
- * Özellikler:
- *  - Hunk navigation (n/p ile)
- *  - Mode toggle (u ile)
- *  - Satır numaraları (eski/yeni ayrı)
- *  - Word-level inline diff (side-by-side modda)
- *  - Tema-uyumlu renkler
+ * Features:
+ *  - Hunk navigation (with n/p)
+ *  - Mode toggle (with u)
+ *  - Line numbers (old/new separate)
+ *  - Word-level inline diff (in side-by-side mode)
+ *  - Theme-matched colors
  */
 
 import React, { useState, useMemo } from "react"
@@ -26,29 +26,29 @@ import { parseRawDiff, diffTexts, suggestDiffMode, wordDiff,
 // ── Props ────────────────────────────────────────────────────────────────────
 
 export interface DiffRendererProps {
-  /** Raw unified diff string VEYA */
+  /** Raw unified diff string, OR */
   rawDiff?:     string
-  /** Eski/yeni metin (alternatif) */
+  /** old/new text (alternative) */
   oldText?:     string
   newText?:     string
   fileName?:    string
-  /** İlk mode (default: suggestDiffDiffMode) */
+  /** Initial mode (default: suggestDiffDiffMode) */
   initialMode?: DiffMode
-  /** Hunk başına context satır sayısı (eski/yeni metin diff'i için) */
+  /** Number of context lines per hunk (for old/new text diffing) */
   contextLines?: number
-  /** Maksimum hunk sayısı (gösterilecek) */
+  /** Maximum number of hunks (to show) */
   maxHunks?:    number
-  /** Mod değiştirmeye izin ver (u tuşu) */
+  /** Allow switching modes (u key) */
   enableModeToggle?: boolean
-  /** Hunk navigasyonuna izin ver (n/p tuşları) */
+  /** Allow hunk navigation (n/p keys) */
   enableHunkNav?:    boolean
-  /** Hata göster (örn. parse hatası) */
+  /** Show an error (e.g. a parse error) */
   onError?:     (e: string) => void
-  /** Parent rail/container genişliği */
+  /** Parent rail/container width */
   width?:       number
 }
 
-// ── Ana bileşen ──────────────────────────────────────────────────────────────
+// ── Main component ──────────────────────────────────────────────────────────────
 
 export function DiffRenderer({
   rawDiff,
@@ -68,7 +68,7 @@ export function DiffRenderer({
   const terminalWidth = useTerminalSize().columns
   const renderWidth = Math.max(40, Math.min(width ?? terminalWidth - 8, terminalWidth - 4))
 
-  // Parse: raw diff varsa onu kullan, yoksa old/new'den hesapla
+  // Parse: use raw diff if present, otherwise compute from old/new
   const parsed = useMemo<ParsedDiff | null>(() => {
     if (rawDiff) {
       return parseRawDiff(rawDiff)
@@ -86,7 +86,7 @@ export function DiffRenderer({
     }
   }, [parsed, initialMode])
 
-  // Rules of Hooks: tüm hook çağrıları erken return'lerden önce
+  // Rules of Hooks: all hook calls must come before early returns
   const hunkCount = parsed?.hunks.length ?? 0
 
   const { hints } = useBindingHints({
@@ -118,7 +118,7 @@ export function DiffRenderer({
     context: "modal",
     onTrigger: () => {
       if (!parsed) return
-      // raw mod yalnızca rawDiff varsa anlamlı
+      // raw mode is only meaningful when rawDiff is present
       if (rawDiff) {
         setMode((m) => m === "unified" ? "side-by-side" : m === "side-by-side" ? "raw" : "unified")
       } else {
@@ -154,7 +154,7 @@ export function DiffRenderer({
         ))}
       </HStack>
 
-      {/* Body — mode'a göre farklı render */}
+      {/* Body — renders differently based on mode */}
       {mode === "unified" && (
         <UnifiedView hunks={shown} activeHunk={enableHunkNav ? activeHunk : -1} width={renderWidth} />
       )}
@@ -218,8 +218,8 @@ function SideBySideView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHun
 }
 
 /**
- * Add/remove satırları eşleştirip yan yana getirir.
- * Context satırları her iki tarafta da görünür.
+ * Pairs up add/remove lines to place them side by side.
+ * Context lines appear on both sides.
  */
 function pairLines(lines: DiffLine[]): Array<[DiffLine | null, DiffLine | null]> {
   const pairs: Array<[DiffLine | null, DiffLine | null]> = []
@@ -230,7 +230,7 @@ function pairLines(lines: DiffLine[]): Array<[DiffLine | null, DiffLine | null]>
       pairs.push([l, l])
       i++
     } else if (l.type === "remove") {
-      // Eşleşen add varsa sağ tarafa koy
+      // Put the matching add on the right side, if there is one
       const next = lines[i + 1]
       if (next && next.type === "add") {
         pairs.push([l, next])
@@ -255,15 +255,15 @@ function SideBySideLine({ left, right, width }: { left: DiffLine | null; right: 
 
   return (
     <Box flexDirection="row">
-      {/* Sol — eski */}
+      {/* Left — old */}
       <Box width={halfW} flexShrink={0}>
         <Text color={theme.textDim}>{left?.oldLineNum?.toString().padStart(4) ?? "    "}</Text>
         <Text> </Text>
         <SideLineContent line={left} align="left" counterpart={right} />
       </Box>
-      {/* Ayraç */}
+      {/* Divider */}
       <Text color={theme.borderDim}>│</Text>
-      {/* Sağ — yeni */}
+      {/* Right — new */}
       <Box width={halfW} flexShrink={0}>
         <Text color={theme.textDim}>{right?.newLineNum?.toString().padStart(4) ?? "    "}</Text>
         <Text> </Text>
@@ -287,9 +287,9 @@ function SideLineContent({
     return <Text color={theme.textDim} dimColor>  {truncate(line.content, contentWidth)}</Text>
   }
 
-  // Add/Remove: word-level inline diff göster
+  // Add/Remove: show word-level inline diff
   if (counterpart && counterpart.type !== "context" && counterpart.type !== line.type) {
-    // Eşleşen satır var, kelime bazlı diff göster
+    // There's a matching line, show word-based diff
     const a = line.type === "remove" ? line.content : counterpart.content
     const b = line.type === "add"    ? line.content : counterpart.content
     const { removed, added } = wordDiff(a, b)
@@ -297,7 +297,7 @@ function SideLineContent({
     const baseColor = line.type === "add" ? theme.success : theme.error
     const highlightColor = line.type === "add" ? "#86efac" : "#fca5a5"
 
-    // Render: content içinde ranges'e denk gelen kısımları highlight'la
+    // Render: highlight the parts of content that fall within ranges
     return (
       <Text color={baseColor}>
         {line.type === "add" ? "+" : "-"}
@@ -306,7 +306,7 @@ function SideLineContent({
     )
   }
 
-  // Tek başına add/remove
+  // Standalone add/remove
   const baseColor = line.type === "add" ? theme.success : theme.error
   return <Text color={baseColor}>{line.type === "add" ? "+" : "-"} {truncate(line.content, contentWidth)}</Text>
 }
@@ -357,7 +357,7 @@ function RawView({ raw, width }: { raw: string; width: number }) {
   )
 }
 
-// ── Tek satır görüntüleme (unified için) ────────────────────────────────────
+// ── Single-line display (for unified) ────────────────────────────────────
 
 function DiffLineView({ line, width }: { line: DiffLine; width: number }) {
   const theme = useTheme()

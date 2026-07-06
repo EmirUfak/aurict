@@ -1,5 +1,5 @@
 /**
- * AgentStatus — OpenClaude CoordinatorTaskPanel'ından uyarlanan subagent listesi.
+ * AgentStatus — subagent list adapted from OpenClaude's CoordinatorTaskPanel.
  *
  * Format:
  *   ● main
@@ -7,7 +7,7 @@
  * ▶ ○ Architecture Rev   mapping component tree ▶ 11.2s · 8 calls  · ctrl+x to view
  *   ⏸ Test Runner   done ⏸ 5.1s · 15 calls  · x to clear
  *
- * Tamamlanan agentlar EVICT_AFTER_MS süre sonra listeden kaldırılır.
+ * Completed agents are removed from the list after EVICT_AFTER_MS.
  */
 
 import React, { useState, useEffect, useRef } from "react"
@@ -70,7 +70,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
   const visibleRef            = useRef<VisibleAgent[]>([])
   visibleRef.current          = visible
 
-  // agentPool.onChange: yeni agent gelince veya status değişince güncelle
+  // agentPool.onChange: update when a new agent arrives or status changes
   useEffect(() => {
     return agentPool.onChange((agents) => {
       setVisible((prev) => {
@@ -80,10 +80,10 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
         for (const info of agents) {
           const existing = prevMap.get(info.id)
           if (info.status === "running") {
-            // Çalışıyor: evictAt sıfırla (eğer önceden terminate olduysa ve tekrar gelirse)
+            // Running: reset evictAt (in case it had previously terminated and came back)
             next.push({ info, evictAt: undefined })
           } else {
-            // Bitti/hata: eğer zaten evictAt varsa koru, yoksa şimdi yaz
+            // Done/error: keep the existing evictAt if there is one, otherwise set it now
             const deadline = existing?.evictAt ?? Date.now() + EVICT_AFTER_MS
             next.push({ info, evictAt: deadline })
           }
@@ -93,7 +93,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
     })
   }, [])
 
-  // 1s tick: elapsed time güncelle + süresi dolan agentları evict et
+  // 1s tick: update the elapsed time + evict agents whose deadline has passed
   useEffect(() => {
     if (!visible.length) return
     const t = setInterval(() => {
@@ -113,7 +113,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
     return () => clearInterval(t)
   }, [visible.length])
 
-  // Manuel evict: x tuşuyla seçili tamamlanmış agentı kaldır
+  // Manual evict: remove the selected completed agent with the x key
   useInput((input, key) => {
     if (!visible.length) return
     if (input === "x" && !key.ctrl && !key.meta) {
@@ -137,7 +137,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
         <Text color={theme.textDim}>{visible.filter((v) => v.info.status === "running").length} active</Text>
         <Text color={theme.borderBright}>{SCAN_FRAMES[frame % SCAN_FRAMES.length]}</Text>
       </Box>
-      {/* Main line — OpenClaude'da her zaman gösterilir */}
+      {/* Main line — always shown in OpenClaude */}
       <Box paddingLeft={1}>
         <Text dimColor={viewingSessionId != null}>
           {"  "}
@@ -161,17 +161,17 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
         const elapsedStr  = fmtElapsed(info.startedAt, now)
         const callsSuffix = info.toolCount > 0 ? ` · ${info.toolCount} calls` : ""
 
-        // Hint: seçiliyse ne yapılabileceğini göster
+        // Hint: show what can be done if selected
         const hint = isSelected
           ? (isRunning ? " · ctrl+x to view" : " · x to clear")
           : ""
 
-        // Aktivite: currentTool yoksa lastLine'ı özetle olarak kullan
+        // Activity: if there's no currentTool, use lastLine as a summary
         const rawActivity = info.currentTool
           ? `running: ${info.currentTool}`
           : (info.lastLine?.trim() ?? "")
 
-        // Terminal genişliğine sığdır
+        // Fit to terminal width
         // prefix(2) + bullet(1) + sp(1) + desc + sp(1) + statusIcon(1) + sp(1) + elapsed + calls + hint
         const fixedWidth = 2 + 1 + 1 + info.desc.length + 1 + 1 + 1 + elapsedStr.length + callsSuffix.length + hint.length + 4
         const activityMaxLen = Math.max(0, cols - fixedWidth - 4)

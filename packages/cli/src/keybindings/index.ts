@@ -1,14 +1,14 @@
 /**
  * Keybindings — Index
  *
- * Tüm keybinding API'sini tek noktadan export eder.
+ * Exports the entire keybinding API from a single point.
  *
- * Kullanım:
+ * Usage:
  *   import { KeybindingsProvider, useBinding, KeyHint, KeyHintBar } from "./keybindings/index.js"
  */
 
 export {
-  // Tipler
+  // Types
   type Action,
   type Context,
   type KeyCombo,

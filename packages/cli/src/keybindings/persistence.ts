@@ -1,8 +1,8 @@
 /**
  * Keybindings — Persistence
  *
- * Kullanıcı keybinding override'larını ~/.aurict/keybindings.json dosyasında
- * saklar. Dosya yoksa veya bozuksa sessizce default'a düşer.
+ * Stores the user's keybinding overrides in ~/.aurict/keybindings.json.
+ * Silently falls back to the defaults if the file is missing or malformed.
  */
 
 import * as fs from "node:fs"
@@ -16,7 +16,7 @@ import { validateOverride } from "./validate.js"
 const CONFIG_DIR  = path.join(os.homedir(), ".aurict")
 const CONFIG_FILE = path.join(CONFIG_DIR, "keybindings.json")
 
-/** Config dosya yolunu döner (test ve inspect için). */
+/** Returns the config file path (for tests and inspection). */
 export function getKeybindingsPath(): string {
   return CONFIG_FILE
 }
@@ -33,20 +33,20 @@ export function detectPlatform(): "mac" | "win" | "linux" {
 // ── Load ─────────────────────────────────────────────────────────────────────
 
 export interface LoadResult {
-  /** Override'lar (action → key string) */
+  /** Overrides (action → key string) */
   bindings: BindingOverride
-  /** Config'den okunan platform (opsiyonel) */
+  /** Platform read from the config (optional) */
   platform?: "mac" | "win" | "linux" | undefined
-  /** Hata varsa burada */
+  /** The error, if any */
   error?:   string | undefined
-  /** Kaynak dosya yolu (yoksa undefined) */
+  /** Source file path (undefined if none) */
   source?:  string | undefined
 }
 
 /**
- * Kullanıcı config dosyasını yükler. Dosya yoksa boş override döner.
- * Bozuk JSON veya validation hatası varsa hata döner ama yine de
- * kısmi override'ı kullanmaya çalışır.
+ * Loads the user's config file. Returns an empty override if the file
+ * doesn't exist. On malformed JSON or a validation error, returns an
+ * error but still tries to use the partial override.
  */
 export function loadKeybindings(): LoadResult {
   if (!fs.existsSync(CONFIG_FILE)) {
@@ -109,14 +109,14 @@ export interface SaveResult {
 }
 
 /**
- * Override'ları dosyaya yazar. Atomic write (tmp + rename) yapar.
- * Başarısız olursa dosyayı bozmaz.
+ * Writes the overrides to the file. Performs an atomic write (tmp + rename).
+ * Does not corrupt the file on failure.
  */
 export function saveKeybindings(
   override: BindingOverride,
   options: { platform?: "mac" | "win" | "linux" } = {},
 ): SaveResult {
-  // Validation önce
+  // Validate first
   const validation = validateOverride(override)
   if (!validation.valid) {
     return {
@@ -125,7 +125,7 @@ export function saveKeybindings(
     }
   }
 
-  // Dizin yoksa oluştur
+  // Create the directory if it doesn't exist
   try {
     if (!fs.existsSync(CONFIG_DIR)) {
       fs.mkdirSync(CONFIG_DIR, { recursive: true })
@@ -151,7 +151,7 @@ export function saveKeybindings(
     fs.renameSync(tmpFile, CONFIG_FILE)
     return { ok: true, path: CONFIG_FILE }
   } catch (e) {
-    // Cleanup tmp file
+    // Clean up the tmp file
     try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile) } catch {}
     return {
       ok: false,
@@ -162,7 +162,7 @@ export function saveKeybindings(
 
 // ── Reset ────────────────────────────────────────────────────────────────────
 
-/** Config dosyasını siler (default'a dön). */
+/** Deletes the config file (revert to defaults). */
 export function resetKeybindings(): boolean {
   try {
     if (fs.existsSync(CONFIG_FILE)) {

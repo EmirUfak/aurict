@@ -1,58 +1,58 @@
 /**
  * Keybindings — Type definitions
  *
- * Context-aware, rebindable keybinding sistemi için temel tipler.
+ * Core types for a context-aware, rebindable keybinding system.
  *
- * Hiyerarşi:
- *   Context (uygulama modu) → Action (intent) → KeyCombo (fiziksel tuş)
+ * Hierarchy:
+ *   Context (app mode) → Action (intent) → KeyCombo (physical key)
  *
  *   Context.READY    → Action.submit   → "enter"
  *   Context.READY    → Action.cancel   → "escape"
  *   Context.PERMISSION → Action.approve → "y"
  *
- * Kullanıcı ~/.aurict/keybindings.json dosyasında action→key eşlemesini
- * override edebilir (örn. `{"submit": "tab"}`).
+ * The user can override the action→key mapping in
+ * ~/.aurict/keybindings.json (e.g. `{"submit": "tab"}`).
  */
 
-// ── Context (uygulama modu) ───────────────────────────────────────────────────
-// Hangi modda olunduğunu belirtir; belirli context'lerde farklı keybind'lar
-// aktif olabilir.
+// ── Context (app mode) ───────────────────────────────────────────────────
+// Indicates which mode we're in; different keybinds may be active in
+// specific contexts.
 
 export type Context =
-  | "global"         // her zaman aktif
-  | "ready"          // chat input odakta
-  | "streaming"      // model streaming cevap verirken
-  | "permission"     // permission prompt açık
-  | "question"       // question prompt açık
-  | "picker"         // model/provider picker açık
-  | "autocomplete"   // / komutu otomatik tamamlama açık
-  | "history"        // ↑/↓ ile history navigasyonu
-  | "task-panel"     // task floating panel açık
-  | "modal"          // modal açık (btw panel, help, vb.)
+  | "global"         // always active
+  | "ready"          // chat input focused
+  | "streaming"      // model is streaming a response
+  | "permission"     // a permission prompt is open
+  | "question"       // a question prompt is open
+  | "picker"         // model/provider picker is open
+  | "autocomplete"   // / command autocomplete is open
+  | "history"        // history navigation with ↑/↓
+  | "task-panel"     // the floating task panel is open
+  | "modal"          // a modal is open (btw panel, help, etc.)
 
 // ── Action (intent) ──────────────────────────────────────────────────────────
-// Kullanıcının niyeti — UI'dan bağımsız. Default keybind'lar ve override'lar
-// bu action üzerinden eşlenir.
+// The user's intent — independent of the UI. Default keybinds and overrides
+// are mapped through this action.
 
 export type Action =
-  // Çıkış / iptal
+  // Quit / cancel
   | "quit" | "abort" | "cancel" | "exit"
-  // Gönder / onayla
+  // Submit / confirm
   | "submit" | "approve" | "deny" | "confirm"
-  // Navigasyon
+  // Navigation
   | "nav.up" | "nav.down" | "nav.left" | "nav.right"
   | "nav.top" | "nav.bottom" | "nav.next" | "nav.prev"
   | "nav.first" | "nav.last"
-  // Geçmiş (chat history)
+  // History (chat history)
   | "history.up" | "history.down"
-  // Otomatik tamamlama
+  // Autocomplete
   | "autocomplete.next" | "autocomplete.prev" | "autocomplete.close"
-  // Düzenleme
+  // Editing
   | "edit.delete-word-back" | "edit.delete-word-forward"
   | "edit.delete-line" | "edit.clear" | "edit.swap"
   | "edit.cursor-start" | "edit.cursor-end"
   | "edit.cursor-prev" | "edit.cursor-next"
-  // Çok satırlı
+  // Multiline
   | "multiline.newline" | "multiline.toggle"
   // Chat
   | "chat.new" | "chat.clear" | "chat.copy" | "chat.paste" | "chat.queue-toggle"
@@ -63,7 +63,7 @@ export type Action =
   | "ui.command-palette"
   // Picker
   | "picker.next" | "picker.prev" | "picker.filter"
-  // Mesaj işlemleri
+  // Message operations
   | "msg.expand" | "msg.collapse" | "msg.copy" | "msg.regenerate"
   | "msg.edit" | "msg.delete"
   // Scroll
@@ -72,56 +72,56 @@ export type Action =
   // Diff
   | "diff.next-hunk" | "diff.prev-hunk" | "diff.toggle-view"
 
-// ── KeyCombo (fiziksel tuş) ──────────────────────────────────────────────────
+// ── KeyCombo (physical key) ──────────────────────────────────────────────────
 
 export interface KeyCombo {
-  /** ctrl, alt, shift, meta modifier'ları */
+  /** ctrl, alt, shift, meta modifiers */
   ctrl?:  boolean
   alt?:   boolean
   shift?: boolean
   meta?:  boolean
-  /** Tuş ismi: "a", "enter", "up", "tab", "f1", "/" vb. */
+  /** Key name: "a", "enter", "up", "tab", "f1", "/" etc. */
   key:    string
 }
 
-// ── Binding (action → key eşlemesi) ───────────────────────────────────────────
+// ── Binding (action → key mapping) ───────────────────────────────────────────
 
-/** Kullanıcının override'ı: action → key string (örn. "ctrl+s") */
+/** The user's override: action → key string (e.g. "ctrl+s") */
 export type BindingOverride = Record<string, string>
 
-/** Context bazlı binding: her context için action → key eşlemesi */
+/** Per-context binding: action → key mapping for each context */
 export type ContextBindings = Record<Context, Record<Action, string[]>>
 
 // ── Resolver result ──────────────────────────────────────────────────────────
 
 export interface ResolvedBinding {
-  /** Gösterilecek tuş kombinasyonu (display string) */
+  /** The key combo to display (display string) */
   key:       string
-  /** Gerçek tuş kombinasyonu (key event matching için) */
+  /** The actual key combo (for key-event matching) */
   combo:     KeyCombo
-  /** Kaynak: default mı, override mı */
+  /** Source: default or a user override */
   source:    "default" | "user"
-  /** Bind edilen action */
+  /** The bound action */
   action:    Action
-  /** Hangi context'te arandı */
+  /** Which context this was looked up in */
   context:   Context
 }
 
 // ── Hook API ─────────────────────────────────────────────────────────────────
 
 export interface UseBindingOptions {
-  /** Key event'te basıldığında (input, key olaylarından geçer) */
+  /** Fired when the key event happens (passed through from input/key events) */
   action:   Action
-  /** Hangi context'te aranacağı (boş = "global") */
+  /** Which context to look this up in (empty = "global") */
   context?: Context
   /** Trigger callback */
   onTrigger: () => void
-  /** Pasif — sadece display için */
+  /** Passive — for display only */
   passive?:  boolean
 }
 
 export interface UseBindingHintsOptions {
-  /** Gösterilecek action'lar (sırayla) */
+  /** Actions to display (in order) */
   actions:  Array<{ action: Action; label?: string; context?: Context }>
 }
 
@@ -134,16 +134,16 @@ export interface UseBindingHintsResult {
   }>
 }
 
-// ── Configuration dosyası ───────────────────────────────────────────────────
+// ── Configuration file ───────────────────────────────────────────────────
 
 export interface KeybindingsConfig {
-  /** Action → key eşlemesi (string list, ilk öncelikli) */
+  /** Action → key mapping (string list, first one takes priority) */
   bindings: BindingOverride
-  /** Aktif platform override (mac/win/linux) — farklı sembol gösterimi */
+  /** Active platform override (mac/win/linux) — different symbol display */
   platform?: "mac" | "win" | "linux"
-  /** Rehber gösterme tercihi */
+  /** Preference for showing the hint bar */
   showInStatusBar?: boolean
-  /** Versiyon (gelecekteki migration'lar için) */
+  /** Version (for future migrations) */
   version:  1
 }
 

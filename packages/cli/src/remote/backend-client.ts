@@ -1,9 +1,10 @@
 /**
- * Remote — Aurict Backend HTTP istemcisi.
+ * Remote — Aurict Backend HTTP client.
  *
- * `apps/backend` yalnızca kontrol düzlemi sağlar (auth, cihaz kaydı, sinyalleşme,
- * TURN kimlik bilgisi) — prompt/komut/terminal çıktısı/tool sonucu taşımaz.
- * Yanıt sözleşmesi `apps/backend/src/client.ts` ile birebir aynıdır:
+ * `apps/backend` only provides the control plane (auth, device registration,
+ * signaling, TURN credentials) — it never carries prompts/commands/terminal
+ * output/tool results. The response contract is identical to
+ * `apps/backend/src/client.ts`:
  *   { ok: true, ...T } | { ok: false, error: { code, message, requestId, issues? } }
  */
 

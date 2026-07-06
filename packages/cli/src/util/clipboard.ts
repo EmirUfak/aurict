@@ -12,12 +12,12 @@ export type ClipboardResult =
 function isMac(): boolean  { return process.platform === "darwin" }
 function isLinux(): boolean { return process.platform === "linux" }
 
-// OSC 52: terminale doğrudan "sistem clipboard'ına şunu yaz" komutu. SSH/tmux
-// üzerinden bile çalışır (native komutların erişemeyeceği durumlarda tek
-// güvenilir yol) — terminal desteklemiyorsa sessizce yok sayılır (zararsız).
-// tmux/screen passthrough sarmalayıcısı olmadan iletilirse tmux bunu kendi
-// başına yorumlamaya çalışıp bozar, bu yüzden TMUX/STY ortam değişkenleri
-// varken \x1bPtmux;...\x1b\\ ile sarmalanır.
+// OSC 52: a command telling the terminal directly to "write this to the system
+// clipboard". Works even over SSH/tmux (the one reliable path in cases native
+// commands can't reach) — if the terminal doesn't support it, it's silently
+// ignored (harmless). If sent without a tmux/screen passthrough wrapper, tmux
+// tries to interpret it itself and corrupts it, so it's wrapped with
+// \x1bPtmux;...\x1b\\ whenever the TMUX/STY env vars are present.
 function writeOsc52(text: string): void {
   if (!process.stdout.isTTY) return
   const sequence = `\x1b]52;c;${Buffer.from(text, "utf8").toString("base64")}\x07`
@@ -35,16 +35,15 @@ export function linuxCopyCommands(): string[] {
 type ExecFn = (command: string, options?: { input?: string }) => Buffer | string
 
 /**
- * Metni sistem clipboard'ına yazar. OSC 52 her zaman denenir (SSH/tmux-safe,
- * anında); ardından platforma özgü native komut best-effort denenir. Hiçbiri
- * çalışmazsa sessizce başarısız olur — kopyalama arka plan bir kolaylık,
- * kritik bir işlem değil.
+ * Writes text to the system clipboard. OSC 52 is always tried (SSH/tmux-safe,
+ * instant); then a platform-specific native command is tried best-effort. If
+ * none of them work, it fails silently — copying is a background convenience,
+ * not a critical operation.
  *
- * `exec` parametresi yalnızca test amaçlı dependency injection içindir
- * (gerçek `child_process`'i `mock.module` ile global olarak sahtelemek,
- * bun'da dosyalar arası izolasyon olmadığı için AYNI süreçte çalışan
- * ilgisiz test dosyalarını — ör. gerçek git komutu çalıştıran testleri —
- * sessizce bozar).
+ * The `exec` parameter exists purely for test dependency injection (globally
+ * faking the real `child_process` via `mock.module` silently breaks unrelated
+ * test files running in the SAME process — e.g. tests that run a real git
+ * command — since bun has no cross-file isolation for it).
  */
 export function writeClipboard(text: string, exec: ExecFn = execSync): void {
   writeOsc52(text)
@@ -59,10 +58,10 @@ export function writeClipboard(text: string, exec: ExecFn = execSync): void {
         try {
           exec(cmd, { input: text })
           return
-        } catch { /* sıradaki komutu dene */ }
+        } catch { /* try the next command */ }
       }
     }
-  } catch { /* OSC 52 zaten denendi, native komut yoksa sessizce geç */ }
+  } catch { /* OSC 52 was already tried; silently move on if no native command is available */ }
 }
 
 export function readClipboard(): ClipboardResult {

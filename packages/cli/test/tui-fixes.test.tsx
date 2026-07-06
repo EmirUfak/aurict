@@ -60,7 +60,7 @@ describe("CommandSuggest windowed scrolling", () => {
       </TerminalSizeContext.Provider>,
     )
     await sleep(30)
-    // 6 görünür — 10 kez aşağı in: seçim 11. komutta olmalı (index 10)
+    // 6 visible — go down 10 times: the selection should land on the 11th command (index 10)
     for (let i = 0; i < 10; i++) {
       r.stdin.write("\x1b[B")
       await sleep(5)
@@ -68,9 +68,9 @@ describe("CommandSuggest windowed scrolling", () => {
     await sleep(30)
     const frame = r.lastFrame() ?? ""
     expect(frame).toContain("› ")
-    expect(frame).toContain("/zcmd10")          // seçili öğe pencerede görünür
-    expect(frame).toContain("11/20")             // konum göstergesi
-    expect(frame).not.toContain("/zcmd00")       // pencere kaydı, ilk öğe dışarıda
+    expect(frame).toContain("/zcmd10")          // the selected item is visible in the window
+    expect(frame).toContain("11/20")             // position indicator
+    expect(frame).not.toContain("/zcmd00")       // window scrolled, first item off-screen
     r.unmount()
   })
 
@@ -150,7 +150,7 @@ describe("FullscreenLayout overlay", () => {
     )
     await sleep(60)
     const frame = r.lastFrame() ?? ""
-    // Başlık ve SEÇİLİ satır (eskiden kaybolan satırlar) görünür olmalı
+    // The title and the SELECTED row (previously disappearing rows) should be visible
     expect(frame).toContain("Select Provider")
     expect(frame).toContain("▶ Anthropic")
     r.unmount()
@@ -174,7 +174,7 @@ describe("Picker wide-glyph rows", () => {
     const anthropicIdx = lines.findIndex((l) => l.includes("Anthropic"))
     const openaiIdx    = lines.findIndex((l) => l.includes("OpenAI"))
     expect(anthropicIdx).toBeGreaterThan(-1)
-    // Satırlar bitişik olmalı — arada sarmadan doğan boş satır yok
+    // The rows should be adjacent — no blank row caused by wrapping in between
     expect(openaiIdx).toBe(anthropicIdx + 1)
     r.unmount()
   })
@@ -191,7 +191,7 @@ describe("Picker page size", () => {
     await sleep(30)
     const frame = r.lastFrame() ?? ""
     expect(frame).toContain("Provider 0")
-    expect(frame).toContain("Provider 1")   // eskiden pageSize=1: tek öğe görünüyordu
+    expect(frame).toContain("Provider 1")   // previously pageSize=1: only a single item was visible
     expect(frame).toContain("Provider 2")
     r.unmount()
   })

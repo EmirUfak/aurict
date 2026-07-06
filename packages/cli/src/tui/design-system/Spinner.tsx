@@ -1,13 +1,13 @@
 /**
  * Design System — Spinner
  *
- * Çoklu animasyon tipi: dots, line, arc, pulse, bounce, braille, ascii.
- * Openclaude'dan ilham, Aurict'un Spinner.tsx'inin halefi.
+ * Multiple animation types: dots, line, arc, pulse, bounce, braille, ascii.
+ * Inspired by Openclaude, successor to Aurict's Spinner.tsx.
  *
- * Her spinner:
- * - frames[]: unicode karakter dizisi
- * - intervalMs: frame süresi
- * - label: opsiyonel "thinking" gibi etiket
+ * Each spinner:
+ * - frames[]: an array of unicode characters
+ * - intervalMs: frame duration
+ * - label: an optional label like "thinking"
  *
  * API: <Spinner variant="dots" label="Thinking" />
  */
@@ -16,7 +16,7 @@ import React, { useState, useEffect } from "react"
 import { Text } from "ink"
 import { useTheme } from "../../utils/theme.js"
 
-// ── Spinner varyantları ────────────────────────────────────────────────────────
+// ── Spinner variants ────────────────────────────────────────────────────────
 
 export type SpinnerVariant =
   | "dots"      // ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏ (braille)
@@ -30,21 +30,21 @@ export type SpinnerVariant =
   | "clock"     // 🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛
 
 interface SpinnerDef {
-  frames:     string[]
+  frames: string[]
   intervalMs: number
-  label?:     string
+  label?: string
 }
 
 const SPINNER_DEFS: Record<SpinnerVariant, SpinnerDef> = {
-  dots:    { frames: ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"], intervalMs: 80 },
-  line:    { frames: ["-","\\","|","/"],                                       intervalMs: 130 },
-  arc:     { frames: ["◜","◠","◝","◞","◡","◟"],                              intervalMs: 100 },
-  pulse:   { frames: ["●","○","●","○"],                                        intervalMs: 200 },
-  bounce:  { frames: ["⠁","⠂","⠄","⠂"],                                     intervalMs: 120 },
-  ascii:   { frames: ["|","/","-","\\"],                                       intervalMs: 130 },
-  wave:    { frames: ["▁","▂","▃","▄","▅","▆","▇","█","▇","▆","▅","▄","▃","▂"], intervalMs: 100 },
-  moon:    { frames: ["🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘"],                intervalMs: 200 },
-  clock:   { frames: ["🕐","🕑","🕒","🕓","🕔","🕕","🕖","🕗","🕘","🕙","🕚","🕛"], intervalMs: 100 },
+  dots: { frames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], intervalMs: 80 },
+  line: { frames: ["-", "\\", "|", "/"], intervalMs: 130 },
+  arc: { frames: ["◜", "◠", "◝", "◞", "◡", "◟"], intervalMs: 100 },
+  pulse: { frames: ["●", "○", "●", "○"], intervalMs: 200 },
+  bounce: { frames: ["⠁", "⠂", "⠄", "⠂"], intervalMs: 120 },
+  ascii: { frames: ["|", "/", "-", "\\"], intervalMs: 130 },
+  wave: { frames: ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"], intervalMs: 100 },
+  moon: { frames: ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"], intervalMs: 200 },
+  clock: { frames: ["🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛"], intervalMs: 100 },
 }
 
 export const DEFAULT_SPINNER: SpinnerVariant = "dots"
@@ -61,19 +61,19 @@ export function useSpinnerFrame(variant: SpinnerVariant = DEFAULT_SPINNER): stri
   return def.frames[frame]!
 }
 
-// ── Bileşen ───────────────────────────────────────────────────────────────────
+// ── Component ───────────────────────────────────────────────────────────────────
 
 export interface SpinnerProps {
-  variant?:  SpinnerVariant
-  label?:    string
-  color?:    string
+  variant?: SpinnerVariant
+  label?: string
+  color?: string
   showLabel?: boolean
 }
 
 export function Spinner({ variant = DEFAULT_SPINNER, label, color, showLabel = true }: SpinnerProps) {
   const theme = useTheme()
   const frame = useSpinnerFrame(variant)
-  const c     = color ?? theme.accent
+  const c = color ?? theme.accent
   return (
     <>
       <Text color={c}>{frame}</Text>

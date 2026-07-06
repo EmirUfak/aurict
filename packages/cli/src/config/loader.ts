@@ -11,7 +11,7 @@ function readJSON(path: string): Partial<AurictConfig> {
   } catch { return {} }
 }
 
-// Yükleme önceliği: global < proje < CLI flags (son kazanır)
+// Load priority: global < project < CLI flags (last one wins)
 export function loadConfig(workdir: string): AurictConfig {
   const global  = readJSON(join(homedir(), ".aurict", "config.json"))
   const project = readJSON(join(workdir, ".aurict", "config.json"))

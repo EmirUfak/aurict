@@ -1,11 +1,11 @@
 /**
- * Message — Konuşma mesajı renderer
+ * Message — conversation message renderer
  *
- * Her mesaj tipi için özel render: user / assistant / tool_call / system / error.
- * Design system primitive'leri: HStack, VStack, Typo, Badge, Spinner, Icon, Surface.
+ * Custom rendering per message type: user / assistant / tool_call / system / error.
+ * Design system primitives used: HStack, VStack, Typo, Badge, Spinner, Icon, Surface.
  *
- * Sol kenar bar (assistant + tool output) Ink Box'ın border-only-left pattern'ini
- * kullanır — design system'da bu kadar özel bir primitive yok, olduğu gibi bırakıldı.
+ * The left-edge bar (assistant + tool output) uses Ink Box's border-only-left pattern —
+ * the design system doesn't have such a specialized primitive, so it's left as-is.
  */
 
 import React, { useState, useEffect, memo } from "react"
@@ -41,7 +41,7 @@ export interface DisplayMessage {
   durationMs?:       number
 }
 
-// ── Yardımcı ──────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const MAX_TOOL_LINES   = 7   // 6 head + 1 tail = 7 shown, rest hidden
 const MAX_STREAM_LINES = 8
@@ -154,9 +154,9 @@ function Timestamp({ ts }: { ts: number }) {
   return <Typo variant="caption" tone="muted">  {hh}:{mm}</Typo>
 }
 
-// ── Mesaj rayı + rol başlığı (Cockpit v2) ──────────────────────────────────────
-// Sol kenar bar (borderLeft) + üst meta etiketi. user/assistant mesajlarına
-// rol kimliği veren renkli ray. Tool blokları için ayrı kart bracket'i kullanılır.
+// ── Message rail + role header (Cockpit v2) ──────────────────────────────────────
+// Left-edge bar (borderLeft) + top meta label. A colored rail that gives
+// user/assistant messages a role identity. Tool blocks use a separate card bracket instead.
 
 function RoleHeader({ color, label, timestamp }: { color: string; label: string; timestamp?: number }) {
   return (
@@ -183,7 +183,7 @@ function Rail({ color, children }: { color: string; children: React.ReactNode })
   )
 }
 
-// ── Tool arg özeti ────────────────────────────────────────────────────────────
+// ── Tool arg summary ────────────────────────────────────────────────────────────
 
 function summarizeArgs(tool: string, raw: string): string {
   try {
@@ -208,7 +208,7 @@ function summarizeArgs(tool: string, raw: string): string {
   }
 }
 
-// ── Tool rengi ────────────────────────────────────────────────────────────────
+// ── Tool color ────────────────────────────────────────────────────────────────
 
 function toolColor(tool: string | undefined, isError: boolean, isPending: boolean, theme: ReturnType<typeof useTheme>): string {
   if (isError)   return theme.error
@@ -223,7 +223,7 @@ function toolColor(tool: string | undefined, isError: boolean, isPending: boolea
   return theme.accentAlt
 }
 
-// ── Thinking bloğu — OpenClaude ∴ pattern ────────────────────────────────────
+// ── Thinking block — OpenClaude ∴ pattern ────────────────────────────────────
 
 function ThinkingMessage({ content, onExpand }: { content: string; onExpand?: () => void }) {
   const theme = useTheme()
@@ -238,7 +238,7 @@ function ThinkingMessage({ content, onExpand }: { content: string; onExpand?: ()
   )
 }
 
-// ── Pending tool — ToolUseLoader + opsiyonel canlı çıktı ────────────────────
+// ── Pending tool — ToolUseLoader + optional live output ────────────────────
 
 function PendingToolCall({
   tool, command, streamingOutput,
@@ -333,7 +333,7 @@ function InlineCompletedTool({
         <Typo variant="caption" tone="muted" dimColor>{outputStats}</Typo>
       </HStack>
       {block.resultContent !== undefined && (() => {
-        // Yeni format: "__UNIFIED_DIFF__" — edit + write (overwrite)
+        // New format: "__UNIFIED_DIFF__" — edit + write (overwrite)
         const unifiedMatch = rawOutput.match(/^(?:Updated|Created) [^\n]+\n__UNIFIED_DIFF__\n([\s\S]*)$/)
         if (unifiedMatch && (block.tool === "edit" || block.tool === "write")) {
           return (
@@ -342,7 +342,7 @@ function InlineCompletedTool({
             </Box>
           )
         }
-        // Yeni format: "__WRITE_CREATE__" — write (yeni dosya)
+        // New format: "__WRITE_CREATE__" — write (new file)
         const writeMatch = rawOutput.match(/^Created ([^\n]+)\n__WRITE_CREATE__\n(\d+)\n([\s\S]*)$/)
         if (writeMatch && block.tool === "write") {
           return (
@@ -351,7 +351,7 @@ function InlineCompletedTool({
             </Box>
           )
         }
-        // Eski format (geriye dönük uyumluluk): "__DIFF__" + "__NEW__"
+        // Legacy format (backward compatibility): "__DIFF__" + "__NEW__"
         const legacyMatch = rawOutput.match(/^.*\n__DIFF__\n([\s\S]*?)\n__NEW__\n([\s\S]*)$/)
         if (legacyMatch && block.tool === "edit") {
           const editPath = extractEditPath(rawOutput)
@@ -398,7 +398,7 @@ interface Props {
   onExpandTool?:     ((content: string, tool: string) => void) | undefined
 }
 
-// ── Ana bileşen ───────────────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────────────
 
 export const Message = memo(function Message({ message, onExpand, onExpandThinking, onExpandTool }: Props) {
   const theme    = useTheme()
@@ -473,7 +473,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
     return (
       <VStack marginBottom="sm" paddingX="sm">
 
-        {/* ∴ Thinking — collapsed, Ctrl+O ile overlay açılır */}
+        {/* ∴ Thinking — collapsed, opens as an overlay with Ctrl+O */}
         {hasThinking && !pending && (
           <ThinkingMessage
             content={message.reasoningContent!}
@@ -481,7 +481,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
           />
         )}
 
-        {/* renkli ray + meta + içerik — Cockpit v2 AssistantTextMessage */}
+        {/* colored rail + meta + content — Cockpit v2 AssistantTextMessage */}
         <Rail color={pending && !hasText ? theme.accent : theme.assistantDot}>
           <RoleHeader color={theme.assistantDot} label="aurict" />
           <Box flexDirection="column" flexShrink={1} width={bodyWidth}>
@@ -498,7 +498,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
 
   // ── Tool Call ─────────────────────────────────────────────────────────────────
   if (message.role === "tool_call") {
-    // Pending subagent çağrıları AgentStatus'ta zaten gösteriliyor — burada gizle
+    // Pending subagent calls are already shown in AgentStatus — hide here
     if (message.pending && message.tool === "subagent") return null
 
     const summary     = summarizeArgs(message.tool ?? "tool", message.content)
@@ -516,7 +516,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
       )
     }
 
-    // Tamamlandı — header + sol bar output
+    // Completed — header + left-bar output
     const safeW        = Math.max(20, termCols - 12)
     const displayOutput = maybeFormatJson(rawOutput)
     const lines        = prepareLines(displayOutput, safeW)
@@ -547,9 +547,9 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
           {message.timestamp && <Timestamp ts={message.timestamp} />}
         </HStack>
 
-        {/* Output — sol kenar bar */}
+        {/* Output — left-edge bar */}
         {message.resultContent !== undefined && (() => {
-          // Yeni format: "__UNIFIED_DIFF__"
+          // New format: "__UNIFIED_DIFF__"
           const unifiedMatch = rawOutput.match(/^(?:Updated|Created) [^\n]+\n__UNIFIED_DIFF__\n([\s\S]*)$/)
           if (unifiedMatch && (message.tool === "edit" || message.tool === "write")) {
             return (
@@ -558,7 +558,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
               </Box>
             )
           }
-          // Yeni format: "__WRITE_CREATE__"
+          // New format: "__WRITE_CREATE__"
           const writeMatch = rawOutput.match(/^Created ([^\n]+)\n__WRITE_CREATE__\n(\d+)\n([\s\S]*)$/)
           if (writeMatch && message.tool === "write") {
             return (
@@ -567,7 +567,7 @@ export const Message = memo(function Message({ message, onExpand, onExpandThinki
               </Box>
             )
           }
-          // Eski format (geriye dönük uyumluluk)
+          // Legacy format (backward compatibility)
           const legacyMatch = rawOutput.match(/^.*\n__DIFF__\n([\s\S]*?)\n__NEW__\n([\s\S]*)$/)
           if (legacyMatch && message.tool === "edit") {
             const editPath = extractEditPath(rawOutput)

@@ -1,15 +1,14 @@
 /**
- * writeClipboard() testleri — OSC 52 formatı/tmux sarmalayıcısı ve Linux
- * native komut fallback zinciri (wl-copy → xclip → xsel).
+ * writeClipboard() tests — OSC 52 format/tmux wrapper and the Linux
+ * native command fallback chain (wl-copy → xclip → xsel).
  *
- * NOT: `mock.module("node:child_process", ...)` KULLANILMIYOR — bun'da bu
- * modülü TÜM test dosyaları için GLOBAL olarak değiştiriyor (dosya-bazlı
- * izolasyon yok) ve aynı süreçte çalışan ilgisiz test dosyalarını (ör.
- * gerçek `execSync`/`spawnSync` ile git komutu çalıştıran `git-context`
- * testlerini) sessizce bozuyordu — bu bir kere gerçekten yaşandı ve
- * `writeClipboard`'ın `exec` parametresiyle dependency injection'a
- * taşınmasına yol açtı. Bunun yerine sahte `exec` fonksiyonu doğrudan
- * argüman olarak geçiriliyor.
+ * NOTE: `mock.module("node:child_process", ...)` is NOT USED — in bun this
+ * replaces the module GLOBALLY for ALL test files (no file-level isolation),
+ * and it silently broke unrelated test files running in the same process
+ * (e.g. the `git-context` tests, which run a real git command via
+ * `execSync`/`spawnSync`) — this actually happened once, and led to
+ * `writeClipboard` moving to dependency injection via the `exec` parameter.
+ * Instead, a fake `exec` function is passed directly as an argument.
  */
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { writeClipboard, linuxCopyCommands } from "../src/util/clipboard.js"
@@ -78,7 +77,7 @@ describe("linuxCopyCommands", () => {
 
 describe("writeClipboard — Linux native command fallback", () => {
   beforeEach(() => {
-    process.stdout.isTTY = false // OSC52 yazımını bu blokta izole et
+    process.stdout.isTTY = false // isolate OSC52 writing within this block
   })
 
   it("tries wl-copy first", () => {

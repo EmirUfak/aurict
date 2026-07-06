@@ -6,7 +6,7 @@ import { useMouseEvents } from "./mouse.js"
 import { measureAbsolutePosition } from "./event-system/measure-position.js"
 import { writeClipboard } from "../util/clipboard.js"
 
-// Güvenli paste boyutu: çok büyük paste'ler terminal'i kilitler
+// Safe paste size: very large pastes lock up the terminal
 const MAX_PASTE_CHARS = 50_000
 
 interface Props {
@@ -24,7 +24,7 @@ interface Props {
 
 export interface LocalPoint { row: number; col: number }
 
-/** İki nokta arasındaki (satır, sütun) aralığındaki metni `lines`'tan çıkarır. */
+/** Extracts the text within the (row, col) range between two points from `lines`. */
 export function extractRange(lines: string[], a: LocalPoint, b: LocalPoint): string {
   const [start, end] = a.row < b.row || (a.row === b.row && a.col <= b.col) ? [a, b] : [b, a]
   if (start.row === end.row) {
@@ -58,19 +58,19 @@ function wordRight(line: string, col: number): number {
   return i
 }
 
-// Paste metni için: ANSI strip + \r normalizasyon + boyut sınırı + bracketed paste cleanup
+// For pasted text: ANSI strip + \r normalization + size limit + bracketed paste cleanup
 export function sanitizePaste(raw: string): string {
   return stripVTControlCharacters(raw)
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .replace(/\x1b\[200~/g, "")  // Bracketed paste start
     .replace(/\x1b\[201~/g, "")  // Bracketed paste end
-    .replace(/\[200~/g, "")      // ESC'siz variant
-    .replace(/\[201~/g, "")      // ESC'siz variant
+    .replace(/\[200~/g, "")      // variant without ESC
+    .replace(/\[201~/g, "")      // variant without ESC
     .slice(0, MAX_PASTE_CHARS)
 }
 
-// Normal input için: VT kaçış kodlarını sil, \r → \n dönüştür, bracketed paste cleanup
+// For normal input: strip VT escape codes, convert \r → \n, bracketed paste cleanup
 function sanitizeInput(raw: string): string {
   return stripVTControlCharacters(raw)
     .replace(/\r/g, "\n")
@@ -99,9 +99,9 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
   useEffect(() => { linesRef.current = lines }, [lines])
   useEffect(() => { cursorRef.current = cursor }, [cursor])
 
-  // Input kutusunun ekrandaki mutlak sınırlarını her render sonrası güncelle
-  // — click/release event'lerinin (mouse.ts'ten gelen mutlak terminal
-  // koordinatları) yerel satır/sütuna çevrilebilmesi için gerekli.
+  // Update the input box's absolute on-screen bounds after every render
+  // — needed so click/release events (absolute terminal coordinates from
+  // mouse.ts) can be converted to a local row/col.
   useLayoutEffect(() => {
     if (!boxRef.current) return
     const pos  = measureAbsolutePosition(boxRef.current)
@@ -109,10 +109,10 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
     boundsRef.current = { row: pos.row, col: pos.col, width: size.width, height: size.height }
   })
 
-  // Mutlak terminal (x,y) [1-based] → kutu-içi yerel (row,col), sınırlar
-  // dışındaysa null (bu tıklama input kutusuyla ilgili değil demektir).
-  // Çok satırlı input'ta satır numarası gutter'ı ("N │ ") metni sağa kaydırır
-  // — bu yüzden sütun hesabından gutter genişliği düşülür.
+  // Absolute terminal (x,y) [1-based] → local (row,col) within the box, or
+  // null if out of bounds (meaning this click isn't related to the input box).
+  // In a multi-line input, the line-number gutter ("N │ ") shifts the text
+  // right — so the gutter width is subtracted from the column calculation.
   function toLocalPoint(x: number, y: number): LocalPoint | null {
     const b = boundsRef.current
     const localRow = y - 1 - b.row
@@ -139,7 +139,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       const end = toLocalPoint(e.x, e.y)
       if (!start || !end) return
       if (start.row === end.row && start.col === end.col) {
-        // Sürükleme yok — sade tıklama: imleci oraya konumlandır.
+        // No drag — a plain click: position the cursor there.
         setCursor({ row: end.row, col: end.col })
         return
       }
@@ -156,7 +156,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
     onChange(lines.join("\n"))
   }, [lines]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Dış value değişince (clear sonrası vb.) sync et
+  // Sync when the external value changes (e.g. after clear)
   const prevValueRef = useRef(value)
   useEffect(() => {
     const joined = lines.join("\n")
@@ -169,7 +169,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
     prevValueRef.current = value
   }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Paste işlemi: sanitize edilmiş metni imlece ekle
+  // Paste operation: insert the sanitized text at the cursor
   function applyPaste(raw: string) {
     const normalized  = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
     const pasted      = sanitizePaste(raw)
@@ -203,16 +203,16 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
   useInput((input, key) => {
     if (disabled) return
 
-    // ── Mouse escape sequence filtresi ────────────────────────────────────
-    // Emit-level filtreden kaçan sequence'ları burada yakala.
-    // Ink \x1b'yi ESC keypress olarak tükettiğinde kalan "[<65;206;45M" kısmı
-    // ayrı bir useInput event'i olarak gelir ve metne yazılır.
+    // ── Mouse escape sequence filter ────────────────────────────────────
+    // Catch sequences here that slip past the emit-level filter.
+    // When Ink consumes \x1b as an ESC keypress, the remaining "[<65;206;45M"
+    // part arrives as a separate useInput event and gets written into the text.
     if (/^\[<\d+;\d+;\d+[Mm]/.test(input)) return  // SGR remainder (ESC consumed)
     if (/^\x1b\[<\d+;\d+;\d+[Mm]/.test(input)) return  // SGR full
     if (/^\[M[\s\S]/.test(input)) return  // X10 remainder
 
-    // ── SSH/tmux DEL karakteri (\x7f) ─────────────────────────────────────
-    // Bazı terminal emülatörleri backspace yerine \x7f üretir
+    // ── SSH/tmux DEL character (\x7f) ─────────────────────────────────────
+    // Some terminal emulators produce \x7f instead of backspace
     if (!key.backspace && !key.delete && input.includes("\x7f")) {
       const count = (input.match(/\x7f/g) ?? []).length
       for (let i = 0; i < count; i++) {
@@ -235,8 +235,8 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
     }
 
     // ── Bracketed paste ────────────────────────────────────────────────
-    // Full paste events marker + content birlikte gelebilir; sadece marker
-    // fragment'leri yok sayılır, içerikli event paste olarak uygulanır.
+    // A full paste event's marker + content can arrive together; marker-only
+    // fragments are ignored, and events with content are applied as a paste.
     if (
       input.includes("\x1b[200~") || input.includes("\x1b[201~") ||
       input.includes("[200~") || input.includes("[201~")
@@ -277,7 +277,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Shift+Enter / Ctrl+Enter: yeni satır ──────────────────────────────
+    // ── Shift+Enter / Ctrl+Enter: new line ──────────────────────────────
     if ((key.return && key.shift) || (key.return && key.ctrl)) {
       setLines(prev => {
         const next = [...prev]
@@ -290,7 +290,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Escape: çok satırlıysa tek satıra dönüştür ───────────────────────
+    // ── Escape: collapse to a single line if multi-line ───────────────────
     if (key.escape) {
       if (lines.length > 1) {
         const joined = lines.join(" ")
@@ -300,7 +300,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Yukarı ok ─────────────────────────────────────────────────────────
+    // ── Up arrow ─────────────────────────────────────────────────────────
     if (key.upArrow) {
       if (cursor.row > 0) {
         setCursor(c => {
@@ -327,7 +327,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Aşağı ok ──────────────────────────────────────────────────────────
+    // ── Down arrow ──────────────────────────────────────────────────────────
     if (key.downArrow) {
       if (cursor.row < lines.length - 1) {
         setCursor(c => {
@@ -352,8 +352,8 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Ctrl+Sol / Alt+B: kelime sola ─────────────────────────────────────
-    // Terminale göre: \x1b[1;5D (xterm), \x1b[5D (vt), \x1bb (emacs Alt+B)
+    // ── Ctrl+Left / Alt+B: word left ─────────────────────────────────────
+    // Depending on terminal: \x1b[1;5D (xterm), \x1b[5D (vt), \x1bb (emacs Alt+B)
     if (
       input === "\x1b[1;5D" || input === "\x1b[5D" || input === "\x1bb" ||
       input === "\x1b[1;3D" || (key.ctrl && key.leftArrow)
@@ -370,8 +370,8 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Ctrl+Sağ / Alt+F: kelime sağa ─────────────────────────────────────
-    // Terminale göre: \x1b[1;5C (xterm), \x1b[5C (vt), \x1bf (emacs Alt+F)
+    // ── Ctrl+Right / Alt+F: word right ─────────────────────────────────────
+    // Depending on terminal: \x1b[1;5C (xterm), \x1b[5C (vt), \x1bf (emacs Alt+F)
     if (
       input === "\x1b[1;5C" || input === "\x1b[5C" || input === "\x1bf" ||
       input === "\x1b[1;3C" || (key.ctrl && key.rightArrow)
@@ -387,7 +387,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Sol ok ────────────────────────────────────────────────────────────
+    // ── Left arrow ────────────────────────────────────────────────────────────
     if (key.leftArrow) {
       setCursor(c => {
         if (c.col > 0) return { row: c.row, col: c.col - 1 }
@@ -397,7 +397,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Sağ ok ────────────────────────────────────────────────────────────
+    // ── Right arrow ────────────────────────────────────────────────────────────
     if (key.rightArrow) {
       setCursor(c => {
         const lineLen = (lines[c.row] ?? "").length
@@ -408,25 +408,22 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Ctrl+Backspace / Ctrl+W / Alt+Backspace: kelime sil ──────────────
-    // AURICT_DEBUG_KEYS=1 ile gerçek kullanıcı verisiyle doğrulandı: Ink,
-    // `useInput`'a ulaşmadan ÖNCE bilinen escape sequence'ları kendi
-    // key.*/input çiftine çeviriyor — raw baytlar `input`'ta SAKLANMIYOR.
-    // Bu yüzden aşağıdaki iki kontrol GERÇEKTEN çalışıyor (uçtan uca test
-    // edildi):
-    //   - key.delete && key.meta  → gnome-terminal ailesinde Ctrl+Backspace
-    //     VEYA Alt+Backspace, Ink tarafından \x1b\x7f'den böyle üretiliyor.
-    //   - key.ctrl && input==="w" → Ctrl+W, Ink Ctrl+<harf>'i her zaman
-    //     {ctrl:true, input:"<harf>"} olarak veriyor (\x17 asla input'ta
-    //     literal olarak görünmüyor).
-    // Aşağıdaki ham string eşleşmeleri (\x17/\x1b\x7f/\x08/\x1b[127;5u)
-    // Ink'in bu sequence'ları YUKARIDA AÇIKLANAN şekilde tükettiği ink 5'te
-    // pratikte hiçbir zaman tutmuyor (aynı tanı süreciyle doğrulandı — \x08
-    // salt {backspace:true} olarak geliyor, düz backspace'ten ayırt edilemiyor;
-    // kitty CSI-u ise ESC ve "[127;5u" olarak İKİ AYRI event'e bölünüyor).
-    // Yine de zararsız oldukları ve gelecekte farklı bir terminal/Ink sürümü
-    // raw sequence'ı olduğu gibi bırakırsa çalışabilecekleri için savunma
-    // amaçlı bırakıldı.
+    // ── Ctrl+Backspace / Ctrl+W / Alt+Backspace: delete word ──────────────
+    // Verified with real user data via AURICT_DEBUG_KEYS=1: Ink converts known
+    // escape sequences into its own key.*/input pair BEFORE they reach
+    // `useInput` — the raw bytes are NOT PRESERVED in `input`.
+    // So the two checks below ACTUALLY work (verified end-to-end):
+    //   - key.delete && key.meta  → Ctrl+Backspace OR Alt+Backspace in the
+    //     gnome-terminal family; Ink produces this from \x1b\x7f.
+    //   - key.ctrl && input==="w" → Ctrl+W; Ink always reports Ctrl+<letter>
+    //     as {ctrl:true, input:"<letter>"} (\x17 never appears literally in input).
+    // The raw string matches below (\x17/\x1b\x7f/\x08/\x1b[127;5u) practically
+    // NEVER match in ink 5, since Ink consumes these sequences as EXPLAINED
+    // ABOVE (verified via the same diagnostic process — \x08 arrives as bare
+    // {backspace:true}, indistinguishable from plain backspace; kitty CSI-u
+    // gets split into TWO SEPARATE events, ESC and "[127;5u").
+    // Left in anyway as a harmless defensive fallback, in case some future
+    // terminal/Ink version passes the raw sequence through unchanged.
     if (
       (key.backspace && key.ctrl) || (key.delete && key.meta) || (key.ctrl && input === "w") ||
       input === "\x17" || input === "\x1b\x7f" || input === "\x08" || input === "\x1b[127;5u"
@@ -446,7 +443,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
 
     // ── Backspace ─────────────────────────────────────────────────────────
     if (key.backspace || key.delete) {
-      // Cursor'u önceden oku — setLines içinde async state olmasın
+      // Read the cursor beforehand — avoid async state inside setLines
       const row = cursor.row
       const col = cursor.col
       setLines(prev => {
@@ -466,13 +463,13 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Printable karakter / non-bracketed paste ──────────────────────────
+    // ── Printable character / non-bracketed paste ──────────────────────────
     if (input && !key.ctrl && !key.meta) {
       const clean = sanitizeInput(input)
       if (!clean) return
 
-      // SSH coalesced Enter: "text\r" formatında gelir — son \r Enter anlamına gelir
-      // Örn: yavaş SSH'da "o" + Enter → "o\r" olarak birleşik gelir
+      // SSH coalesced Enter: arrives as "text\r" — the trailing \r means Enter
+      // e.g. on slow SSH, "o" + Enter arrives combined as "o\r"
       if (clean.length > 1 && clean.endsWith("\n") && !clean.slice(0, -1).includes("\n")) {
         const textPart = clean.slice(0, -1)
         const currentLines = [...linesRef.current]
@@ -487,14 +484,14 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
         return
       }
 
-      // Non-bracketed paste: \n veya \r içeriyorsa paste olarak işle
-      // (bracketed paste desteklemeyen terminal/SSH için)
+      // Non-bracketed paste: if it contains \n or \r, treat it as a paste
+      // (for terminals/SSH that don't support bracketed paste)
       if (clean.includes("\n")) {
         applyPaste(clean)
         return
       }
 
-      // Normal tek/çok karakter ekleme
+      // Normal single/multi-character insertion
       setLines(prev => {
         const next = [...prev]
         const line = next[cursor.row] ?? ""
@@ -508,7 +505,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
   return (
     <Box ref={boxRef} flexDirection="column" flexGrow={1} flexShrink={1}>
       {lines.map((line, i) => {
-        // Çok satırlı input'ta satır numarası göster
+        // Show line numbers in a multi-line input
         const showLineNum = lines.length > 1
         const lineNumWidth = String(lines.length).length
         const lineNum = showLineNum ? String(i + 1).padStart(lineNumWidth, " ") : ""
@@ -523,8 +520,8 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
             </Box>
           )
         }
-        // İmleç satırı
-        // Not: nested <Text> inside <Text wrap="wrap"> creates a separate Yoga node,
+        // Cursor line
+        // Note: nested <Text> inside <Text wrap="wrap"> creates a separate Yoga node,
         // breaking inline flow and causing stacked rendering after history navigation.
         // Instead, use three sibling <Text> components in a flexDirection="row" Box.
         const safeCol = Math.min(cursor.col, line.length)

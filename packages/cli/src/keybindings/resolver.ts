@@ -1,15 +1,15 @@
 /**
  * Keybindings — Resolver
  *
- * Context + Action → KeyCombo çözümlemesi.
+ * Context + Action → KeyCombo resolution.
  *
- * Akış:
- *   1. Önce context-specific binding'lere bak
- *   2. Bulunamazsa global binding'e düş
- *   3. Override varsa onu uygula
- *   4. İlk key'i al (primary binding)
+ * Flow:
+ *   1. First check context-specific bindings
+ *   2. If not found, fall back to the global binding
+ *   3. Apply the override if there is one
+ *   4. Take the first key (the primary binding)
  *
- * Kullanım:
+ * Usage:
  *   const key = resolveKey("submit", "ready")
  *   if (inkInputMatch(event, key)) onSubmit()
  */
@@ -25,24 +25,24 @@ import type {
 export interface ResolvedStore {
   /** Context → Action → KeyCombo[] (parsed) */
   bindings: Record<Context, Record<Action, KeyCombo[]>>
-  /** Display için Context → Action → key string[] */
+  /** Context → Action → key string[] for display */
   display:  Record<Context, Record<Action, string[]>>
-  /** Action'ı hangi tuşa bağladık (debug için) */
+  /** Which key we bound the action to (for debugging) */
   sources:  Record<Context, Record<Action, "default" | "user">>
 }
 
 // ── Build ────────────────────────────────────────────────────────────────────
 
 /**
- * Default bindings + kullanıcı override'larını birleştirip parse edilmiş
- * (KeyCombo[]) bir store oluşturur.
+ * Merges the default bindings with the user's overrides and builds a
+ * parsed (KeyCombo[]) store.
  */
 export function buildResolvedStore(override: BindingOverride = {}): ResolvedStore {
   const bindings: Record<Context, Record<Action, KeyCombo[]>> = {} as any
   const display:  Record<Context, Record<Action, string[]>>  = {} as any
   const sources:  Record<Context, Record<Action, "default" | "user">> = {} as any
 
-  // Her context için
+  // For each context
   for (const ctx of Object.keys(DEFAULT_BINDINGS) as Context[]) {
     bindings[ctx] = {} as any
     display[ctx]  = {} as any
@@ -50,7 +50,7 @@ export function buildResolvedStore(override: BindingOverride = {}): ResolvedStor
 
     const defaults = DEFAULT_BINDINGS[ctx]
     for (const action of Object.keys(defaults) as Action[]) {
-      // Kullanıcı override var mı?
+      // Is there a user override?
       const overrideKey = override[action]
       let keyStrings: string[]
       let source: "default" | "user"
@@ -77,16 +77,16 @@ export function buildResolvedStore(override: BindingOverride = {}): ResolvedStor
 // ── Single key resolve ──────────────────────────────────────────────────────
 
 /**
- * Context + Action için primary key combo'yu döner.
- * Önce context-specific, sonra global fallback.
- * Override varsa override uygulanır.
+ * Returns the primary key combo for a Context + Action.
+ * Context-specific first, then falls back to global.
+ * The override is applied if there is one.
  */
 export function resolveKey(
   action: Action,
   context: Context,
   store: ResolvedStore,
 ): KeyCombo | null {
-  // Önce context-specific
+  // Context-specific first
   const ctxSpecific = store.bindings[context]?.[action]
   if (ctxSpecific && ctxSpecific.length > 0) return ctxSpecific[0]!
 
@@ -100,7 +100,7 @@ export function resolveKey(
 }
 
 /**
- * Tüm key'ler (alternatifler dahil) — bir action birden fazla tuşa bağlı olabilir.
+ * All keys (including alternatives) — an action may be bound to multiple keys.
  */
 export function resolveKeys(
   action: Action,
@@ -116,7 +116,7 @@ export function resolveKeys(
 }
 
 /**
- * Action için primary display string'i döner (örn. "ctrl+c").
+ * Returns the primary display string for an action (e.g. "ctrl+c").
  */
 export function resolveDisplayKey(
   action: Action,
@@ -135,8 +135,8 @@ export function resolveDisplayKey(
 // ── Event matching ──────────────────────────────────────────────────────────
 
 /**
- * Ink useInput event'ini alır, store'daki tüm binding'lerle karşılaştırır.
- * Eşleşen action'ı döner (veya null).
+ * Takes an Ink useInput event and compares it against all bindings in the
+ * store. Returns the matching action (or null).
  */
 export function matchInkEvent(
   event: Parameters<typeof inkKeyEventToCombo>[0],
@@ -145,8 +145,8 @@ export function matchInkEvent(
 ): Action | null {
   const combo = inkKeyEventToCombo(event)
 
-  // Tüm action'ları tara — herhangi bir eşleşme varsa onu döner
-  // (önce context-specific, sonra global)
+  // Scan all actions — return the first match found
+  // (context-specific first, then global)
   const ctxBindings = store.bindings[context] ?? {}
   for (const action of Object.keys(ctxBindings) as Action[]) {
     const combos = ctxBindings[action] ?? []
@@ -168,7 +168,7 @@ export function matchInkEvent(
   return null
 }
 
-// ── Full resolved binding (display + meta) ──────────────────────────────────
+// ── Full resolved binding (display + metadata) ──────────────────────────────────
 
 export function resolveFull(
   action: Action,

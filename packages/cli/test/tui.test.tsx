@@ -1,11 +1,11 @@
 /**
- * TUI Bileşen Testleri — ink-testing-library
+ * TUI Component Tests — ink-testing-library
  *
- * Test edilen bileşenler:
+ * Components under test:
  *  - Spinner     (frame + verb rendering)
  *  - Markdown    (h1/h2/h3, bold/italic, code, list, table, hr, quote)
- *  - StatusBar   (provider/model/workdir bilgileri)
- *  - StartupBanner (version/provider/model gösterimi)
+ *  - StatusBar   (provider/model/workdir info)
+ *  - StartupBanner (version/provider/model display)
  */
 
 import { describe, it, expect, afterEach } from "bun:test"
@@ -29,9 +29,9 @@ import type { CommandDef } from "../src/commands/types.js"
 
 afterEach(() => { cleanup() })
 
-// İki tonlu renklendirme (ör. "Th" + dim "inking…") kelimenin ortasına ANSI
-// renk kodu sokar; içerik doğru olsa da naif toContain patlar. Assert'ten önce
-// ANSI escape dizilerini soyup metni olduğu gibi kontrol ederiz.
+// Two-tone coloring (e.g. "Th" + dim "inking…") inserts an ANSI color code in
+// the middle of a word; the content is correct but a naive toContain fails.
+// Before asserting, we strip ANSI escape sequences and check the plain text.
 // eslint-disable-next-line no-control-regex
 const stripAnsi = (s: string | undefined): string => (s ?? "").replace(/\x1b\[[0-9;]*m/g, "")
 
@@ -267,7 +267,7 @@ describe("StartupBanner", () => {
       <StartupBanner version="1.0.0" provider="anthropic" model="claude-opus-4" workdir="/tmp" />
     )
     const frame = lastFrame() ?? ""
-    // Her harf ayrı Text ile render ediliyor — AURICT harfleri kontrol et
+    // Each letter is rendered as a separate Text — check the AURICT letters
     expect(frame).toContain("A")
     expect(frame).toContain("U")
     expect(frame).toContain("R")

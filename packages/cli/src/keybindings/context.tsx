@@ -1,10 +1,10 @@
 /**
  * Keybindings — React context + hooks
  *
- * useInput'u sarmalayıp action-based API sağlar.
- * Context stack (push/pop) ile modal/permission gibi durumlar desteklenir.
+ * Wraps useInput to provide an action-based API.
+ * A context stack (push/pop) supports states like modal/permission.
  *
- * Kullanım:
+ * Usage:
  *   const { useBinding, useBindingHints, currentContext } = useKeybindings()
  *   useBinding("submit", "ready", () => onSubmit(value))
  *   const hints = useBindingHints([{ action: "submit", label: "send" }])
@@ -23,19 +23,19 @@ import type {
 
 interface KeybindingsContextValue {
   store:       ReturnType<typeof buildResolvedStore>
-  /** Şu an aktif context (en üstteki) */
+  /** The currently active context (the top of the stack) */
   currentContext: Context
-  /** Yeni context push et (modal açılınca) */
+  /** Push a new context (when a modal opens) */
   pushContext: (ctx: Context) => void
-  /** En üstteki context'i pop et (modal kapanınca) */
+  /** Pop the top context (when a modal closes) */
   popContext:  () => void
-  /** Context'i doğrudan set et (replace) */
+  /** Set the context directly (replace) */
   setContext:  (ctx: Context) => void
-  /** Kullanıcı override'larını döner (debug / display için) */
+  /** Returns the user's overrides (for debug/display) */
   overrides:   BindingOverride
-  /** Hata varsa (load sırasında) */
+  /** The error, if any (during load) */
   loadError?:  string | undefined
-  /** Override'ları güncelle (config reload için) */
+  /** Refreshes the overrides (for config reload) */
   reload:      () => void
 }
 
@@ -44,9 +44,9 @@ const KeybindingsContext = createContext<KeybindingsContextValue | null>(null)
 // ── Provider ────────────────────────────────────────────────────────────────
 
 export interface KeybindingsProviderProps {
-  /** İlk context (default: "ready") */
+  /** The initial context (default: "ready") */
   initialContext?: Context
-  /** Override'ları manuel geç (test için) */
+  /** Pass overrides manually (for tests) */
   overrides?:     BindingOverride
   children:       React.ReactNode
 }
@@ -64,7 +64,7 @@ export function KeybindingsProvider({
     setContextStack([initialContext])
   }, [initialContext])
 
-  // Overrides: prop > dosyadan yüklenen
+  // Overrides: prop > loaded from file
   const overrides = propOverrides ?? loadResult.bindings
   const store = useMemo(() => buildResolvedStore(overrides), [overrides, version])
 
@@ -118,10 +118,10 @@ export function useKeybindings(): KeybindingsContextValue {
 // ── useBinding (per-component useInput wrapper) ─────────────────────────────
 
 /**
- * Belirli bir action tetiklendiğinde callback çağırır.
- * useInput Ink hook'unu sarmalar, action matching yapar.
+ * Calls the callback when a specific action is triggered.
+ * Wraps Ink's useInput hook, does action matching.
  *
- * Kullanım:
+ * Usage:
  *   useBinding({
  *     action: "submit",
  *     context: "ready",
@@ -139,7 +139,7 @@ export function useBinding({
   const handlerRef = useRef(onTrigger)
   handlerRef.current = onTrigger
 
-  // passive: sadece display için, input handling yapma
+  // passive: for display only, doesn't do input handling
   useInput((input, key) => {
     if (passive) return
     const matched = matchInkEvent({ input, key }, context, store)
@@ -149,12 +149,12 @@ export function useBinding({
   })
 }
 
-// ── useBindingHints (display için) ──────────────────────────────────────────
+// ── useBindingHints (for display) ──────────────────────────────────────────
 
 /**
- * Verilen action'lar için display key'leri döner (örn. status bar'da göstermek).
+ * Returns display keys for the given actions (e.g. to show in the status bar).
  *
- * Kullanım:
+ * Usage:
  *   const hints = useBindingHints([
  *     { action: "submit", label: "send" },
  *     { action: "abort",  label: "abort" },
@@ -174,7 +174,7 @@ export function useBindingHints(
         action,
         label: label ?? action,
         key,
-        display: key, // platform-aware göstermek için display.tsx'te zenginleştirilir
+        display: key, // enriched in display.tsx for platform-aware display
       }
     })
     return { hints }
@@ -184,7 +184,7 @@ export function useBindingHints(
 // ── useBindingMeta (debug) ──────────────────────────────────────────────────
 
 /**
- * Action için tüm meta bilgiyi döner (display, source, context).
+ * Returns all metadata for an action (display, source, context).
  */
 export function useBindingMeta(action: Action, context?: Context) {
   const { store, currentContext } = useKeybindings()

@@ -237,16 +237,16 @@ export async function bootstrap(cfg: AurictConfig = {}): Promise<{ defaultProvid
   // Load user-defined hooks from ~/.aurict/hooks.json + .aurict/hooks.json
   loadUserHooks(process.cwd())
 
-  // İlk çalıştırmada default MCP server'ları aktifleştir + kurulum animasyonu
+  // Activate default MCP servers on first run + setup animation
   const mcpActivated = ensureDefaultMCPServers(process.cwd())
   if (mcpActivated) {
     await runAnimatedMCPSetup()
   }
 
-  // MCP server'larını başlat
+  // Start the MCP servers
   mcpManager.init(process.cwd()).catch(() => {})
 
-  // Custom tool'ları yükle: ~/.aurict/tools/ + .aurict/tools/
+  // Load custom tools: ~/.aurict/tools/ + .aurict/tools/
   loadCustomTools(process.cwd()).catch(() => {})
 
   return { defaultProvider, serverToken, localServer }

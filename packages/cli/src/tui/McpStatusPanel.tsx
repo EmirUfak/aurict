@@ -1,10 +1,10 @@
 /**
- * McpStatusPanel — Oturum açılışında MCP sunucularını tek bir konsolide panelde gösterir.
+ * McpStatusPanel — shows MCP servers in a single consolidated panel at session startup.
  *
- * Eskiden her MCP bağlantısı ayrı bir "· [mcp] name: N tool(s)" sistem satırıydı.
- * Artık `mcpManager.list()` beslemesiyle tek bordered panel: her sunucu için durum
- * noktası (connected → safe, connecting → warning+pulse, error → danger), isim ve
- * araç sayısı / hata özeti. Marka tema renkleri kullanılır.
+ * Previously each MCP connection was a separate "· [mcp] name: N tool(s)" system line.
+ * Now, fed by `mcpManager.list()`, it's a single bordered panel: a status dot per server
+ * (connected → safe, connecting → warning+pulse, error → danger), name, and tool
+ * count / error summary. Uses the brand theme colors.
  */
 
 import React from "react"
@@ -14,7 +14,7 @@ import { HStack, VStack, Surface, Eyebrow, StatusDot } from "./design-system/ind
 import { useTheme } from "../utils/theme.js"
 
 interface Props {
-  /** Her MCP log olayında artan sayaç — listeyi yeniden okumayı tetikler. */
+  /** A counter that increments on every MCP log event — triggers re-reading the list. */
   refresh?: number
   width?:   number
 }
@@ -35,7 +35,7 @@ function truncate(text: string, max: number): string {
 
 export function McpStatusPanel({ refresh, width }: Props) {
   const theme = useTheme()
-  // `refresh` bir prop olarak render'ı tetikler; listeyi her render'da tazeler.
+  // `refresh` triggers a re-render as a prop; the list is refreshed on every render.
   void refresh
   const servers = mcpManager.list()
   if (servers.length === 0) return null

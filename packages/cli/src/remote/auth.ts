@@ -1,14 +1,15 @@
 /**
- * Remote — tarayıcı tabanlı cihaz girişi (device authorization grant).
+ * Remote — browser-based device login (device authorization grant).
  *
- * Akış (`gh auth login` ile aynı desen, backend: apps/backend/src/routes/auth.ts):
- *   1. POST /auth/device/start → deviceCode + kullanıcıya gösterilecek userCode + onay URL'i
- *   2. Tarayıcı açılır (best-effort); kullanıcı web/mobilden onaylar
- *   3. POST /auth/device/poll ile deviceCode periyodik sorgulanır
- *   4. Onaylanınca access/refresh token'lar alınır ve güvenli saklanır
+ * Flow (same pattern as `gh auth login`, backend: apps/backend/src/routes/auth.ts):
+ *   1. POST /auth/device/start → deviceCode + userCode to show the user + approval URL
+ *   2. The browser opens (best-effort); the user approves from web/mobile
+ *   3. deviceCode is polled periodically via POST /auth/device/poll
+ *   4. Once approved, access/refresh tokens are obtained and stored securely
  *
- * Bu modül CLI'yi backend'e bağlar; aynı hesapla PC + telefon girişini mümkün kılar.
- * WebRTC/cihaz-imzalama/remote-oturum katmanları sonraki workstream'lerdedir.
+ * This module connects the CLI to the backend; it enables logging in with
+ * the same account on PC + phone. The WebRTC/device-signing/remote-session
+ * layers are in later workstreams.
  */
 
 import { backendRequest, RemoteApiError } from "./backend-client.js"
@@ -19,8 +20,9 @@ import {
 import { openInBrowser } from "./browser.js"
 
 const CLIENT_NAME  = "Aurict CLI"
-// Backend'in kendi TTL'i (varsayılan 600s, env ile ayarlanabilir, en fazla 1800s)
-// kaynaktır; bu yalnızca istemci tarafında makul bir üst sınırdır (saat kayması vb.).
+// The backend's own TTL (default 600s, configurable via env, max 1800s) is
+// the source of truth; this is just a reasonable client-side upper bound
+// (for clock drift etc.).
 const MAX_WAIT_MS  = 30 * 60 * 1000
 
 export interface DeviceLoginStart {
@@ -71,9 +73,9 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Tarayıcı tabanlı cihaz girişini uçtan uca yürütür. `onEvent` ile ara aşamalar
- * raporlanır (TUI bunu bir sistem mesajı olarak gösterebilir); akış tamamlanana
- * kadar (onay/ret/süre aşımı) bekler.
+ * Runs the browser-based device login end to end. Intermediate stages are
+ * reported via `onEvent` (the TUI can show this as a system message); waits
+ * until the flow completes (approval/denial/timeout).
  */
 export async function loginWithBrowser(onEvent?: (event: RemoteLoginEvent) => void): Promise<{ id: string; email: string }> {
   onEvent?.({ phase: "starting", message: "Requesting device code…" })
@@ -132,14 +134,14 @@ export async function refreshAccessToken(): Promise<RemoteSessionTokens> {
     writeStoredTokens(next)
     return next
   } catch (error) {
-    // Refresh geçersiz/yeniden-kullanım tespiti → yerel oturum ölü, temiz bir
-    // yeniden girişe zorlamak için sil.
+    // Refresh invalid/reuse detected → the local session is dead, delete it
+    // to force a clean re-login.
     clearStoredTokens()
     throw error
   }
 }
 
-/** Geçerli (gerekirse yenilenmiş) access token döner; oturum yoksa fırlatır. */
+/** Returns a valid (refreshed if needed) access token; throws if there's no session. */
 export async function ensureAccessToken(): Promise<string> {
   const current = readStoredTokens()
   if (!current) throw new RemoteApiError("not_signed_in", "No remote session found. Run /remote login.", "client")
@@ -174,6 +176,6 @@ export async function logout(): Promise<void> {
   try {
     await backendRequest("/auth/logout", { method: "POST", body: { refreshToken: current.refreshToken } })
   } catch {
-    // best-effort — yerel oturum zaten silindi
+    // best-effort — the local session is already deleted
   }
 }

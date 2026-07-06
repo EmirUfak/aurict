@@ -1,12 +1,12 @@
 /**
- * Remote — Faz 1 (tarayıcı tabanlı cihaz girişi) testleri.
+ * Remote — Phase 1 (browser-based device login) tests.
  *
- * Kapsam: session-store (JWT exp çözümleme, güvenli dosya round-trip),
- * backend-client (başarı/hata/ağ hatası/geçersiz-JSON yol haritası),
- * auth (device-login orkestrasyon: onay/ret/süre-aşımı, token yenileme).
+ * Coverage: session-store (JWT exp decoding, secure file round-trip),
+ * backend-client (success/error/network-error/invalid-JSON path mapping),
+ * auth (device-login orchestration: approve/deny/timeout, token refresh).
  *
- * `openInBrowser` gerçek bir alt süreç (xdg-open/open) başlatabileceği için
- * mock.module ile no-op'a bağlanır — testler hiçbir tarayıcı açmamalı.
+ * `openInBrowser` is wired to a no-op via mock.module, since it can launch
+ * a real subprocess (xdg-open/open) — tests must never open a browser.
  */
 import { describe, it, expect, afterEach, mock } from "bun:test"
 

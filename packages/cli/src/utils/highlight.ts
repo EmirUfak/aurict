@@ -1,14 +1,14 @@
-// One Dark renk paleti — terminal syntax highlight
+// One Dark color palette — terminal syntax highlight
 export const C = {
-  keyword:  "#c678dd",  // mor — const, if, return...
-  string:   "#98c379",  // yeşil
-  comment:  "#5c6370",  // gri
-  number:   "#d19a66",  // turuncu
-  type:     "#e5c07b",  // sarı — sınıf, interface
-  fn:       "#61afef",  // mavi — fonksiyon adları
+  keyword:  "#c678dd",  // purple — const, if, return...
+  string:   "#98c379",  // green
+  comment:  "#5c6370",  // gray
+  number:   "#d19a66",  // orange
+  type:     "#e5c07b",  // yellow — class, interface
+  fn:       "#61afef",  // blue — function names
   operator: "#56b6c2",  // cyan — =, +, :
-  builtin:  "#e06c75",  // kırmızı — error, null, undefined
-  plain:    "#abb2bf",  // açık gri — normal metin
+  builtin:  "#e06c75",  // red — error, null, undefined
+  plain:    "#abb2bf",  // light gray — normal text
 } as const
 
 export type HColor = typeof C[keyof typeof C]
@@ -66,9 +66,9 @@ function t(text: string, color: HColor, bold = false): Token {
   return { text, color, bold }
 }
 
-// Regex satır tokenizer — TS/JS/Python/Bash için
+// Regex line tokenizer — for TS/JS/Python/Bash
 function tokenizeCode(line: string, kw: Set<string>, commentChar: string): Token[] {
-  // Tüm satır yorum mu?
+  // Is the whole line a comment?
   const trimmed = line.trimStart()
   if (
     trimmed.startsWith(commentChar) ||
@@ -108,7 +108,7 @@ function tokenizeCode(line: string, kw: Set<string>, commentChar: string): Token
     } else if (ident) {
       const word = ident
       if (kw.has(word)) {
-        // Özel builtinler
+        // Special builtins
         if (["null","undefined","None","True","False","true","false"].includes(word)) {
           tokens.push(t(word, C.builtin))
         } else {

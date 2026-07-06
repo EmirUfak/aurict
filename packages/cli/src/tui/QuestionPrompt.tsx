@@ -11,7 +11,7 @@ interface Props {
 export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
   const [questionIdx, setQuestionIdx]   = useState(0)
   const [optionIdx,   setOptionIdx]     = useState(0)
-  // Her soru için seçili label'lar
+  // Selected labels per question
   const [selected,    setSelected]      = useState<QuestionAnswer[]>(
     () => request.questions.map(() => []),
   )
@@ -40,7 +40,7 @@ export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
       return
     }
 
-    // Space: toggle seçim (multiple modunda)
+    // Space: toggle selection (in multiple mode)
     if (key.tab || _input === " ") {
       if (!isMultiple) return
       const label = allOptions[optionIdx]?.label ?? ""
@@ -57,11 +57,11 @@ export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
       return
     }
 
-    // Enter: onayla
+    // Enter: confirm
     if (key.return) {
       const label = allOptions[optionIdx]?.label ?? ""
 
-      // Seçim yap (single mode veya empty selection)
+      // Make the selection (single mode or empty selection)
       let finalSelected: QuestionAnswer[]
       if (isMultiple) {
         const cur = selected[questionIdx] ?? []
@@ -102,7 +102,7 @@ export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
       paddingY={0}
       marginBottom={1}
     >
-      {/* Başlık */}
+      {/* Title */}
       <Box marginBottom={1}>
         <Text bold color="cyan">
           🤔 {currentQuestion.header}
@@ -110,12 +110,12 @@ export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
         <Text color="gray"> ({questionIdx + 1}/{request.questions.length})</Text>
       </Box>
 
-      {/* Soru metni */}
+      {/* Question text */}
       <Box marginBottom={1}>
         <Text wrap="wrap">{currentQuestion.question}</Text>
       </Box>
 
-      {/* Seçenekler */}
+      {/* Options */}
       {allOptions.map((opt, i) => {
         const isActive   = i === optionIdx
         const isSelected = curSelected.includes(opt.label)
@@ -139,7 +139,7 @@ export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
         )
       })}
 
-      {/* Tuş yardımı */}
+      {/* Key hints */}
       <Box marginTop={1}>
         <Text color="gray" dimColor>
           {isMultiple

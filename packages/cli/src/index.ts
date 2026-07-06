@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events"
-// Ink her useInput çağrısı için kendi EventEmitter'ına listener ekler.
-// Bileşen sayısı arttıkça varsayılan 10 limit aşılır — 50'ye çıkar.
+// Ink adds a listener to its own EventEmitter for every useInput call.
+// The default limit of 10 gets exceeded as the component count grows — raised to 50.
 EventEmitter.defaultMaxListeners = 50
 
 import { profileCheckpoint, flushProfileReportOnExit } from "./util/startupProfiler.js"
@@ -11,16 +11,16 @@ import { loadConfig, parseFlags, applyFlags } from "./config/loader.js"
 
 let mcpManagerRef: { disconnectAll(): Promise<void> } | null = null
 
-// ─── Terminal Güvenlik Katmanı ────────────────────────────────────────────────
+// ─── Terminal Safety Layer ────────────────────────────────────────────────
 function restoreTerminal() {
   try {
     if (!process.stdout.isTTY) return
-    process.stdout.write("\x1b[?1049l")  // alternate screen'den çık
-    process.stdout.write("\x1b[?25h")    // cursor göster
-    process.stdout.write("\x1b[?2004l")  // bracketed paste kapat
-    process.stdout.write("\x1b[0m")      // renkleri sıfırla
+    process.stdout.write("\x1b[?1049l")  // exit alternate screen
+    process.stdout.write("\x1b[?25h")    // show cursor
+    process.stdout.write("\x1b[?2004l")  // disable bracketed paste
+    process.stdout.write("\x1b[0m")      // reset colors
     process.stdout.write("\r")
-  } catch { /* stdout kapandıysa yoksay */ }
+  } catch { /* ignore if stdout is already closed */ }
 }
 
 process.on("exit", restoreTerminal)
@@ -30,7 +30,7 @@ process.on("SIGINT",  () => {
     restoreTerminal()
     process.exit(0)
   }
-  // MCP server'ları kapat — timeout ile, 1 saniye içinde bitmezse force exit
+  // Shut down MCP servers — with a timeout; force exit if it doesn't finish within 1 second
   const disconnectTimeout = setTimeout(() => {
     restoreTerminal()
     process.exit(0)
@@ -227,11 +227,11 @@ if (subCmd === "run") {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Plugin'leri yükle (tool + provider eklentileri ~/.aurict/plugins/)
+// Load plugins (tool + provider plugins from ~/.aurict/plugins/)
 await loadPlugins()
 profileCheckpoint("plugins_loaded")
 
-// Config yükle: global < proje < CLI flags
+// Load config: global < project < CLI flags
 const cfg      = applyFlags(loadConfig(workdir), flags)
 const { defaultProvider, localServer } = await bootstrap(cfg)
 profileCheckpoint("bootstrap_done")
@@ -241,11 +241,11 @@ const plugin     = ProviderRegistry.get(provider)
 const model      = cfg.model ?? plugin.defaultModel()
 
 if (process.stdin.isTTY) {
-  // İnteraktif mod — Ink TUI
+  // Interactive mode — Ink TUI
   const updatePromise = checkForUpdate()  // fire-and-forget, non-blocking
   profileCheckpoint("app_render_start")
 
-  // Hiçbir provider'ın key'i yoksa onboarding wizard göster
+  // Show the onboarding wizard if no provider has a key configured
   const availableProviders = ProviderRegistry.available()
   const noKeyConfigured = availableProviders.every(p => !p.hasKey)
   const selectedProviderInfo = availableProviders.find(p => p.id === provider)
@@ -253,7 +253,7 @@ if (process.stdin.isTTY) {
   const needsSetup      = noKeyConfigured && selectedNeedsKey && flags.provider === undefined
 
   if (needsSetup) {
-    // Wizard tamamlanınca App'i render et
+    // Render the App once the wizard completes
     await new Promise<void>((resolve) => {
       const { unmount } = render(
         React.createElement(SetupWizard, {
@@ -295,14 +295,14 @@ if (process.stdin.isTTY) {
           ...(cfg.undercover !== undefined ? { undercover: cfg.undercover } : {}),
         }),
       }),
-      { exitOnCtrlC: false },  // Ctrl+C'yi App.tsx'te useInput ile yönetiyoruz
+      { exitOnCtrlC: false },  // We handle Ctrl+C ourselves via useInput in App.tsx
     )
     await waitUntilExit()
   }
 
-  // Ink unmount olduktan sonra süreç Bun.serve (lokal server) ve MCP child
-  // process'leri yüzünden canlı kalır — kullanıcı donmuş bir ekranla baş başa
-  // kalır ve tuş basışları ham metin olarak sızar. Temiz kapat:
+  // After Ink unmounts, the process stays alive because of Bun.serve (local server)
+  // and MCP child processes — the user is left staring at a frozen screen while
+  // keystrokes leak through as raw text. Shut down cleanly:
   if (mcpManagerRef) {
     await Promise.race([
       mcpManagerRef.disconnectAll().catch(() => {}),

@@ -1,14 +1,14 @@
 /**
- * HistorySearch — Ters komut geçmişi araması (Ctrl+R)
+ * HistorySearch — reverse command history search (Ctrl+R)
  *
- * Bash/zsh tarzı reverse search. Kullanıcı yazdıkça history'de
- * fuzzy match yapılır. Enter ile seçilir, Esc ile kapatılır.
+ * Bash/zsh-style reverse search. Fuzzy matches against history as the
+ * user types. Selected with Enter, closed with Esc.
  *
- * Özellikler:
- * - Gerçek zamanlı fuzzy matching
- * - ↑↓ ile sonuçlar arasında gezinme
- * - Tab ile otomatik tamamlama
- * - Eşleşen kısım vurgulama
+ * Features:
+ * - Real-time fuzzy matching
+ * - Navigate between results with ↑↓
+ * - Auto-complete with Tab
+ * - Highlights the matched portion
  */
 
 import React, { useState, useEffect, useMemo, useRef } from "react"
@@ -23,8 +23,8 @@ interface Props {
 }
 
 /**
- * Fuzzy match — arama teriminin tüm karakterleri hedef string'de sırayla var mı?
- * Eşleşen pozisyonları döndürür (highlight için).
+ * Fuzzy match — do all characters of the query appear in order in the target string?
+ * Returns the matched positions (for highlighting).
  */
 function fuzzyMatch(query: string, target: string): { score: number; positions: number[] } | null {
   if (!query) return { score: 0, positions: [] }
@@ -39,9 +39,9 @@ function fuzzyMatch(query: string, target: string): { score: number; positions: 
   for (let ti = 0; ti < t.length && qi < q.length; ti++) {
     if (t[ti] === q[qi]) {
       positions.push(ti)
-      // Ardışık eşleşme bonusu
+      // Consecutive match bonus
       if (ti === lastMatchIdx + 1) score += 3
-      // Başlangıç bonusu
+      // Start-of-string bonus
       else if (ti === 0) score += 2
       else score += 1
       lastMatchIdx = ti
@@ -49,17 +49,17 @@ function fuzzyMatch(query: string, target: string): { score: number; positions: 
     }
   }
 
-  // Tüm karakterler eşleşmediyse null
+  // null if not all characters matched
   if (qi < q.length) return null
 
-  // Kısa hedef + çok eşleşme = yüksek skor
+  // Short target + many matches = high score
   score += Math.max(0, 10 - (target.length - query.length))
 
   return { score, positions }
 }
 
 /**
- * Eşleşen pozisyonları vurgulayarak metni render et
+ * Render text, highlighting the matched positions
  */
 function HighlightedText({ text, positions, theme }: { text: string; positions: number[]; theme: ReturnType<typeof useTheme> }) {
   const posSet = new Set(positions)
@@ -69,7 +69,7 @@ function HighlightedText({ text, positions, theme }: { text: string; positions: 
     parts.push({ char: text[i]!, highlighted: posSet.has(i) })
   }
 
-  // Ardışık highlighted karakterleri grupla
+  // Group consecutive highlighted characters
   const groups: Array<{ text: string; highlighted: boolean }> = []
   for (const part of parts) {
     const last = groups[groups.length - 1]
@@ -98,10 +98,10 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
   const inputRef = useRef(query)
   useEffect(() => { inputRef.current = query }, [query])
 
-  // Fuzzy match sonuçları
+  // Fuzzy match results
   const matches = useMemo(() => {
     if (!query) {
-      // Arama terimi yoksa son 20 history öğesini göster
+      // Show the last 20 history items if there's no search term
       return history.slice(-20).reverse().map((text, i) => ({
         text,
         score: 0,
@@ -111,7 +111,7 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
     }
 
     const results: Array<{ text: string; score: number; positions: number[]; index: number }> = []
-    // Tersten ara (en son kullanılan önce)
+    // Search in reverse (most recently used first)
     for (let i = history.length - 1; i >= 0; i--) {
       const match = fuzzyMatch(query, history[i]!)
       if (match) {
@@ -124,12 +124,12 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
       }
     }
 
-    // Skora göre sırala (en yüksek önce)
+    // Sort by score (highest first)
     results.sort((a, b) => b.score - a.score)
     return results.slice(0, 10)
   }, [query, history])
 
-  // Selected index bounds kontrolü
+  // Selected index bounds check
   useEffect(() => {
     if (selectedIdx >= matches.length) {
       setSelectedIdx(Math.max(0, matches.length - 1))
@@ -137,13 +137,13 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
   }, [matches.length, selectedIdx])
 
   useInput((input, key) => {
-    // Esc: kapat
+    // Esc: close
     if (key.escape) {
       onClose()
       return
     }
 
-    // Enter: seçili öğeyi al
+    // Enter: take the selected item
     if (key.return) {
       const selected = matches[selectedIdx]
       if (selected) {
@@ -152,7 +152,7 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
       return
     }
 
-    // ↑↓: sonuçlar arasında gezin
+    // ↑↓: navigate between results
     if (key.upArrow) {
       setSelectedIdx(i => Math.max(0, i - 1))
       return
@@ -162,7 +162,7 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
       return
     }
 
-    // Tab: ilk sonucu otomatik tamamla
+    // Tab: auto-complete with the first result
     if (key.tab) {
       const first = matches[0]
       if (first) {
@@ -177,13 +177,13 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
       return
     }
 
-    // Ctrl+C: kapat
+    // Ctrl+C: close
     if (key.ctrl && input === "c") {
       onClose()
       return
     }
 
-    // Karakter ekle
+    // Append the character
     if (input && !key.ctrl && !key.meta && !key.tab) {
       setQuery(q => q + input)
       return
@@ -193,21 +193,21 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
   return (
     <Surface variant="raised" tone="accent" paddingX="sm" paddingY="sm" marginX="md">
       <VStack gap="sm">
-        {/* Başlık */}
+        {/* Title */}
         <HStack gap="sm">
           <Typo variant="bodyEmphasis" tone="accent">⌕</Typo>
           <Typo variant="bodyEmphasis" tone="accent">reverse search</Typo>
           <Typo variant="caption" tone="muted" dimColor>(Ctrl+R)</Typo>
         </HStack>
 
-        {/* Arama input'u */}
+        {/* Search input */}
         <HStack gap="sm">
           <Typo variant="body" tone="muted">❯</Typo>
           <Text color={theme.textPrimary}>{query || <Text color={theme.textDim} dimColor>type to search...</Text>}</Text>
           <Text color={theme.accent}>▋</Text>
         </HStack>
 
-        {/* Sonuçlar */}
+        {/* Results */}
         {matches.length > 0 && (
           <VStack gap="none" paddingLeft="md">
             {matches.map((m, i) => (
@@ -226,12 +226,12 @@ export function HistorySearch({ history, onSelect, onClose }: Props) {
           </VStack>
         )}
 
-        {/* Sonuç yoksa */}
+        {/* No results */}
         {query && matches.length === 0 && (
           <Typo variant="body" tone="muted" dimColor>  No matches found</Typo>
         )}
 
-        {/* Yardım */}
+        {/* Help */}
         <HStack gap="md" paddingLeft="md">
           <Typo variant="caption" tone="muted" dimColor>↑↓ navigate</Typo>
           <Typo variant="caption" tone="muted" dimColor>Enter select</Typo>

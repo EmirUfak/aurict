@@ -28,8 +28,8 @@ export function Select<T extends string = string>({
 }: Props<T>) {
   const theme = useTheme()
 
-  // Coalesced (aynı tick) ok tuşlarında closure'daki selectedIndex bayat kalır;
-  // ref her tuşta senkron güncellenir, prop değişince yeniden hizalanır.
+  // For coalesced (same-tick) arrow keys, the closure's selectedIndex goes stale;
+  // the ref updates synchronously on every keypress and realigns when the prop changes.
   const selRef = useRef(selectedIndex)
   useEffect(() => { selRef.current = selectedIndex }, [selectedIndex])
 

@@ -4,11 +4,11 @@ import { useTheme } from "../utils/theme.js"
 import { useSpinnerFrame } from "./design-system/index.js"
 
 interface Props {
-  /** Tool aktif olarak çalışıyor mu (animate) */
+  /** Is the tool actively running (animate) */
   shouldAnimate: boolean
-  /** Henüz tamamlanmadı mı */
+  /** Has it not completed yet */
   isUnresolved: boolean
-  /** Hata ile mi bitti */
+  /** Did it end with an error */
   isError: boolean
 }
 

@@ -64,7 +64,7 @@ export function FileMention({ filter, workdir, isActive, onSelect }: Props) {
           </Box>
         )
       })}
-      <Text color={theme.textDim} dimColor>  up/down  tab/enter seç</Text>
+      <Text color={theme.textDim} dimColor>  up/down  tab/enter select</Text>
     </Box>
   )
 }

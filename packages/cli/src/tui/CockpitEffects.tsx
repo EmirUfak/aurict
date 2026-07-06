@@ -13,9 +13,9 @@ const SPARK = ["✦", "✧", "◆", "◇"]
 
 function useTicker(active: boolean, interval: number): number {
   const [frame, setFrame] = useState(0)
-  // Terminal odakta değilken (tab değişimi, minimize) dekoratif tickerları
-  // durdur — kullanıcı zaten bakmıyorken gereksiz setInterval + tam-kare
-  // Ink redraw'ı devam etmesin.
+  // Stop decorative tickers while the terminal isn't focused (tab switch,
+  // minimize) — don't let a needless setInterval + full-frame Ink redraw
+  // keep running while the user isn't even looking.
   const focused = useTerminalFocus()
   useEffect(() => {
     if (!active || !focused || !motionEnabled()) return
@@ -47,7 +47,7 @@ export function ContextHeatMeter({ percent, width = 10 }: { percent: number; wid
 
 export function ToolFlux({ active, label }: { active: boolean; label?: string | undefined }) {
   const theme = useTheme()
-  // 200ms: her tick tam-kare Ink çizimi tetiklediği için streaming ile yarışmasın.
+  // 200ms: each tick triggers a full-frame Ink draw, so it shouldn't race with streaming.
   const frame = useTicker(active, 200)
   const wave = active ? WAVE[frame % WAVE.length]! : "▁▁▁▁▁▁▁"
   const spark = active ? SPARK[frame % SPARK.length]! : "◇"

@@ -97,7 +97,7 @@ export const THEMES: Record<string, Theme> = {
     bgHighlight: "#0a140f", bgDeep: "#050a07", bgCard: "#08140e", bgCardHover: "#0d1c14", bgAlt: "#0a120d",
     buddyMain: "#4ea886", buddyEar: "#6cc0a0",
   },
-  // 1. Aurict Ion (varsayılan)
+  // 1. Aurict Ion (default)
   dark: {
     name: "Aurict Ion",
     accent: "#a78bfa", accentAlt: "#38bdf8",

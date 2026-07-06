@@ -1,13 +1,13 @@
 /**
  * Keybindings — Display components
  *
- * Action → display binding'leri UI'da göstermek için kullanılan bileşenler.
- * Platform-aware: macOS'ta ⌘, win/linux'ta Ctrl sembolleri otomatik.
+ * Components used to show action → display bindings in the UI.
+ * Platform-aware: ⌘ on macOS, Ctrl symbols automatically on win/linux.
  *
- * Kullanım:
- *   <KeyHint action="submit" context="ready" />     → "enter" (veya ⏎)
+ * Usage:
+ *   <KeyHint action="submit" context="ready" />     → "enter" (or ⏎)
  *   <KeyHintHint action="abort" />                   → "⎋"
- *   <KeyHintBar hints={[...]} />                     → status bar satırı
+ *   <KeyHintBar hints={[...]} />                     → a status bar line
  */
 
 import React from "react"
@@ -28,19 +28,19 @@ export function platform(): ReturnType<typeof detectPlatform> {
 // ── Public: <KeyHint action="..." /> ─────────────────────────────────────────
 
 export interface KeyHintProps {
-  /** Action ismi */
+  /** The action name */
   action:  Action
-  /** Bağlama etiketi (örn. "send", "abort") */
+  /** The context label (e.g. "send", "abort") */
   label?:  string
-  /** Belirli bir context'te ara (default: mevcut context) */
+  /** Look up in a specific context (default: the current context) */
   context?: Context
-  /** Style (design-system Kbd'den) */
+  /** Style (from the design-system Kbd) */
   variant?: "default" | "subtle" | "primary"
 }
 
 /**
- * Tek bir action için keybinding göstergesi.
- * Design-system Kbd/KeyHint'i kullanır, ama action'dan otomatik key çıkarır.
+ * Keybinding indicator for a single action.
+ * Uses the design-system Kbd/KeyHint, but derives the key automatically from the action.
  */
 export function KeyHint({ action, label, context, variant }: KeyHintProps) {
   const { store, currentContext } = useKeybindings()
@@ -60,16 +60,16 @@ export function KeyHint({ action, label, context, variant }: KeyHintProps) {
 // ── Public: <KeyHintBar /> ──────────────────────────────────────────────────
 
 export interface KeyHintBarProps {
-  /** Gösterilecek action listesi */
+  /** The list of actions to display */
   actions: Array<{ action: Action; label?: string; context?: Context }>
-  /** Ayırıcı (default: " · ") */
+  /** Separator (default: " · ") */
   separator?: string
 }
 
 /**
- * Status bar için yatay keybinding ipuçları.
+ * Horizontal keybinding hints for the status bar.
  *
- * Kullanım:
+ * Usage:
  *   <KeyHintBar actions={[
  *     { action: "submit",  label: "send" },
  *     { action: "abort",   label: "abort" },
@@ -94,14 +94,14 @@ export function KeyHintBar({ actions, separator = " · " }: KeyHintBarProps) {
 // ── Public: <KeybindingsHelp /> ─────────────────────────────────────────────
 
 /**
- * Tüm mevcut binding'leri context grupları halinde listeler.
- * /keys komutu için.
+ * Lists all current bindings grouped by context.
+ * For the /keys command.
  */
 export function KeybindingsHelp({ context }: { context?: Context }) {
   const { store, currentContext } = useKeybindings()
   const ctx = context ?? currentContext
 
-  // Context'teki tüm action'ları, key'i olanlar için
+  // All actions in this context that have a key
   const items: Array<{ action: Action; key: string; source: "default" | "user" }> = []
   const ctxBindings = store.display[ctx] ?? {}
   for (const action of Object.keys(ctxBindings) as Action[]) {

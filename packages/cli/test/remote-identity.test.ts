@@ -1,10 +1,10 @@
 /**
- * Remote — Faz 2 (cihaz kimliği) testleri.
+ * Remote — Phase 2 (device identity) tests.
  *
- * Mock backend, gerçek `apps/backend/src/crypto/signatures.ts` doğrulama mantığını
- * (crypto.subtle.importKey("jwk",...) + verify) birebir çalıştırır — bu yüzden bu
- * testler yalnızca kanıtlanmış bir mock'u değil, üretilen anahtar/imzanın backend'in
- * GERÇEK Ed25519 doğrulama yoluyla geçtiğini kanıtlar.
+ * The mock backend runs the real `apps/backend/src/crypto/signatures.ts` verification
+ * logic verbatim (crypto.subtle.importKey("jwk",...) + verify) — so these tests prove
+ * not just a validated mock, but that the generated key/signature actually passes the
+ * backend's REAL Ed25519 verification path.
  */
 import { describe, it, expect, afterEach, beforeEach, mock } from "bun:test"
 
@@ -15,7 +15,7 @@ import {
   ensureDeviceIdentity, readDeviceIdentity, clearDeviceIdentity, signWithStoredIdentity,
 } from "../src/remote/identity.js"
 
-// ── Sahte backend: gerçek Ed25519 doğrulaması yapar ────────────────────────────
+// ── Fake backend: performs real Ed25519 verification ────────────────────────────
 interface PendingDevice { publicKeyJwkStr: string; challenge: string }
 
 function installDeviceBackendMock(opts: { failFirstRegisterWith?: string } = {}) {
@@ -55,7 +55,7 @@ function installDeviceBackendMock(opts: { failFirstRegisterWith?: string } = {})
       if (!record || record.challenge !== body.challenge) {
         return new Response(JSON.stringify({ ok: false, error: { code: "device_challenge_mismatch", message: "mismatch", requestId: "req_x" } }), { status: 400 })
       }
-      // Gerçek kriptografik doğrulama — backend'in signatures.ts'iyle birebir aynı yol.
+      // Real cryptographic verification — the exact same path as the backend's signatures.ts.
       const jwk = JSON.parse(record.publicKeyJwkStr)
       const key = await crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, false, ["verify"])
       const sigBytes = Buffer.from(body.signature, "base64url")
@@ -77,8 +77,8 @@ function installDeviceBackendMock(opts: { failFirstRegisterWith?: string } = {})
 }
 
 beforeEach(() => {
-  // ensureAccessToken() (auth.ts) gerçek yoldan çağrılır — geçerli, süresi
-  // yakın gelmeyen bir token sahte olarak yazılır ki /auth/refresh'e gitmesin.
+  // ensureAccessToken() (auth.ts) is called through the real path — a valid
+  // token that isn't close to expiry is faked in so it doesn't hit /auth/refresh.
   const farFuture = Math.floor(Date.now() / 1000) + 3600
   const fakeJwt = `${Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url")}.${Buffer.from(JSON.stringify({ exp: farFuture })).toString("base64url")}.sig`
   writeStoredTokens({ accessToken: fakeJwt, refreshToken: "rt", tokenType: "Bearer" })
@@ -113,7 +113,7 @@ describe("identity — device registration + verification", () => {
       expect(first.verified).toBe(true)
     } finally { backend.restore() }
 
-    // İkinci çağrı: fetch hiç çağrılmamalı (yerelde doğrulanmış kimlik var).
+    // Second call: fetch must never be called (a verified identity exists locally).
     const original = globalThis.fetch
     globalThis.fetch = (async () => { throw new Error("should not hit the network") }) as typeof fetch
     try {
@@ -130,7 +130,7 @@ describe("identity — device registration + verification", () => {
       const identity = await ensureDeviceIdentity()
       expect(identity.verified).toBe(true)
       expect(backend.registerCallCount()).toBe(2)
-      // İki denemede de FARKLI anahtarlar gönderilmiş olmalı (taze keypair üretildi).
+      // DIFFERENT keys must have been sent in each attempt (a fresh keypair was generated).
       expect(backend.registeredKeys[0]).not.toBe(backend.registeredKeys[1])
     } finally { backend.restore() }
   })
@@ -175,7 +175,7 @@ describe("identity — device registration + verification", () => {
       expect(backendA.registerCallCount()).toBe(1)
     } finally { backendA.restore() }
 
-    // Farklı bir hesapla giriş yapıldığını simüle et (userId değişir).
+    // Simulate signing in with a different account (userId changes).
     const farFuture = Math.floor(Date.now() / 1000) + 3600
     const fakeJwt = `${Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url")}.${Buffer.from(JSON.stringify({ exp: farFuture, sub: "usr_2" })).toString("base64url")}.sig`
     writeStoredTokens({ accessToken: fakeJwt, refreshToken: "rt2", tokenType: "Bearer", userId: "usr_2", userEmail: "b@c.com" })
@@ -183,9 +183,9 @@ describe("identity — device registration + verification", () => {
     const backendB = installDeviceBackendMock()
     try {
       const identity = await ensureDeviceIdentity()
-      // Yeni hesap için taze bir anahtar/fingerprint üretilmeli — eskisi sessizce
-      // yeniden kullanılmamalı, ve bu tek bir register çağrısıyla olmalı (device_exists
-      // round-trip'i tetiklenmemeli çünkü fingerprint zaten farklı).
+      // A fresh key/fingerprint must be generated for the new account — the old one
+      // must NOT be silently reused, and this must happen with a single register call
+      // (the device_exists round-trip shouldn't trigger since the fingerprint already differs).
       expect(identity.signingKeyFingerprint).not.toBe(firstFingerprint)
       expect(backendB.registerCallCount()).toBe(1)
     } finally { backendB.restore() }

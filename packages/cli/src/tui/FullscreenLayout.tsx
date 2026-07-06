@@ -25,9 +25,9 @@ export function FullscreenLayout({
   useLayoutEffect(() => {
     if (!scrollableRef.current || !onScrollableHeight) return
     const { height } = measureElement(scrollableRef.current)
-    // Histeresis: yalnızca ≥2 satırlık değişimde bildir. Header/bottom geçişlerinde
-    // (banner→sohbet, permission prompt) 1 satırlık salınımların measure→setState→
-    // re-render döngüsünü tetikleyip kareyi bozmasını engeller.
+    // Hysteresis: only notify on a ≥2-row change. Prevents 1-row oscillations
+    // during header/bottom transitions (banner→chat, permission prompt) from
+    // triggering the measure→setState→re-render loop and corrupting the frame.
     if (height > 0 && Math.abs(height - lastHeightRef.current) >= 2) {
       lastHeightRef.current = height
       onScrollableHeight(height)
@@ -44,11 +44,12 @@ export function FullscreenLayout({
       <Box ref={scrollableRef} flexGrow={1} flexShrink={1} flexDirection="column" overflow="hidden">
         {scrollable}
       </Box>
-      {/* Overlay (picker/modal) odaklanılan UI'dır — ASLA büzüşmemeli.
-          flexShrink={1} iken yer daraldığında Yoga bu kutuyu küçültüyor ve
-          Ink satır atlayarak çiziyordu (başlık + seçili satır görünmez
-          oluyordu). Daralma scrollable alana yaptırılır; overlay bileşenleri
-          kendi yüksekliklerini terminal satır sayısına göre sınırlar. */}
+      {/* The overlay (picker/modal) is the focused UI — it must NEVER shrink.
+          With flexShrink={1}, Yoga would shrink this box when space got
+          tight and Ink would draw with skipped rows (the title + selected
+          row would become invisible). Shrinking is delegated to the
+          scrollable area instead; overlay components cap their own height
+          based on the terminal's row count. */}
       {overlay && (
         <Box flexDirection="column" flexShrink={0}>
           {overlay}

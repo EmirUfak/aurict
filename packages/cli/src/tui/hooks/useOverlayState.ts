@@ -1,10 +1,10 @@
 /**
- * useOverlayState — TUI overlay/modal state yönetimi
+ * useOverlayState — TUI overlay/modal state management
  *
- * App.tsx'teki overlay state'lerini merkezi olarak yönetir.
- * Hangi overlay'lerin açık olduğunu takip eder ve `overlayOpen` flag'ini hesaplar.
+ * Centrally manages App.tsx's overlay states.
+ * Tracks which overlays are open and computes the `overlayOpen` flag.
  *
- * Overlay'ler:
+ * Overlays:
  * - QuickSearch (Ctrl+F)
  * - CommandPalette (Ctrl+P)
  * - SettingsPanel (Ctrl+S)
@@ -28,7 +28,7 @@ import type { Dispatch, SetStateAction } from "react"
 import type { DisplayMessage } from "../Message.js"
 import type { PlanRequest, Attachment, CoreMessage, TokenBreakdown } from "@aurict/core"
 
-// ── Tipler ────────────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
 
 export interface EditingMessage {
   id: string
@@ -130,7 +130,7 @@ export function useOverlayState(): OverlayState & OverlayActions {
   const [attachPath, setAttachPath] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
 
-  // Computed overlay flag — herhangi bir tam-ekran overlay/modal açıkken true
+  // Computed overlay flag — true when any full-screen overlay/modal is open
   const computeOverlayOpen = useCallback((extras?: {
     permission?: unknown
     picker?: unknown
@@ -151,7 +151,7 @@ export function useOverlayState(): OverlayState & OverlayActions {
       !!viewingSubagentId ||
       taskPanelOpen ||
       attachInput ||
-      // Extras (App.tsx'ten gelen)
+      // Extras (from App.tsx)
       !!extras?.permission ||
       !!extras?.picker ||
       !!extras?.question ||
@@ -185,7 +185,7 @@ export function useOverlayState(): OverlayState & OverlayActions {
     setViewingSubagentId(null)
   }, [closePrimaryOverlays])
 
-  // Computed overlay flag (without extras — App.tsx'te extras ile birlikte hesaplanır)
+  // Computed overlay flag (without extras — App.tsx computes it together with extras)
   const overlayOpen = computeOverlayOpen()
 
   return {

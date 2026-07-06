@@ -1,19 +1,19 @@
 import { reassertActiveModes } from "./terminal-modes.js"
 
 /**
- * stdin'de bu süreden uzun bir sessizlik sonrası yeni veri gelirse, terminal
- * modlarının (mouse tracking, bracketed paste, ...) yeniden ilan edilmesi
- * gerektiği varsayılır — tmux detach/reattach, SSH bağlantı kopması veya
- * laptop uyku/uyanma gibi senaryolarda uzak terminal DEC private mode
- * durumunu sıfırlamış olabilir; Aurict tarafında hâlâ "etkin" sayılan bir
- * mod, gerçekte terminalde artık etkin olmayabilir.
+ * If new data arrives on stdin after a silence longer than this duration,
+ * we assume terminal modes (mouse tracking, bracketed paste, ...) need to
+ * be re-asserted — in scenarios like tmux detach/reattach, an SSH
+ * disconnect, or a laptop sleep/wake, the remote terminal may have reset
+ * its DEC private mode state; a mode Aurict still considers "active" may
+ * no longer actually be active in the terminal.
  */
 export const STDIN_RESUME_GAP_MS = 5000
 
 let installed = false
 let lastActivityAt = Date.now()
 
-/** Saf karar fonksiyonu — testte gerçek zaman kaynağına ihtiyaç duymadan doğrulanır. */
+/** Pure decision function — verified in tests without needing a real time source. */
 export function shouldReassertModes(
   now: number,
   lastActivity: number,
@@ -23,12 +23,12 @@ export function shouldReassertModes(
 }
 
 /**
- * stdin aktivite izleyicisini kurar. Ink 5, stdin'i 'readable' + `read()` ile
- * (paused mode) tükettiği için buraya bir 'data' listener'ı EKLEMİYORUZ —
- * 'data' listener'ı eklemek stream'i flowing mode'a geçirir ve Ink'in manuel
- * `read()` döngüsüyle çakışır. 'readable' listener'ı paused mode'u bozmaz.
+ * Installs the stdin activity watcher. Since Ink 5 consumes stdin via
+ * 'readable' + `read()` (paused mode), we do NOT add a 'data' listener here
+ * — adding one would switch the stream into flowing mode, conflicting with
+ * Ink's manual `read()` loop. A 'readable' listener doesn't disturb paused mode.
  *
- * @returns Kaldırma (uninstall) fonksiyonu.
+ * @returns An uninstall function.
  */
 export function installStdinResumeGuard(now: () => number = Date.now): () => void {
   if (installed) return () => {}
@@ -50,7 +50,7 @@ export function installStdinResumeGuard(now: () => number = Date.now): () => voi
   }
 }
 
-/** Yalnızca testler için: modül-seviyeli durumu sıfırlar. */
+/** Test-only: resets module-level state. */
 export function __resetForTest(): void {
   installed = false
   lastActivityAt = Date.now()

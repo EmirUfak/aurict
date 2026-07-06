@@ -1,12 +1,12 @@
 /**
  * Design System — Icon
  *
- * Tutarlı ikon sistemi. Üç seviye fallback:
- * 1. Nerd Font (modern terminal) — zengin semboller
- * 2. Unicode (varsayılan) — çapraz terminal uyumluluğu
- * 3. ASCII (legacy) — en eski terminal'ler
+ * Consistent icon system. Three levels of fallback:
+ * 1. Nerd Font (modern terminal) — rich symbols
+ * 2. Unicode (default) — cross-terminal compatibility
+ * 3. ASCII (legacy) — the oldest terminals
  *
- * Otomatik algılama: $AURICT_ICON_SET veya terminal capability probe.
+ * Auto-detection: $AURICT_ICON_SET or a terminal capability probe.
  */
 
 import React from "react"
@@ -28,7 +28,7 @@ export function detectIconSet(): IconSet {
     cachedIconSet = env
     return cachedIconSet
   }
-  // Otomatik: TERM, LC_ALL, LANG kontrolü
+  // Automatic: check TERM, LC_ALL, LANG
   const term = (process.env["TERM"] ?? "").toLowerCase()
   const termProgram = (process.env["TERM_PROGRAM"] ?? "").toLowerCase()
   if (termProgram === "iterm.app" || termProgram === "apple_terminal" || termProgram === "vscode") {
@@ -42,7 +42,7 @@ export function detectIconSet(): IconSet {
 }
 
 // ── Icon registry ──────────────────────────────────────────────────────────────
-// Her ikon, üç set için tanımlanır. Eksikse unicode'a fallback.
+// Every icon is defined for all three sets. Falls back to unicode if missing.
 
 export type IconName =
   // Prompt / input

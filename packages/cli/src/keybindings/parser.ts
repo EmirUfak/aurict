@@ -1,19 +1,19 @@
 /**
  * Keybindings — Parser
  *
- * Key string'lerini (örn. "ctrl+shift+up", "shift+tab") parse edip KeyCombo
- * objesine çevirir. Ters yön (KeyCombo → display string) de sağlanır.
+ * Parses key strings (e.g. "ctrl+shift+up", "shift+tab") into a KeyCombo
+ * object. The reverse direction (KeyCombo → display string) is also provided.
  *
- * Söz dizimi:
- *   - "+" ile ayrılmış modifier'lar + tuş ismi
- *   - Modifier'lar: ctrl, alt, shift, meta, cmd (mac için alias)
- *   - Tuş isimleri: a-z, 0-9, f1-f12, enter, escape, tab, space, backspace,
+ * Syntax:
+ *   - "+"-separated modifiers + key name
+ *   - Modifiers: ctrl, alt, shift, meta, cmd (alias for mac)
+ *   - Key names: a-z, 0-9, f1-f12, enter, escape, tab, space, backspace,
  *                    delete, up, down, left, right, home, end, pageup, pagedown
  */
 
 import type { KeyCombo } from "./types.js"
 
-// ── Tuş normalleştirme ───────────────────────────────────────────────────────
+// ── Key normalization ───────────────────────────────────────────────────────
 
 const KEY_ALIASES: Record<string, string> = {
   esc:      "escape",
@@ -67,30 +67,30 @@ function normalizeModifier(mod: string): "ctrl" | "alt" | "shift" | "meta" | nul
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * "ctrl+shift+up" gibi bir string'i KeyCombo'ya parse eder.
- * Başarısızsa `null` döner (invalid syntax).
+ * Parses a string like "ctrl+shift+up" into a KeyCombo.
+ * Returns `null` on failure (invalid syntax).
  */
 export function parseKeyString(input: string): KeyCombo | null {
   if (!input || typeof input !== "string") return null
   const parts = input.split("+").map(s => s.trim()).filter(Boolean)
   if (parts.length === 0) return null
 
-  // Son parça tuş ismi, geri kalanı modifier
+  // The last part is the key name, the rest are modifiers
   const keyPart = parts[parts.length - 1]!
   const modifierParts = parts.slice(0, -1)
 
-  // Eğer tek parça varsa ve modifier değilse, sadece tuş
+  // If there's only one part and it's not a modifier, it's just the key
   if (modifierParts.length === 0) {
     const k = normalizeKey(keyPart)
     if (!isValidKey(k)) return null
     return { ctrl: false, alt: false, shift: false, meta: false, key: k }
   }
 
-  // Tüm modifier'ları parse et
+  // Parse all modifiers
   const result: KeyCombo = { ctrl: false, alt: false, shift: false, meta: false, key: "" }
   for (const mp of modifierParts) {
     const mod = normalizeModifier(mp)
-    if (mod === null) return null // tanınmayan modifier
+    if (mod === null) return null // unrecognized modifier
     result[mod] = true
   }
 
@@ -102,7 +102,7 @@ export function parseKeyString(input: string): KeyCombo | null {
 }
 
 /**
- * KeyCombo'yu display string'e çevirir (örn. "ctrl+shift+up").
+ * Converts a KeyCombo to a display string (e.g. "ctrl+shift+up").
  */
 export function formatKeyCombo(combo: KeyCombo): string {
   const parts: string[] = []
@@ -115,7 +115,7 @@ export function formatKeyCombo(combo: KeyCombo): string {
 }
 
 /**
- * Ink'in useInput key event'ini KeyCombo'ya çevirir.
+ * Converts Ink's useInput key event into a KeyCombo.
  * Ink: { input: string, key: { upArrow, downArrow, ctrl, shift, ... } }
  */
 export function inkKeyEventToCombo(event: {
@@ -141,7 +141,7 @@ export function inkKeyEventToCombo(event: {
   }
 }): KeyCombo {
   const k = event.key
-  // Özel tuşlar
+  // Special keys
   let keyName = event.input
   if (k.upArrow)     keyName = "up"
   else if (k.downArrow)  keyName = "down"
@@ -168,7 +168,7 @@ export function inkKeyEventToCombo(event: {
 }
 
 /**
- * İki KeyCombo'nun eşit olup olmadığını kontrol eder.
+ * Checks whether two KeyCombos are equal.
  */
 export function keyCombosEqual(a: KeyCombo, b: KeyCombo): boolean {
   return a.ctrl === b.ctrl
@@ -182,11 +182,11 @@ export function keyCombosEqual(a: KeyCombo, b: KeyCombo): boolean {
 
 function isValidKey(k: string): boolean {
   if (!k) return false
-  // Tek karakter: a-z, 0-9, semboller
+  // Single character: a-z, 0-9, symbols
   if (k.length === 1) return true
-  // Fonksiyon tuşları
+  // Function keys
   if (/^f([1-9]|1[0-2])$/i.test(k)) return true
-  // Özel isimler
+  // Special names
   const validNames = new Set([
     "enter", "escape", "tab", "space", "backspace", "delete", "insert",
     "up", "down", "left", "right", "home", "end", "pageup", "pagedown",

@@ -1,13 +1,14 @@
 /**
- * Remote — tarayıcı açma (best-effort).
+ * Remote — open browser (best-effort).
  *
- * Cihaz girişi onay sayfasını açmaya çalışır; başarısız olursa sessizce yutar —
- * çağıran taraf URL'yi zaten kullanıcıya yazdırır, bu yüzden açma işlemi kritik
- * yol değildir (headless sunucu/SSH oturumlarında spawn başarısız olabilir).
+ * Tries to open the device-login approval page; silently swallows failures —
+ * the caller already prints the URL to the user, so opening it isn't on the
+ * critical path (spawn can fail on headless servers/SSH sessions).
  *
- * Bun.spawn kullanılır (App.tsx'teki git-branch tespiti ile aynı desen) —
- * eksik binary'de senkron fırlatır, node:child_process'in async "error" event'i
- * gibi dinleyicisiz bırakılırsa süreci çökertme riski yoktur.
+ * Uses Bun.spawn (the same pattern as the git-branch detection in App.tsx) —
+ * it throws synchronously when the binary is missing, so there's no risk of
+ * crashing the process the way node:child_process's async "error" event can
+ * if left without a listener.
  */
 
 function openCommand(url: string): string[] {

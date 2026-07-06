@@ -1,40 +1,40 @@
 /**
- * Diff — Pure logic hook + tipler
+ * Diff — Pure logic hook + types
  *
- * DiffRenderer için yardımcı logic. React'ten bağımsız, kolay test edilir.
+ * Helper logic for DiffRenderer. Independent of React, easy to test.
  *
- * Desteklenen diff formatları:
+ * Supported diff formats:
  *  1. Raw unified diff ("---", "+++", "@@", "+", "-")
- *  2. Eski/yeni metin → computeDiff (core'dan) ile hunk listesi
+ *  2. Old/new text → hunk list via computeDiff (from core)
  *
- * Çıktı: normalize edilmiş "Hunk" listesi — renderer bunu tüketir.
+ * Output: a normalized "Hunk" list — consumed by the renderer.
  */
 
 import { computeDiff } from "@aurict/core"
 
-// ── Tipler ───────────────────────────────────────────────────────────────────
+// ── Types ───────────────────────────────────────────────────────────────────
 
 export type LineType = "add" | "remove" | "context"
 
 export interface DiffLine {
   type:        LineType
   content:     string
-  /** Eski dosyadaki satır numarası (1-based), yoksa undefined */
+  /** Line number in the old file (1-based), undefined if not applicable */
   oldLineNum?: number
-  /** Yeni dosyadaki satır numarası (1-based), yoksa undefined */
+  /** Line number in the new file (1-based), undefined if not applicable */
   newLineNum?: number
 }
 
 export interface Hunk {
-  /** "header" satırı (raw formatta "@@ -X,Y +A,B @@") veya "" */
+  /** The "header" line (in raw format "@@ -X,Y +A,B @@") or "" */
   header:    string
   oldStart:  number
   newStart:  number
   lines:     DiffLine[]
-  /** Eğer word-level diff ise, eklenen/silinen kelimelerin pozisyonları */
+  /** If this is a word-level diff, the positions of added/removed words */
   inline?:   Array<{
     lineIdx:  number
-    /** [start, end) aralığındaki kelimeler vurgulu */
+    /** Words within the [start, end) range are highlighted */
     ranges:   Array<{ start: number; end: number; kind: "add" | "remove" }>
   }>
 }
@@ -49,7 +49,7 @@ export interface ParsedDiff {
 // ── Raw diff parser ──────────────────────────────────────────────────────────
 
 /**
- * Raw unified diff string'ini parse eder.
+ * Parses a raw unified diff string.
  * Format:
  *   --- a/file.txt
  *   +++ b/file.txt
@@ -105,7 +105,7 @@ export function parseRawDiff(text: string): ParsedDiff {
         oldLineNum: oldLineNum++,
       })
     } else if (line.startsWith(" ") || line === "") {
-      // Context line (boş satır = context, unified diff'te)
+      // Context line (an empty line = context, in unified diff)
       currentHunk.lines.push({
         type: "context",
         content: line.startsWith(" ") ? line.slice(1) : "",
@@ -133,10 +133,10 @@ function extractFileName(lines: string[]): string | undefined {
   return undefined
 }
 
-// ── Eski/yeni metin → hunks ─────────────────────────────────────────────────
+// ── Old/new text → hunks ─────────────────────────────────────────────────
 
 /**
- * Eski/yeni metni hunks'a çevirir (computeDiff kullanarak).
+ * Converts old/new text into hunks (using computeDiff).
  */
 export function diffTexts(oldText: string, newText: string, contextLines = 3): ParsedDiff {
   const rawHunks = computeDiff(oldText, newText, contextLines)
@@ -174,19 +174,19 @@ export function diffTexts(oldText: string, newText: string, contextLines = 3): P
   return { hunks, additions, deletions }
 }
 
-// ── Word-level inline diff (basit) ───────────────────────────────────────────
+// ── Word-level inline diff (simple) ───────────────────────────────────────────
 
 /**
- * İki satır arasında kelime bazlı diff çıkarır (LCS benzeri basit yaklaşım).
- * Side-by-side modda silinen satırın yanında + olarak gösterilir.
+ * Computes a word-based diff between two lines (a simple LCS-like approach).
+ * Shown next to the removed line as + in side-by-side mode.
  *
- * Returns: ranges[]. Her range { start, end, kind: "add"|"remove" }
+ * Returns: ranges[]. Each range is { start, end, kind: "add"|"remove" }
  */
 export function wordDiff(a: string, b: string): {
   removed: Array<{ start: number; end: number }>
   added:   Array<{ start: number; end: number }>
 } {
-  // Basit kelime-tabanlı: kelimelere böl, common prefix/suffix bul
+  // Simple word-based approach: split into words, find common prefix/suffix
   const aWords = a.split(/(\s+)/)
   const bWords = b.split(/(\s+)/)
 
@@ -229,10 +229,10 @@ function wordRange(words: string[], idx: number): { start: number; end: number }
 export type DiffMode = "unified" | "side-by-side" | "raw"
 
 /**
- * İçeriğe göre en uygun mode'u öner.
+ * Suggests the best mode based on the content.
  */
 export function suggestDiffMode(parsed: ParsedDiff): DiffMode {
-  // Çok büyük diff'lerde raw/unified daha okunur
+  // raw/unified is more readable for very large diffs
   const totalLines = parsed.hunks.reduce((sum, h) => sum + h.lines.length, 0)
   if (totalLines > 200) return "unified"
   if (parsed.hunks.length === 1) return "side-by-side"

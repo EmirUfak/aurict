@@ -1,13 +1,13 @@
 /**
- * Mouse desteği — xterm escape sequence parser
+ * Mouse support — xterm escape sequence parser
  *
- * Terminal mouse raporlamasını etkinleştirir ve temel click/scroll event'lerini
- * parse eder. Ink'in useInput'u ile çakışmamak için raw stdin stream'ine
- * doğrudan listener eklenir.
+ * Enables terminal mouse reporting and parses basic click/scroll events.
+ * A listener is added directly to the raw stdin stream to avoid conflicting
+ * with Ink's useInput.
  *
- * Desteklenen protokoller:
+ * Supported protocols:
  *   - X10 (\x1b[M<b><x><y>)
- *   - SGR (\x1b[<n;n;nM ve \x1b[<n;n;nm)
+ *   - SGR (\x1b[<n;n;nM and \x1b[<n;n;nm)
  */
 
 import { useEffect, useRef } from "react"
@@ -28,10 +28,10 @@ const handlers = new Set<MouseHandler>()
 let enabled = false
 
 // ── Terminal focus (DECSET 1004: CSI I / CSI O) ─────────────────────────────
-// Odak sequence'ları da mouse sequence'ları gibi burada, TEK stdin-tap
-// noktasında ayrıştırılır — ayrı bir modülün stdin.emit/read'i bağımsızca
-// yeniden yaması, bu dosyanın zaten hassas olan coalesced-key-splitting ve
-// pendingReads kuyruğu mantığıyla öngörülemeyen şekilde çakışabilirdi.
+// Focus sequences are also parsed here, at the SAME single stdin-tap point as
+// mouse sequences — a separate module independently re-patching stdin.emit/read
+// could conflict unpredictably with this file's already-delicate coalesced-key-splitting
+// and pendingReads queue logic.
 type FocusHandler = (focused: boolean) => void
 const focusHandlers = new Set<FocusHandler>()
 const FOCUS_SEQ_RE = /\x1b\[([IO])/g
@@ -70,27 +70,27 @@ const _origStdinEmit = process.stdin.emit.bind(process.stdin) as (...a: any[]) =
 }
 
 // ── stdin.read() interception ─────────────────────────────────────────────────
-// Ink 5 tüketimi 'data' event'i ile DEĞİL, 'readable' + stdin.read() ile yapar.
-// Bu yüzden asıl filtreleme/parçalama burada olmalı:
+// Ink 5 does NOT consume via the 'data' event — it uses 'readable' + stdin.read().
+// So the real filtering/splitting has to happen here:
 //
-//   1. Mouse escape sequence'ları gerçek okuma yolundan da temizlenir
-//      (yukarıdaki emit patch'i yalnızca flowing moddaki akışları yakalar).
-//   2. Coalesced tuş dizileri ayrıştırılır: tuş basılı tutulduğunda terminal
-//      "\x1b[B\x1b[B\x1b[B" gibi TEK chunk gönderir; Ink chunk başına yalnızca
-//      BİR keypress parse eder ve kalan basışlar kaybolur (seçim listelerinde
-//      "kayma"/takılma hissi). Chunk tamamen ≥2 navigasyon sequence'ından
-//      oluşuyorsa tek tek kuyruklanır — Ink'in `while (read())` döngüsü her
-//      çağrıda bir keypress alır, hiçbir basış kaybolmaz.
-//   3. injectInput(): Ink'e programatik tuş göndermek için güvenilir yol
-//      (mouse wheel → ok tuşu sentezi gibi). stdin.emit("data") readable
-//      modda hiçbir listener'a ulaşmadığı için çalışmıyordu.
+//   1. Mouse escape sequences are also stripped from the real read path
+//      (the emit patch above only catches flowing-mode streams).
+//   2. Coalesced key sequences are split apart: while a key is held down, the
+//      terminal sends a SINGLE chunk like "\x1b[B\x1b[B\x1b[B"; Ink parses only
+//      ONE keypress per chunk and the remaining presses are lost (felt as
+//      "skipping"/stalling in selection lists). If a chunk consists entirely of
+//      ≥2 navigation sequences, they're queued one by one — Ink's `while (read())`
+//      loop picks up one keypress per call, so no press is lost.
+//   3. injectInput(): the reliable way to send Ink a programmatic keypress
+//      (e.g. mouse wheel → arrow key synthesis). stdin.emit("data") didn't work
+//      because it never reaches any listener in readable mode.
 //
-// Bracketed paste (\x1b[200~ ... \x1b[201~) navigasyon regex'iyle eşleşmediği
-// için parçalanmaz; normal metin ve karışık chunk'lar da olduğu gibi geçer.
+// Bracketed paste (\x1b[200~ ... \x1b[201~) doesn't match the navigation regex,
+// so it isn't split apart; normal text and mixed chunks pass through as-is.
 
-// Tek bir navigasyon/edit tuşunun escape sequence'ı:
-//   CSI:  \x1b[A/B/C/D (ok), \x1b[H/F (home/end), \x1b[1;5C gibi modifierlı,
-//         \x1b[3~ (del) \x1b[5~/6~ (pgup/pgdn) ve modifierlı \x1b[3;5~ türevleri
+// The escape sequence for a single navigation/edit key:
+//   CSI:  \x1b[A/B/C/D (arrows), \x1b[H/F (home/end), modified forms like \x1b[1;5C,
+//         \x1b[3~ (del), \x1b[5~/6~ (pgup/pgdn), and their modified \x1b[3;5~ variants
 //   SS3:  \x1bOA..\x1bOD, \x1bOH/\x1bOF
 const NAV_SEQ_RE = /\x1b(?:\[(?:\d+(?:;\d+)*)?(?:[ABCDHF]|~)|O[ABCDHF])/g
 
@@ -98,7 +98,7 @@ export function splitCoalescedKeys(chunk: string): string[] | null {
   if (chunk.length < 6 || chunk.charCodeAt(0) !== 0x1b) return null
   const tokens = chunk.match(NAV_SEQ_RE)
   if (!tokens || tokens.length < 2) return null
-  if (tokens.join("") !== chunk) return null   // saf navigasyon chunk'ı değil
+  if (tokens.join("") !== chunk) return null   // not a pure navigation chunk
   return tokens
 }
 
@@ -126,9 +126,9 @@ const _origStdinRead = process.stdin.read.bind(process.stdin)
 }
 
 /**
- * Ink'e programatik tuş gönder — kuyruğa ekler ve 'readable' tetikleyerek
- * Ink'in read() döngüsünü çalıştırır. (stdin.emit("data") Ink 5'in
- * readable-mode tüketiminde hiçbir işleyiciye ulaşmaz.)
+ * Send Ink a programmatic keypress — pushes it onto the queue and fires
+ * 'readable' to run Ink's read() loop. (stdin.emit("data") never reaches
+ * any handler in Ink 5's readable-mode consumption.)
  */
 export function injectInput(sequence: string): void {
   pendingReads.push(sequence)
@@ -138,9 +138,9 @@ export function injectInput(sequence: string): void {
 function enableMouseTracking(): () => void {
   if (enabled) return () => {}
   enabled = true
-  // Kayıt merkezi (terminal-modes.ts) SIGINT/SIGTERM/exit'te bu sequence'ların
-  // yazıldığından emin olur — önceden yalnızca React effect unmount'una
-  // güveniliyordu, süreç sinyalle sonlandığında hiç çalışmıyordu.
+  // The registry (terminal-modes.ts) ensures these sequences are written on
+  // SIGINT/SIGTERM/exit — previously this relied solely on the React effect's
+  // unmount, which never ran when the process was terminated by a signal.
   const cleanup = registerTerminalMode(
     "mouse-tracking",
     "\x1b[?1000h\x1b[?1006h",  // normal button events + SGR mode
@@ -155,10 +155,10 @@ function enableMouseTracking(): () => void {
 let focusModeCleanup: (() => void) | null = null
 
 /**
- * Terminal odak değişikliklerini (DECSET 1004) dinle. İlk abone olan çağrı
- * `\x1b[?1004h`'ı etkinleştirir; son abone ayrılınca `\x1b[?1004l` ile
- * kapatılır (mouse tracking'deki ref-count deseniyle aynı).
- * @returns Aboneliği iptal eden fonksiyon.
+ * Listen for terminal focus changes (DECSET 1004). The first subscriber call
+ * enables `\x1b[?1004h`; when the last subscriber leaves, it's disabled with
+ * `\x1b[?1004l` (same ref-count pattern as mouse tracking).
+ * @returns A function that unsubscribes.
  */
 export function onFocusChange(handler: FocusHandler): () => void {
   if (focusHandlers.size === 0) {

@@ -1,23 +1,23 @@
 /**
  * Design System — Typography
  *
- * Tutarlı tipografi hiyerarşisi. Her varyant tema-uyumlu renk ve ağırlık kullanır.
+ * Consistent typography hierarchy. Each variant uses a theme-matched color and weight.
  *
- * Seviyeler (yukarıdan aşağıya hiyerarşi):
- * - Display: büyük başlıklar (banner, onboarding)
- * - Title:   section başlıkları
- * - Heading: alt başlık
- * - Body:    normal metin (default)
- * - Caption: küçük açıklama
+ * Levels (hierarchy from top to bottom):
+ * - Display: large headings (banner, onboarding)
+ * - Title:   section titles
+ * - Heading: subheading
+ * - Body:    normal text (default)
+ * - Caption: small description
  * - Mono:    code-style (path, identifier)
- * - Label:   etiket, badge
+ * - Label:   label, badge
  */
 
 import React from "react"
 import { Text, type TextProps } from "ink"
 import { useTheme } from "../../utils/theme.js"
 
-// ── Tipografi varyantları ─────────────────────────────────────────────────────
+// ── Typography variants ─────────────────────────────────────────────────────
 
 export type TextVariant =
   | "display"
@@ -58,7 +58,7 @@ export interface TypoProps extends Omit<TextProps, "color"> {
   children:  React.ReactNode
 }
 
-// ── Variant → stil eşlemesi ───────────────────────────────────────────────────
+// ── Variant → style mapping ───────────────────────────────────────────────────
 
 interface VariantStyle {
   bold?:    boolean
@@ -79,7 +79,7 @@ const VARIANT_DEFAULT_STYLE: Record<TextVariant, VariantStyle> = {
   kbd:         { bold: true },
 }
 
-// ── Tone → renk eşlemesi ──────────────────────────────────────────────────────
+// ── Tone → color mapping ──────────────────────────────────────────────────────
 
 function toneColor(tone: TextTone, theme: ReturnType<typeof useTheme>): string {
   switch (tone) {
@@ -99,7 +99,7 @@ function toneColor(tone: TextTone, theme: ReturnType<typeof useTheme>): string {
   }
 }
 
-// ── Ana bileşen ───────────────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────────────
 
 export function Typo({
   variant = "body",
@@ -143,7 +143,7 @@ export function Typo({
   )
 }
 
-// ── Kısayol bileşenler (daha semantik) ────────────────────────────────────────
+// ── Shortcut components (more semantic) ────────────────────────────────────────
 
 export const T = Typo
 export const TextDisplay     = (p: Omit<TypoProps, "variant">) => <Typo {...p} variant="display" />
@@ -157,7 +157,7 @@ export const TextLabel       = (p: Omit<TypoProps, "variant">) => <Typo {...p} v
 export const TextCode        = (p: Omit<TypoProps, "variant">) => <Typo {...p} variant="code" />
 export const TextKbd         = (p: Omit<TypoProps, "variant">) => <Typo {...p} variant="kbd" />
 
-// ── Theme-aware tonal renkler (özel varyantlar) ───────────────────────────────
+// ── Theme-aware tonal colors (special variants) ───────────────────────────────
 
 export const Tone = {
   Primary:    "primary"    as TextTone,

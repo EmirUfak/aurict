@@ -4,8 +4,8 @@ import { useTheme } from "../utils/theme.js"
 import { Markdown } from "./Markdown.js"
 import { useBlinkFrame } from "./design-system/motion.js"
 
-// Streaming text'i Markdown ile render et — ### başlık, **bold**, liste vb.
-// memo ile: content değişmeyenler re-render almaz.
+// Render the streaming text with Markdown — ### headings, **bold**, lists, etc.
+// Wrapped in memo: unchanged content doesn't re-render.
 const StreamingTextBlock = memo(function StreamingTextBlock({ text, width }: { text: string; width: number }) {
   return (
     <Box flexDirection="column" width={width}>
@@ -24,7 +24,7 @@ function formatElapsed(ms: number): string {
   return `${m}m ${remaining}s`
 }
 
-// Elapsed time hook — paused=true olduğunda timer durur, zaman donar
+// Elapsed time hook — the timer stops and time freezes when paused=true
 function useElapsedTime(paused?: boolean): number {
   const [elapsed, setElapsed] = useState(0)
   const startRef = useRef(Date.now())
@@ -45,19 +45,19 @@ function useElapsedTime(paused?: boolean): number {
 
 import { useTerminalSize } from "./TerminalSizeContext.js"
 
-// Canlı akışta yükseklik sınırı: reasoning/text bloğu terminal yüksekliğini aşarsa
-// Ink kısmi çizimde satırları üst üste bindiriyor. Bu yüzden sadece son N mantıksal
-// satır gösterilir; kalanı "⋯ K earlier lines" ile özetlenir. Akış bittiğinde mesaj
-// normal (tam) Message olarak yeniden render edilir — hiçbir içerik kaybolmaz.
+// Height limit during live streaming: if the reasoning/text block exceeds the
+// terminal height, Ink's partial redraws overlap lines on top of each other. So only
+// the last N logical lines are shown; the rest are summarized as "⋯ K earlier lines".
+// When streaming ends, the message is re-rendered as a normal (full) Message — no content is lost.
 export const STREAM_REASONING_MAX = 8
 export const STREAM_TEXT_MAX      = 14
 
 interface Props {
   text:      string | null
   reasoning: string | null
-  skeleton?: boolean   // artık kullanılmıyor — Spinner bileşeni devralır
+  skeleton?: boolean   // no longer used — the Spinner component took over
   error?:    string    // show inline error (e.g. stream interrupted)
-  paused?:   boolean   // scroll lock aktifken animasyonları dondurur
+  paused?:   boolean   // freezes animations while scroll lock is active
 }
 
 function lineCount(text: string): number {
@@ -75,7 +75,7 @@ export const StreamingView = memo(function StreamingView({ text, reasoning, skel
   return (
     <Box flexDirection="column" paddingX={1} marginBottom={1}>
 
-      {/* ── Reasoning akışı ── */}
+      {/* ── Reasoning stream ── */}
       {reasoning && (() => {
         const allLines = reasoning.split("\n")
         const total    = allLines.length
@@ -83,7 +83,7 @@ export const StreamingView = memo(function StreamingView({ text, reasoning, skel
         const visible  = hidden > 0 ? allLines.slice(-STREAM_REASONING_MAX) : allLines
         return (
           <Box flexDirection="column" marginBottom={text ? 1 : 0}>
-            {/* Başlık: "∴ thinking… (142 lines) 3.2s" */}
+            {/* Header: "∴ thinking… (142 lines) 3.2s" */}
             <Box gap={1}>
               <Text color={theme.borderDim}>∴</Text>
               <Text color={theme.accent} italic dimColor>thinking…</Text>
@@ -93,7 +93,7 @@ export const StreamingView = memo(function StreamingView({ text, reasoning, skel
               <Text color={theme.textDim} dimColor>{formatElapsed(elapsed)}</Text>
             </Box>
 
-            {/* Son N reasoning satırı — ince ┊ sol çizgisi ile (yükseklik sınırı) */}
+            {/* Last N reasoning lines — with a thin ┊ left line (height limit) */}
             <Box flexDirection="column" marginLeft={2}>
               {hidden > 0 && (
                 <Box flexDirection="row">
@@ -116,7 +116,7 @@ export const StreamingView = memo(function StreamingView({ text, reasoning, skel
                   </Box>
                 </Box>
               ))}
-              {/* Canlı imleç */}
+              {/* Live cursor */}
               <Box flexDirection="row" marginLeft={2}>
                 <Text color={theme.accent} dimColor>{blink ? "▊" : " "}</Text>
               </Box>
@@ -125,7 +125,7 @@ export const StreamingView = memo(function StreamingView({ text, reasoning, skel
         )
       })()}
 
-      {/* ── Text akışı ── (son STREAM_TEXT_MAX satırla sınırlı — yükseklik koruması) */}
+      {/* ── Text stream ── (limited to the last STREAM_TEXT_MAX lines — height protection) */}
       {text && (() => {
         const textLines  = text.split("\n")
         const hiddenText = Math.max(0, textLines.length - STREAM_TEXT_MAX)
@@ -153,7 +153,7 @@ export const StreamingView = memo(function StreamingView({ text, reasoning, skel
         )
       })()}
 
-      {/* ── Hata durumu ── */}
+      {/* ── Error state ── */}
       {error && (
         <Box flexDirection="row" gap={1} paddingLeft={1}>
           <Box width={2} flexShrink={0}>

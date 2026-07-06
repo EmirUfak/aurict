@@ -1,11 +1,11 @@
 /**
  * Terminal Capability Detection
  *
- * Terminal emülatörünün desteklediği özellikleri algılar.
- * Farklı terminaller farklı escape sequence'leri ve protokolleri destekler.
- * Bu utility, runtime'da terminal yeteneklerini tespit eder.
+ * Detects which features the terminal emulator supports.
+ * Different terminals support different escape sequences and protocols.
+ * This utility detects terminal capabilities at runtime.
  *
- * Desteklenen terminaller:
+ * Supported terminals:
  * - iTerm2, Kitty, WezTerm, Alacritty, Ghostty
  * - VS Code Terminal, JetBrains Terminal
  * - GNOME Terminal, Konsole, xterm
@@ -19,17 +19,17 @@ export interface TerminalCapabilities {
   mouseSGR: boolean
   /** Kitty keyboard protocol (CSI u) */
   kittyKeyboard: boolean
-  /** 24-bit true color desteği */
+  /** 24-bit true color support */
   trueColor: boolean
-  /** Unicode/Emoji desteği */
+  /** Unicode/Emoji support */
   unicode: boolean
-  /** Terminal adı (algılanan) */
+  /** Terminal name (detected) */
   name: string
-  /** Multiplexer kullanılıyor mu (tmux/screen) */
+  /** Whether a multiplexer is in use (tmux/screen) */
   multiplexer: "tmux" | "screen" | null
 }
 
-// Terminal isimleri ve özellikleri
+// Terminal names and their capabilities
 const TERMINAL_PROFILES: Record<string, Partial<TerminalCapabilities>> = {
   "iTerm.app": {
     name: "iTerm2",
@@ -92,13 +92,13 @@ const TERMINAL_PROFILES: Record<string, Partial<TerminalCapabilities>> = {
     bracketedPaste: true,
     mouseSGR: true,
     kittyKeyboard: false,
-    trueColor: false, // Apple Terminal 256 color, true color değil
+    trueColor: false, // Apple Terminal supports 256 color, not true color
     unicode: true,
   },
 }
 
 /**
- * Terminal yeteneklerini algıla
+ * Detect terminal capabilities
  */
 export function detectTerminalCaps(): TerminalCapabilities {
   const termProgram = process.env["TERM_PROGRAM"] ?? ""
@@ -112,7 +112,7 @@ export function detectTerminalCaps(): TerminalCapabilities {
     process.env["STY"]  ? "screen" :
     null
 
-  // Bilinen terminal profili var mı?
+  // Is there a known terminal profile?
   const profile = TERMINAL_PROFILES[termProgram]
 
   // True color detection
@@ -124,31 +124,31 @@ export function detectTerminalCaps(): TerminalCapabilities {
     termProgram === "kitty" ||
     termProgram === "Alacritty" ||
     termProgram === "ghostty" ||
-    term.includes("256color") // xterm-256color genelde true color destekler
+    term.includes("256color") // xterm-256color usually supports true color
   )
 
-  // Unicode detection (locale'den)
+  // Unicode detection (from locale)
   const unicode = profile?.unicode ?? (
     lang.includes("UTF-8") ||
     lang.includes("utf8") ||
     lang.includes("UTF8") ||
-    process.platform === "darwin" // macOS genelde UTF-8
+    process.platform === "darwin" // macOS is usually UTF-8
   )
 
-  // Bracketed paste — neredeyse tüm modern terminaller destekler
+  // Bracketed paste — supported by nearly all modern terminals
   const bracketedPaste = profile?.bracketedPaste ?? (
     term !== "dumb" &&
-    term !== "linux" && // Linux console desteklemiyor
+    term !== "linux" && // Linux console doesn't support it
     !term.startsWith("vt")
   )
 
-  // Mouse SGR — çoğu modern terminal destekler
+  // Mouse SGR — supported by most modern terminals
   const mouseSGR = profile?.mouseSGR ?? (
     term !== "dumb" &&
     term !== "linux"
   )
 
-  // Kitty keyboard protocol — sadece Kitty ve birkaç modern terminal
+  // Kitty keyboard protocol — only Kitty and a handful of modern terminals
   const kittyKeyboard = profile?.kittyKeyboard ?? (
     termProgram === "kitty" ||
     termProgram === "WezTerm" ||
@@ -156,7 +156,7 @@ export function detectTerminalCaps(): TerminalCapabilities {
     !!process.env["KITTY_WINDOW_ID"]
   )
 
-  // Terminal adı
+  // Terminal name
   const name = profile?.name ?? (
     termProgram ||
     term ||
@@ -174,11 +174,11 @@ export function detectTerminalCaps(): TerminalCapabilities {
   }
 }
 
-// Singleton — her çağrıda yeniden hesaplama
+// Singleton — avoid recomputing on every call
 let cachedCaps: TerminalCapabilities | null = null
 
 /**
- * Terminal yeteneklerini al (cached)
+ * Get terminal capabilities (cached)
  */
 export function getTerminalCaps(): TerminalCapabilities {
   if (!cachedCaps) {
@@ -188,14 +188,14 @@ export function getTerminalCaps(): TerminalCapabilities {
 }
 
 /**
- * Cache'i temizle (test için)
+ * Clear the cache (for testing)
  */
 export function clearTerminalCapsCache(): void {
   cachedCaps = null
 }
 
 /**
- * Terminal adını kısa formatta döndür
+ * Return the terminal name in short form
  */
 export function shortTerminalName(): string {
   const caps = getTerminalCaps()
@@ -203,7 +203,7 @@ export function shortTerminalName(): string {
 }
 
 /**
- * Terminal'in belirli bir özelliği destekleyip desteklemediğini kontrol et
+ * Check whether the terminal supports a given feature
  */
 export function supports(feature: keyof Omit<TerminalCapabilities, "name" | "multiplexer">): boolean {
   return getTerminalCaps()[feature] === true

@@ -1,12 +1,12 @@
 /**
- * Remote — Faz 3 (backend signaling runtime, offerer) testleri.
+ * Remote — Phase 3 (backend signaling runtime, offerer) tests.
  *
- * Kapsam: event-codec (imzalama payload sırası, replay koruması), transport
- * (mock offer üretimi), runtime (session oluşturma → poll → answer → connected,
- * süre aşımı/kapanma, heartbeat, TURN preflight fallback, iptal).
+ * Coverage: event-codec (signing payload order, replay protection), transport
+ * (mock offer generation), runtime (session creation → poll → answer → connected,
+ * timeout/close, heartbeat, TURN preflight fallback, cancellation).
  *
- * `identity.js` mock'lanır — cihaz kaydı/kripto zaten remote-identity.test.ts'te
- * kapsamlı test edildi; burada yalnızca runtime'ın KENDİ durum makinesi izole edilir.
+ * `identity.js` is mocked — device registration/crypto is already thoroughly
+ * tested in remote-identity.test.ts; here only the runtime's OWN state machine is isolated.
  */
 import { describe, it, expect, afterEach, beforeEach, mock } from "bun:test"
 
@@ -28,7 +28,7 @@ import { MockCliRemoteTransport, type CliRemoteTransport, type SignalEnvelope, t
 import { CliRemoteRuntime, type RemoteSessionPublic, type CliRemoteStatus } from "../src/remote/runtime.js"
 import { RemoteApiError } from "../src/remote/backend-client.js"
 
-// ── Test yardımcıları ──────────────────────────────────────────────────────────
+// ── Test helpers ──────────────────────────────────────────────────────────────
 
 class SpyTransport implements CliRemoteTransport {
   offersCreated = 0
@@ -52,7 +52,7 @@ class SpyTransport implements CliRemoteTransport {
   onChannelOpen(handler: () => void): void { this.openHandlers.push(handler) }
   onMessage(handler: (data: string) => void): void { this.messageHandlers.push(handler) }
   send(data: string): void { this.sent.push(data) }
-  /** Testten çağrılır — gerçek transport'ta bu, veri kanalı gerçekten açılınca/mesaj gelince tetiklenir. */
+  /** Called from the test — in the real transport, this fires when the data channel actually opens/a message arrives. */
   simulateOpen(): void { for (const h of this.openHandlers) h() }
   simulateMessage(data: string): void { for (const h of this.messageHandlers) h(data) }
   async close(): Promise<void> { this.closed = true }
@@ -159,7 +159,7 @@ describe("event-codec", () => {
     expect(ledger.acceptIncoming(mk(1))).toBe(true)
     expect(ledger.acceptIncoming(mk(2))).toBe(true)
     expect(ledger.acceptIncoming(mk(2))).toBe(false)  // replay
-    expect(ledger.acceptIncoming(mk(1))).toBe(false)  // eski
+    expect(ledger.acceptIncoming(mk(1))).toBe(false)  // stale
     expect(ledger.lastSequence).toBe(2)
   })
 
@@ -220,7 +220,7 @@ describe("CliRemoteRuntime.start", () => {
       expect(statuses).toEqual(["registeringDevice", "creatingSession", "waitingForPhone", "connected"])
     } finally {
       restore()
-      // @ts-expect-error — test temizliği: gerçek 20s heartbeat interval'ını bırakma
+      // @ts-expect-error — test cleanup: don't leak the real 20s heartbeat interval
       clearInterval((runtime as any).heartbeatTimer)
     }
   }, 10_000)
@@ -416,7 +416,7 @@ describe("CliRemoteRuntime — agent event bridge (publish/onEvent)", () => {
 
     await runtime.publish("agent.status", { state: "idle" })
     const second = JSON.parse(transport.sent[1]!)
-    expect(second.seq).toBe(2)  // monotonik artış
+    expect(second.seq).toBe(2)  // monotonic increase
   })
 
   it("onEvent() delivers incoming transport messages and rejects replayed sequences", () => {
@@ -433,10 +433,10 @@ describe("CliRemoteRuntime — agent event bridge (publish/onEvent)", () => {
     expect(received.length).toBe(1)
     expect(received[0]!.type).toBe("prompt.submit")
 
-    transport.simulateMessage(JSON.stringify(event))  // replay — reddedilmeli
+    transport.simulateMessage(JSON.stringify(event))  // replay — should be rejected
     expect(received.length).toBe(1)
 
-    transport.simulateMessage("not-json{{{")  // bozuk mesaj — sessizce yutulmalı, crash olmamalı
+    transport.simulateMessage("not-json{{{")  // malformed message — should be swallowed silently, no crash
     expect(received.length).toBe(1)
   })
 

@@ -1,17 +1,17 @@
 /**
- * MultilineInput — fare ile click-drag seçim + otomatik kopyalama + tıkla-
- * konumlan testleri. `extractRange` saf mantık olarak birim test edilir;
- * gerçek click/release akışı ink-testing-library ile render edilen çerçeve
- * üzerinden gerçek SGR mouse escape sequence'ları enjekte edilerek uçtan uca
- * doğrulanır (mouse.ts'in gerçek stdin-tap patch'i üzerinden).
+ * MultilineInput — mouse click-drag select + auto-copy + click-to-position
+ * tests. `extractRange` is unit-tested as pure logic; the real click/release
+ * flow is verified end-to-end by injecting real SGR mouse escape sequences
+ * against the frame rendered via ink-testing-library (through mouse.ts's real
+ * stdin-tap patch).
  *
- * NOT: `clipboard.js`'i `mock.module` ile sahtelemiyoruz — bun'da bu TÜM
- * test dosyaları için global oluyor ve gerçek `clipboard.js` kullanan
- * `clipboard-write.test.ts`'i (aynı bun test sürecinde) sessizce bozuyordu.
- * Bunun yerine kopyalama, zaten var olan `onCopied` callback prop'u
- * üzerinden gözlemleniyor — `writeClipboard`'ın gerçek implementasyonu
- * çalışır (OSC52 non-TTY'de no-op eder, native komut yoksa sessizce geçer),
- * yalnızca YAN ETKİSİ (onCopied çağrısı) doğrulanır.
+ * NOTE: we don't fake `clipboard.js` with `mock.module` — in bun this becomes
+ * global for ALL test files, and it was silently breaking `clipboard-write.test.ts`
+ * (which uses the real `clipboard.js`) in the same bun test process.
+ * Instead, copying is observed via the already-existing `onCopied` callback
+ * prop — the real `writeClipboard` implementation runs (OSC52 no-ops on
+ * non-TTY, silently passes if there's no native command), and only its
+ * SIDE EFFECT (the onCopied call) is verified.
  */
 import React from "react"
 import { describe, it, expect, afterEach, mock } from "bun:test"
@@ -61,7 +61,7 @@ describe("MultilineInput — mouse click-drag select & copy (integration)", () =
     const { lastFrame } = render(
       <MultilineInput value="hello world" onChange={() => {}} onSubmit={() => {}} disabled={false} history={[]} onCopied={onCopied} />,
     )
-    await flush() // useMouseEvents'in registration effect'inin (passive) commit sonrası flush olmasını bekle
+    await flush() // wait for useMouseEvents's (passive) registration effect to flush after commit
     const frameLines = lastFrame()!.split("\n")
     const textRow     = frameLines.findIndex((l) => l.includes("hello world"))
     const textCol     = frameLines[textRow]!.indexOf("hello")
@@ -107,7 +107,7 @@ describe("MultilineInput — mouse click-drag select & copy (integration)", () =
 
     emitMouse(sgrClick(clickCol, row))
     emitMouse(sgrRelease(clickCol, row))
-    await flush() // setCursor'ın commit edilmesini bekle, sonraki tuş vuruşu güncel cursor'ı görsün
+    await flush() // wait for setCursor to commit, so the next keystroke sees the current cursor
 
     // Cursor should now be positioned right after "hello" — typing "X" inserts it there.
     stdin.write("X")

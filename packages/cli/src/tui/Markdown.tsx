@@ -48,11 +48,11 @@ function parseTableRow(line: string): string[] {
 }
 
 function parseListItem(raw: string): ListItem {
-  // indent seviyesi (2 boşluk = 1 indent)
+  // indent level (2 spaces = 1 indent)
   const indent = Math.floor((raw.match(/^(\s*)/)?.[1]?.length ?? 0) / 2)
   const stripped = raw.replace(/^\s*[*\-]\s/, "").replace(/^\s*\d+\.\s/, "")
 
-  // task list detection: [ ] veya [x]
+  // task list detection: [ ] or [x]
   const taskMatch = stripped.match(/^\[([x ])\]\s(.*)$/i)
   if (taskMatch) {
     return { text: taskMatch[2]!, checked: taskMatch[1]!.toLowerCase() === "x", indent }
@@ -62,7 +62,7 @@ function parseListItem(raw: string): ListItem {
 
 function parseBlocks(content: string): Block[] {
   const blocks: Block[] = []
-  // Kod bloklarını ayır
+  // Split out code blocks
   const codeRe = /```(\w*)\n([\s\S]*?)```/g
   const parts: Array<{ kind: "code"; lang: string; body: string } | { kind: "raw"; text: string }> = []
   let last = 0, m: RegExpExecArray | null
@@ -84,18 +84,18 @@ function parseBlocks(content: string): Block[] {
     while (i < lines.length) {
       const line = lines[i]!
 
-      // Başlıklar
+      // Headings
       if (/^# /.test(line))     { blocks.push({ kind: "h1", text: line.slice(2).trim() }); i++; continue }
       if (/^## /.test(line))    { blocks.push({ kind: "h2", text: line.slice(3).trim() }); i++; continue }
       if (/^### /.test(line))   { blocks.push({ kind: "h3", text: line.slice(4).trim() }); i++; continue }
       if (/^#{4,} /.test(line)) { blocks.push({ kind: "h3", text: line.replace(/^#+\s/, "").trim() }); i++; continue }
 
-      // Yatay çizgi
+      // Horizontal rule
       if (/^---+$/.test(line.trim()) || /^\*\*\*+$/.test(line.trim())) {
         blocks.push({ kind: "hr" }); i++; continue
       }
 
-      // Alıntı
+      // Blockquote
       if (line.startsWith("> ")) {
         const quoteLines: string[] = []
         while (i < lines.length && (lines[i]!.startsWith("> ") || lines[i]!.startsWith(">"))) {
@@ -105,7 +105,7 @@ function parseBlocks(content: string): Block[] {
         blocks.push({ kind: "quote", lines: quoteLines }); continue
       }
 
-      // Tablo: başlık satırı | ... |, sonraki satır separator
+      // Table: header row | ... |, next row is the separator
       if (line.includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1]!)) {
         const header = parseTableRow(line)
         const alignRow = parseTableRow(lines[i + 1]!)
@@ -119,7 +119,7 @@ function parseBlocks(content: string): Block[] {
         blocks.push({ kind: "table", header, align, rows }); continue
       }
 
-      // Liste (sırasız + task list) — nested destekli (indent)
+      // List (unordered + task list) — with nesting support (indent)
       if (/^(\s*)[*\-] /.test(line)) {
         const items: ListItem[] = []
         while (i < lines.length && /^(\s*)[*\-] /.test(lines[i]!)) {
@@ -129,7 +129,7 @@ function parseBlocks(content: string): Block[] {
         blocks.push({ kind: "list", items, ordered: false }); continue
       }
 
-      // Sıralı liste
+      // Ordered list
       if (/^(\s*)\d+\. /.test(line)) {
         const items: ListItem[] = []
         let idx = 1
@@ -207,7 +207,7 @@ function renderInline(text: string, key: number, width?: number): React.ReactNod
   )
 }
 
-// ── Syntax highlight satırı ───────────────────────────────────────────────────
+// ── Syntax highlight line ───────────────────────────────────────────────────
 
 function SyntaxLine({ line, lang }: { line: string; lang: Lang }) {
   const tokens = tokenizeLine(line, lang)
@@ -229,13 +229,13 @@ function TableView({
 }: { header: string[]; align: Align[]; rows: string[][]; termWidth: number }) {
   const theme = useTheme()
   const cols = header.length
-  // Her sütun için max genişlik hesapla
+  // Compute the max width for each column
   const colWidths = header.map((h, ci) => {
     const dataMax = rows.reduce((mx, row) => Math.max(mx, (row[ci] ?? "").length), 0)
     return Math.max(h.length, dataMax, 3)
   })
 
-  // Toplam genişlik kontrolü — terminal genişliğini aşmaması için küçült
+  // Total width check — shrink so it doesn't exceed the terminal width
   const totalW = colWidths.reduce((s, w) => s + w + 3, 1)
   if (totalW > termWidth - 2) {
     const scale = (termWidth - 2 - cols * 3 - 1) / colWidths.reduce((s, w) => s + w, 0)
@@ -342,7 +342,7 @@ export function Markdown({ content, width }: Props) {
                   const indent = item.indent * 2
 
                   if (item.checked === true) {
-                    // ✓ tamamlanmış task
+                    // ✓ completed task
                     return (
                       <Box key={ii} gap={1} paddingLeft={indent}>
                         <Text color={theme.success}>●</Text>
@@ -351,7 +351,7 @@ export function Markdown({ content, width }: Props) {
                     )
                   }
                   if (item.checked === false) {
-                    // ○ yapılmamış task
+                    // ○ incomplete task
                     return (
                       <Box key={ii} gap={1} paddingLeft={indent}>
                         <Text color={theme.textDim}>○</Text>

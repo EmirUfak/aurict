@@ -1,14 +1,14 @@
 /**
  * Design System — Kbd
  *
- * Tek tuş göstergesi. Klavye kısayollarını görsel olarak temsil eder.
+ * A single-key indicator. Visually represents keyboard shortcuts.
  *
- * Stiller:
- * - "boxed":  [Ctrl]  (kutu içinde)
- * - "key":    ⌃  (sembol olarak)
- * - "plain":  Ctrl  (düz yazı)
+ * Styles:
+ * - "boxed":  [Ctrl]  (inside a box)
+ * - "key":    ⌃  (as a symbol)
+ * - "plain":  Ctrl  (plain text)
  *
- * Platform-aware: macOS'ta ⌘/⌃/⌥, diğerlerinde Ctrl/Alt/Shift.
+ * Platform-aware: ⌘/⌃/⌥ on macOS, Ctrl/Alt/Shift elsewhere.
  */
 
 import React from "react"
@@ -136,17 +136,17 @@ export function formatChord(input: string, platform: Platform = detectPlatform()
   }).join(" ")
 }
 
-// ── Kbd component (tek tuş) ───────────────────────────────────────────────────
+// ── Kbd component (single key) ───────────────────────────────────────────────────
 
 export type KbdStyle = "boxed" | "key" | "plain"
 
 export interface KbdProps {
   k?:       string    // shortcut string, e.g. "ctrl+r"
-  sym?:     KeySymbol // doğrudan sembol
+  sym?:     KeySymbol // a direct symbol
   style?:   KbdStyle
   platform?: Platform
   color?:   string
-  uppercase?: boolean  // Linux/Windows'ta büyük harf
+  uppercase?: boolean  // uppercase on Linux/Windows
 }
 
 export function Kbd({ k, sym, style = "boxed", platform, color, uppercase }: KbdProps) {
@@ -156,7 +156,7 @@ export function Kbd({ k, sym, style = "boxed", platform, color, uppercase }: Kbd
   const s = sym ?? (k ? parseKeyString(k) : null)
   if (!s) return null
 
-  // Key style: sadece sembol (macOS)
+  // Key style: symbol only (macOS)
   if (style === "key") {
     const formatted = formatKey(s, pf)
     return (
@@ -166,13 +166,13 @@ export function Kbd({ k, sym, style = "boxed", platform, color, uppercase }: Kbd
     )
   }
 
-  // Plain: düz yazı
+  // Plain: plain text
   if (style === "plain") {
     const formatted = formatKey(s, pf)
     return <Text color={c}>{formatted}</Text>
   }
 
-  // Boxed: her modifiyer için ayrı kutu
+  // Boxed: a separate box for each modifier
   const parts: React.ReactNode[] = []
   if (s.ctrl)  parts.push(<KbdBox key="ctrl"  color={c}>{pf === "macos" ? "⌃" : "Ctrl"}</KbdBox>)
   if (s.alt)   parts.push(<KbdBox key="alt"   color={c}>{pf === "macos" ? "⌥" : "Alt"}</KbdBox>)
@@ -182,7 +182,7 @@ export function Kbd({ k, sym, style = "boxed", platform, color, uppercase }: Kbd
   const keyText = (() => {
     const k = s.key.toLowerCase()
     if (KEY_DISPLAY[k]) {
-      // Özel tuş (Esc, Enter, ↑, vb.) — zaten sembol/etiket var
+      // Special key (Esc, Enter, ↑, etc.) — already has a symbol/label
       return KEY_DISPLAY[k]
     }
     if (k === "space") return "Space"
@@ -220,7 +220,7 @@ function KbdBox({ color, primary, children }: { color: string; primary?: boolean
   )
 }
 
-// ── KeyHint: action'a bağlı kısayol göstergesi ───────────────────────────────
+// ── KeyHint: a shortcut indicator tied to an action ───────────────────────────────
 
 export interface KeyHintProps {
   /** Either a shortcut string OR a key string (raw) */
@@ -236,7 +236,7 @@ export function KeyHint({ keys, action, style = "boxed", platform, format = "key
   const theme = useTheme()
   const pf = platform ?? detectPlatform()
 
-  // Boxed mode: her şeyi inline
+  // Boxed mode: everything inline
   if (format === "key+action" && keys) {
     return (
       <Box>

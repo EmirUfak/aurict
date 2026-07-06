@@ -62,7 +62,7 @@ export function TaskFloatingPanel({ tasks, onClose }: Props) {
       borderColor={theme.borderDim}
       paddingX={1}
     >
-      {/* Başlık */}
+      {/* Title */}
       <Box justifyContent="space-between" marginBottom={1}>
         <Text color={theme.textSecondary} bold>Tasks ({tasks.length})</Text>
         <Text color={theme.textDim} dimColor>Esc · ↑↓ · g/G</Text>
@@ -84,22 +84,22 @@ export function TaskFloatingPanel({ tasks, onClose }: Props) {
         </Box>
       )}
 
-      {/* Yukarı scroll göstergesi */}
+      {/* Upward scroll indicator */}
       {above > 0 && (
         <Text color={theme.textDim} dimColor>  ↑ {above} above</Text>
       )}
 
-      {/* Boş durum */}
+      {/* Empty state */}
       {shown.length === 0 && (
         <Text color={theme.textDim} italic>No tasks yet</Text>
       )}
 
-      {/* All-done durumu */}
+      {/* All-done state */}
       {allDone && (
         <Text color={theme.success} dimColor>  All done ✓</Text>
       )}
 
-      {/* Task listesi */}
+      {/* Task list */}
       {shown.map((t) => {
         const owner = t.owner ? `@${t.owner}` : ""
         const suffix = owner || (t.blockedBy.length > 0 ? `blocked ${t.blockedBy.length}` : "")
@@ -128,7 +128,7 @@ export function TaskFloatingPanel({ tasks, onClose }: Props) {
         )
       })}
 
-      {/* Aşağı scroll göstergesi */}
+      {/* Downward scroll indicator */}
       {below > 0 && (
         <Text color={theme.textDim} dimColor>  ↓ {below} below</Text>
       )}

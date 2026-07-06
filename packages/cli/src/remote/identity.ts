@@ -1,16 +1,17 @@
 /**
- * Remote — CLI cihaz kimliği (Ed25519 imzalama anahtarı).
+ * Remote — CLI device identity (Ed25519 signing key).
  *
- * Mobil ile bit-uyumlu sözleşme (mobile/lib/remote/mobile_device_identity.dart):
+ * Bit-compatible contract with mobile (mobile/lib/remote/mobile_device_identity.dart):
  *   - signingPublicKey: JWK STRING → {"kty":"OKP","crv":"Ed25519","x":<base64url>,"ext":true,"key_ops":["verify"]}
  *   - signingKeyFingerprint: "fp_" + base64url(sha256(utf8(jwkString)))
- *   - encryptionPublicKey: şimdilik signingPublicKey ile aynı (backend de böyle bekliyor)
- *   - imza: base64url(ed25519_sign(utf8(payload))) — ham Ed25519 imzası, JWS değil
+ *   - encryptionPublicKey: same as signingPublicKey for now (the backend expects this too)
+ *   - signature: base64url(ed25519_sign(utf8(payload))) — a raw Ed25519 signature, not JWS
  *
- * Backend (`apps/backend/src/crypto/signatures.ts`) `signingPublicKey`'i doğrudan
- * `crypto.subtle.importKey("jwk", ...)` ile parse edip doğruluyor — bu yüzden burada
- * üretilen JWK, backend'in de çalıştığı WebCrypto (Bun) ile üretilir/saklanır/imzalanır.
- * Doğrulandı: bkz. Ed25519 generate→export→sign→import→verify round-trip probe'u.
+ * The backend (`apps/backend/src/crypto/signatures.ts`) parses and verifies
+ * `signingPublicKey` directly via `crypto.subtle.importKey("jwk", ...)` — so
+ * the JWK generated here is produced/stored/signed with the same WebCrypto
+ * (Bun) the backend runs on. Verified via an Ed25519
+ * generate→export→sign→import→verify round-trip probe.
  */
 
 import { backendRequest, RemoteApiError } from "./backend-client.js"
@@ -20,8 +21,8 @@ import { readSecureJson, writeSecureJson, deleteSecureFile } from "./secure-stor
 
 const IDENTITY_FILE = "device.json"
 
-// tsconfig lib'i "ES2022" (DOM yok) olduğu için ambient `JsonWebKey` tipi mevcut
-// değil — Ed25519 JWK'nin kullandığımız alanları için yerel, minimal bir tip.
+// Since tsconfig's lib is "ES2022" (no DOM), the ambient `JsonWebKey` type
+// isn't available — a local, minimal type for the fields we use of an Ed25519 JWK.
 export interface Ed25519Jwk {
   kty:      string
   crv:      string
@@ -34,11 +35,12 @@ export interface Ed25519Jwk {
 interface StoredIdentity {
   deviceId:              string
   privateJwk:            Ed25519Jwk
-  publicJwk:             string   // wire format (JSON string) — kayıtta gönderilen değerin aynısı
+  publicJwk:             string   // wire format (JSON string) — same value sent at registration
   signingKeyFingerprint: string
   verified:              boolean
-  /** Kaydın yapıldığı hesap — aynı makinede farklı bir hesapla giriş yapılırsa
-   *  (userId uyuşmazsa) bu kimlik yeniden kullanılmaz, yeniden kayıt denenir. */
+  /** The account this was registered under — if a different account logs in
+   *  on the same machine (userId mismatch), this identity isn't reused and
+   *  re-registration is attempted. */
   registeredForUserId?:  string
 }
 
@@ -69,12 +71,12 @@ async function generateKeyMaterial(): Promise<KeyMaterial> {
   const keyPair    = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]) as CryptoKeyPair
   const privateJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey) as Ed25519Jwk
   if (!privateJwk.x) throw new Error("Ed25519 key export did not include the public component.")
-  const publicJwk  = toWireJwk(privateJwk.x)  // private JWK'nin "x" alanı = public key
+  const publicJwk  = toWireJwk(privateJwk.x)  // the private JWK's "x" field = the public key
   const fingerprint = await fingerprintOf(publicJwk)
   return { privateJwk, publicJwk, fingerprint }
 }
 
-/** Verilen ham metni (UTF8) saklı özel anahtarla imzalar; base64url imza döner. */
+/** Signs the given raw text (UTF8) with the stored private key; returns a base64url signature. */
 export async function signPayload(privateJwk: Ed25519Jwk, payload: string): Promise<string> {
   const key = await crypto.subtle.importKey("jwk", privateJwk, { name: "Ed25519" }, false, ["sign"])
   const sig = await crypto.subtle.sign({ name: "Ed25519" }, key, new TextEncoder().encode(payload))
@@ -128,17 +130,18 @@ async function registerAndVerify(material: KeyMaterial, accessToken: string, use
 }
 
 /**
- * Cihaz kimliğini garanti eder: yerelde doğrulanmış VE aynı hesaba ait bir kimlik
- * varsa onu döner; yoksa (ilk çalıştırma, hesap değişimi, veya önceki kayıt yarım
- * kalmışsa) anahtar üretir/yeniden kullanır, backend'e kaydeder ve challenge
- * imzalayarak doğrular.
+ * Ensures a device identity: if a locally-verified identity that belongs to
+ * the same account exists, returns it; otherwise (first run, account
+ * switch, or a previous registration left half-done) generates/reuses a
+ * key, registers it with the backend, and verifies it by signing a challenge.
  *
- * Aynı makinede farklı bir hesapla giriş yapılırsa (`registeredForUserId` uyuşmaz)
- * eski anahtar yeniden kullanılmaz — doğrudan taze anahtar üretilir (aksi halde
- * fingerprint zaten eski hesaba kayıtlı olduğundan gereksiz bir `device_exists`
- * round-trip'i yaşanırdı). `device_exists` (ör. config dizini silinip anahtar
- * kaybedildiğinde eski kayıt backend'de asılı kalması) durumunda da taze bir
- * anahtarla bir kez daha dener.
+ * If a different account logs in on the same machine
+ * (`registeredForUserId` mismatch), the old key is NOT reused — a fresh key
+ * is generated directly (otherwise, since the fingerprint is already
+ * registered to the old account, an unnecessary `device_exists` round-trip
+ * would occur). On `device_exists` (e.g. the config directory was deleted
+ * and the key lost, leaving a stale registration hanging on the backend),
+ * it also retries once more with a fresh key.
  */
 export async function ensureDeviceIdentity(): Promise<DeviceIdentity> {
   const currentUserId = readStoredTokens()?.userId
@@ -171,7 +174,7 @@ export function readDeviceIdentity(): DeviceIdentity | null {
   return stored ? toPublicIdentity(stored) : null
 }
 
-/** Uzaktan-oturum imzalamaları (offer/answer/event) için saklı özel anahtarla imzalar. */
+/** Signs with the stored private key, for remote-session signatures (offer/answer/event). */
 export async function signWithStoredIdentity(payload: string): Promise<string> {
   const stored = readSecureJson<StoredIdentity>(IDENTITY_FILE)
   if (!stored) throw new Error("No device identity found. Call ensureDeviceIdentity() first.")

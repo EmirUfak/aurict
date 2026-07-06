@@ -39,7 +39,7 @@ function formatElapsed(ms: number): string {
   return `${m}m ${Math.floor(s % 60)}s`
 }
 
-// Glimmer: verilen metin üzerinde parlak sweep
+// Glimmer: a bright sweep over the given text
 function GlimmerText({ text, glimmer, activeColor, dimColor }: {
   text: string
   glimmer: number

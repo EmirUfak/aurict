@@ -130,7 +130,7 @@ export function CockpitHeader({
 
   return (
     <Surface width={Math.max(40, width)} variant="flat" tone="muted" accentColor={theme.borderActive} paddingX="md" paddingY="none">
-      {/* ── Üst sıra: kimlik · aktif araç ···· provider/model · ctx · token ── */}
+      {/* ── Top row: identity · active tool ···· provider/model · ctx · tokens ── */}
       <HStack justify="space-between">
         <HStack gap="sm">
           <StatusDot tone={pip} active={!!loading} />
@@ -155,10 +155,10 @@ export function CockpitHeader({
         </HStack>
       </HStack>
 
-      {/* ── Hairline ayraç ── */}
+      {/* ── Hairline divider ── */}
       <Text color={theme.borderDim}>{hairline}</Text>
 
-      {/* ── Alt sıra: konum · dal · agent ···· radar · görev · bg · server · mod ── */}
+      {/* ── Bottom row: location · branch · agent ···· radar · tasks · bg · server · mode ── */}
       <HStack justify="space-between">
         <HStack gap="sm">
           <Eyebrow tone="muted">workdir</Eyebrow>

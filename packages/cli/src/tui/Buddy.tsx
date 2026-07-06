@@ -11,7 +11,7 @@ import {
 
 export type PetState = "idle" | "thinking" | "working" | "error"
 
-// ── Isim üretici ──────────────────────────────────────────────────────────────
+// ── Name generator ──────────────────────────────────────────────────────────────
 
 const NAMES = [
   "Kibo","Mochi","Sora","Nova","Pixel","Byte",
@@ -23,7 +23,7 @@ function deriveName(workdir: string): string {
   return NAMES[parseInt(hash.slice(0, 4), 16) % NAMES.length]!
 }
 
-// ── Konuşma balonu ────────────────────────────────────────────────────────────
+// ── Speech bubble ────────────────────────────────────────────────────────────
 
 function Bubble({ text, color }: { text: string; color: string }) {
   return (
@@ -51,7 +51,7 @@ function petStateToMood(state: PetState, activeTool?: string): Mood {
   return "idle"
 }
 
-// ── Ana bileşen ───────────────────────────────────────────────────────────────
+// ── Main component ───────────────────────────────────────────────────────────────
 
 export function Buddy({ state = "idle", activeTool, workdir = "" }: Props) {
   const theme     = useTheme()

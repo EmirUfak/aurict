@@ -1,10 +1,10 @@
 /**
  * Keybindings — Validation
  *
- * Override'lar ve default binding'ler için doğrulama kuralları:
- *  - Geçersiz action/context isimleri
- *  - Yanlış key string söz dizimi
- *  - Aynı context'te iki action'a aynı tuş atanmış
+ * Validation rules for overrides and default bindings:
+ *  - Invalid action/context names
+ *  - Malformed key string syntax
+ *  - The same key assigned to two actions in the same context
  */
 
 import { parseKeyString } from "./parser.js"
@@ -14,7 +14,7 @@ import type {
   ValidationResult, ValidationIssue,
 } from "./types.js"
 
-// ── Tek tek kontrol ──────────────────────────────────────────────────────────
+// ── Individual checks ──────────────────────────────────────────────────────────
 
 export function isValidAction(s: string): s is Action {
   return (ALL_ACTIONS as readonly string[]).includes(s)
@@ -35,18 +35,18 @@ export function isValidKeySyntax(key: string): { valid: boolean; reason?: string
 // ── Top-level validation ─────────────────────────────────────────────────────
 
 /**
- * BindingOverride objesini doğrular (kullanıcı config'i).
+ * Validates a BindingOverride object (the user's config).
  */
 export function validateOverride(override: BindingOverride): ValidationResult {
   const issues: ValidationIssue[] = []
 
   for (const [action, key] of Object.entries(override)) {
-    // Action bilinmiyor mu?
+    // Is the action unknown?
     if (!isValidAction(action)) {
       issues.push({ kind: "unknown-action", action })
       continue
     }
-    // Key söz dizimi geçerli mi?
+    // Is the key syntax valid?
     const keyCheck = isValidKeySyntax(key)
     if (!keyCheck.valid) {
       issues.push({
@@ -61,8 +61,8 @@ export function validateOverride(override: BindingOverride): ValidationResult {
 }
 
 /**
- * ContextBindings objesini doğrular (resolved bindings).
- * Tüm action/context kombinasyonları dolu mu? Duplicate var mı?
+ * Validates a ContextBindings object (resolved bindings).
+ * Are all action/context combinations filled in? Are there duplicates?
  */
 export function validateContextBindings(bindings: ContextBindings): ValidationResult {
   const issues: ValidationIssue[] = []
@@ -74,7 +74,7 @@ export function validateContextBindings(bindings: ContextBindings): ValidationRe
       continue
     }
 
-    // Her action için key geçerli mi?
+    // Is the key valid for every action?
     for (const action of ALL_ACTIONS) {
       const keys = ctxBindings[action]
       if (!Array.isArray(keys)) {
@@ -93,7 +93,7 @@ export function validateContextBindings(bindings: ContextBindings): ValidationRe
       }
     }
 
-    // Duplicate check: aynı tuş iki farklı action'a atanmış mı?
+    // Duplicate check: is the same key assigned to two different actions?
     const keyToAction = new Map<string, Action>()
     for (const action of ALL_ACTIONS) {
       const keys = ctxBindings[action] ?? []
