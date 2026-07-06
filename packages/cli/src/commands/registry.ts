@@ -554,9 +554,16 @@ const commands: CommandDef[] = [
   {
     name:        "doctor",
     aliases:     ["health"],
-    description: "Run terminal install and runtime diagnostics",
-    handler: async (_args, ctx): Promise<CommandResult> => {
-      const { getDoctorReport } = await import("../util/doctor.js")
+    description: "Run terminal install and runtime diagnostics (use --json for machine output)",
+    handler: async (args, ctx): Promise<CommandResult> => {
+      const json = args.includes("--json") || args.includes("-j")
+      const { getDoctorReport, getDoctorReportJson } = await import("../util/doctor.js")
+      if (json) {
+        const report = await getDoctorReportJson(ctx.workdir)
+        return report.exitCode === 0
+          ? { type: "text", content: report.json }
+          : { type: "error", message: report.json }
+      }
       const report = await getDoctorReport(ctx.workdir)
       return report.exitCode === 0
         ? { type: "text", content: report.text }

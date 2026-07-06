@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+tone_instructions: "Be direct, concise, and maintainer-minded. Separate blocking issues from non-blocking suggestions. Match Aurict's TypeScript strict, modular, fail-loud culture."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  review_status: true
+  review_details: true
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  auto_apply_labels: false
+  suggested_reviewers: true
+  auto_assign_reviewers: false
+  in_progress_fortune: false
+  poem: false
+  enable_prompt_for_ai_agents: true
+
+  auto_review:
+    enabled: true
+    drafts: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 0
+    base_branches:
+      - ".*"
+    ignore_usernames:
+      - "dependabot[bot]"
+      - "github-actions[bot]"
+
+  path_filters:
+    # Build artifacts
+    - "!dist/**"
+    - "!packages/*/dist/**"
+    - "!packages/*/node_modules/**"
+    - "!packages/*/tsconfig.tsbuildinfo"
+    - "!bun.lock"
+    # Backend prototype & mobile artifacts (kept out of public repo)
+    - "!apps/backend/**"
+    - "!mobile/build/**"
+    - "!mobile/.dart_tool/**"
+    - "!mobile/android/app/google-services.json"
+    # Private docs
+    - "!private-docs/**"
+    # Generated artifacts
+    - "!.codegraph/**"
+    - "!.aurict/**"
+    - "!.omo/**"
+    # Snapshots and binary assets
+    - "!**/*.snap"
+    - "!**/*.png"
+    - "!**/*.jpg"
+    - "!**/*.jpeg"
+    - "!**/*.gif"
+    - "!**/*.apk"
+    - "!**/*.ipa"
+
+  path_instructions:
+    - path: "**/*.{ts,tsx}"
+      instructions: |
+        Apply the Aurict maintainer review rubric from AGENTS.md.
+
+        HARD RULES (blocking — request changes if violated):
+        - Code file > 300 LOC → request split into modules. Docs/configs exempt.
+        - Empty try/catch (catch{} with no handler, no rethrow) → block.
+        - Silent default fallbacks that mask failures during development → block.
+        - `as any`, `@ts-ignore`, `@ts-expect-error`, type suppression → block.
+        - Reverted tests, deleted tests to "pass" → block.
+        - Speculation about unread code, decisions stated as fact without evidence → block.
+
+        WORKING AGREEMENT (strong preferences — comment, but not auto-block):
+        - Smallest safe change that solves the task. No "while I'm here" unrelated edits.
+        - Preserve existing style and conventions in the touched file. No reformat-around-edit.
+        - Fix root cause, not symptom. If a bug is in A but shows in B, request fix in A.
+        - Prefer mature open-source/self-hostable libraries over custom impl.
+        - UI/API designed for the end-user, not the database schema shape.
+
+        SELECTION CRITERIA:
+        - If checks are failing or unavailable, say so clearly instead of implying the PR is ready.
+        - Distinguish real blockers from suggestion-level churn. Do not request changes for vague style.
+        - Approvals only imply CodeRabbit's view; human review + CI are still required.
+        - For new dependencies, surface the choice and help qualify it (license maturity, maintenance).
+
+        STACK:
+        - TypeScript strict, ESM imports, Bun runtime + test runner, Ink 5 TUI,
+          Vercel AI SDK 4, Hono 4, SQLite via bun:sqlite + Drizzle, MCP SDK,
+          Zod 3. Match existing patterns before introducing new abstractions.
+        - Monorepo: packages/cli (TUI/commands), packages/core (engine/tools/providers),
+          packages/sdk (public API). Edits should respect package boundaries — CLI
+          imports core, core does not import CLI.
+
+    - path: "packages/core/**"
+      instructions: |
+        Core is the engine: agent loop, tool registry, providers, sessions, MCP, server.
+        - Keep provider logic in packages/core/src/provider/*. Registry/router pattern.
+        - Tool implementations go in packages/core/src/tool/built-in/. One tool per file.
+        - Permission checks must go through permission/evaluator.ts + gateguard.ts.
+        - Never import from packages/cli here. Core must be runtime-agnostic.
+
+    - path: "packages/cli/**"
+      instructions: |
+        CLI is the TUI/UX surface. Ink 5, React 19.
+        - Slash command definitions live in packages/cli/src/commands/registry.ts.
+        - TUI components go in packages/cli/src/tui/. Use design-system primitives when available.
+        - Keybindings through packages/cli/src/keybindings/ — never inline handleInput hacks.
+        - Config loader: packages/cli/src/config/loader.ts supports global < project < flag merge.
+
+    - path: "**/*.test.{ts,tsx}"
+      instructions: |
+        Tests run with Bun's built-in runner. No jest/uv drops.
+        - New behavior changes should add or update tests.
+        - Do not delete tests to make a fix pass.
+        - Prefer focused tests over broad suite changes.
+
+    - path: "AGENTS.md"
+      instructions: |
+        AGENTS.md is the agent operating contract. Keep it short and true.
+        Every line must change agent behavior — if a line doesn't, request removal.
+
+    - path: "apps/web/**"
+      instructions: |
+        Web surface (docs/landing). Avoid leaking private backend code here.
+
+    - path: "mobile/**"
+      instructions: |
+        Flutter app. BYOK mobile assistant. Treat as separate from CLI/core TypeScript side.
+        - Never commit google-services.json or signing keystores.
+        - Backend routes referenced from mobile must be already in apps/backend or public docs.

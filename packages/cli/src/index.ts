@@ -3,6 +3,10 @@ import { EventEmitter } from "node:events"
 // Bileşen sayısı arttıkça varsayılan 10 limit aşılır — 50'ye çıkar.
 EventEmitter.defaultMaxListeners = 50
 
+import { profileCheckpoint, flushProfileReportOnExit } from "./util/startupProfiler.js"
+flushProfileReportOnExit()
+profileCheckpoint("entry_module_loaded")
+
 import { loadConfig, parseFlags, applyFlags } from "./config/loader.js"
 
 let mcpManagerRef: { disconnectAll(): Promise<void> } | null = null
@@ -52,6 +56,7 @@ process.on("unhandledRejection", (r) => {
 
 const flags   = parseFlags()
 const workdir = process.cwd()
+profileCheckpoint("flags_parsed")
 
 // --version
 if (flags.version) {
@@ -67,6 +72,7 @@ Aurict v1.1.5 — Terminal AI assistant
 Usage:
   aurict [options]
   aurict doctor              Run local install diagnostics
+  aurict doctor --json       Machine-readable JSON report (aurict.doctor/v1 schema)
   aurict run <recipe.yaml>   Run a recipe (automated multi-step task)
 
 Options:
@@ -103,19 +109,41 @@ Environment variables:
 
 const [subCmd, recipeFile] = process.argv.slice(2)
 if (subCmd === "doctor") {
+  const jsonFlag = process.argv.slice(2).includes("--json") || process.argv.slice(2).includes("-j")
   const { runDoctor } = await import("./util/doctor.js")
-  const exitCode = await runDoctor(workdir)
+  const exitCode = await runDoctor(workdir, { json: jsonFlag })
   process.exit(exitCode)
 }
 
-const React = (await import("react")).default
-const { render } = await import("ink")
-const { bootstrap } = await import("./bootstrap.js")
-const { App } = await import("./tui/App.js")
-const { SetupWizard } = await import("./tui/SetupWizard.js")
-const { ErrorBoundary, writeTUIcrashReport } = await import("./tui/ErrorBoundary.js")
-const { checkForUpdate } = await import("./util/update-check.js")
-const core = await import("@aurict/core")
+profileCheckpoint("prefetch_started")
+const [reactMod, inkMod] = await Promise.all([
+  import("react"),
+  import("ink"),
+])
+profileCheckpoint("react_ink_loaded")
+
+const [
+  bootstrapMod,     appMod,
+  setupWizardMod,   errorBoundaryMod,
+  updateCheckMod,   coreMod,
+] = await Promise.all([
+  import("./bootstrap.js"),
+  import("./tui/App.js"),
+  import("./tui/SetupWizard.js"),
+  import("./tui/ErrorBoundary.js"),
+  import("./util/update-check.js"),
+  import("@aurict/core"),
+])
+profileCheckpoint("prefetch_resolved")
+
+const React   = reactMod.default
+const { render } = inkMod
+const { bootstrap } = bootstrapMod
+const { App } = appMod
+const { SetupWizard } = setupWizardMod
+const { ErrorBoundary, writeTUIcrashReport } = errorBoundaryMod
+const { checkForUpdate } = updateCheckMod
+const core = coreMod
 const {
   runAgent,
   ProviderRegistry,
@@ -124,11 +152,13 @@ const {
   runRecipe,
   parseRecipeFile,
   loadConfig: loadOmniConfig,
+  loadApiKeyFromKeystore,
 } = core
 mcpManagerRef = mcpManager
+profileCheckpoint("core_symbols_destructured")
 
-// Load API keys from ~/.aurict/config.json into process.env (only if not already set by shell)
 const omniCfg = loadOmniConfig(workdir)
+profileCheckpoint("omni_config_loaded")
 const PROVIDER_ENV_MAP: Record<string, string[]> = {
   anthropic:  ["ANTHROPIC_API_KEY"],
   openai:     ["OPENAI_API_KEY"],
@@ -146,11 +176,20 @@ for (const [provider, val] of Object.entries(omniCfg.providers ?? {})) {
   for (const envVar of envVars) {
     if (!process.env[envVar]) process.env[envVar] = val.apiKey
   }
-  // Azure also needs baseUrl for the endpoint
   if (provider === "azure" && val.baseUrl && !process.env["AZURE_OPENAI_ENDPOINT"]) {
     process.env["AZURE_OPENAI_ENDPOINT"] = val.baseUrl
   }
 }
+
+for (const [provider, envVars] of Object.entries(PROVIDER_ENV_MAP)) {
+  if (envVars.length === 0) continue
+  const anyEnvSet = envVars.some((v) => Boolean(process.env[v]))
+  if (anyEnvSet) continue
+  const keystoreKey = await loadApiKeyFromKeystore(provider)
+  if (!keystoreKey) continue
+  for (const v of envVars) if (!process.env[v]) process.env[v] = keystoreKey
+}
+profileCheckpoint("keystore_resolved")
 
 // ─── aurict run <recipe.yaml> ────────────────────────────────────────────────
 if (subCmd === "run") {
@@ -190,10 +229,12 @@ if (subCmd === "run") {
 
 // Plugin'leri yükle (tool + provider eklentileri ~/.aurict/plugins/)
 await loadPlugins()
+profileCheckpoint("plugins_loaded")
 
 // Config yükle: global < proje < CLI flags
 const cfg      = applyFlags(loadConfig(workdir), flags)
 const { defaultProvider, localServer } = await bootstrap(cfg)
+profileCheckpoint("bootstrap_done")
 
 const provider   = cfg.provider ?? defaultProvider
 const plugin     = ProviderRegistry.get(provider)
@@ -202,6 +243,7 @@ const model      = cfg.model ?? plugin.defaultModel()
 if (process.stdin.isTTY) {
   // İnteraktif mod — Ink TUI
   const updatePromise = checkForUpdate()  // fire-and-forget, non-blocking
+  profileCheckpoint("app_render_start")
 
   // Hiçbir provider'ın key'i yoksa onboarding wizard göster
   const availableProviders = ProviderRegistry.available()

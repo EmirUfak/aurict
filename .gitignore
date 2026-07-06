@@ -36,3 +36,8 @@ AGENTS.md
 
 # Locally generated private documentation packs
 private-docs/
+
+# Diagnostic / coverage reports
+reports/
+coverage/
+.omo

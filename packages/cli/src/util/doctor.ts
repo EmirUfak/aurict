@@ -4,7 +4,8 @@ import { homedir, platform, arch } from "node:os"
 import { join } from "node:path"
 import { createRequire } from "node:module"
 import { spawnSync } from "node:child_process"
-import { loadConfig, resolveSecuritySandboxConfig } from "@aurict/core"
+import { loadConfig, resolveSecuritySandboxConfig, detectKeystore } from "@aurict/core"
+import { CURRENT_VERSION } from "./update-check.js"
 
 type Status = "ok" | "warn" | "fail"
 
@@ -12,6 +13,23 @@ interface Check {
   status: Status
   label: string
   detail: string
+}
+
+/**
+ * JSON şeması — `aurict doctor --json` çıktısı.
+ *
+ * Bu arayüzü değiştirmek major sürüm artışı gerektirir; dış araçlar
+ * (CI otomasyonu, dashboard'lar) bu alan adlarına bağlı olabilir.
+ * Yeni alan eklemek serbesttir; mevcut alan adını yeniden adlandırmayın.
+ */
+export interface DoctorReport {
+  schema:    "aurict.doctor/v1"
+  version:   string
+  workdir:   string
+  timestamp: string
+  summary:   { ok: number; warn: number; fail: number; total: number }
+  checks:    Check[]
+  exitCode:  number
 }
 
 const require = createRequire(import.meta.url)
@@ -210,9 +228,48 @@ function dockerSecurityImage(workdir: string): Check | null {
   }
 }
 
-export async function getDoctorReport(workdir: string): Promise<{ text: string; exitCode: number }> {
+async function keystoreCapability(): Promise<Check> {
+  let cap
+  try {
+    cap = await detectKeystore()
+  } catch (err) {
+    cap = {
+      backend:   "none" as const,
+      label:     "no keystore",
+      available: false,
+      reason:    err instanceof Error ? err.message : String(err),
+    }
+  }
+
+  if (cap.backend === "macos-keychain" || cap.backend === "windows-credential" || cap.backend === "linux-secret-service") {
+    return {
+      status: cap.available ? "ok" : "warn",
+      label:  "keystore",
+      detail: cap.available
+        ? `${cap.label} active (native) for API key storage`
+        : `${cap.label} unavailable: ${cap.reason ?? "unknown"} — falling back to plain file`,
+    }
+  }
+  if (cap.backend === "plain-file") {
+    return {
+      status: cap.available ? "warn" : "fail",
+      label:  "keystore",
+      detail: cap.available
+        ? `native OS keystore unavailable; plain file fallback (${cap.label.split(/\(|\)/)[1] ?? ""})`
+        : `no keystore available: ${cap.reason ?? "unknown"}`,
+    }
+  }
+  return {
+    status: "fail",
+    label:  "keystore",
+    detail: `no keystore available: ${cap.reason ?? "unknown"}`,
+  }
+}
+
+/** Çekirdek check üreticisi — text ve JSON formatlayıcılar buna bağlı. */
+async function collectChecks(workdir: string): Promise<Check[]> {
   const securityImageCheck = dockerSecurityImage(workdir)
-  const checks: Check[] = [
+  return [
     bunRuntime(),
     platformPackage(),
     await canWriteAurictHome(),
@@ -222,10 +279,26 @@ export async function getDoctorReport(workdir: string): Promise<{ text: string; 
     sandboxMode(),
     securitySandbox(workdir),
     ...(securityImageCheck ? [securityImageCheck] : []),
+    await keystoreCapability(),
   ]
+}
 
-  const failures = checks.filter((check) => check.status === "fail")
-  const warnings = checks.filter((check) => check.status === "warn")
+function summarize(checks: Check[]): { ok: number; warn: number; fail: number; total: number } {
+  const ok = checks.filter((c) => c.status === "ok").length
+  const warn = checks.filter((c) => c.status === "warn").length
+  const fail = checks.filter((c) => c.status === "fail").length
+  return { ok, warn, fail, total: checks.length }
+}
+
+export interface DoctorOptions {
+  /** JSON çıktı modu — `aurict doctor --json` ve otomasyon araçları için. */
+  json?: boolean
+}
+
+/** Human-readable text raporu — `/doctor` slash komutu bunu kullanır. */
+export async function getDoctorReport(workdir: string): Promise<{ text: string; exitCode: number }> {
+  const checks = await collectChecks(workdir)
+  const summary = summarize(checks)
   const output: string[] = []
 
   output.push("Aurict doctor")
@@ -233,15 +306,40 @@ export async function getDoctorReport(workdir: string): Promise<{ text: string; 
   output.push("")
   for (const check of checks) output.push(line(check))
   output.push("")
-  output.push(`${checks.length - failures.length - warnings.length} ok, ${warnings.length} warning(s), ${failures.length} failure(s)`)
+  output.push(`${summary.ok} ok, ${summary.warn} warning(s), ${summary.fail} failure(s)`)
 
   return {
     text: output.join("\n"),
-    exitCode: failures.length > 0 ? 1 : 0,
+    exitCode: summary.fail > 0 ? 1 : 0,
   }
 }
 
-export async function runDoctor(workdir: string): Promise<number> {
+/** JSON raporu — `aurict doctor --json` ve CI/CD araçları için. Sabit şema (`DoctorReport`). */
+export async function getDoctorReportJson(workdir: string): Promise<{ json: string; exitCode: number }> {
+  const checks = await collectChecks(workdir)
+  const summary = summarize(checks)
+  const report: DoctorReport = {
+    schema:    "aurict.doctor/v1",
+    version:   CURRENT_VERSION,
+    workdir,
+    timestamp: new Date().toISOString(),
+    summary,
+    checks,
+    exitCode: summary.fail > 0 ? 1 : 0,
+  }
+  return {
+    json: JSON.stringify(report, null, 2),
+    exitCode: report.exitCode,
+  }
+}
+
+/** CLI entry — hem text hem JSON modunu yönetir. `--json` argümanı JSON raporu basar. */
+export async function runDoctor(workdir: string, opts: DoctorOptions = {}): Promise<number> {
+  if (opts.json) {
+    const report = await getDoctorReportJson(workdir)
+    console.log(report.json)
+    return report.exitCode
+  }
   const report = await getDoctorReport(workdir)
   console.log(report.text)
   return report.exitCode
