@@ -1,18 +1,13 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { homedir } from "node:os"
-import { rmSync } from "node:fs"
+import type { Snapshot } from "./types.js"
+import { persistHistory, loadPersistedHistory, clearHistoryFile } from "./store.js"
+import { restoreSnapshot } from "./rollback.js"
+
+export type { Snapshot } from "./types.js"
 
 const MAX_SNAPSHOT_BYTES = 1_000_000
-const MAX_HISTORY_ENTRIES = 100
-
-export interface Snapshot {
-  id: string
-  filePath: string
-  originalContent: string
-  existed: boolean
-  timestamp: number
-}
 
 class SnapshotManager {
   private history: Snapshot[] = []
@@ -28,51 +23,15 @@ class SnapshotManager {
     return this.storageDir
   }
 
-  private getHistoryFile(): string | null {
-    return this.storageDir ? path.join(this.storageDir, "history.json") : null
-  }
-
-  private async persistHistory(): Promise<void> {
-    const historyFile = this.getHistoryFile()
-    if (!historyFile) return
-
-    try {
-      if (this.history.length > MAX_HISTORY_ENTRIES) {
-        this.history = this.history.slice(-MAX_HISTORY_ENTRIES)
-      }
-      await fs.mkdir(path.dirname(historyFile), { recursive: true })
-      await fs.writeFile(historyFile, JSON.stringify(this.history, null, 2), "utf-8")
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code
-      if (code === "EROFS" || code === "EACCES" || code === "EPERM") {
-        this.storageDir = null
-        console.error("Snapshot history persistence disabled:", err)
-        return
-      }
-      console.error("Snapshot history persistence failed:", err)
-    }
+  private async persist(): Promise<void> {
+    const result = await persistHistory(this.storageDir, this.history)
+    this.history = result.history
+    if (result.disableStorage) this.storageDir = null
   }
 
   async loadPersisted(): Promise<number> {
-    const historyFile = this.getHistoryFile()
-    if (!historyFile) return 0
-
-    try {
-      const raw = await fs.readFile(historyFile, "utf-8")
-      const parsed = JSON.parse(raw) as Snapshot[]
-      this.history = Array.isArray(parsed)
-        ? parsed.map((snap) => ({
-          ...snap,
-          existed: snap.existed ?? snap.originalContent !== "",
-        }))
-        : []
-      return this.history.length
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.error("Snapshot history load failed:", err)
-      }
-      return 0
-    }
+    this.history = await loadPersistedHistory(this.storageDir)
+    return this.history.length
   }
 
   /**
@@ -88,7 +47,7 @@ class SnapshotManager {
         return
       }
       const content = await fs.readFile(absolutePath, "utf-8")
-      
+
       this.history.push({
         id: crypto.randomUUID(),
         filePath: absolutePath,
@@ -96,7 +55,7 @@ class SnapshotManager {
         existed: true,
         timestamp: Date.now(),
       })
-      await this.persistHistory()
+      await this.persist()
     } catch (err) {
       // Dosya henüz yoksa (yeni oluşturuluyorsa) yedeklenecek bir şey yok
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
@@ -107,25 +66,11 @@ class SnapshotManager {
           existed: false,
           timestamp: Date.now(),
         })
-        await this.persistHistory()
+        await this.persist()
       } else {
         console.error(`Snapshot failed (${filePath}):`, err)
       }
     }
-  }
-
-  private async restoreSnapshot(snap: Snapshot): Promise<void> {
-    if (!snap.existed) {
-      try {
-        await fs.unlink(snap.filePath)
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err
-      }
-      return
-    }
-
-    await fs.mkdir(path.dirname(snap.filePath), { recursive: true })
-    await fs.writeFile(snap.filePath, snap.originalContent, "utf-8")
   }
 
   /**
@@ -139,8 +84,8 @@ class SnapshotManager {
     }
 
     try {
-      await this.restoreSnapshot(last)
-      await this.persistHistory()
+      await restoreSnapshot(last)
+      await this.persist()
       return last.filePath
     } catch (err) {
       console.error(`Restore failed (${last.filePath}):`, err)
@@ -167,13 +112,13 @@ class SnapshotManager {
     // Tersine çevir: en son alınan snapshot önce geri yüklenir
     for (const snap of toRestore.reverse()) {
       try {
-        await this.restoreSnapshot(snap)
+        await restoreSnapshot(snap)
         restored.push(snap.filePath)
       } catch {
         /* ignore individual restore failures */
       }
     }
-    await this.persistHistory()
+    await this.persist()
     return restored
   }
 
@@ -182,8 +127,7 @@ class SnapshotManager {
    */
   clear(): void {
     this.history = []
-    const historyFile = this.getHistoryFile()
-    if (historyFile) rmSync(historyFile, { force: true })
+    clearHistoryFile(this.storageDir)
   }
 }
 

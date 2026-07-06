@@ -151,10 +151,19 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
+// Drawer'ın kayma animasyonuyla aynı süre — açık/kapalı geçişi sırasında
+// SideRail içindeki GlassPanel'in blur'unu geçici olarak atlamak için kullanılır.
+const _drawerAnimationDuration = Duration(milliseconds: 280);
+
 class _AppShellState extends State<AppShell> {
   AppSection _section = AppSection.chat;
   AppMode _mode = AppMode.chat;
   var _drawerOpen = false;
+  // Drawer artık her zaman monte (ekran dışı konumlanıyor) — bu yüzden
+  // AnimatedPositioned gerçekten kayabiliyor. Geçiş sürerken true; kayma
+  // bitince false (GlassPanel'in blur'u o zaman gerçekten devreye girer).
+  var _drawerAnimating = false;
+  Timer? _drawerAnimationTimer;
   final _visitedSections = <AppSection>{AppSection.chat};
   late MobileRemoteRuntime _remoteRuntime;
   var _remoteRuntimeReady = false;
@@ -170,19 +179,40 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    _drawerAnimationTimer?.cancel();
     if (_remoteRuntimeReady) {
       _remoteRuntime.dispose();
     }
     super.dispose();
   }
 
+  void _setDrawerOpen(bool open) {
+    if (_drawerOpen == open) return;
+    setState(() {
+      _drawerOpen = open;
+      _drawerAnimating = true;
+    });
+    _drawerAnimationTimer?.cancel();
+    _drawerAnimationTimer = Timer(_drawerAnimationDuration, () {
+      if (mounted) setState(() => _drawerAnimating = false);
+    });
+  }
+
   void _select(AppSection section) {
+    final wasOpen = _drawerOpen;
     setState(() {
       _section = section;
       _visitedSections.add(section);
       _mode = section == AppSection.remote ? AppMode.remote : AppMode.chat;
       _drawerOpen = false;
+      if (wasOpen) _drawerAnimating = true;
     });
+    if (wasOpen) {
+      _drawerAnimationTimer?.cancel();
+      _drawerAnimationTimer = Timer(_drawerAnimationDuration, () {
+        if (mounted) setState(() => _drawerAnimating = false);
+      });
+    }
   }
 
   void _setMode(AppMode mode) {
@@ -225,28 +255,46 @@ class _AppShellState extends State<AppShell> {
                 ),
               ),
             ),
-            if (_drawerOpen)
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: () => setState(() => _drawerOpen = false),
-                  child: Container(color: Colors.black.withValues(alpha: .26)),
+            // Scrim ve rail artık HER ZAMAN monte — bu yüzden AnimatedPositioned
+            // gerçekten bir konumdan diğerine interpolasyon yapabiliyor (önceki
+            // `if (_drawerOpen)` sarmalı, ilk montajda "önceki" bir geometri
+            // olmadığı için animasyonu etkisiz kılıyordu — kapı anında açılıp
+            // kapanıyordu, kaymıyordu). IgnorePointer kapalıyken dokunuşları yutar.
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: !_drawerOpen,
+                child: AnimatedOpacity(
+                  duration: _drawerAnimationDuration,
+                  opacity: _drawerOpen ? 1 : 0,
+                  child: GestureDetector(
+                    onTap: () => _setDrawerOpen(false),
+                    child: Container(
+                      color: Colors.black.withValues(alpha: .26),
+                    ),
+                  ),
                 ),
               ),
-            if (_drawerOpen)
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 280),
-                curve: Curves.easeOutCubic,
-                left: 14,
-                top: 68,
-                bottom: bottomControlsHeight,
-                width: railWidth,
-                child: SideRail(
-                  selected: _section,
-                  onSelect: _select,
-                  remoteConnected:
-                      _remoteRuntimeReady && _remoteRuntime.connected,
+            ),
+            AnimatedPositioned(
+              duration: _drawerAnimationDuration,
+              curve: Curves.easeOutCubic,
+              left: _drawerOpen ? 14 : -(railWidth + 40),
+              top: 68,
+              bottom: bottomControlsHeight,
+              width: railWidth,
+              child: IgnorePointer(
+                ignoring: !_drawerOpen,
+                child: SheetTransitionScope(
+                  reduceEffects: _drawerAnimating,
+                  child: SideRail(
+                    selected: _section,
+                    onSelect: _select,
+                    remoteConnected:
+                        _remoteRuntimeReady && _remoteRuntime.connected,
+                  ),
                 ),
               ),
+            ),
             Positioned(
               left: 18,
               bottom: 18 + bottomInset,
@@ -255,7 +303,7 @@ class _AppShellState extends State<AppShell> {
                     ? CupertinoIcons.xmark
                     : CupertinoIcons.ellipsis,
                 label: 'Menu',
-                onTap: () => setState(() => _drawerOpen = !_drawerOpen),
+                onTap: () => _setDrawerOpen(!_drawerOpen),
               ),
             ),
             Positioned(
@@ -690,6 +738,28 @@ enum ArtifactAction {
   final String label;
 }
 
+/// Aktif streaming yanıtının ANLIK görüntüsü. `_ChatScreenState._streamingSnapshot`
+/// üzerinden yalnızca en son mesaj balonuna (ValueListenableBuilder ile) yayılır —
+/// `setState()` YOK, bu yüzden ChatHistoryStrip/ChatComposer/diğer balonlar bu
+/// güncellemelerden etkilenmez. Bkz. `flushStream()`.
+class _StreamingSnapshot {
+  const _StreamingSnapshot({
+    required this.text,
+    required this.reasoning,
+    required this.tools,
+    required this.artifacts,
+    required this.status,
+    required this.error,
+  });
+
+  final String text;
+  final String reasoning;
+  final List<MobileToolStreamBlock> tools;
+  final List<ChatArtifact> artifacts;
+  final String? status;
+  final String? error;
+}
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -711,6 +781,8 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   Timer? _streamFlushTimer;
   Timer? _historyWriteDebounce;
   List<Map<String, Object?>>? _pendingHistoryWrite;
+  // Ara (writeHistory:false) flush'lar yalnızca bunu günceller — setState YOK.
+  final _streamingSnapshot = ValueNotifier<_StreamingSnapshot?>(null);
   int _lastSnapshotWriteMs = 0;
   String? _activeThreadId;
   var _scrollPending = false;
@@ -960,6 +1032,22 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     void flushStream({bool writeHistory = false}) {
       _streamFlushTimer?.cancel();
       _streamFlushTimer = null;
+      if (!writeHistory) {
+        // Ara güncelleme: TÜM ChatScreen'i (ChatHistoryStrip/Composer dahil)
+        // yeniden build ETMEDEN yalnızca aktif streaming balonunu güncelle.
+        _streamingSnapshot.value = _StreamingSnapshot(
+          text: assistantText,
+          reasoning: reasoning,
+          tools: tools,
+          artifacts: artifacts,
+          status: status,
+          error: errorText.isEmpty ? null : errorText,
+        );
+        _scheduleAutoScroll();
+        return;
+      }
+      // Final commit (stream bitti/hata/araç sınırı) — _replaceLastAssistant
+      // snapshot'ı sıfırlar (bkz. orada), kalıcı duruma yazar.
       _replaceLastAssistant(
         text: assistantText,
         reasoning: reasoning,
@@ -1100,6 +1188,9 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     String? error,
     bool writeHistory = false,
   }) {
+    // Bu, her zaman bir FINAL commit'tir (done/error/cancel) — canlı streaming
+    // ValueNotifier'ı temizle, itemBuilder artık _messages'tan okuyacak.
+    _streamingSnapshot.value = null;
     setState(() {
       final index = _messages.lastIndexWhere(
         (message) => message.role == ChatRole.assistant,
@@ -1622,6 +1713,7 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     _historyWriteDebounce?.cancel();
     _scrollController.dispose();
     _chatSnapshot.dispose();
+    _streamingSnapshot.dispose();
     super.dispose();
   }
 
@@ -1676,22 +1768,40 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
                       }
                       if (index < _messages.length) {
                         final message = _messages[index];
+                        if (message.role == ChatRole.user) {
+                          return RepaintBoundary(
+                            child: UserBubble(text: message.text),
+                          );
+                        }
+                        Widget buildBubble(_StreamingSnapshot? snapshot) {
+                          return AssistantBubble(
+                            text: snapshot?.text ?? message.text,
+                            events: message.events,
+                            skills: message.skills,
+                            reasoning: snapshot?.reasoning ?? message.reasoning,
+                            streamTools: snapshot?.tools ?? message.streamTools,
+                            artifacts: snapshot?.artifacts ?? message.artifacts,
+                            onArtifactAction: _handleArtifactAction,
+                            onReport: () => _showReportSheet(index, message),
+                            status: snapshot?.status ?? message.status,
+                            error: snapshot?.error ?? message.error,
+                          );
+                        }
+
+                        // Yalnızca ŞU AN aktif olarak stream edilen (son) balon
+                        // ValueListenableBuilder ile sarılır — 24ms flush'larda
+                        // yalnızca BU widget yeniden çalışır, ChatScreen'in
+                        // tamamı (ChatHistoryStrip/Composer dahil) değil.
+                        final isLiveStreamingBubble =
+                            _isStreaming && index == _messages.length - 1;
                         return RepaintBoundary(
-                          child: message.role == ChatRole.user
-                              ? UserBubble(text: message.text)
-                              : AssistantBubble(
-                                  text: message.text,
-                                  events: message.events,
-                                  skills: message.skills,
-                                  reasoning: message.reasoning,
-                                  streamTools: message.streamTools,
-                                  artifacts: message.artifacts,
-                                  onArtifactAction: _handleArtifactAction,
-                                  onReport: () =>
-                                      _showReportSheet(index, message),
-                                  status: message.status,
-                                  error: message.error,
-                                ),
+                          child: isLiveStreamingBubble
+                              ? ValueListenableBuilder<_StreamingSnapshot?>(
+                                  valueListenable: _streamingSnapshot,
+                                  builder: (context, snapshot, _) =>
+                                      buildBubble(snapshot),
+                                )
+                              : buildBubble(null),
                         );
                       }
                       return ChatRecoveryCard(
@@ -1765,44 +1875,51 @@ class ChatHistoryStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
+    // 18'e kadar thread chip'i + "New chat" + (yükleniyor/boş durum) — hepsi
+    // her rebuild'de eagerly inşa edilmesin diye ListView.separated (lazy).
+    final visibleThreads = threads.take(18).toList(growable: false);
+    final showsFallbackChip = loading || visibleThreads.isEmpty;
+    final itemCount = 1 + (showsFallbackChip ? 1 : visibleThreads.length);
     return SizedBox(
       height: 58,
-      child: ListView(
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        children: [
-          _HistoryActionChip(
-            icon: CupertinoIcons.plus,
-            label: 'New chat',
-            color: tokens.accent,
-            onTap: onNew,
-          ),
-          const SizedBox(width: 8),
-          if (loading)
-            _HistoryActionChip(
+        itemCount: itemCount,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return _HistoryActionChip(
+              icon: CupertinoIcons.plus,
+              label: 'New chat',
+              color: tokens.accent,
+              onTap: onNew,
+            );
+          }
+          if (loading) {
+            return _HistoryActionChip(
               icon: CupertinoIcons.clock,
               label: 'Loading history',
               color: tokens.muted,
               onTap: () {},
-            )
-          else if (threads.isEmpty)
-            _HistoryActionChip(
+            );
+          }
+          if (visibleThreads.isEmpty) {
+            return _HistoryActionChip(
               icon: CupertinoIcons.chat_bubble_2,
               label: query.trim().isEmpty ? 'No saved chats' : 'No matches',
               color: tokens.muted,
               onTap: () {},
-            )
-          else
-            for (final thread in threads.take(18)) ...[
-              _HistoryThreadChip(
-                thread: thread,
-                active: thread.id == activeThreadId,
-                onOpen: () => onOpen(thread.id),
-                onRename: () => onRename(thread.id),
-                onDelete: () => onDelete(thread.id),
-              ),
-              const SizedBox(width: 8),
-            ],
-        ],
+            );
+          }
+          final thread = visibleThreads[index - 1];
+          return _HistoryThreadChip(
+            thread: thread,
+            active: thread.id == activeThreadId,
+            onOpen: () => onOpen(thread.id),
+            onRename: () => onRename(thread.id),
+            onDelete: () => onDelete(thread.id),
+          );
+        },
       ),
     );
   }
@@ -5444,6 +5561,8 @@ class _ModelPickerSheetState extends State<ModelPickerSheet> {
       560.0,
     );
     return GlassPanel(
+      // Arama debounce'ı her tuş vuruşunda setState tetikliyor — kalıcı düz panel.
+      disableBlur: true,
       child: SizedBox(
         height: sheetHeight,
         child: Column(
@@ -7162,19 +7281,58 @@ class ProviderCard extends StatelessWidget {
   }
 }
 
+/// Sheet açılış/kapanış geçişi sürerken `true` — `GlassPanel` bunu okuyup iOS
+/// blur'unu (BackdropFilter) geçici olarak atlar, çünkü blur'lu katmanın konumu
+/// her karede değiştiğinde yeniden hesaplanması pahalıdır. Bulunamazsa (sheet
+/// dışında her yerde) `false` döner — davranış hiç değişmez.
+class SheetTransitionScope extends InheritedWidget {
+  const SheetTransitionScope({
+    required this.reduceEffects,
+    required super.child,
+    super.key,
+  });
+
+  final bool reduceEffects;
+
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<SheetTransitionScope>()
+          ?.reduceEffects ??
+      false;
+
+  @override
+  bool updateShouldNotify(SheetTransitionScope oldWidget) =>
+      reduceEffects != oldWidget.reduceEffects;
+}
+
 void showAurictSheet(BuildContext context, Widget child) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (context) => Padding(
-      padding: EdgeInsets.only(
-        left: 14,
-        right: 14,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 14,
-      ),
-      child: child,
-    ),
+    builder: (context) {
+      final route = ModalRoute.of(context);
+      final padded = Padding(
+        padding: EdgeInsets.only(
+          left: 14,
+          right: 14,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 14,
+        ),
+        child: child,
+      );
+      final routeAnimation = route?.animation;
+      if (routeAnimation == null) return padded;
+      return AnimatedBuilder(
+        animation: routeAnimation,
+        child: padded,
+        builder: (context, sheetChild) {
+          return SheetTransitionScope(
+            reduceEffects: routeAnimation.status != AnimationStatus.completed,
+            child: sheetChild!,
+          );
+        },
+      );
+    },
   );
 }
 
@@ -7203,6 +7361,9 @@ class _ReportAnswerSheetState extends State<ReportAnswerSheet> {
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
     return GlassPanel(
+      // Chip seçimi/gönderme durumu sık setState tetikliyor — BackdropFilter
+      // her seferinde reblur olmasın diye kalıcı olarak düz panele geç.
+      disableBlur: true,
       child: SafeArea(
         top: false,
         child: Column(
@@ -8011,6 +8172,7 @@ class GlassPanel extends StatelessWidget {
     this.blur = 24,
     this.opacity,
     this.elevation = 1,
+    this.disableBlur = false,
     super.key,
   });
 
@@ -8021,11 +8183,22 @@ class GlassPanel extends StatelessWidget {
   final double blur;
   final double? opacity;
   final double elevation;
+  // Sık güncellenen etkileşimli sheet'ler için (form/chip/arama) kalıcı blur
+  // kapatma: BackdropFilter, içeriği DEĞİŞTİĞİNDE bile yeniden compositing
+  // gerektirir (bu içeriğin arkasını her seferinde yeniden örnekleyip
+  // bulanıklaştırır) — chip seçimi/klavye girişi gibi sık `setState`'lerde bu
+  // her dokunuşta bir reblur maliyeti demektir. Bu widget'lar için Android'in
+  // zaten kullandığı düz panel yoluna kalıcı olarak geç.
+  final bool disableBlur;
 
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
     final android = isAndroidUi(context);
+    // Sheet açılış/kapanış animasyonu sürerken blur'lu katmanın konumu her
+    // karede değiştiği için yeniden hesaplanması pahalıdır — geçiş sırasında
+    // Android'deki no-blur yoluna geçici olarak düş, yerleşince gerçek blur'a dön.
+    final reduceBlur = SheetTransitionScope.of(context);
     final radius = BorderRadius.circular(26);
     final panelOpacity = opacity ?? (android ? .88 : .84);
     final panel = Container(
@@ -8070,7 +8243,7 @@ class GlassPanel extends StatelessWidget {
         child: ClipRRect(
           borderRadius: radius,
           child: ClipRect(
-            child: android
+            child: (android || reduceBlur || disableBlur)
                 ? panel
                 : BackdropFilter(
                     filter: ImageFilter.blur(

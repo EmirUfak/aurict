@@ -2,6 +2,21 @@ import 'package:flutter/material.dart';
 
 import '../design/aurict_typography.dart';
 
+// Top-level'e taşındı: RegExp derlemesi ucuz değildir; bunlar önceden her
+// parse() çağrısında (streaming sırasında 24ms'de bir) yeniden derleniyordu.
+final _fenceRe = RegExp(r'^```([A-Za-z0-9_+.-]*)\s*$');
+final _headingRe = RegExp(r'^(#{1,6})\s+(.+)$');
+final _ruleRe = RegExp(r'^(\*\s*){3,}$|^(-\s*){3,}$');
+final _quotePrefixRe = RegExp(r'^\s*> ?');
+final _bulletRe = RegExp(r'^\s*[-*]\s+');
+final _orderedRe = RegExp(r'^\s*\d+\.\s+');
+final _tableSepRe = RegExp(r'^\s*\|?[\s\-:|]+\|?\s*$');
+final _tableLeadingPipeRe = RegExp(r'^\s*\|');
+final _tableTrailingPipeRe = RegExp(r'\|\s*$');
+final _inlineTokenRe = RegExp(
+  r'(\[([^\]]+)\]\(([^)]+)\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|_[^_\n]+_|\*[^*\n]+\*)',
+);
+
 enum MobileMarkdownBlockType {
   heading,
   paragraph,
@@ -46,7 +61,7 @@ class MobileMarkdownParser {
         continue;
       }
 
-      final fence = RegExp(r'^```([A-Za-z0-9_+.-]*)\s*$').firstMatch(line);
+      final fence = _fenceRe.firstMatch(line);
       if (fence != null) {
         final body = <String>[];
         i++;
@@ -65,7 +80,7 @@ class MobileMarkdownParser {
         continue;
       }
 
-      final heading = RegExp(r'^(#{1,6})\s+(.+)$').firstMatch(line);
+      final heading = _headingRe.firstMatch(line);
       if (heading != null) {
         blocks.add(
           MobileMarkdownBlock(
@@ -78,7 +93,7 @@ class MobileMarkdownParser {
         continue;
       }
 
-      if (RegExp(r'^(\*\s*){3,}$|^(-\s*){3,}$').hasMatch(line.trim())) {
+      if (_ruleRe.hasMatch(line.trim())) {
         blocks.add(
           const MobileMarkdownBlock(type: MobileMarkdownBlockType.rule),
         );
@@ -102,7 +117,7 @@ class MobileMarkdownParser {
       if (line.trimLeft().startsWith('>')) {
         final quote = <String>[];
         while (i < lines.length && lines[i].trimLeft().startsWith('>')) {
-          quote.add(lines[i].replaceFirst(RegExp(r'^\s*> ?'), ''));
+          quote.add(lines[i].replaceFirst(_quotePrefixRe, ''));
           i++;
         }
         blocks.add(
@@ -114,10 +129,10 @@ class MobileMarkdownParser {
         continue;
       }
 
-      if (RegExp(r'^\s*[-*]\s+').hasMatch(line)) {
+      if (_bulletRe.hasMatch(line)) {
         final items = <String>[];
-        while (i < lines.length && RegExp(r'^\s*[-*]\s+').hasMatch(lines[i])) {
-          items.add(lines[i].replaceFirst(RegExp(r'^\s*[-*]\s+'), ''));
+        while (i < lines.length && _bulletRe.hasMatch(lines[i])) {
+          items.add(lines[i].replaceFirst(_bulletRe, ''));
           i++;
         }
         blocks.add(
@@ -129,10 +144,10 @@ class MobileMarkdownParser {
         continue;
       }
 
-      if (RegExp(r'^\s*\d+\.\s+').hasMatch(line)) {
+      if (_orderedRe.hasMatch(line)) {
         final items = <String>[];
-        while (i < lines.length && RegExp(r'^\s*\d+\.\s+').hasMatch(lines[i])) {
-          items.add(lines[i].replaceFirst(RegExp(r'^\s*\d+\.\s+'), ''));
+        while (i < lines.length && _orderedRe.hasMatch(lines[i])) {
+          items.add(lines[i].replaceFirst(_orderedRe, ''));
           i++;
         }
         blocks.add(
@@ -164,24 +179,23 @@ class MobileMarkdownParser {
   bool _startsBlock(List<String> lines, int i) {
     final line = lines[i];
     return line.startsWith('```') ||
-        RegExp(r'^(#{1,6})\s+(.+)$').hasMatch(line) ||
-        RegExp(r'^(\*\s*){3,}$|^(-\s*){3,}$').hasMatch(line.trim()) ||
+        _headingRe.hasMatch(line) ||
+        _ruleRe.hasMatch(line.trim()) ||
         line.trimLeft().startsWith('>') ||
-        RegExp(r'^\s*[-*]\s+').hasMatch(line) ||
-        RegExp(r'^\s*\d+\.\s+').hasMatch(line) ||
+        _bulletRe.hasMatch(line) ||
+        _orderedRe.hasMatch(line) ||
         _isTableStart(lines, i);
   }
 
   bool _isTableStart(List<String> lines, int i) {
     if (i + 1 >= lines.length) return false;
-    return lines[i].contains('|') &&
-        RegExp(r'^\s*\|?[\s\-:|]+\|?\s*$').hasMatch(lines[i + 1]);
+    return lines[i].contains('|') && _tableSepRe.hasMatch(lines[i + 1]);
   }
 
   List<String> _parseTableRow(String line) {
     return line
-        .replaceAll(RegExp(r'^\s*\|'), '')
-        .replaceAll(RegExp(r'\|\s*$'), '')
+        .replaceAll(_tableLeadingPipeRe, '')
+        .replaceAll(_tableTrailingPipeRe, '')
         .split('|')
         .map((cell) => cell.trim())
         .toList(growable: false);
@@ -414,11 +428,8 @@ class MobileMarkdownRenderer extends StatelessWidget {
 
   TextSpan _inline(String input, {FontWeight? baseWeight}) {
     final spans = <InlineSpan>[];
-    final re = RegExp(
-      r'(\[([^\]]+)\]\(([^)]+)\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|_[^_\n]+_|\*[^*\n]+\*)',
-    );
     var index = 0;
-    for (final match in re.allMatches(input)) {
+    for (final match in _inlineTokenRe.allMatches(input)) {
       if (match.start > index) {
         spans.add(TextSpan(text: input.substring(index, match.start)));
       }
