@@ -90,7 +90,7 @@ const jsonLd = {
       "url":                 "https://aurict.com",
       "downloadUrl":         "https://www.npmjs.com/package/aurict",
       "installUrl":          "https://www.npmjs.com/package/aurict",
-      "softwareVersion":     "1.1.6",
+      "softwareVersion":     "1.1.7",
       "releaseNotes":        "https://aurict.com/changelog",
       "license":             "https://www.gnu.org/licenses/agpl-3.0.html",
       "author": {

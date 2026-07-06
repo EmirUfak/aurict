@@ -43,6 +43,21 @@ const SOURCE_FILES: Array<{ path: string; pattern: RegExp; replace: string }> = 
     pattern: /CURRENT_VERSION = "\d+\.\d+\.\d+"/,
     replace: `CURRENT_VERSION = "${version}"`,
   },
+  {
+    path: "apps/web/src/components/Nav.tsx",
+    pattern: /v\d+\.\d+\.\d+ · AGPLv3/,
+    replace: `v${version} · AGPLv3`,
+  },
+  {
+    path: "apps/web/src/components/landing/AurictLandingExact.tsx",
+    pattern: /v\d+\.\d+\.\d+ · AGPLv3/,
+    replace: `v${version} · AGPLv3`,
+  },
+  {
+    path: "apps/web/src/app/page.tsx",
+    pattern: /"softwareVersion":(\s*)"\d+\.\d+\.\d+"/,
+    replace: `"softwareVersion":$1"${version}"`,
+  },
 ]
 
 let changed = 0
