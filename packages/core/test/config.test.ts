@@ -6,7 +6,7 @@ import {
 import { tmpdir, homedir } from "node:os"
 import { join } from "node:path"
 import {
-  loadConfig, resolveLongTaskRuntimeConfig, resolveSecuritySandboxConfig, SECURITY_SANDBOX_IMAGE_DEFAULTS, setApiKey, setDefault, setCompaction, setLongTaskRuntime, setSecuritySandbox, getConfigPath,
+  loadConfig, resolveLongTaskRuntimeConfig, resolveSecuritySandboxConfig, SECURITY_SANDBOX_IMAGE_DEFAULTS, setApiKey, setDefault, setCustomProvider, removeCustomProvider, setCompaction, setLongTaskRuntime, setSecuritySandbox, getConfigPath,
 } from "../src/config/config.js"
 
 const GLOBAL_PATH = join(homedir(), ".aurict", "config.json")
@@ -164,6 +164,64 @@ describe("setApiKey", () => {
     setApiKey("openai", "sk-roundtrip")
     const cfg = loadConfig()
     expect(cfg.providers?.["openai"]?.apiKey).toBe("sk-roundtrip")
+  })
+})
+
+// ─── setCustomProvider / removeCustomProvider ────────────────────────────────
+
+describe("setCustomProvider", () => {
+  const def = { name: "My Endpoint", baseUrl: "https://api.example.com/v1", apiKey: "sk-custom", defaultModel: "my-model" }
+
+  it("persists a custom provider to global config on disk", () => {
+    setCustomProvider("my-endpoint", def)
+    const raw = JSON.parse(readFileSync(GLOBAL_PATH, "utf8"))
+    expect(raw.customProviders?.["my-endpoint"]).toEqual(def)
+  })
+
+  it("loadConfig reflects the custom provider set by setCustomProvider", () => {
+    setCustomProvider("my-endpoint", def)
+    const cfg = loadConfig()
+    expect(cfg.customProviders?.["my-endpoint"]).toEqual(def)
+  })
+
+  it("subsequent setCustomProvider for same id overwrites previous", () => {
+    setCustomProvider("my-endpoint", def)
+    const updated = { ...def, apiKey: "sk-updated" }
+    setCustomProvider("my-endpoint", updated)
+    const raw = JSON.parse(readFileSync(GLOBAL_PATH, "utf8"))
+    expect(raw.customProviders?.["my-endpoint"].apiKey).toBe("sk-updated")
+  })
+
+  it("does not affect other custom providers", () => {
+    setCustomProvider("first", def)
+    setCustomProvider("second", { ...def, name: "Second" })
+    const cfg = loadConfig()
+    expect(cfg.customProviders?.["first"]?.name).toBe("My Endpoint")
+    expect(cfg.customProviders?.["second"]?.name).toBe("Second")
+  })
+})
+
+describe("removeCustomProvider", () => {
+  const def = { name: "My Endpoint", baseUrl: "https://api.example.com/v1", apiKey: "sk-custom", defaultModel: "my-model" }
+
+  it("removes a previously set custom provider", () => {
+    setCustomProvider("my-endpoint", def)
+    removeCustomProvider("my-endpoint")
+    const cfg = loadConfig()
+    expect(cfg.customProviders?.["my-endpoint"]).toBeUndefined()
+  })
+
+  it("is a no-op when no custom providers exist", () => {
+    expect(() => removeCustomProvider("does-not-exist")).not.toThrow()
+  })
+
+  it("only removes the targeted provider", () => {
+    setCustomProvider("first", def)
+    setCustomProvider("second", { ...def, name: "Second" })
+    removeCustomProvider("first")
+    const cfg = loadConfig()
+    expect(cfg.customProviders?.["first"]).toBeUndefined()
+    expect(cfg.customProviders?.["second"]?.name).toBe("Second")
   })
 })
 

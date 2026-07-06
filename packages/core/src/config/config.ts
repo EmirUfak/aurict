@@ -150,6 +150,8 @@ export interface CritiqueConfig {
 
 export interface OmniConfig {
   providers?:  Record<string, { apiKey?: string; baseUrl?: string }>
+  /** User-added OpenAI-compatible providers (no-code path, via `/providers`). */
+  customProviders?: Record<string, { name: string; baseUrl: string; apiKey: string; defaultModel: string }>
   defaults?:   {
     provider?: string
     model?: string
@@ -213,6 +215,9 @@ const PROVIDER_ENV_VARS: Record<string, string> = {
   xai:        "XAI_API_KEY",
   azure:      "AZURE_OPENAI_API_KEY",
   bedrock:    "AWS_ACCESS_KEY_ID",
+  nvidia:     "NVIDIA_API_KEY",
+  zai:        "ZAI_API_KEY",
+  alibaba:    "DASHSCOPE_API_KEY",
 }
 
 function load(path: string): OmniConfig {
@@ -231,6 +236,7 @@ function save(path: string, cfg: OmniConfig): void {
 function merge(a: OmniConfig, b: OmniConfig): OmniConfig {
   return {
     providers:  { ...(a.providers  ?? {}), ...(b.providers  ?? {}) },
+    customProviders: { ...(a.customProviders ?? {}), ...(b.customProviders ?? {}) },
     defaults:   { ...(a.defaults   ?? {}), ...(b.defaults   ?? {}) },
     compaction: { ...(a.compaction ?? {}), ...(b.compaction ?? {}) },
     truncation: {
@@ -352,6 +358,27 @@ export function setApiKey(provider: string, apiKey: string): void {
   }
   const envVar = envMap[provider]
   if (envVar) process.env[envVar] = apiKey
+}
+
+export interface CustomProviderDef {
+  name:         string
+  baseUrl:      string
+  apiKey:       string
+  defaultModel: string
+}
+
+export function setCustomProvider(id: string, def: CustomProviderDef): void {
+  const cfg = load(GLOBAL_PATH)
+  cfg.customProviders = cfg.customProviders ?? {}
+  cfg.customProviders[id] = def
+  save(GLOBAL_PATH, cfg)
+}
+
+export function removeCustomProvider(id: string): void {
+  const cfg = load(GLOBAL_PATH)
+  if (!cfg.customProviders) return
+  delete cfg.customProviders[id]
+  save(GLOBAL_PATH, cfg)
 }
 
 export function setDefault(key: "provider" | "model" | "effort", value: string | number): void {

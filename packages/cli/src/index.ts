@@ -60,14 +60,14 @@ profileCheckpoint("flags_parsed")
 
 // --version
 if (flags.version) {
-  console.log("Aurict v1.1.7")
+  console.log("Aurict v1.1.8")
   process.exit(0)
 }
 
 // --help
 if (flags.help) {
   console.log(`
-Aurict v1.1.7 — Terminal AI assistant
+Aurict v1.1.8 — Terminal AI assistant
 
 Usage:
   aurict [options]
@@ -76,7 +76,7 @@ Usage:
   aurict run <recipe.yaml>   Run a recipe (automated multi-step task)
 
 Options:
-  -p, --provider <id>   Select provider (anthropic, openai, openrouter, google, opencode, ollama, xai, azure, bedrock)
+  -p, --provider <id>   Select provider (anthropic, openai, openrouter, google, opencode, ollama, xai, azure, bedrock, nvidia, zai, alibaba)
   -m, --model <id>      Select model
   -s, --system <text>   Override system prompt
       --undercover      Undercover mode (hides AI traces in commits)
@@ -102,6 +102,9 @@ Environment variables:
   XAI_API_KEY                 xAI (Grok)
   AZURE_OPENAI_API_KEY        Azure OpenAI
   AWS_ACCESS_KEY_ID           AWS Bedrock
+  NVIDIA_API_KEY              NVIDIA NIM
+  ZAI_API_KEY                 Z.AI (GLM)
+  DASHSCOPE_API_KEY           Alibaba (Qwen)
   AURICT_PROVIDER            Default provider override
 `)
   process.exit(0)
@@ -147,6 +150,7 @@ const core = coreMod
 const {
   runAgent,
   ProviderRegistry,
+  createOpenAICompatiblePlugin,
   mcpManager,
   loadPlugins,
   runRecipe,
@@ -169,6 +173,9 @@ const PROVIDER_ENV_MAP: Record<string, string[]> = {
   azure:      ["AZURE_OPENAI_API_KEY"],
   bedrock:    ["AWS_ACCESS_KEY_ID"],
   ollama:     [],
+  nvidia:     ["NVIDIA_API_KEY"],
+  zai:        ["ZAI_API_KEY"],
+  alibaba:    ["DASHSCOPE_API_KEY"],
 }
 for (const [provider, val] of Object.entries(omniCfg.providers ?? {})) {
   if (!val.apiKey) continue
@@ -190,6 +197,20 @@ for (const [provider, envVars] of Object.entries(PROVIDER_ENV_MAP)) {
   for (const v of envVars) if (!process.env[v]) process.env[v] = keystoreKey
 }
 profileCheckpoint("keystore_resolved")
+
+// User-added custom providers (no-code path via /providers) — register them
+// before the TUI renders so they show up in /providers immediately.
+for (const [id, def] of Object.entries(omniCfg.customProviders ?? {})) {
+  ProviderRegistry.register(createOpenAICompatiblePlugin({
+    id,
+    name:         def.name,
+    baseURL:      def.baseUrl,
+    getApiKey:    () => def.apiKey,
+    defaultModel: def.defaultModel,
+    models:       [{ id: def.defaultModel, name: def.defaultModel, contextWindow: 128_000, maxOutput: 8_000, supportsTools: true, supportsVision: false }],
+    modelsEndpoint: `${def.baseUrl.replace(/\/+$/, "")}/models`,
+  }))
+}
 
 // ─── aurict run <recipe.yaml> ────────────────────────────────────────────────
 if (subCmd === "run") {

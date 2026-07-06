@@ -1,4 +1,4 @@
-import { ProviderRegistry, SessionManager, mcpManager, loadCustomAgents, memoryStore, getAllSessionAgents, pinStore, setApiKey, setDefault, setSecuritySandbox, setLongTaskRuntime, resolveSecuritySandboxConfig, resolveLongTaskRuntimeConfig, SECURITY_SANDBOX_PROFILE_DEFAULTS, getConfigPath, loadConfig, exportToMarkdown, exportToHtml, defaultExportFilename, setCompaction, gateGuard, getCircuitState, getContextBreakdown, snapshotManager, installRemoteSkill, listInstalledSkills, uninstallSkill, getLoadedPlugins, PLUGIN_DIR, diagnosticsStore, skillScoreStore, installRemotePlugin, listInstalledPlugins, uninstallPlugin, fetchRegistry, searchRegistry, findInRegistry, readLatestTraceEvents, buildSecurityAssessmentLedger, formatSecurityLedgerAnchor, evaluateSecurityOperatorStep, formatSecurityOperatorDecision, readSecurityAssessmentLedger, updateSecurityAssessmentLedger, writeSecurityAssessmentLedger, resetSecurityAssessmentLedger, verifySecurityFinding, applySecurityVerification, buildAttackGraphFromFindings, formatAttackGraph } from "@aurict/core"
+import { ProviderRegistry, createOpenAICompatiblePlugin, SessionManager, mcpManager, loadCustomAgents, memoryStore, getAllSessionAgents, pinStore, setApiKey, setDefault, setCustomProvider, removeCustomProvider, setSecuritySandbox, setLongTaskRuntime, resolveSecuritySandboxConfig, resolveLongTaskRuntimeConfig, SECURITY_SANDBOX_PROFILE_DEFAULTS, getConfigPath, loadConfig, exportToMarkdown, exportToHtml, defaultExportFilename, setCompaction, gateGuard, getCircuitState, getContextBreakdown, snapshotManager, installRemoteSkill, listInstalledSkills, uninstallSkill, getLoadedPlugins, PLUGIN_DIR, diagnosticsStore, skillScoreStore, installRemotePlugin, listInstalledPlugins, uninstallPlugin, fetchRegistry, searchRegistry, findInRegistry, readLatestTraceEvents, buildSecurityAssessmentLedger, formatSecurityLedgerAnchor, evaluateSecurityOperatorStep, formatSecurityOperatorDecision, readSecurityAssessmentLedger, updateSecurityAssessmentLedger, writeSecurityAssessmentLedger, resetSecurityAssessmentLedger, verifySecurityFinding, applySecurityVerification, buildAttackGraphFromFindings, formatAttackGraph } from "@aurict/core"
 import type { ModelInfo, SecurityAssessmentLedger, SecurityDistilledFinding } from "@aurict/core"
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs"
 import { spawnSync } from "child_process"
@@ -316,15 +316,19 @@ const commands: CommandDef[] = [
     description: "Select provider and configure API key",
     handler: (_args, ctx): CommandResult => {
       const all = ProviderRegistry.available()
+      const customIds = new Set(Object.keys(loadConfig(ctx.workdir).customProviders ?? {}))
 
-      const items: PickerItem[] = all.map((p) => ({
-        id:    p.id,
-        label: p.name,
-        hint:  [
-          p.id === ctx.provider ? "● active" : null,
-          p.hasKey ? "✓ key set" : "✗ no key",
-        ].filter(Boolean).join("  "),
-      }))
+      const items: PickerItem[] = [
+        ...all.map((p) => ({
+          id:    p.id,
+          label: p.name,
+          hint:  [
+            p.id === ctx.provider ? "● active" : null,
+            p.hasKey ? "✓ key set" : "✗ no key",
+          ].filter(Boolean).join("  "),
+        })),
+        { id: "__custom__", label: "+ Add custom provider", hint: "OpenAI-compatible endpoint" },
+      ]
 
       const switchToProvider = (id: string) => {
         const plugin       = ProviderRegistry.get(id)
@@ -353,6 +357,9 @@ const commands: CommandDef[] = [
           xai:        "xAI API Key (xai-...)",
           azure:      "Azure OpenAI API Key  (set AZURE_OPENAI_ENDPOINT separately)",
           bedrock:    "AWS Access Key ID  (set AWS_SECRET_ACCESS_KEY + AWS_REGION separately)",
+          nvidia:     "NVIDIA NIM API Key (nvapi-...)",
+          zai:        "Z.AI API Key",
+          alibaba:    "Alibaba/DashScope API Key",
         }
         ctx.showPrompt(
           KEY_LABELS[providerId] ?? `${providerName} API Key`,
@@ -365,11 +372,40 @@ const commands: CommandDef[] = [
         )
       }
 
+      const addCustomProvider = () => {
+        ctx.showPrompt("Custom provider name", "e.g. My Local Endpoint", false, (name) => {
+          ctx.showPrompt("Base URL", "e.g. https://api.example.com/v1", false, (baseUrl) => {
+            ctx.showPrompt("Default model ID", "e.g. my-model-name", false, (defaultModel) => {
+              ctx.showPrompt("API Key", "Paste your API key here", true, (apiKey) => {
+                const id = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || `custom-${Date.now()}`
+                const def = { name: name.trim(), baseUrl: baseUrl.trim(), apiKey, defaultModel: defaultModel.trim() }
+                setCustomProvider(id, def)
+                ProviderRegistry.register(createOpenAICompatiblePlugin({
+                  id,
+                  name:         def.name,
+                  baseURL:      def.baseUrl,
+                  getApiKey:    () => def.apiKey,
+                  defaultModel: def.defaultModel,
+                  models:       [{ id: def.defaultModel, name: def.defaultModel, contextWindow: 128_000, maxOutput: 8_000, supportsTools: true, supportsVision: false }],
+                  modelsEndpoint: `${def.baseUrl.replace(/\/+$/, "")}/models`,
+                }))
+                switchToProvider(id)
+              })
+            })
+          })
+        })
+      }
+
       return {
         type:  "picker",
         title: "Select Provider",
         items,
         onSelect: (item) => {
+          if (item.id === "__custom__") {
+            addCustomProvider()
+            return
+          }
+
           const provider = all.find((p) => p.id === item.id)!
 
           // Ollama doesn't require a key — go straight through
@@ -380,16 +416,23 @@ const commands: CommandDef[] = [
 
           // Is there a key already?
           if (provider.hasKey) {
-            // Key exists — use the existing key or reset it
+            const isCustom = customIds.has(item.id)
+            // Key exists — use the existing key, reset it, or (custom providers) remove it
             ctx.showPicker(
               `${provider.name} — API key already configured`,
               [
-                { id: "use",   label: "Use existing key",   hint: "Continue with current key" },
-                { id: "reset", label: "Reset API key",      hint: "Enter a new API key" },
+                { id: "use", label: "Use existing key", hint: "Continue with current key" },
+                isCustom
+                  ? { id: "remove", label: "Remove this custom provider", hint: "Delete from config" }
+                  : { id: "reset", label: "Reset API key", hint: "Enter a new API key" },
               ],
               (choice) => {
                 if (choice.id === "use") {
                   switchToProvider(item.id)
+                } else if (choice.id === "remove") {
+                  removeCustomProvider(item.id)
+                  ProviderRegistry.unregister(item.id)
+                  ctx.addSystemMsg(`Removed custom provider "${provider.name}".`)
                 } else {
                   promptForNewKey(item.id, provider.name)
                 }

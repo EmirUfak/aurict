@@ -100,7 +100,7 @@ function LandingNav() {
       <div className="landing-shell landing-nav-inner">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <BrandMark compact />
-          <span className="mono" style={{ fontSize: 10.5, padding: "4px 7px", borderRadius: 6, border: "1px solid var(--border)", background: "oklch(1 0 0/.06)", color: "oklch(0.55 0.01 75)" }}>v1.1.7 · AGPLv3</span>
+          <span className="mono" style={{ fontSize: 10.5, padding: "4px 7px", borderRadius: 6, border: "1px solid var(--border)", background: "oklch(1 0 0/.06)", color: "oklch(0.55 0.01 75)" }}>v1.1.8 · AGPLv3</span>
         </div>
         <div className="landing-nav-links">
           <div className="nav-dropdown">
