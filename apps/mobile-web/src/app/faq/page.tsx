@@ -1,0 +1,50 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { useLanguage } from "@/contexts/LanguageContext";
+import AmbientBackground from "@/components/AmbientBackground";
+import PageHeader from "@/components/PageHeader";
+import Corners from "@/components/ui/Corners";
+
+const FAQ_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8"] as const;
+
+export default function FaqPage() {
+  const { t } = useLanguage();
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.1 } },
+  };
+  const itemVariants = {
+    hidden: { opacity: 0, y: 16 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 0.8, 0.2, 1] as const } },
+  };
+
+  return (
+    <div className="min-h-screen overflow-x-hidden" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <AmbientBackground />
+      <PageHeader backLabel={t("aboutUs.backButton") || "Back"} />
+
+      <motion.main variants={containerVariants} initial="hidden" animate="visible" className="relative z-10 py-16 px-6">
+        <div className="max-w-3xl mx-auto">
+          <motion.div variants={itemVariants} className="text-center mb-16">
+            <h1 className="font-serif text-5xl md:text-6xl font-semibold mb-4" style={{ color: "var(--text)" }}>
+              {t("faq.title")}
+            </h1>
+            <p className="font-serif text-xl md:text-2xl leading-relaxed max-w-2xl mx-auto" style={{ color: "var(--text-dim)" }}>
+              {t("faq.subtitle")}
+            </p>
+          </motion.div>
+
+          {FAQ_KEYS.map((key) => (
+            <motion.div key={key} variants={itemVariants} className="aur-card p-8 mb-6">
+              <Corners />
+              <h2 className="eyebrow mb-4" style={{ color: "var(--accent)" }}>{t(`faq.${key}.q`)}</h2>
+              <p className="font-serif text-lg leading-relaxed" style={{ color: "var(--text-dim)" }}>{t(`faq.${key}.a`)}</p>
+            </motion.div>
+          ))}
+        </div>
+      </motion.main>
+    </div>
+  );
+}

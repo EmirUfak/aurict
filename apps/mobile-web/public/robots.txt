@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /mindgrid/
+
+Sitemap: https://mobile.aurict.com/sitemap.xml

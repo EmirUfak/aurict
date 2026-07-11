@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#211416" />
+    <meta name="robots" content="index, follow" />
+    <meta
+      name="description"
+      content="Aurict Mobile Support - Get help with our apps, account questions, and general inquiries."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>Support - Aurict Mobile</title>
+    <style>
+      /* Design tokens mirrored from src/app/globals.css to keep this static
+         page visually identical to the rest of Aurict Mobile. */
+      :root {
+        --bg: oklch(0.16 0.02 25);
+        --bg-card: oklch(0.21 0.025 25);
+        --text: oklch(0.95 0.008 60);
+        --text-dim: oklch(0.74 0.015 25);
+        --text-muted: oklch(0.56 0.015 25);
+        --accent: oklch(0.58 0.14 25);
+        --border: oklch(0.6 0.02 25 / 0.12);
+        --border-bright: oklch(0.65 0.03 25 / 0.24);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--bg);
+        color: var(--text);
+        font-family:
+          ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      a:hover {
+        color: var(--text);
+      }
+
+      .wrapper {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 96px 24px 64px;
+      }
+
+      header.top {
+        text-align: center;
+        margin-bottom: 64px;
+      }
+
+      .logo {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.7rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--text-muted);
+      }
+
+      h1 {
+        font-family: "Source Serif 4", Georgia, serif;
+        font-size: clamp(2rem, 5vw, 3rem);
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 24px 0 12px;
+      }
+
+      .subtitle {
+        font-family: "Source Serif 4", Georgia, serif;
+        color: var(--text-dim);
+        font-size: 1.125rem;
+        max-width: 520px;
+        margin: 0 auto;
+      }
+
+      .card {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 0;
+        padding: 32px;
+        margin-bottom: 24px;
+        position: relative;
+      }
+
+      .card h2 {
+        font-family: "Source Serif 4", Georgia, serif;
+        font-size: 1.375rem;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+
+      .card p {
+        font-family: "Source Serif 4", Georgia, serif;
+        color: var(--text-dim);
+        margin: 0 0 8px;
+      }
+
+      .corner {
+        position: absolute;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+        line-height: 1;
+        color: var(--border-bright);
+        pointer-events: none;
+        user-select: none;
+      }
+      .corner.tl { top: 6px; left: 6px; }
+      .corner.tr { top: 6px; right: 6px; }
+      .corner.bl { bottom: 6px; left: 6px; }
+      .corner.br { bottom: 6px; right: 6px; }
+
+      .email-button {
+        display: inline-block;
+        margin-top: 16px;
+        padding: 0.75rem 1.75rem;
+        background-color: var(--accent);
+        color: oklch(0.15 0.02 25);
+        border: 1px solid var(--accent);
+        border-radius: 0;
+        font-family: "IBM Plex Mono", monospace;
+        font-weight: 600;
+        font-size: 0.95rem;
+        transition: filter 0.2s ease;
+      }
+
+      .email-button:hover {
+        filter: brightness(1.1);
+        background-color: var(--accent);
+        color: oklch(0.15 0.02 25);
+      }
+
+      .faq-item {
+        border-top: 1px solid var(--border);
+        padding: 20px 0;
+      }
+
+      .faq-item:first-of-type {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      .faq-item h3 {
+        font-family: "Source Serif 4", Georgia, serif;
+        font-size: 1.05rem;
+        font-weight: 600;
+        margin: 0 0 8px;
+      }
+
+      .faq-item p {
+        font-family: "Source Serif 4", Georgia, serif;
+        color: var(--text-dim);
+        margin: 0;
+      }
+
+      .faq-item a {
+        font-weight: 500;
+      }
+
+      footer {
+        text-align: center;
+        margin-top: 64px;
+        color: var(--text-muted);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.8rem;
+      }
+
+      footer a {
+        color: var(--text-muted);
+      }
+
+      footer a:hover {
+        color: var(--text);
+      }
+
+      footer .links {
+        margin-top: 8px;
+      }
+
+      footer .links a {
+        margin: 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <header class="top">
+        <div class="logo">Aurict Mobile</div>
+        <h1>Support</h1>
+        <p class="subtitle">
+          We're here to help with any questions about our apps, your account,
+          or anything else.
+        </p>
+      </header>
+
+      <div class="card">
+        <span class="corner tl">&#9484;</span><span class="corner tr">&#9488;</span><span class="corner bl">&#9492;</span><span class="corner br">&#9496;</span>
+        <h2>Contact us</h2>
+        <p>
+          For support requests, bug reports, feedback, or general questions
+          about any Aurict Mobile app, reach out and we'll get back to you as
+          soon as possible.
+        </p>
+        <a class="email-button" href="mailto:contact@aurict.com"
+          >contact@aurict.com</a
+        >
+      </div>
+
+      <div class="card">
+        <span class="corner tl">&#9484;</span><span class="corner tr">&#9488;</span><span class="corner bl">&#9492;</span><span class="corner br">&#9496;</span>
+        <h2>Frequently asked questions</h2>
+
+        <div class="faq-item">
+          <h3>How do I report a bug or issue in an app?</h3>
+          <p>
+            Email us at
+            <a href="mailto:contact@aurict.com">contact@aurict.com</a>
+            with the app name, a description of the issue, and your device
+            model and OS version if possible. Screenshots or screen
+            recordings help us resolve issues faster.
+          </p>
+        </div>
+
+        <div class="faq-item">
+          <h3>How do I delete my account or data?</h3>
+          <p>
+            Visit our
+            <a href="/mindgrid/delete-account">account deletion page</a> and
+            select your app to start the process. If your app isn't listed,
+            email us directly and we'll take care of it.
+          </p>
+        </div>
+
+        <div class="faq-item">
+          <h3>Where can I read the Privacy Policy or Terms of Service?</h3>
+          <p>
+            Our <a href="/privacy-policy">Privacy Policy</a> and
+            <a href="/terms-of-service">Terms of Service</a> are available at
+            any time.
+          </p>
+        </div>
+
+        <div class="faq-item">
+          <h3>How long does it take to get a response?</h3>
+          <p>
+            We typically respond within 1-2 business days. For urgent
+            account or billing issues, please include as much detail as
+            possible in your first message.
+          </p>
+        </div>
+      </div>
+
+      <footer>
+        <div>&copy; 2026 Aurict Mobile. All rights reserved.</div>
+        <div class="links">
+          <a href="/">Home</a>
+          <a href="/privacy-policy">Privacy Policy</a>
+          <a href="/terms-of-service">Terms of Service</a>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
