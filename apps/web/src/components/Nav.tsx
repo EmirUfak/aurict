@@ -77,7 +77,7 @@ export function Nav() {
                 padding:    "4px 7px",
               }}
             >
-              v1.1.9 · AGPLv3
+              v1.2.0 · AGPLv3
             </span>
           </div>
 
