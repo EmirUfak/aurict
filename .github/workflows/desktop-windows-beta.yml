@@ -42,11 +42,14 @@ jobs:
 
       - name: Verify beta signatures
         shell: pwsh
-        run: >
-          pwsh -File scripts/verify-windows-signatures.ps1
-          -Mode self-signed
-          -ExpectedCertificateThumbprint "$env:WINDOWS_CERTIFICATE_THUMBPRINT"
-          -Path 'apps/desktop/out/Hoprel-win32-x64','apps/desktop/out/make/squirrel.windows/x64'
+        run: |
+          & ./scripts/verify-windows-signatures.ps1 `
+            -Mode self-signed `
+            -ExpectedCertificateThumbprint $env:WINDOWS_CERTIFICATE_THUMBPRINT `
+            -Path @(
+              'apps/desktop/out/Hoprel-win32-x64',
+              'apps/desktop/out/make/squirrel.windows/x64'
+            )
 
       - name: Prepare Windows website download files
         shell: pwsh
