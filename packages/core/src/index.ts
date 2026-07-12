@@ -1,6 +1,11 @@
 export { db } from "./storage/db.js"
 export * from "./storage/schema.js"
 export * from "./storage/queries.js"
+export { coreAssetDir, coreStateDir, coreStatePath, ensureCoreStateDir, legacyCoreStateDir } from "./storage/paths.js"
+
+export { calculateAmortization, calculateBondMetrics, calculateBondYieldShock, calculateCagr, calculateDcf, calculateInternalRateOfReturn, calculateNetPresentValue, calculateXirr, cashFlowsFromAmounts, datedCashFlowsFromAmounts, financeCalculationKinds, runFinanceCalculation, FinanceCalculationError } from "./finance/index.js"
+export type { AmortizationInput, BondInput, CagrInput, CashFlow, DatedCashFlow, DcfInput, DecimalInput, FinanceCalculationKind, FinanceCalculationRequest, FinanceResult, FinanceWarning, InternalRateOfReturnInput, NetPresentValueInput, XirrInput, YieldShockInput } from "./finance/index.js"
+export { financeCalculateTool } from "./tool/built-in/finance.js"
 
 export { taskCreateTool, taskUpdateTool, taskCompleteTool } from "./tool/built-in/dag-tasks.js"
 export { planEnterTool, planVerifyTool } from "./tool/built-in/plan.js"
@@ -183,8 +188,11 @@ export { PlanGate }        from "./plan/gate.js"
 export type { PlanRequest, PlanStep, PlanDecision } from "./plan/gate.js"
 
 // Design agent
-export { DesignLoader, matchDesign, extractProjectBrand, brandToContext, loadDesignPrefs, saveDesignPrefs, recordSystemUsed, recordSkillUsed, buildDesignPrompt, buildDesignOutputDir, slugify } from "./design/index.js"
+export { DesignLoader, matchDesign, extractProjectBrand, brandToContext, loadDesignPrefs, saveDesignPrefs, recordSystemUsed, recordSkillUsed, buildDesignPrompt, buildDesignOutputDir, slugify, designArtifactStore } from "./design/index.js"
+export type { DesignArtifact, DesignArtifactRevision, DesignArtifactStatus, CreateDesignArtifactInput } from "./design/index.js"
 export type { DesignSystem, Skill, MatchResult, ProjectBrand, DesignPrefs, DesignJobSpec } from "./design/index.js"
+export { artifactRegistry } from './artifact/index.js'
+export type { ArtifactKind, ArtifactLifecycle, ArtifactRecord, ArtifactSource } from './artifact/index.js'
 export { loadCustomTools } from "./tool/custom-loader.js"
 
 // Project context & diagnostics

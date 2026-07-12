@@ -8,6 +8,7 @@ flushProfileReportOnExit()
 profileCheckpoint("entry_module_loaded")
 
 import { loadConfig, parseFlags, applyFlags } from "./config/loader.js"
+import { migrateLegacyCoreState } from "./util/state-migration.js"
 
 let mcpManagerRef: { disconnectAll(): Promise<void> } | null = null
 
@@ -60,14 +61,14 @@ profileCheckpoint("flags_parsed")
 
 // --version
 if (flags.version) {
-  console.log("Aurict v1.1.8")
+  console.log("Aurict v1.1.9")
   process.exit(0)
 }
 
 // --help
 if (flags.help) {
   console.log(`
-Aurict v1.1.8 — Terminal AI assistant
+Aurict v1.1.9 — Terminal AI assistant
 
 Usage:
   aurict [options]
@@ -117,6 +118,8 @@ if (subCmd === "doctor") {
   const exitCode = await runDoctor(workdir, { json: jsonFlag })
   process.exit(exitCode)
 }
+
+migrateLegacyCoreState()
 
 profileCheckpoint("prefetch_started")
 const [reactMod, inkMod] = await Promise.all([
@@ -210,6 +213,15 @@ for (const [id, def] of Object.entries(omniCfg.customProviders ?? {})) {
     models:       [{ id: def.defaultModel, name: def.defaultModel, contextWindow: 128_000, maxOutput: 8_000, supportsTools: true, supportsVision: false }],
     modelsEndpoint: `${def.baseUrl.replace(/\/+$/, "")}/models`,
   }))
+}
+
+// ─── --ipc-server: Bun sidecar mode for apps/desktop ────────────────────────
+// No TUI/Ink — a JSON-lines protocol over stdio instead. See ipc-server.ts.
+// Placed after config/keystore/custom-provider resolution above, so the
+// sidecar sees the exact same resolved API keys the TUI path would.
+if (flags.ipcServer) {
+  const { runIpcServer } = await import("./ipc-server.js")
+  await runIpcServer(workdir)
 }
 
 // ─── aurict run <recipe.yaml> ────────────────────────────────────────────────

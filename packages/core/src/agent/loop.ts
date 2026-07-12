@@ -426,27 +426,38 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     let attemptMessages: CoreMessage[] = messages
     let attemptSystemParam: string | undefined = system || undefined
     if (attemptPlugin.sdkType === "anthropic") {
-      const contentBlocks: Array<{ type: "text"; text: string; experimental_providerMetadata?: unknown }> = []
+      // @ai-sdk/anthropic's convertToAnthropicMessagesPrompt groups CONSECUTIVE
+      // system-role CoreMessages back into Anthropic's array-of-cached-blocks
+      // system format itself (see its "system" block-grouping switch case) — it
+      // does NOT accept one CoreMessage whose `content` is already an array;
+      // ai@4.x's CoreSystemMessage.content is typed (and Zod-validated) as
+      // `string` only. So here we emit one plain-string system message per
+      // section, each carrying its own experimental_providerMetadata — the
+      // provider's own grouping reassembles them into the cached blocks.
+      const systemMessages: CoreMessage[] = []
       const splitSystem = splitPromptSectionsByCache(runtimeSystemSections)
       const promptCachingEnabled = isPromptCachingEnabled(attemptProviderId, attemptModelId)
       if (splitSystem.cacheable) {
-        contentBlocks.push({
-          type: "text",
-          text: splitSystem.cacheable,
+        systemMessages.push({
+          role: "system",
+          content: splitSystem.cacheable,
+          // PromptCacheControl is a plain JSON-safe object, but its named
+          // (non-indexed) shape doesn't structurally satisfy the provider
+          // metadata's `Record<string, JSONValue>` signature under
+          // exactOptionalPropertyTypes — same cast the previous code applied.
           ...(promptCachingEnabled
-            ? { experimental_providerMetadata: { anthropic: { cacheControl: getPromptCacheControl() } } }
+            ? { experimental_providerMetadata: { anthropic: { cacheControl: getPromptCacheControl() } } as never }
             : {}),
         })
       }
       if (splitSystem.dynamic) {
-        contentBlocks.push({ type: "text", text: splitSystem.dynamic })
+        systemMessages.push({ role: "system", content: splitSystem.dynamic })
       }
       if (gitSection) {
-        contentBlocks.push({ type: "text", text: gitSection })
+        systemMessages.push({ role: "system", content: gitSection })
       }
-      if (contentBlocks.length > 0) {
-        const sysMsg: CoreMessage = { role: "system", content: contentBlocks as never }
-        attemptMessages = [sysMsg, ...messages]
+      if (systemMessages.length > 0) {
+        attemptMessages = [...systemMessages, ...messages]
         attemptSystemParam = undefined
       }
     } else if (system || gitSection) {

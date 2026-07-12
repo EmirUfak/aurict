@@ -1,4 +1,4 @@
-import { createSession, getSession, listSessions, updateSession, addPart, getSessionParts, getSessionPartsCount, getSessionPartsTail, recordTurn as dbRecordTurn, listSessionsWithStats, getSessionStats, searchSessions as dbSearchSessions } from "../storage/queries.js"
+import { createSession, getSession, listSessions, updateSession, deleteSession as dbDeleteSession, addPart, getSessionParts, getSessionPartsCount, getSessionPartsTail, recordTurn as dbRecordTurn, listSessionsWithStats, getSessionStats, searchSessions as dbSearchSessions } from "../storage/queries.js"
 import type { Session, Part, SessionConfig } from "./types.js"
 import type { SessionStats, SessionSearchResult } from "../storage/queries.js"
 import { hooks } from "../hook/emitter.js"
@@ -31,6 +31,10 @@ export const SessionManager = {
   async end(id: string, reason = "user"): Promise<void> {
     updateSession(id, { status: "complete" })
     await hooks.emit("v1.session.end", { sessionId: id, reason })
+  },
+
+  deleteSession(id: string): void {
+    dbDeleteSession(id)
   },
 
   ensureExists(id: string, cfg: SessionConfig): void {
@@ -73,7 +77,11 @@ export const SessionManager = {
     costUsd:      number
     model:        string
   }): void {
-    try { dbRecordTurn(sessionId, data) } catch { /* istatistik hatası agent'ı durdurmamalı */ }
+    try {
+      dbRecordTurn(sessionId, data)
+    } catch (error) {
+      console.error(`[aurict] failed to record session usage for ${sessionId}`, error)
+    }
   },
 
   /** Maliyet istatistikleriyle tüm session listesi */

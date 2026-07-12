@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, unlinkSy
 import { join } from "path"
 import { homedir } from "os"
 
-const REMOTE_DIR = join(homedir(), ".aurict", "remote")
+const REMOTE_DIR = process.env.AURICT_REMOTE_STATE_DIR?.trim() || join(homedir(), ".aurict", "remote")
 
 export function remoteDir(): string {
   return REMOTE_DIR

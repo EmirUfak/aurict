@@ -1,0 +1,25 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="22%" cy="12%" r="130%">
+      <stop offset="0%" stop-color="#2B0D13"/>
+      <stop offset="36%" stop-color="#160809"/>
+      <stop offset="100%" stop-color="#0A0405"/>
+    </radialGradient>
+    <linearGradient id="red" x1="18%" y1="8%" x2="78%" y2="96%">
+      <stop offset="0%" stop-color="#F2536B"/>
+      <stop offset="52%" stop-color="#D42A4E"/>
+      <stop offset="100%" stop-color="#9C1636"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F7DC94"/>
+      <stop offset="100%" stop-color="#D9A63E"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="201" fill="url(#bg)"/>
+  <rect x="66.5" y="66.5" width="891" height="891" rx="198.5" stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="5"/>
+  <g stroke="url(#red)" stroke-width="92" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M 356 292 L 356 732"/>
+    <path d="M 356 552 C 356 452, 448 402, 528 426 C 606 450, 654 522, 662 610 C 666 656, 664 698, 654 728 C 644 756, 600 764, 564 732 C 524 696, 528 642, 556 600 C 576 566, 608 530, 650 468"/>
+  </g>
+  <rect x="756" y="608" width="46" height="130" rx="23" fill="url(#gold)"/>
+</svg>

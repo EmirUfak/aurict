@@ -14,6 +14,10 @@ const aurictBackendBaseUrl = String.fromEnvironment(
   defaultValue: 'https://api.aurict.com',
 );
 
+const _googleServerClientId = String.fromEnvironment(
+  'AURICT_GOOGLE_SERVER_CLIENT_ID',
+);
+
 class AurictAccount {
   const AurictAccount({
     required this.userId,
@@ -199,7 +203,15 @@ class MobileAuthSession extends ChangeNotifier {
 
   Future<void> _initializeGoogle() async {
     if (_googleInitialized) return;
-    await GoogleSignIn.instance.initialize();
+    if (_googleServerClientId.isEmpty) {
+      throw StateError(
+        'AURICT_GOOGLE_SERVER_CLIENT_ID must be provided via --dart-define '
+        'to enable Google sign-in.',
+      );
+    }
+    await GoogleSignIn.instance.initialize(
+      serverClientId: _googleServerClientId,
+    );
     _googleInitialized = true;
   }
 

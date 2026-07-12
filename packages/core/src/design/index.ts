@@ -12,3 +12,6 @@ export type { DesignPrefs } from "./prefs.js"
 
 export { buildDesignPrompt, buildDesignOutputDir, slugify } from "./prompt-builder.js"
 export type { DesignJobSpec } from "./prompt-builder.js"
+
+export { designArtifactStore } from './artifacts.js'
+export type { DesignArtifact, DesignArtifactRevision, DesignArtifactStatus, CreateDesignArtifactInput } from './artifacts.js'

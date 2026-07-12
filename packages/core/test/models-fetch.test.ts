@@ -7,16 +7,16 @@
  * önceden bilinmeyen model için modelInfo undefined olup sessiz 200k/8k
  * varsayımına düşülüyordu.
  */
-import { describe, it, expect, afterEach } from "bun:test"
+import { describe, it, expect, afterAll, afterEach, beforeAll } from "bun:test"
 import { join, dirname } from "node:path"
-import { homedir } from "node:os"
-import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs"
-import { resolveModelInfo, findCachedModelInfo } from "../src/provider/models-fetch.js"
+import { tmpdir } from "node:os"
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs"
+import { resolveModelInfo, findCachedModelInfo, setModelCacheDirectoryForTests } from "../src/provider/models-fetch.js"
 import { resetModelsDevCacheForTests } from "../src/provider/models-dev.js"
 import { createMockProvider } from "./helpers.js"
 
 function cachePathFor(providerId: string): string {
-  return join(homedir(), ".aurict", "cache", `models-${providerId}.json`)
+  return join(cacheDir, `models-${providerId}.json`)
 }
 
 function mockFetchOnce(body: unknown, ok = true) {
@@ -32,6 +32,17 @@ function mockFetchThrows() {
 }
 
 const writtenCacheFiles: string[] = []
+let cacheDir = ''
+
+beforeAll(() => {
+  cacheDir = mkdtempSync(join(tmpdir(), 'aurict-model-cache-'))
+  setModelCacheDirectoryForTests(cacheDir)
+})
+
+afterAll(() => {
+  setModelCacheDirectoryForTests()
+  rmSync(cacheDir, { recursive: true, force: true })
+})
 
 afterEach(() => {
   for (const f of writtenCacheFiles.splice(0)) {

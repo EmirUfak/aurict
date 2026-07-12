@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "bun:test"
 import {
-  mkdirSync, existsSync, readFileSync, writeFileSync, unlinkSync,
+  mkdirSync, readFileSync, writeFileSync,
   mkdtempSync, rmSync,
 } from "node:fs"
-import { tmpdir, homedir } from "node:os"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   loadConfig, resolveLongTaskRuntimeConfig, resolveSecuritySandboxConfig, SECURITY_SANDBOX_IMAGE_DEFAULTS, setApiKey, setDefault, setCustomProvider, removeCustomProvider, setCompaction, setLongTaskRuntime, setSecuritySandbox, getConfigPath,
+  setGlobalConfigPathForTests,
 } from "../src/config/config.js"
 
-const GLOBAL_PATH = join(homedir(), ".aurict", "config.json")
+let GLOBAL_PATH = ""
 
 // Env vars setApiKey touches — save + restore around the whole suite
 const TRACKED_ENV = [
@@ -18,7 +19,7 @@ const TRACKED_ENV = [
   "XAI_API_KEY", "AZURE_OPENAI_API_KEY", "AWS_ACCESS_KEY_ID",
 ]
 const savedEnv: Record<string, string | undefined> = {}
-let savedGlobalConfig: string | null = null
+let stateDir = ""
 
 beforeAll(() => {
   // Save env vars and clear them so tests start clean
@@ -26,9 +27,10 @@ beforeAll(() => {
     savedEnv[v] = process.env[v]
     delete process.env[v]
   }
-  // Backup and reset global config
-  savedGlobalConfig = existsSync(GLOBAL_PATH) ? readFileSync(GLOBAL_PATH, "utf8") : null
-  mkdirSync(join(homedir(), ".aurict"), { recursive: true })
+  stateDir = mkdtempSync(join(tmpdir(), "aurict-config-state-"))
+  GLOBAL_PATH = join(stateDir, "config.json")
+  setGlobalConfigPathForTests(GLOBAL_PATH)
+  mkdirSync(stateDir, { recursive: true })
   writeFileSync(GLOBAL_PATH, "{}", "utf8")
 })
 
@@ -38,12 +40,8 @@ afterAll(() => {
     if (v !== undefined) process.env[k] = v
     else delete process.env[k]
   }
-  // Restore global config
-  if (savedGlobalConfig !== null) {
-    writeFileSync(GLOBAL_PATH, savedGlobalConfig, "utf8")
-  } else if (existsSync(GLOBAL_PATH)) {
-    unlinkSync(GLOBAL_PATH)
-  }
+  setGlobalConfigPathForTests()
+  rmSync(stateDir, { recursive: true, force: true })
 })
 
 afterEach(() => {
@@ -131,6 +129,11 @@ describe("loadConfig", () => {
     // No providers set in either config file or env vars
     const hasAnyKey = Object.values(cfg.providers ?? {}).some((p) => p.apiKey)
     expect(hasAnyKey).toBe(false)
+  })
+
+  it("fails visibly when the global config is malformed", () => {
+    writeFileSync(GLOBAL_PATH, '{not-json', "utf8")
+    expect(() => loadConfig()).toThrow("Failed to read configuration")
   })
 })
 
@@ -363,14 +366,8 @@ describe("setLongTaskRuntime", () => {
 // ─── getConfigPath ───────────────────────────────────────────────────────────
 
 describe("getConfigPath", () => {
-  it("returns a path containing .aurict and config.json", () => {
+  it("returns the configured state path", () => {
     const p = getConfigPath()
-    expect(p).toContain(".aurict")
-    expect(p).toContain("config.json")
-  })
-
-  it("returns path under home directory", () => {
-    const p = getConfigPath()
-    expect(p).toContain(homedir())
+    expect(p).toBe(join(stateDir, "config.json"))
   })
 })

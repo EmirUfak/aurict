@@ -11,12 +11,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
 
   title: {
-    default: "Aurict — Terminal AI Coding Assistant",
+    default: "Aurict — Agentic Workspaces Across Desktop, Mobile, and Terminal",
     template: "%s | Aurict",
   },
 
   description:
-    "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and support for Anthropic, OpenAI, Google, and 6 more providers. No IDE required. Works in macOS, Linux, and Windows.",
+    "Open-source AI workspaces across Hoprel desktop, Aurict Mobile, and the terminal. Bring your own provider, keep local context, and work with explicit control.",
 
   keywords: [
     "open source terminal agent",
@@ -26,6 +26,8 @@ export const metadata: Metadata = {
     "AI terminal agent",
     "AI coding tool",
     "AI terminal assistant",
+    "local-first AI workspace",
+    "Hoprel desktop app",
     "Claude Code alternative",
     "OpenCode alternative",
     "open source AI coding assistant",
@@ -58,8 +60,8 @@ export const metadata: Metadata = {
     locale:      "en_US",
     url:         BASE_URL,
     siteName:    "Aurict",
-    title:       "Aurict — Terminal AI Coding Assistant",
-    description: "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected skills, and multi-provider support. One command to rule your codebase.",
+    title:       "Aurict — Agentic Workspaces",
+    description: "Hoprel desktop, Aurict Mobile, and an open-source terminal runtime — one AI workspace across every surface.",
     images: [
       {
         url:    "/opengraph-image",
@@ -74,8 +76,8 @@ export const metadata: Metadata = {
     card:        "summary_large_image",
     site:        "@aurictdev",
     creator:     "@aurictdev",
-    title:       "Aurict — Terminal AI Coding Assistant",
-    description: "Open-source terminal agent and AI assistant — 9 agents, 218+ skills, 9 providers. No IDE required.",
+    title:       "Aurict — Agentic Workspaces",
+    description: "Hoprel desktop, Aurict Mobile, and a terminal runtime with your providers and local context.",
     images:      ["/opengraph-image"],
   },
 

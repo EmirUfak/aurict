@@ -1,6 +1,6 @@
 {
   "name": "aurict",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "private": true,
   "license": "AGPL-3.0-only",
   "workspaces": [
@@ -11,7 +11,8 @@
     "packages/cli-linux-arm64",
     "packages/cli-darwin-x64",
     "packages/cli-darwin-arm64",
-    "packages/cli-win32-x64"
+    "packages/cli-win32-x64",
+    "apps/desktop"
   ],
   "scripts": {
     "dev": "bun run packages/cli/src/index.ts",
@@ -22,7 +23,7 @@
     "publish:dry": "bun run scripts/publish.ts --dry-run",
     "eval": "bun run scripts/eval.ts",
     "test": "bun test packages/core/test/*.test.ts packages/cli/test/*.test.tsx",
-    "typecheck": "bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/cli/tsconfig.json",
+    "typecheck": "bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/cli/tsconfig.json && bunx tsc --noEmit -p apps/desktop/tsconfig.json",
     "doctor": "bun run packages/cli/src/index.ts doctor",
     "doctor:json": "bun run packages/cli/src/index.ts doctor --json",
     "doctor:report": "bun run packages/cli/src/index.ts doctor --json > reports/doctor-runtime.json",

@@ -1,10 +1,13 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
+import { coreAssetDir } from "../storage/paths.js"
 
 // Data dizini: packages/cli/data/  (core → cli üst dizine çıkılır)
 // __dirname: packages/core/src/design → ../../../../packages/cli/data
 function dataDir(): string {
+  const packagedDataDir = coreAssetDir()
+  if (packagedDataDir) return packagedDataDir
   const here = dirname(fileURLToPath(import.meta.url))
   return join(here, "../../../../packages/cli/data")
 }

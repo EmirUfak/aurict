@@ -64,12 +64,25 @@ function scoreSystem(sys: DesignSystem, words: string[]): number {
   const sysName = normalize(sys.name)
   if (words.some(w => sysName.includes(w) || w.includes(sysName))) score += 15
   if (words.some(w => sys.id.includes(w) || w.includes(sys.id.replace(/-/g, " ")))) score += 12
+
+  // The catalog is intentionally much larger than the hand-tuned hint table.
+  // Let every system participate through its own name, category, and tagline
+  // while ignoring tiny connective words that would create noisy matches.
+  const metadataWords = normalize(`${sys.name} ${sys.category} ${sys.tagline}`)
+    .split(/\s+/)
+    .filter(word => word.length >= 4)
+  for (const word of words) {
+    if (word.length >= 4 && metadataWords.includes(word)) score += 3
+  }
   return score
 }
 
-function scoreSkill(skillId: string, words: string[]): number {
-  const kws = SKILL_KEYWORD_MAP[skillId] ?? []
-  return kws.filter(kw => words.some(w => w.includes(kw) || kw.includes(w))).length * 5
+function scoreSkill(skill: Skill, words: string[]): number {
+  const keywords = [...(SKILL_KEYWORD_MAP[skill.id] ?? []), ...skill.triggers]
+  return keywords.filter(keyword => {
+    const normalized = normalize(keyword)
+    return words.some(word => word.includes(normalized) || normalized.includes(word))
+  }).length * 5
 }
 
 export interface MatchResult {
@@ -92,7 +105,7 @@ export function matchDesign(brief: string): MatchResult {
 
   // Score all skills
   const scoredSkills = skills
-    .map(s => ({ skill: s, score: scoreSkill(s.id, words) }))
+    .map(s => ({ skill: s, score: scoreSkill(s, words) }))
     .sort((a, b) => b.score - a.score)
 
   const bestSystem = scoredSystems[0]?.system ?? systems[0]!

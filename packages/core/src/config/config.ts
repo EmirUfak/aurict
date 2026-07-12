@@ -1,7 +1,7 @@
-import { join } from "path"
-import { homedir } from "os"
+import { dirname, join } from "path"
 import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "fs"
 import type { FallbackTrigger } from "../provider/fallback.js"
+import { coreStatePath } from "../storage/paths.js"
 
 export type CompactionStrategy  = "aggressive" | "balanced" | "conservative"
 export type TruncationStrategy = "head" | "tail" | "head_tail" | "smart"
@@ -204,7 +204,16 @@ export interface OmniConfig {
   critique?: CritiqueConfig
 }
 
-const GLOBAL_PATH = join(homedir(), ".aurict", "config.json")
+let globalConfigPathOverride: string | undefined
+
+function globalConfigPath(): string {
+  return globalConfigPathOverride ?? coreStatePath('config.json')
+}
+
+/** Test-only path override. Production code always resolves from core state. */
+export function setGlobalConfigPathForTests(path?: string): void {
+  globalConfigPathOverride = path
+}
 
 const PROVIDER_ENV_VARS: Record<string, string> = {
   anthropic:  "ANTHROPIC_API_KEY",
@@ -221,16 +230,18 @@ const PROVIDER_ENV_VARS: Record<string, string> = {
 }
 
 function load(path: string): OmniConfig {
+  if (!existsSync(path)) return {}
   try {
-    if (!existsSync(path)) return {}
     return JSON.parse(readFileSync(path, "utf8")) as OmniConfig
-  } catch { return {} }
+  } catch (error) {
+    throw new Error(`Failed to read configuration at ${path}: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 function save(path: string, cfg: OmniConfig): void {
-  mkdirSync(join(homedir(), ".aurict"), { recursive: true })
+  mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, JSON.stringify(cfg, null, 2), "utf8")
-  try { chmodSync(path, 0o600) } catch { /* ignore on windows */ }
+  if (process.platform !== 'win32') chmodSync(path, 0o600)
 }
 
 function merge(a: OmniConfig, b: OmniConfig): OmniConfig {
@@ -257,9 +268,9 @@ function merge(a: OmniConfig, b: OmniConfig): OmniConfig {
   }
 }
 
-/** ~/.aurict/config.json okur, env var'ları üstüne yazar */
+/** Configured core-state config.json reads and is overridden by environment variables. */
 export function loadConfig(projectDir?: string): OmniConfig {
-  const global  = load(GLOBAL_PATH)
+  const global  = load(globalConfigPath())
   const project = projectDir ? load(join(projectDir, ".aurict", "config.json")) : {}
   const merged  = merge(global, project)
 
@@ -347,10 +358,11 @@ function positiveInt(value: number | undefined, fallback: number): number {
 }
 
 export function setApiKey(provider: string, apiKey: string): void {
-  const cfg = load(GLOBAL_PATH)
+  const path = globalConfigPath()
+  const cfg = load(path)
   cfg.providers         = cfg.providers ?? {}
   cfg.providers[provider] = { ...(cfg.providers[provider] ?? {}), apiKey }
-  save(GLOBAL_PATH, cfg)
+  save(path, cfg)
 
   // Aynı zamanda env var olarak set et (mevcut process için)
   const envMap: Record<string, string> = {
@@ -368,46 +380,52 @@ export interface CustomProviderDef {
 }
 
 export function setCustomProvider(id: string, def: CustomProviderDef): void {
-  const cfg = load(GLOBAL_PATH)
+  const path = globalConfigPath()
+  const cfg = load(path)
   cfg.customProviders = cfg.customProviders ?? {}
   cfg.customProviders[id] = def
-  save(GLOBAL_PATH, cfg)
+  save(path, cfg)
 }
 
 export function removeCustomProvider(id: string): void {
-  const cfg = load(GLOBAL_PATH)
+  const path = globalConfigPath()
+  const cfg = load(path)
   if (!cfg.customProviders) return
   delete cfg.customProviders[id]
-  save(GLOBAL_PATH, cfg)
+  save(path, cfg)
 }
 
 export function setDefault(key: "provider" | "model" | "effort", value: string | number): void {
-  const cfg = load(GLOBAL_PATH)
+  const path = globalConfigPath()
+  const cfg = load(path)
   cfg.defaults = cfg.defaults ?? {}
   if (key === "effort") {
     cfg.defaults.effort = Number(value)
   } else {
     cfg.defaults[key] = String(value)
   }
-  save(GLOBAL_PATH, cfg)
+  save(path, cfg)
 }
 
 export function setCompaction(opts: { tailTurns?: number; strategy?: CompactionStrategy }): void {
-  const cfg = load(GLOBAL_PATH)
+  const path = globalConfigPath()
+  const cfg = load(path)
   cfg.compaction = { ...(cfg.compaction ?? {}), ...opts }
-  save(GLOBAL_PATH, cfg)
+  save(path, cfg)
 }
 
 export function setSecuritySandbox(opts: SecuritySandboxConfig): void {
-  const cfg = load(GLOBAL_PATH)
+  const path = globalConfigPath()
+  const cfg = load(path)
   cfg.securitySandbox = { ...(cfg.securitySandbox ?? {}), ...opts }
-  save(GLOBAL_PATH, cfg)
+  save(path, cfg)
 }
 
 export function setLongTaskRuntime(opts: LongTaskRuntimeConfig): void {
-  const cfg = load(GLOBAL_PATH)
+  const path = globalConfigPath()
+  const cfg = load(path)
   cfg.longTaskRuntime = { ...(cfg.longTaskRuntime ?? {}), ...opts }
-  save(GLOBAL_PATH, cfg)
+  save(path, cfg)
 }
 
-export function getConfigPath(): string { return GLOBAL_PATH }
+export function getConfigPath(): string { return globalConfigPath() }

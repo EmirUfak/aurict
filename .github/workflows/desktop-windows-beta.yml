@@ -1,0 +1,204 @@
+name: Hoprel Desktop Beta Release
+
+on:
+  push:
+    tags:
+      - 'desktop-beta-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-beta-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-self-signed-beta:
+    name: Build self-signed Windows beta
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      AURICT_SIDECAR_TARGET: bun-windows-x64
+      AURICT_WINDOWS_SIGNING: self-signed
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate ephemeral beta certificate
+        shell: pwsh
+        run: pwsh -File scripts/prepare-self-signed-windows-certificate.ps1
+
+      - name: Build self-signed Squirrel installer
+        run: bun run --cwd apps/desktop make
+
+      - name: Verify beta signatures
+        shell: pwsh
+        run: >
+          pwsh -File scripts/verify-windows-signatures.ps1
+          -Mode self-signed
+          -ExpectedCertificateThumbprint "$env:WINDOWS_CERTIFICATE_THUMBPRINT"
+          -Path 'apps/desktop/out/Hoprel-win32-x64','apps/desktop/out/make/squirrel.windows/x64'
+
+      - name: Prepare Windows website download files
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem 'apps/desktop/out/make/squirrel.windows/x64' -Filter '*Setup.exe' -File)
+          if ($installer.Count -ne 1) {
+            throw "Expected exactly one Setup.exe, found $($installer.Count)."
+          }
+          New-Item -ItemType Directory -Force -Path artifacts/windows | Out-Null
+          Copy-Item -LiteralPath $installer[0].FullName -Destination artifacts/windows/Hoprel-Beta-Setup.exe
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath artifacts/windows/Hoprel-Beta-Setup.exe).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath artifacts/windows/Hoprel-Beta-Setup.exe.sha256 -Value "$hash  Hoprel-Beta-Setup.exe" -NoNewline
+
+      - name: Upload beta artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoprel-windows-beta
+          if-no-files-found: error
+          path: artifacts/windows/*
+
+  build-debian-beta:
+    name: Build Debian desktop beta
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AURICT_SIDECAR_TARGET: bun-linux-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build Debian package
+        run: bun run --cwd apps/desktop make -- --targets @electron-forge/maker-deb
+
+      - name: Prepare Debian website download files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find apps/desktop/out/make -name '*.deb' -type f)
+          if [ "${#packages[@]}" -ne 1 ]; then
+            echo "Expected exactly one Debian package, found ${#packages[@]}." >&2
+            exit 1
+          fi
+          mkdir -p artifacts/debian
+          cp "${packages[0]}" artifacts/debian/Hoprel-Beta-amd64.deb
+          sha256sum artifacts/debian/Hoprel-Beta-amd64.deb > artifacts/debian/Hoprel-Beta-amd64.deb.sha256
+
+      - name: Upload Debian beta artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoprel-debian-beta
+          if-no-files-found: error
+          path: artifacts/debian/*
+
+  build-macos-beta:
+    name: Build macOS ${{ matrix.architecture }} desktop beta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x64
+            runner: macos-15-intel
+            sidecar_target: bun-darwin-x64
+          - architecture: arm64
+            runner: macos-14
+            sidecar_target: bun-darwin-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      AURICT_SIDECAR_TARGET: ${{ matrix.sidecar_target }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build unsigned macOS ZIP
+        run: bun run --cwd apps/desktop make -- --targets @electron-forge/maker-zip
+
+      - name: Prepare macOS website download files
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_count="$(find apps/desktop/out/make -name '*.zip' -type f | wc -l | tr -d ' ')"
+          if [ "$package_count" -ne 1 ]; then
+            echo "Expected exactly one macOS ZIP, found $package_count." >&2
+            exit 1
+          fi
+          package="$(find apps/desktop/out/make -name '*.zip' -type f -print -quit)"
+          mkdir -p artifacts/macos
+          asset="Hoprel-Beta-macos-${{ matrix.architecture }}.zip"
+          cp "$package" "artifacts/macos/$asset"
+          (
+            cd artifacts/macos
+            shasum -a 256 "$asset" > "$asset.sha256"
+          )
+
+      - name: Upload macOS beta artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoprel-macos-${{ matrix.architecture }}-beta
+          if-no-files-found: error
+          path: artifacts/macos/*
+
+  publish-beta-release:
+    name: Publish desktop beta release
+    if: github.ref_type == 'tag'
+    needs: [build-self-signed-beta, build-debian-beta, build-macos-beta]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows beta artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hoprel-windows-beta
+          path: artifacts
+
+      - name: Download Debian beta artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hoprel-debian-beta
+          path: artifacts
+
+      - name: Download macOS Intel beta artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hoprel-macos-x64-beta
+          path: artifacts
+
+      - name: Download macOS Apple Silicon beta artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hoprel-macos-arm64-beta
+          path: artifacts
+
+      - name: Publish GitHub beta release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Hoprel by Aurict Beta ${{ github.ref_name }}
+          prerelease: true
+          generate_release_notes: true
+          files: artifacts/*

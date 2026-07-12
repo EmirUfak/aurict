@@ -1,10 +1,11 @@
-import { join } from "path"
-import { homedir } from "os"
-import { statSync, readFileSync } from "fs"
+import { dirname, join } from "path"
+import { existsSync, mkdirSync, statSync, readFileSync } from "fs"
 import type { ModelInfo, ProviderPlugin } from "./plugin.js"
 import { fetchModelMeta } from "./models-dev.js"
+import { coreStatePath } from "../storage/paths.js"
 
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 dakika
+let modelCacheDirectoryOverride: string | undefined
 
 interface OpenAIModelEntry {
   id:       string
@@ -17,7 +18,14 @@ interface OpenAIModelsResponse {
 }
 
 function cachePath(providerId: string): string {
-  return join(homedir(), ".aurict", "cache", `models-${providerId}.json`)
+  const safeProviderId = providerId.replace(/[^a-zA-Z0-9_.-]/g, '_')
+  const directory = modelCacheDirectoryOverride ?? coreStatePath('cache')
+  return join(directory, `models-${safeProviderId}.json`)
+}
+
+/** Test-only cache isolation. Production cache always resolves from core state. */
+export function setModelCacheDirectoryForTests(directory?: string): void {
+  modelCacheDirectoryOverride = directory
 }
 
 function isFresh(path: string): boolean {
@@ -28,10 +36,12 @@ function isFresh(path: string): boolean {
 }
 
 async function readCachedModels(path: string): Promise<ModelInfo[] | null> {
+  if (!existsSync(path)) return null
   try {
     const raw = await Bun.file(path).text()
     return JSON.parse(raw) as ModelInfo[]
-  } catch {
+  } catch (error) {
+    console.warn(`[aurict] ignoring unreadable model cache at ${path}`, error)
     return null
   }
 }
@@ -118,11 +128,14 @@ async function fetchFromEndpoint(url: string, apiKey: string): Promise<ModelInfo
  * tool gönderilip 400 Bad Request alınır.
  */
 export function findCachedModelInfo(providerId: string, modelId: string): ModelInfo | undefined {
+  const path = cachePath(providerId)
+  if (!existsSync(path)) return undefined
   try {
-    const raw = readFileSync(cachePath(providerId), "utf8")
+    const raw = readFileSync(path, "utf8")
     const models = JSON.parse(raw) as ModelInfo[]
     return models.find((m) => m.id === modelId)
-  } catch {
+  } catch (error) {
+    console.warn(`[aurict] ignoring unreadable model cache at ${path}`, error)
     return undefined
   }
 }
@@ -171,10 +184,14 @@ export async function getCachedModels(providerId: string, url: string, apiKey: s
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const models = await fetchFromEndpoint(url, apiKey)
-      // Cache'e yaz (dizin yoksa atla)
+      // Model discovery can still succeed if its optional cache cannot be
+      // written, but the storage failure must remain visible.
       try {
+        mkdirSync(dirname(path), { recursive: true })
         await Bun.write(path, JSON.stringify(models))
-      } catch { /* yazılamazsa önemli değil */ }
+      } catch (error) {
+        console.warn(`[aurict] failed to write model cache at ${path}`, error)
+      }
       return models
     } catch (err) {
       lastError = err

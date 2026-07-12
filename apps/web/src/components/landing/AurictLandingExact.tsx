@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import type { CSSProperties, ReactNode } from "react"
+import Image from "next/image"
 import { BrandMark } from "@/components/BrandMark"
 import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
 
@@ -58,11 +59,17 @@ const faqs = [
 
 const landingProductLinks = [
   ["overview", "#why"],
+  ["Hoprel desktop", "/downloads"],
+  ["surfaces", "#surfaces"],
   ["capabilities", "#capabilities"],
   ["security", "#security"],
   ["mobile", "#mobile"],
   ["install", "#install"],
   ["faq", "#faq"],
+]
+
+const landingEcosystemLinks = [
+  ["aurict mobile", "https://mobile.aurict.com"],
 ]
 
 export function AurictLandingExact() {
@@ -81,6 +88,7 @@ export function AurictLandingExact() {
       <div style={{ height: 2, background: "linear-gradient(90deg, transparent, color-mix(in oklch, var(--accent) 55%, transparent), transparent)" }} />
       <LandingNav />
       <Hero />
+      <Surfaces />
       <WhyAurict />
       <Capabilities />
       <Security />
@@ -100,7 +108,7 @@ function LandingNav() {
       <div className="landing-shell landing-nav-inner">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <BrandMark compact />
-          <span className="mono" style={{ fontSize: 10.5, padding: "4px 7px", borderRadius: 6, border: "1px solid var(--border)", background: "oklch(1 0 0/.06)", color: "oklch(0.55 0.01 75)" }}>v1.1.8 · AGPLv3</span>
+          <span className="mono" style={{ fontSize: 10.5, padding: "4px 7px", borderRadius: 6, border: "1px solid var(--border)", background: "oklch(1 0 0/.06)", color: "oklch(0.55 0.01 75)" }}>v1.1.9 · AGPLv3</span>
         </div>
         <div className="landing-nav-links">
           <div className="nav-dropdown">
@@ -112,6 +120,19 @@ function LandingNav() {
             </button>
             <div className="nav-dropdown-menu">
               {landingProductLinks.map(([label, href]) => (
+                <a key={href} className="nav-dropdown-item" href={href}>{label}</a>
+              ))}
+            </div>
+          </div>
+          <div className="nav-dropdown">
+            <button className="nav-dropdown-trigger" type="button">
+              ecosystem
+              <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            <div className="nav-dropdown-menu">
+              {landingEcosystemLinks.map(([label, href]) => (
                 <a key={href} className="nav-dropdown-item" href={href}>{label}</a>
               ))}
             </div>
@@ -134,14 +155,15 @@ function Hero() {
         <div>
           <div className="aur-rise mono" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, letterSpacing: ".03em", color: "var(--accent)", marginBottom: 28 }}>
             <span className="aur-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "oklch(0.72 0.15 145)" }} />
-            open source · terminal-native · nine specialist agents
+            open source · hoprel desktop · mobile · terminal
           </div>
-          <h1 className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 78, lineHeight: 1.03, letterSpacing: "-.015em", color: "oklch(0.96 0.004 80)", margin: "0 0 32px", animationDelay: ".05s" }}>Never leave the terminal.</h1>
-          <p className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 400, fontSize: 19, lineHeight: 1.62, color: "oklch(0.7 0.01 75)", maxWidth: 470, margin: "0 0 20px", animationDelay: ".1s" }}>Aurict is an open-source terminal agent that reads your codebase before you type a word, routes work across nine specialist agents, and calls whichever model provider you already trust — all inside the shell you never leave.</p>
-          <p className="aur-rise mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", margin: "0 0 40px", animationDelay: ".12s" }}>no browser tab · no extension host · no clipboard round-trip</p>
+          <h1 className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 78, lineHeight: 1.03, letterSpacing: "-.015em", color: "oklch(0.96 0.004 80)", margin: "0 0 32px", animationDelay: ".05s" }}>One intelligence.<br />Every surface.</h1>
+          <p className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 400, fontSize: 19, lineHeight: 1.62, color: "oklch(0.7 0.01 75)", maxWidth: 490, margin: "0 0 20px", animationDelay: ".1s" }}>Aurict brings agentic work to the surface that fits: Hoprel for a local-first desktop workspace, a native terminal runtime for code, and Aurict Mobile for research and remote control.</p>
+          <p className="aur-rise mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", margin: "0 0 40px", animationDelay: ".12s" }}>one account · your providers · local context · explicit control</p>
           <div className="aur-rise landing-cta-row" style={{ animationDelay: ".15s" }}>
-            <a className="mono landing-button-primary" href="#install">$ npm install -g aurict</a>
-            <a className="mono landing-button-secondary" href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">★ view on GitHub</a>
+            <a className="mono landing-button-primary" href="/downloads">↓ download Hoprel</a>
+            <a className="mono landing-button-secondary" href="#install">$ npm install -g aurict</a>
+            <a className="mono landing-button-secondary" href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">★ GitHub</a>
           </div>
         </div>
         <TerminalMock />
@@ -154,6 +176,33 @@ function Hero() {
       </div>
     </div>
   )
+}
+
+function Surfaces() {
+  return (
+    <section id="surfaces" data-screen-label="Surfaces" style={{ background: "var(--bg-alt)", borderTop: "1px solid oklch(1 0 0/.06)", borderBottom: "1px solid oklch(1 0 0/.06)" }}>
+      <div className="landing-shell" style={{ padding: "88px 44px" }}>
+        <Eyebrow>the aurict ecosystem</Eyebrow>
+        <div className="landing-section-head" style={{ marginBottom: 38 }}>
+          <h2 style={h2Style({ maxWidth: 610 })}>Choose the surface. Keep the context.</h2>
+          <p className="mono" style={{ maxWidth: 330, color: "oklch(0.55 0.01 75)", fontSize: 12.5, lineHeight: 1.6 }}>Each product has a distinct job. The same Aurict identity, providers, and work travel with you.</p>
+        </div>
+        <div className="landing-security-grid">
+          <article className="aur-card" style={{ padding: 25, background: "var(--bg-card)", borderColor: "color-mix(in oklch, var(--accent) 42%, var(--border))" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 18 }}><Image alt="Hoprel icon" height={46} src="/hoprel-icon.svg" width={46} /><div><div className="mono" style={{ color: "var(--accent)", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>desktop workspace</div><h3 style={{ color: "var(--text)", fontFamily: "var(--font-serif)", fontSize: 25, margin: "3px 0 0" }}>Hoprel <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 400 }}>by Aurict</span></h3></div></div>
+            <p style={{ color: "var(--text-dim)", fontFamily: "var(--font-serif)", fontSize: 15, lineHeight: 1.6, marginBottom: 18 }}>A local-first AI workspace for conversations, files, artifacts, Design Studio, Finance Desk, and remote control.</p>
+            <a className="mono landing-button-secondary" href="/downloads">download Hoprel →</a>
+          </article>
+          <SurfaceCard eyebrow="native runtime" title="Aurict Terminal" body="The open-source runtime for agentic coding, multi-agent execution, MCP, local context, and explicit command approvals." href="#install" link="install in your shell →" />
+          <SurfaceCard eyebrow="companion" title="Aurict Mobile" body="BYOK chat, research, document generation, and live remote control when your desktop work needs your attention." href="https://mobile.aurict.com" link="visit Aurict Mobile →" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function SurfaceCard({ eyebrow, title, body, href, link }: { eyebrow: string; title: string; body: string; href: string; link: string }) {
+  return <article className="aur-card" style={{ padding: 25, background: "var(--bg-card)" }}><div className="mono" style={{ color: "var(--accent)", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 13 }}>{eyebrow}</div><h3 style={{ color: "var(--text)", fontFamily: "var(--font-serif)", fontSize: 25, margin: "0 0 10px" }}>{title}</h3><p style={{ color: "var(--text-dim)", fontFamily: "var(--font-serif)", fontSize: 15, lineHeight: 1.6, margin: "0 0 18px" }}>{body}</p><a className="mono landing-button-secondary" href={href}>{link}</a></article>
 }
 
 function TerminalMock() {
@@ -423,11 +472,11 @@ function FinalCTA() {
   return (
     <div data-screen-label="FinalCTA" style={{ background: "var(--bg-alt)", borderTop: "1px solid oklch(1 0 0/.06)" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "104px 44px", textAlign: "center" }}>
-        <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 40, letterSpacing: "-.01em", color: "oklch(0.95 0.004 80)", margin: "0 0 16px" }}>Your terminal is already the best interface you have.</h2>
-        <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, color: "oklch(0.63 0.01 75)", margin: "0 0 36px" }}>Free, open source, AGPLv3 licensed — install and start in under a minute.</p>
+        <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 40, letterSpacing: "-.01em", color: "oklch(0.95 0.004 80)", margin: "0 0 16px" }}>Start where your work belongs.</h2>
+        <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, color: "oklch(0.63 0.01 75)", margin: "0 0 36px" }}>Download Hoprel for a local-first desktop workspace, or run Aurict directly in your terminal.</p>
         <div className="landing-final-buttons">
-          <a className="mono landing-button-primary" href="#install">$ npm install -g aurict</a>
-          <a className="mono landing-button-secondary" href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">★ star on GitHub</a>
+          <a className="mono landing-button-primary" href="/downloads">↓ download Hoprel</a>
+          <a className="mono landing-button-secondary" href="#install">$ npm install -g aurict</a>
         </div>
       </div>
     </div>
@@ -442,7 +491,7 @@ function LandingFooter() {
         <div className="mono" style={{ fontSize: 12, color: "oklch(0.5 0.01 75)" }}>AGPLv3 License · © 2026 aurict</div>
       </div>
       <div style={{ display: "flex", gap: 56, flexWrap: "wrap" }}>
-        <FooterColumn title="product" links={[["capabilities", "#capabilities"], ["roadmap", "/roadmap"], ["compare", "/compare"], ["docs", "/docs"], ["changelog", "/changelog"]]} />
+        <FooterColumn title="product" links={[["Hoprel desktop", "/downloads"], ["capabilities", "#capabilities"], ["roadmap", "/roadmap"], ["compare", "/compare"], ["docs", "/docs"], ["changelog", "/changelog"]]} />
         <FooterColumn title="company" links={[["about", "/about"], ["blog", "/blog"], ["use cases", "/use-cases"]]} />
         <FooterColumn title="legal" links={[["privacy", "/privacy"], ["terms", "/terms"]]} />
         <FooterColumn title="open source" links={[["GitHub", "https://github.com/aurict/aurict"], ["npm", "https://www.npmjs.com/package/aurict"]]} />

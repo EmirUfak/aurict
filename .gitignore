@@ -6,6 +6,9 @@ __pycache__/
 *.tsbuildinfo
 .env
 .env.local
+.env.trustedsigning
+electron-windows-sign.log
+*.pfx
 google-services.json
 GoogleService-Info.plist
 *.jks
@@ -18,9 +21,6 @@ mobile/android/app/*.keystore
 *.db-shm
 *.db-wal
 
-# Local backend prototype
-apps/backend/
-docker-compose.backend.yml
 
 # Platform binary files — built at CI time, not committed
 packages/cli-*/bin/aurict

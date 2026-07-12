@@ -13,11 +13,17 @@ const LINKS = [
 
 const PRODUCT_LINKS = [
   { href: "/", label: "overview" },
+  { href: "/#surfaces", label: "surfaces" },
   { href: "/#capabilities", label: "capabilities" },
   { href: "/#security", label: "security" },
   { href: "/#mobile", label: "mobile" },
+  { href: "/downloads", label: "download Hoprel" },
   { href: "/#install", label: "install" },
   { href: "/#faq", label: "faq" },
+]
+
+const ECOSYSTEM_LINKS = [
+  { href: "https://mobile.aurict.com", label: "aurict mobile" },
 ]
 
 export function Nav() {
@@ -71,12 +77,13 @@ export function Nav() {
                 padding:    "4px 7px",
               }}
             >
-              v1.1.8 · AGPLv3
+              v1.1.9 · AGPLv3
             </span>
           </div>
 
           <div className="nav-links">
             <ProductDropdown links={PRODUCT_LINKS} />
+            <EcosystemDropdown />
             {LINKS.map((link) => <NavLink key={link.href} href={link.href}>{link.label}</NavLink>)}
             <AuthNavSlot />
           </div>
@@ -108,6 +115,10 @@ export function Nav() {
           {PRODUCT_LINKS.map((link) => (
             <Link key={link.href} href={link.href}>{link.label}</Link>
           ))}
+          <span className="nav-drawer-label">ecosystem</span>
+          {ECOSYSTEM_LINKS.map((link) => (
+            <a key={link.href} href={link.href}>{link.label}</a>
+          ))}
           <span className="nav-drawer-label">site</span>
           {LINKS.map((link) => (
             <Link key={link.href} href={link.href}>{link.label}</Link>
@@ -116,6 +127,24 @@ export function Nav() {
         </div>
       )}
     </>
+  )
+}
+
+function EcosystemDropdown() {
+  return (
+    <div className="nav-dropdown">
+      <button className="nav-dropdown-trigger" type="button">
+        ecosystem
+        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      <div className="nav-dropdown-menu">
+        {ECOSYSTEM_LINKS.map((link) => (
+          <a key={link.href} className="nav-dropdown-item" href={link.href}>{link.label}</a>
+        ))}
+      </div>
+    </div>
   )
 }
 

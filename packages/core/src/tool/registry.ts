@@ -56,6 +56,7 @@ import { securityVerifyTool }     from "./built-in/security-verify.js"
 import { securityAttackGraphTool } from "./built-in/security-attack-graph.js"
 import { securityLogAnalyzeTool }  from "./built-in/security-log-analyze.js"
 import { securityThreatModelTool } from "./built-in/security-threat-model.js"
+import { financeCalculateTool } from "./built-in/finance.js"
 
 const tools = new Map<string, ToolDef>()
 
@@ -80,6 +81,7 @@ for (const t of [
   uiInspectTool,
   securityReconTool, securityScanTool, securityReportTool, securityVerifyTool,
   securityAttackGraphTool, securityLogAnalyzeTool, securityThreatModelTool,
+  financeCalculateTool,
 ]) {
   tools.set(t.id, t)
 

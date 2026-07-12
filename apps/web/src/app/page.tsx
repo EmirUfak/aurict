@@ -21,8 +21,8 @@ const faqJsonLd = {
     },
     {
       "@type":          "Question",
-      "name":           "Does Aurict work on Windows?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Aurict ships a native compiled binary for Windows x64 — no WSL, no extra runtime required. Shell detection auto-picks Git Bash, MSYS2, or PowerShell." },
+      "name":           "Does Hoprel work on Windows?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Hoprel by Aurict ships a native Windows x64 desktop workspace. It also has a Debian package; the Aurict terminal runtime remains available separately through npm." },
     },
     {
       "@type":          "Question",
@@ -51,7 +51,7 @@ const howToJsonLd = {
   "@context": "https://schema.org",
   "@type":    "HowTo",
   "name":     "How to install and run Aurict",
-  "description": "Install the open-source terminal agent and AI coding assistant in three steps.",
+  "description": "Install and run the open-source Aurict terminal runtime in three steps.",
   "totalTime": "PT1M",
   "step": [
     {
@@ -86,11 +86,11 @@ const jsonLd = {
       "name":                "Aurict",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem":     "macOS, Linux, Windows",
-      "description":         "Open-source terminal agent and AI coding assistant with 9 specialist agents, 218+ auto-injected contextual skills, bash classifier, MCP client, and support for 9 AI providers. Install with one npm command.",
+      "description":         "Open-source terminal runtime for multi-agent coding, MCP, local context, and explicit command approvals. Aurict also ships Hoprel, its local-first desktop workspace, and Aurict Mobile.",
       "url":                 "https://aurict.com",
       "downloadUrl":         "https://www.npmjs.com/package/aurict",
       "installUrl":          "https://www.npmjs.com/package/aurict",
-      "softwareVersion":     "1.1.8",
+      "softwareVersion":     "1.1.9",
       "releaseNotes":        "https://aurict.com/changelog",
       "license":             "https://www.gnu.org/licenses/agpl-3.0.html",
       "author": {
@@ -119,10 +119,21 @@ const jsonLd = {
       ],
     },
     {
+      "@type":               "SoftwareApplication",
+      "name":                "Hoprel by Aurict",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem":     "Windows, Debian / Ubuntu",
+      "description":         "A local-first desktop AI workspace for conversations, files, artifacts, design, finance research, deterministic calculations, and mobile remote control.",
+      "url":                 "https://aurict.com/downloads",
+      "downloadUrl":         "https://aurict.com/downloads",
+      "author": { "@type": "Organization", "name": "Aurict", "url": "https://aurict.com" },
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    },
+    {
       "@type":       "WebSite",
       "url":         "https://aurict.com",
       "name":        "Aurict",
-      "description": "Open-source terminal agent and AI coding assistant",
+      "description": "Agentic workspaces across Hoprel desktop, Aurict Mobile, and the terminal runtime",
     },
     {
       "@type":  "Organization",

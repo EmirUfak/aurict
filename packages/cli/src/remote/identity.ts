@@ -84,7 +84,11 @@ export async function signPayload(privateJwk: Ed25519Jwk, payload: string): Prom
 }
 
 function deviceName(): string {
-  return `Aurict CLI (${process.platform})`
+  return process.env.AURICT_REMOTE_DEVICE_NAME?.trim() || `Aurict CLI (${process.platform})`
+}
+
+function devicePlatform(): "cli" | "desktop" {
+  return process.env.AURICT_REMOTE_PLATFORM === "desktop" ? "desktop" : "cli"
 }
 
 function toPublicIdentity(stored: StoredIdentity): DeviceIdentity {
@@ -106,7 +110,7 @@ async function registerAndVerify(material: KeyMaterial, accessToken: string, use
     accessToken,
     body: {
       name:                  deviceName(),
-      platform:              "cli",
+      platform:              devicePlatform(),
       encryptionPublicKey:   material.publicJwk,
       signingPublicKey:      material.publicJwk,
       signingKeyFingerprint: material.fingerprint,

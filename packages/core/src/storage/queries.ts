@@ -35,6 +35,13 @@ export function updateSession(id: string, data: Partial<{ title: string; status:
     .run()
 }
 
+/** Session'ı ve tüm part'larını kalıcı olarak siler. Cascade FK'ye güvenmez —
+ * migration/PRAGMA durumundan bağımsız olarak her zaman doğru sonuç verir. */
+export function deleteSession(id: string) {
+  db.delete(parts).where(eq(parts.sessionId, id)).run()
+  db.delete(sessions).where(eq(sessions.id, id)).run()
+}
+
 /** Her LLM turn'ünden sonra token ve maliyet birikimini günceller */
 export function recordTurn(sessionId: string, data: {
   inputTokens:  number
@@ -62,6 +69,9 @@ export interface SessionStats {
   title:              string | null
   status:             string
   createdAt:          number
+  updatedAt:          number
+  parentId:           string | null
+  config:             string | null
   turnCount:          number
   totalInputTokens:   number
   totalOutputTokens:  number
@@ -77,6 +87,9 @@ export function listSessionsWithStats(limit = 50): SessionStats[] {
     title:              sessions.title,
     status:             sessions.status,
     createdAt:          sessions.createdAt,
+    updatedAt:          sessions.updatedAt,
+    parentId:           sessions.parentId,
+    config:             sessions.config,
     turnCount:          sessions.turnCount,
     totalInputTokens:   sessions.totalInputTokens,
     totalOutputTokens:  sessions.totalOutputTokens,
@@ -97,6 +110,9 @@ export function getSessionStats(sessionId: string): SessionStats | undefined {
     title:              sessions.title,
     status:             sessions.status,
     createdAt:          sessions.createdAt,
+    updatedAt:          sessions.updatedAt,
+    parentId:           sessions.parentId,
+    config:             sessions.config,
     turnCount:          sessions.turnCount,
     totalInputTokens:   sessions.totalInputTokens,
     totalOutputTokens:  sessions.totalOutputTokens,

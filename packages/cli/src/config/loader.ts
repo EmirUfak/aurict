@@ -62,6 +62,7 @@ export interface CLIFlags {
   version?:  boolean
   help?:     boolean
   undercover?: boolean
+  ipcServer?: boolean
 }
 
 export function parseFlags(argv = process.argv.slice(2)): CLIFlags {
@@ -77,6 +78,7 @@ export function parseFlags(argv = process.argv.slice(2)): CLIFlags {
       case "--no-stream":           flags.stream   = false;      break
       case "--version":  case "-v": flags.version  = true;       break
       case "--help":     case "-h": flags.help     = true;       break
+      case "--ipc-server":          flags.ipcServer = true;      break
     }
   }
   return flags

@@ -1,8 +1,9 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
-import { join } from "node:path"
-import { homedir } from "node:os"
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
+import { coreStateDir, coreStatePath } from "../storage/paths.js"
 
-const PREFS_FILE = join(homedir(), ".aurict", "design-prefs.json")
+function prefsPath(): string {
+  return coreStatePath('design-prefs.json')
+}
 
 export interface DesignPrefs {
   lastSystemId?:    string
@@ -17,19 +18,19 @@ function defaults(): DesignPrefs {
 }
 
 export function loadDesignPrefs(): DesignPrefs {
+  const path = prefsPath()
+  if (!existsSync(path)) return defaults()
   try {
-    const raw = readFileSync(PREFS_FILE, "utf8")
-    return { ...defaults(), ...(JSON.parse(raw) as Partial<DesignPrefs>) }
-  } catch {
-    return defaults()
+    return { ...defaults(), ...(JSON.parse(readFileSync(path, "utf8")) as Partial<DesignPrefs>) }
+  } catch (error) {
+    throw new Error(`Failed to read design preferences at ${path}: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
 export function saveDesignPrefs(prefs: DesignPrefs): void {
-  try {
-    mkdirSync(join(homedir(), ".aurict"), { recursive: true })
-    writeFileSync(PREFS_FILE, JSON.stringify(prefs, null, 2), "utf8")
-  } catch { /* non-fatal */ }
+  const path = prefsPath()
+  mkdirSync(coreStateDir(), { recursive: true })
+  writeFileSync(path, JSON.stringify(prefs, null, 2), "utf8")
 }
 
 export function recordSystemUsed(systemId: string): void {

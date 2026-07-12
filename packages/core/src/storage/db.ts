@@ -1,9 +1,7 @@
 import { Database } from "bun:sqlite"
 import { drizzle } from "drizzle-orm/bun-sqlite"
 import * as schema from "./schema.js"
-import { join } from "path"
-import { homedir } from "os"
-import { mkdirSync } from "fs"
+import { coreStatePath, ensureCoreStateDir } from "./paths.js"
 
 // SQL gömülü sabit olarak — bun --compile ile build edildiğinde dosya sistemine erişim gerekmez
 const INIT_SQL = `
@@ -16,12 +14,6 @@ CREATE TABLE IF NOT EXISTS sessions (
   config     TEXT,
   status     TEXT    NOT NULL DEFAULT 'active'
 );
-ALTER TABLE sessions ADD COLUMN total_input_tokens  INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE sessions ADD COLUMN total_output_tokens INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE sessions ADD COLUMN total_cache_tokens  INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE sessions ADD COLUMN accumulated_cost_usd REAL   NOT NULL DEFAULT 0.0;
-ALTER TABLE sessions ADD COLUMN turn_count          INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE sessions ADD COLUMN last_model          TEXT;
 CREATE TABLE IF NOT EXISTS parts (
   id         TEXT    PRIMARY KEY NOT NULL,
   session_id TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -56,20 +48,35 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 );
 `
 
-function createDb() {
-  const dir = join(homedir(), ".aurict")
-  mkdirSync(dir, { recursive: true })
+function ensureLegacySessionColumns(sqlite: Database): void {
+  const columns = new Set((sqlite.query('PRAGMA table_info(sessions)').all() as Array<{ name: string }>).map((column) => column.name))
+  const migrations = [
+    ['total_input_tokens', 'INTEGER NOT NULL DEFAULT 0'],
+    ['total_output_tokens', 'INTEGER NOT NULL DEFAULT 0'],
+    ['total_cache_tokens', 'INTEGER NOT NULL DEFAULT 0'],
+    ['accumulated_cost_usd', 'REAL NOT NULL DEFAULT 0.0'],
+    ['turn_count', 'INTEGER NOT NULL DEFAULT 0'],
+    ['last_model', 'TEXT'],
+  ] as const
+  for (const [name, definition] of migrations) {
+    if (!columns.has(name)) sqlite.run(`ALTER TABLE sessions ADD COLUMN ${name} ${definition}`)
+  }
+}
 
-  const sqlite = new Database(join(dir, "aurict.db"), { create: true })
+function createDb() {
+  ensureCoreStateDir()
+  const sqlite = new Database(coreStatePath("aurict.db"), { create: true })
   sqlite.run("PRAGMA journal_mode = WAL")
   sqlite.run("PRAGMA busy_timeout = 8000")
   sqlite.run("PRAGMA synchronous = NORMAL")
   sqlite.run("PRAGMA foreign_keys = ON")
 
-  // Her tablo için ayrı CREATE TABLE IF NOT EXISTS — idempotent, migration gerekmez
+  // Each statement is independently idempotent. Legacy columns are handled by
+  // an explicit schema inspection below; unexpected SQLite failures propagate.
   for (const stmt of INIT_SQL.split(";").map(s => s.trim()).filter(s => s.length > 0)) {
-    try { sqlite.run(stmt) } catch { /* tablo zaten varsa yoksay */ }
+    sqlite.run(stmt)
   }
+  ensureLegacySessionColumns(sqlite)
 
   return drizzle(sqlite, { schema })
 }

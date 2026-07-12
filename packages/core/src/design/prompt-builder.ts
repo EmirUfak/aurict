@@ -1,19 +1,25 @@
-import { homedir } from "node:os"
 import { join } from "node:path"
 import { mkdirSync } from "node:fs"
 import { DesignLoader } from "./loader.js"
 import { extractProjectBrand, brandToContext } from "./auto-brand.js"
+import { coreStatePath } from "../storage/paths.js"
 
 export interface DesignJobSpec {
   brief:       string    // user's request
   systemId:    string    // selected design system ID
   skillId:     string    // selected skill ID
   workdir:     string    // project directory
-  outputSlug:  string    // output folder name under ~/.aurict/designs/
+  outputSlug:  string    // output folder name under the configured state directory
 }
 
 export function buildDesignOutputDir(slug: string): string {
-  const dir = join(homedir(), ".aurict", "designs", slug)
+  const configured = process.env.AURICT_DESIGN_DATA_DIR
+  if (configured) {
+    const dir = join(configured, slug)
+    mkdirSync(dir, { recursive: true })
+    return dir
+  }
+  const dir = join(coreStatePath('designs'), slug)
   mkdirSync(dir, { recursive: true })
   return dir
 }
