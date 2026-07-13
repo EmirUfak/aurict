@@ -2,7 +2,7 @@ import React from "react"
 import { Text } from "ink"
 import type { TokenBreakdown } from "@aurict/core"
 import { useTheme } from "../utils/theme.js"
-import { HStack, Surface, Eyebrow, StatusDot, MonoStat } from "./design-system/index.js"
+import { HStack, Surface, StatusDot, ProgressBar } from "./design-system/index.js"
 
 interface Props {
   provider:          string
@@ -142,7 +142,13 @@ export function StatusBar({
   const dirStr = mode === "normal" ? truncDir(dir, 26) : truncDir(dir, 36)
 
   return (
-    <Surface variant="ghost" tone="muted" paddingX="md" paddingY="none">
+    <Surface
+      variant="ghost"
+      tone="muted"
+      paddingX="md"
+      paddingY="none"
+      {...(theme.bgAlt !== undefined ? { backgroundColor: theme.bgAlt } : {})}
+    >
       <HStack justify="space-between">
         <HStack gap="sm">
           <Field label="dir" value={dirStr} valueColor={theme.accent} />
@@ -246,6 +252,14 @@ export function StatusBar({
               <Sep />
               <StatusDot tone={tone} active={pct > 0} />
               <Text color={ctxColor}>ctx {pctStr}</Text>
+              {mode === "wide" && (
+                <ProgressBar
+                  value={ctxUsed}
+                  max={cw}
+                  width={8}
+                  tone={tone === "safe" ? "success" : tone === "danger" ? "error" : "warning"}
+                />
+              )}
             </>
           )}
           {cumTotal > 0 && (

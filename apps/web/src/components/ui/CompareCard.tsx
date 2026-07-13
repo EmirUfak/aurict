@@ -1,5 +1,6 @@
 "use client"
-import Link from "next/link"
+import { useLocale } from "next-intl"
+import { Link } from "@/i18n/navigation"
 
 interface CompareCardProps {
   slug: string
@@ -10,6 +11,8 @@ interface CompareCardProps {
 }
 
 export function CompareCard({ slug, competitor, tagline, description, differentiator }: CompareCardProps) {
+  const tr = useLocale() === "tr"
+
   return (
     <Link href={`/compare/${slug}`} style={{ textDecoration: "none" }}>
       <div
@@ -25,7 +28,7 @@ export function CompareCard({ slug, competitor, tagline, description, differenti
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
               <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 22, fontWeight: 600, color: "var(--text)", margin: 0 }}>
-                Aurict vs {competitor}
+                Aurict {tr ? "ve" : "vs"} {competitor}
               </h2>
               <span
                 className="marketing-tag"

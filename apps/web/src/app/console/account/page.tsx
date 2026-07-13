@@ -1,11 +1,20 @@
 import type { Metadata } from "next"
 import { AccountConsole } from "@/components/console/AccountConsole"
+import { getLocale } from "next-intl/server"
+import type { AppLocale } from "@/i18n/routing"
+import { localizedMetadata } from "@/i18n/metadata"
 
-export const metadata: Metadata = {
-  title: "Account Console",
-  description: "Manage your Aurict account.",
-  alternates: { canonical: "https://aurict.com/console/account" },
-  robots: { index: false, follow: false },
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = (await getLocale()) as AppLocale
+  return {
+    ...localizedMetadata(
+      locale,
+      "/console/account",
+      locale === "tr" ? "Hesap Konsolu" : "Account Console",
+      locale === "tr" ? "Aurict hesabınızı yönetin." : "Manage your Aurict account.",
+    ),
+    robots: { index: false, follow: false },
+  }
 }
 
 export default function AccountConsolePage() {

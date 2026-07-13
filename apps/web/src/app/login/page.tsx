@@ -1,12 +1,21 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { AuthForm } from "@/components/auth/AuthForm"
+import { getLocale } from "next-intl/server"
+import type { AppLocale } from "@/i18n/routing"
+import { localizedMetadata } from "@/i18n/metadata"
 
-export const metadata: Metadata = {
-  title: "Sign in",
-  description: "Sign in to your Aurict account.",
-  alternates: { canonical: "https://aurict.com/login" },
-  robots: { index: false, follow: false },
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = (await getLocale()) as AppLocale
+  return {
+    ...localizedMetadata(
+      locale,
+      "/login",
+      locale === "tr" ? "Giriş yap" : "Sign in",
+      locale === "tr" ? "Aurict hesabınıza giriş yapın." : "Sign in to your Aurict account.",
+    ),
+    robots: { index: false, follow: false },
+  }
 }
 
 export default function LoginPage() {

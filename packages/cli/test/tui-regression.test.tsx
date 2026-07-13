@@ -169,7 +169,7 @@ describe("TUI stress regression", () => {
     })
 
     expect(view.lastFrame()).toContain("1-5 / 20")
-    expect(view.lastFrame()).toContain("g/G top/bottom")
+    expect(view.lastFrame()).toContain("g/G ends")
   })
 
   it("renders task panel scroll and keyboard hints for long task lists", () => {

@@ -19,6 +19,7 @@ import 'agent/mobile_markdown_renderer.dart';
 import 'agent/mobile_provider_session.dart';
 import 'auth/mobile_auth_session.dart';
 import 'design/aurict_typography.dart';
+import 'design/platform_blur.dart';
 import 'remote/mobile_remote_event_codec.dart';
 import 'remote/mobile_backend_client.dart';
 import 'remote/mobile_remote_models.dart';
@@ -159,11 +160,12 @@ class _AppShellState extends State<AppShell> {
   AppSection _section = AppSection.chat;
   AppMode _mode = AppMode.chat;
   var _drawerOpen = false;
-  // Drawer artık her zaman monte (ekran dışı konumlanıyor) — bu yüzden
-  // AnimatedPositioned gerçekten kayabiliyor. Geçiş sürerken true; kayma
-  // bitince false (GlassPanel'in blur'u o zaman gerçekten devreye girer).
+  // Drawer yalnızca geçiş sürerken veya açıkken monte edilir. İlk görünür
+  // frame kapalı konumda çizilir; sonraki frame'de açılarak animasyon korunur.
+  var _drawerMounted = false;
   var _drawerAnimating = false;
   Timer? _drawerAnimationTimer;
+  var _drawerTransition = 0;
   final _visitedSections = <AppSection>{AppSection.chat};
   late MobileRemoteRuntime _remoteRuntime;
   var _remoteRuntimeReady = false;
@@ -186,33 +188,50 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
+  void _finishDrawerTransition(int transition) {
+    _drawerAnimationTimer?.cancel();
+    _drawerAnimationTimer = Timer(_drawerAnimationDuration, () {
+      if (!mounted || transition != _drawerTransition) return;
+      setState(() {
+        _drawerAnimating = false;
+        if (!_drawerOpen) _drawerMounted = false;
+      });
+    });
+  }
+
   void _setDrawerOpen(bool open) {
-    if (_drawerOpen == open) return;
+    if (open && _drawerOpen) return;
+    if (!open && !_drawerOpen && !_drawerMounted) return;
+    final transition = ++_drawerTransition;
+    _drawerAnimationTimer?.cancel();
+
+    if (open && !_drawerMounted) {
+      setState(() {
+        _drawerMounted = true;
+        _drawerAnimating = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || transition != _drawerTransition) return;
+        setState(() => _drawerOpen = true);
+        _finishDrawerTransition(transition);
+      });
+      return;
+    }
+
     setState(() {
       _drawerOpen = open;
       _drawerAnimating = true;
     });
-    _drawerAnimationTimer?.cancel();
-    _drawerAnimationTimer = Timer(_drawerAnimationDuration, () {
-      if (mounted) setState(() => _drawerAnimating = false);
-    });
+    _finishDrawerTransition(transition);
   }
 
   void _select(AppSection section) {
-    final wasOpen = _drawerOpen;
     setState(() {
       _section = section;
       _visitedSections.add(section);
       _mode = section == AppSection.remote ? AppMode.remote : AppMode.chat;
-      _drawerOpen = false;
-      if (wasOpen) _drawerAnimating = true;
     });
-    if (wasOpen) {
-      _drawerAnimationTimer?.cancel();
-      _drawerAnimationTimer = Timer(_drawerAnimationDuration, () {
-        if (mounted) setState(() => _drawerAnimating = false);
-      });
-    }
+    _setDrawerOpen(false);
   }
 
   void _setMode(AppMode mode) {
@@ -255,46 +274,43 @@ class _AppShellState extends State<AppShell> {
                 ),
               ),
             ),
-            // Scrim ve rail artık HER ZAMAN monte — bu yüzden AnimatedPositioned
-            // gerçekten bir konumdan diğerine interpolasyon yapabiliyor (önceki
-            // `if (_drawerOpen)` sarmalı, ilk montajda "önceki" bir geometri
-            // olmadığı için animasyonu etkisiz kılıyordu — kapı anında açılıp
-            // kapanıyordu, kaymıyordu). IgnorePointer kapalıyken dokunuşları yutar.
-            Positioned.fill(
-              child: IgnorePointer(
-                ignoring: !_drawerOpen,
-                child: AnimatedOpacity(
-                  duration: _drawerAnimationDuration,
-                  opacity: _drawerOpen ? 1 : 0,
-                  child: GestureDetector(
-                    onTap: () => _setDrawerOpen(false),
-                    child: Container(
-                      color: Colors.black.withValues(alpha: .26),
+            if (_drawerMounted) ...[
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: !_drawerOpen,
+                  child: AnimatedOpacity(
+                    duration: _drawerAnimationDuration,
+                    opacity: _drawerOpen ? 1 : 0,
+                    child: GestureDetector(
+                      onTap: () => _setDrawerOpen(false),
+                      child: Container(
+                        color: Colors.black.withValues(alpha: .26),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            AnimatedPositioned(
-              duration: _drawerAnimationDuration,
-              curve: Curves.easeOutCubic,
-              left: _drawerOpen ? 14 : -(railWidth + 40),
-              top: 68,
-              bottom: bottomControlsHeight,
-              width: railWidth,
-              child: IgnorePointer(
-                ignoring: !_drawerOpen,
-                child: SheetTransitionScope(
-                  reduceEffects: _drawerAnimating,
-                  child: SideRail(
-                    selected: _section,
-                    onSelect: _select,
-                    remoteConnected:
-                        _remoteRuntimeReady && _remoteRuntime.connected,
+              AnimatedPositioned(
+                duration: _drawerAnimationDuration,
+                curve: Curves.easeOutCubic,
+                left: _drawerOpen ? 14 : -(railWidth + 40),
+                top: 68,
+                bottom: bottomControlsHeight,
+                width: railWidth,
+                child: IgnorePointer(
+                  ignoring: !_drawerOpen,
+                  child: SheetTransitionScope(
+                    reduceEffects: _drawerAnimating,
+                    child: SideRail(
+                      selected: _section,
+                      onSelect: _select,
+                      remoteConnected:
+                          _remoteRuntimeReady && _remoteRuntime.connected,
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
             Positioned(
               left: 18,
               bottom: 18 + bottomInset,
@@ -530,13 +546,15 @@ class _OnboardingPage extends StatelessWidget {
                   border: Border.all(
                     color: tokens.accent.withValues(alpha: .9),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: tokens.accent.withValues(alpha: .22),
-                      blurRadius: adaptiveShadow(context, 32),
-                      offset: const Offset(0, 14),
-                    ),
-                  ],
+                  boxShadow: isAndroidUi(context)
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: tokens.accent.withValues(alpha: .22),
+                            blurRadius: adaptiveShadow(context, 32),
+                            offset: const Offset(0, 14),
+                          ),
+                        ],
                 ),
                 child: Icon(
                   icon,
@@ -2775,54 +2793,65 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Üretilen dosya sayısı zamanla büyüyebildiği için (kullanıcı geçmişi
+    // boyunca birikir), eager `ListView(children:)` yerine lazy
+    // `ListView.builder` kullanılıyor — off-screen kartlar (her biri bir
+    // GlassPanel) artık scroll edilene kadar build edilmiyor.
+    final pickedCount = _pickedDocuments.length;
+    final pickedBlockItems = pickedCount == 0 ? 0 : pickedCount + 1;
+    final showEmptyState = _loading || _records.isEmpty;
+    final recordsStart = 2 + pickedBlockItems;
+    final itemCount = recordsStart + (showEmptyState ? 1 : _records.length);
     return ScreenFrame(
       title: 'Documents',
       subtitle: 'Generated files, PDFs, reports',
-      child: ListView(
+      child: ListView.builder(
         padding: const EdgeInsets.only(bottom: 112),
-        children: [
-          DocumentUploadCard(
-            count: _records.length,
-            selectedCount: _pickedDocuments.length,
-            loading: _loading,
-            importing: _pickingDocument,
-            onImport: _pickDocument,
-            onRefresh: _loadArtifacts,
-          ),
-          const SizedBox(height: 14),
-          if (_pickedDocuments.isNotEmpty) ...[
-            for (final document in _pickedDocuments)
-              PickedDocumentCard(document: document),
-            const SizedBox(height: 4),
-          ],
-          if (_loading)
-            const DocumentStateCard(
-              icon: CupertinoIcons.clock,
-              title: 'Loading generated files',
-              body: 'Scanning local chat history for artifact metadata.',
-            )
-          else if (_records.isEmpty)
-            const DocumentStateCard(
-              icon: CupertinoIcons.doc_text_search,
-              title: 'No generated files yet',
-              body:
-                  'Ask Aurict to create a PDF or export a document; it will appear here after the tool completes.',
-            )
-          else
-            for (final record in _records)
-              ArtifactDocumentCard(
-                record: record,
-                onPreview: () => _previewArtifact(record),
-                onOpen: () =>
-                    _handleArtifactAction(record, ArtifactAction.open),
-                onSave: () =>
-                    _handleArtifactAction(record, ArtifactAction.save),
-                onShare: () =>
-                    _handleArtifactAction(record, ArtifactAction.share),
-                onDelete: () =>
-                    _handleArtifactAction(record, ArtifactAction.delete),
-              ),
-        ],
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return DocumentUploadCard(
+              count: _records.length,
+              selectedCount: pickedCount,
+              loading: _loading,
+              importing: _pickingDocument,
+              onImport: _pickDocument,
+              onRefresh: _loadArtifacts,
+            );
+          }
+          if (index == 1) return const SizedBox(height: 14);
+          if (pickedCount > 0) {
+            if (index < 2 + pickedCount) {
+              return PickedDocumentCard(document: _pickedDocuments[index - 2]);
+            }
+            if (index == 2 + pickedCount) return const SizedBox(height: 4);
+          }
+          if (showEmptyState) {
+            return _loading
+                ? const DocumentStateCard(
+                    icon: CupertinoIcons.clock,
+                    title: 'Loading generated files',
+                    body: 'Scanning local chat history for artifact metadata.',
+                  )
+                : const DocumentStateCard(
+                    icon: CupertinoIcons.doc_text_search,
+                    title: 'No generated files yet',
+                    body:
+                        'Ask Aurict to create a PDF or export a document; '
+                        'it will appear here after the tool completes.',
+                  );
+          }
+          final record = _records[index - recordsStart];
+          return ArtifactDocumentCard(
+            record: record,
+            onPreview: () => _previewArtifact(record),
+            onOpen: () => _handleArtifactAction(record, ArtifactAction.open),
+            onSave: () => _handleArtifactAction(record, ArtifactAction.save),
+            onShare: () => _handleArtifactAction(record, ArtifactAction.share),
+            onDelete: () =>
+                _handleArtifactAction(record, ArtifactAction.delete),
+          );
+        },
       ),
     );
   }
@@ -4025,12 +4054,14 @@ class SideRail extends StatelessWidget {
                     border: Border.all(
                       color: tokens.accent.withValues(alpha: .9),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: tokens.accent.withValues(alpha: .18),
-                        blurRadius: 24,
-                      ),
-                    ],
+                    boxShadow: isAndroidUi(context)
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: tokens.accent.withValues(alpha: .18),
+                              blurRadius: 24,
+                            ),
+                          ],
                   ),
                   child: Icon(
                     CupertinoIcons.command,
@@ -4228,6 +4259,41 @@ class ModeSwitcher extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
     final android = isAndroidUi(context);
+    final panel = Container(
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: tokens.glass.withValues(alpha: android ? .9 : .84),
+        border: Border.all(color: tokens.border),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: android
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .26),
+                  blurRadius: adaptiveShadow(context, 28),
+                  offset: const Offset(0, 16),
+                ),
+              ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ModeButton(
+            label: 'Chat',
+            icon: CupertinoIcons.sparkles,
+            active: mode == AppMode.chat,
+            onTap: () => onChanged(AppMode.chat),
+          ),
+          ModeButton(
+            label: 'Remote',
+            icon: Icons.desktop_mac_rounded,
+            active: mode == AppMode.remote,
+            onTap: () => onChanged(AppMode.remote),
+          ),
+        ],
+      ),
+    );
+    if (android) return panel;
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
       child: BackdropFilter(
@@ -4235,38 +4301,7 @@ class ModeSwitcher extends StatelessWidget {
           sigmaX: adaptiveBlur(context, 30),
           sigmaY: adaptiveBlur(context, 30),
         ),
-        child: Container(
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: tokens.glass.withValues(alpha: android ? .88 : .84),
-            border: Border.all(color: tokens.border),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .26),
-                blurRadius: adaptiveShadow(context, 28),
-                offset: const Offset(0, 16),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ModeButton(
-                label: 'Chat',
-                icon: CupertinoIcons.sparkles,
-                active: mode == AppMode.chat,
-                onTap: () => onChanged(AppMode.chat),
-              ),
-              ModeButton(
-                label: 'Remote',
-                icon: Icons.desktop_mac_rounded,
-                active: mode == AppMode.remote,
-                onTap: () => onChanged(AppMode.remote),
-              ),
-            ],
-          ),
-        ),
+        child: panel,
       ),
     );
   }
@@ -4398,13 +4433,15 @@ class UserBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: tokens.accent.withValues(alpha: .16),
           border: Border.all(color: tokens.accent.withValues(alpha: .26)),
-          boxShadow: [
-            BoxShadow(
-              color: tokens.accent.withValues(alpha: .06),
-              blurRadius: adaptiveShadow(context, 18),
-              offset: const Offset(0, 8),
-            ),
-          ],
+          boxShadow: isAndroidUi(context)
+              ? null
+              : [
+                  BoxShadow(
+                    color: tokens.accent.withValues(alpha: .06),
+                    blurRadius: adaptiveShadow(context, 18),
+                    offset: const Offset(0, 8),
+                  ),
+                ],
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(22),
             topRight: Radius.circular(22),
@@ -5381,89 +5418,89 @@ class _ChatComposerState extends State<ChatComposer> {
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
     final android = isAndroidUi(context);
-    return ClipRRect(
+    return PlatformBlur(
+      enabled: !android,
       borderRadius: BorderRadius.circular(28),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: adaptiveBlur(context, 34),
-          sigmaY: adaptiveBlur(context, 34),
+      sigma: adaptiveBlur(context, 34),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 11, 11, 11),
+        decoration: BoxDecoration(
+          color: tokens.glass.withValues(alpha: android ? .9 : .84),
+          border: Border.all(color: tokens.border),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: android
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .3),
+                    blurRadius: adaptiveShadow(context, 36),
+                    offset: const Offset(0, 16),
+                  ),
+                  BoxShadow(
+                    color: tokens.accent.withValues(alpha: .04),
+                    blurRadius: adaptiveShadow(context, 28),
+                  ),
+                ],
         ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 11, 11, 11),
-          decoration: BoxDecoration(
-            color: tokens.glass.withValues(alpha: android ? .9 : .84),
-            border: Border.all(color: tokens.border),
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .3),
-                blurRadius: adaptiveShadow(context, 36),
-                offset: const Offset(0, 16),
-              ),
-              BoxShadow(
-                color: tokens.accent.withValues(alpha: .04),
-                blurRadius: adaptiveShadow(context, 28),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Icon(CupertinoIcons.paperclip, color: tokens.muted, size: 19),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  enabled: !widget.busy,
-                  minLines: 1,
-                  maxLines: 3,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _submit(),
-                  style: TextStyle(
-                    color: tokens.text,
-                    fontSize: 15,
+        child: Row(
+          children: [
+            Icon(CupertinoIcons.paperclip, color: tokens.muted, size: 19),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                enabled: !widget.busy,
+                minLines: 1,
+                maxLines: 3,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _submit(),
+                style: TextStyle(
+                  color: tokens.text,
+                  fontSize: 15,
+                  height: 1.34,
+                ),
+                decoration: InputDecoration.collapsed(
+                  hintText: widget.placeholder,
+                  hintStyle: TextStyle(
+                    color: tokens.muted,
+                    fontSize: 14,
                     height: 1.34,
                   ),
-                  decoration: InputDecoration.collapsed(
-                    hintText: widget.placeholder,
-                    hintStyle: TextStyle(
-                      color: tokens.muted,
-                      fontSize: 14,
-                      height: 1.34,
-                    ),
-                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: _submit,
-                child: Container(
-                  height: 42,
-                  width: 42,
-                  decoration: BoxDecoration(
-                    color: widget.accent,
-                    borderRadius: BorderRadius.circular(17),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: .12),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.accent.withValues(alpha: .35),
-                        blurRadius: adaptiveShadow(context, 20),
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: _submit,
+              child: Container(
+                height: 42,
+                width: 42,
+                decoration: BoxDecoration(
+                  color: widget.accent,
+                  borderRadius: BorderRadius.circular(17),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .12),
                   ),
-                  child: Icon(
-                    widget.busy
-                        ? CupertinoIcons.stop_fill
-                        : CupertinoIcons.arrow_up,
-                    color: Colors.white,
-                    size: 19,
-                  ),
+                  boxShadow: android
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: widget.accent.withValues(alpha: .35),
+                            blurRadius: adaptiveShadow(context, 20),
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                ),
+                child: Icon(
+                  widget.busy
+                      ? CupertinoIcons.stop_fill
+                      : CupertinoIcons.arrow_up,
+                  color: Colors.white,
+                  size: 19,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -5551,11 +5588,39 @@ class _ModelPickerSheetState extends State<ModelPickerSheet> {
     super.dispose();
   }
 
+  // Arama sırasında hiçbir modeli eşleşmeyen provider kartlarını tamamen
+  // gizler (önceden boş kart yine tam boyutuyla render edilip scroll'u
+  // uzatıyordu). Arama yokken seçili provider'ı listenin başına taşır, böylece
+  // sheet her açıldığında mevcut model için scroll gerekmez.
+  List<MobileProviderEntry> _visibleProviders(
+    MobileProviderSession providerSession,
+  ) {
+    final all = providerSession.entries;
+    if (_query.isEmpty) {
+      final selectedIndex = all.indexWhere(
+        (provider) => provider.name == providerSession.selectedProvider,
+      );
+      if (selectedIndex <= 0) return all;
+      return [
+        all[selectedIndex],
+        for (var i = 0; i < all.length; i++)
+          if (i != selectedIndex) all[i],
+      ];
+    }
+    return all
+        .where(
+          (provider) => providerSession
+              .modelsFor(provider.name)
+              .any((model) => model.toLowerCase().contains(_query)),
+        )
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
     final providerSession = MobileProviderSessionScope.of(context);
-    final providers = providerSession.entries;
+    final providers = _visibleProviders(providerSession);
     final sheetHeight = math.min(
       MediaQuery.sizeOf(context).height * .78,
       560.0,
@@ -5636,45 +5701,56 @@ class _ModelPickerSheetState extends State<ModelPickerSheet> {
             ),
             const SizedBox(height: 14),
             Expanded(
-              child: ListView.builder(
-                itemCount: providers.length,
-                itemBuilder: (context, index) {
-                  final provider = providers[index];
-                  final models = providerSession.modelsFor(provider.name);
-                  final selected =
-                      providerSession.selectedProvider == provider.name;
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index == providers.length - 1 ? 0 : 8,
-                    ),
-                    child: ModelProviderPickerRow(
-                      provider: provider,
-                      query: _query,
-                      models: models,
-                      favorites: providerSession.favoriteModelsFor(
-                        provider.name,
+              child: providers.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No providers have a model matching "$_query".',
+                        style: TextStyle(color: tokens.muted),
                       ),
-                      recent: providerSession.recentModelsFor(provider.name),
-                      selected: selected,
-                      selectedModel: selected
-                          ? providerSession.selectedModel
-                          : null,
-                      hasKey: providerSession.hasKey(provider.name),
-                      loading: providerSession.isLoading(provider.name),
-                      onFetchModels: () =>
-                          providerSession.fetchModels(provider, force: true),
-                      onSelect: (model) {
-                        providerSession.selectModel(provider.name, model);
-                        Navigator.pop(context);
+                    )
+                  : ListView.builder(
+                      itemCount: providers.length,
+                      itemBuilder: (context, index) {
+                        final provider = providers[index];
+                        final models = providerSession.modelsFor(provider.name);
+                        final selected =
+                            providerSession.selectedProvider == provider.name;
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index == providers.length - 1 ? 0 : 8,
+                          ),
+                          child: ModelProviderPickerRow(
+                            provider: provider,
+                            query: _query,
+                            models: models,
+                            favorites: providerSession.favoriteModelsFor(
+                              provider.name,
+                            ),
+                            recent: providerSession.recentModelsFor(
+                              provider.name,
+                            ),
+                            selected: selected,
+                            selectedModel: selected
+                                ? providerSession.selectedModel
+                                : null,
+                            hasKey: providerSession.hasKey(provider.name),
+                            loading: providerSession.isLoading(provider.name),
+                            onFetchModels: () => providerSession.fetchModels(
+                              provider,
+                              force: true,
+                            ),
+                            onSelect: (model) {
+                              providerSession.selectModel(provider.name, model);
+                              Navigator.pop(context);
+                            },
+                            isFavorite: (model) => providerSession
+                                .isFavoriteModel(provider.name, model),
+                            onToggleFavorite: (model) => providerSession
+                                .toggleFavoriteModel(provider.name, model),
+                          ),
+                        );
                       },
-                      isFavorite: (model) =>
-                          providerSession.isFavoriteModel(provider.name, model),
-                      onToggleFavorite: (model) => providerSession
-                          .toggleFavoriteModel(provider.name, model),
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
@@ -6797,6 +6873,9 @@ class PickedDocumentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
     return GlassPanel(
+      // Belge listesi scroll ederken tekrarlanan gerçek zamanlı blur maliyetini
+      // önler.
+      disableBlur: true,
       margin: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -6927,6 +7006,9 @@ class ArtifactDocumentCard extends StatelessWidget {
     final tokens = TokensScope.of(context);
     final artifact = record.artifact;
     return GlassPanel(
+      // Belge listesi scroll ederken tekrarlanan gerçek zamanlı blur maliyetini
+      // önler.
+      disableBlur: true,
       margin: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -7204,6 +7286,9 @@ class ProviderCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: GlassPanel(
+        // Uzun provider listesinde scroll ederken gerçek zamanlı blur'un
+        // maliyetini önlemek için sabit panele düş.
+        disableBlur: true,
         margin: const EdgeInsets.only(bottom: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -7916,7 +8001,7 @@ class ThemeChip extends StatelessWidget {
             color: selected ? current.accent : current.border,
             width: selected ? 1.6 : 1,
           ),
-          boxShadow: selected
+          boxShadow: selected && !isAndroidUi(context)
               ? [
                   BoxShadow(
                     color: current.accent.withValues(alpha: .18),
@@ -8037,13 +8122,15 @@ class PrimaryButton extends StatelessWidget {
           color: tokens.accent,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: tokens.accent.withValues(alpha: .92)),
-          boxShadow: [
-            BoxShadow(
-              color: tokens.accent.withValues(alpha: .18),
-              blurRadius: adaptiveShadow(context, 16),
-              offset: const Offset(0, 8),
-            ),
-          ],
+          boxShadow: isAndroidUi(context)
+              ? null
+              : [
+                  BoxShadow(
+                    color: tokens.accent.withValues(alpha: .18),
+                    blurRadius: adaptiveShadow(context, 16),
+                    offset: const Offset(0, 8),
+                  ),
+                ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -8092,7 +8179,7 @@ class SecondaryButton extends StatelessWidget {
           border: Border.all(
             color: color.withValues(alpha: enabled ? .32 : .14),
           ),
-          boxShadow: enabled
+          boxShadow: enabled && !isAndroidUi(context)
               ? [
                   BoxShadow(
                     color: color.withValues(alpha: .055),
@@ -8135,28 +8222,19 @@ class GlassIconButton extends StatelessWidget {
     final android = isAndroidUi(context);
     return GestureDetector(
       onTap: onTap,
-      child: ClipRRect(
+      child: PlatformBlur(
+        enabled: !android,
         borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: adaptiveBlur(context, 30),
-            sigmaY: adaptiveBlur(context, 30),
+        sigma: adaptiveBlur(context, 30),
+        child: Container(
+          height: 52,
+          width: 52,
+          decoration: BoxDecoration(
+            color: tokens.glass.withValues(alpha: android ? .9 : .84),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: tokens.border),
           ),
-          child: Container(
-            height: 52,
-            width: 52,
-            decoration: BoxDecoration(
-              color: tokens.glass.withValues(alpha: android ? .9 : .84),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: tokens.border),
-            ),
-            child: Icon(
-              icon,
-              color: tokens.text,
-              size: 21,
-              semanticLabel: label,
-            ),
-          ),
+          child: Icon(icon, color: tokens.text, size: 21, semanticLabel: label),
         ),
       ),
     );
@@ -8201,58 +8279,71 @@ class GlassPanel extends StatelessWidget {
     final reduceBlur = SheetTransitionScope.of(context);
     final radius = BorderRadius.circular(26);
     final panelOpacity = opacity ?? (android ? .88 : .84);
+    // Android yüzeyleri blur, gölge, foreground gradient ve ek clip/layer
+    // olmadan çizilir. Uzun listelerde bu kartların her biri compositing
+    // maliyeti eklediğinden düz yüzey yolu özellikle önemlidir.
+    final boxShadow = android
+        ? null
+        : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .16 + (.04 * elevation)),
+              blurRadius: adaptiveShadow(context, 22 + (8 * elevation)),
+              offset: Offset(0, 12 + (4 * elevation)),
+            ),
+            if (elevation >= 2)
+              BoxShadow(
+                color: tokens.accent.withValues(alpha: .02 * elevation),
+                blurRadius: adaptiveShadow(context, 34),
+                offset: const Offset(0, 0),
+              ),
+          ];
     final panel = Container(
       padding: padding,
       decoration: BoxDecoration(
         color: tokens.glass.withValues(alpha: panelOpacity),
         borderRadius: radius,
         border: Border.all(color: borderColor ?? tokens.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .16 + (.04 * elevation)),
-            blurRadius: adaptiveShadow(context, 22 + (8 * elevation)),
-            offset: Offset(0, 12 + (4 * elevation)),
-          ),
-          if (elevation >= 2)
-            BoxShadow(
-              color: tokens.accent.withValues(alpha: .02 * elevation),
-              blurRadius: adaptiveShadow(context, 34),
-              offset: const Offset(0, 0),
+        boxShadow: boxShadow,
+      ),
+      foregroundDecoration: android
+          ? null
+          : BoxDecoration(
+              borderRadius: radius,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withValues(alpha: .028),
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: .12),
+                ],
+                stops: const [0, .42, 1],
+              ),
             ),
-        ],
-      ),
-      foregroundDecoration: BoxDecoration(
-        borderRadius: radius,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: android ? .015 : .028),
-            Colors.transparent,
-            Colors.black.withValues(alpha: .12),
-          ],
-          stops: const [0, .42, 1],
-        ),
-      ),
       child: child,
     );
 
+    if (android) return Container(margin: margin, child: panel);
+    final flat = reduceBlur || disableBlur;
     return RepaintBoundary(
       child: Container(
         margin: margin,
         child: ClipRRect(
           borderRadius: radius,
-          child: ClipRect(
-            child: (android || reduceBlur || disableBlur)
-                ? panel
-                : BackdropFilter(
+          // ClipRect yalnızca BackdropFilter'ın örnekleme alanını sınırlamak
+          // için gerekli; düz panelde ClipRRect zaten yeterli olduğundan
+          // fazladan bir clip/katman ekliyordu — flat yolda tamamen kaldırıldı.
+          child: flat
+              ? panel
+              : ClipRect(
+                  child: BackdropFilter(
                     filter: ImageFilter.blur(
                       sigmaX: adaptiveBlur(context, blur),
                       sigmaY: adaptiveBlur(context, blur),
                     ),
                     child: panel,
                   ),
-          ),
+                ),
         ),
       ),
     );
@@ -8297,9 +8388,9 @@ class StatusDot extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: .55), blurRadius: 14),
-        ],
+        boxShadow: isAndroidUi(context)
+            ? null
+            : [BoxShadow(color: color.withValues(alpha: .55), blurRadius: 14)],
       ),
     );
   }
@@ -8356,6 +8447,20 @@ class AtmosphericBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = TokensScope.of(context);
+    if (isAndroidUi(context)) {
+      return RepaintBoundary(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [tokens.background, tokens.background3],
+            ),
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
+    }
     return RepaintBoundary(
       child: DecoratedBox(
         decoration: BoxDecoration(color: tokens.background),

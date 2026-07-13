@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next"
+import { NextIntlClientProvider } from "next-intl"
+import { getLocale, getMessages } from "next-intl/server"
 import { ScrollProgress } from "@/components/ui/ScrollProgress"
 import { BackToTop } from "@/components/ui/BackToTop"
 import { CommandPalette } from "@/components/ui/CommandPalette"
@@ -107,9 +109,11 @@ export const viewport: Viewport = {
   themeColor: "#171110",
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const [locale, messages] = await Promise.all([getLocale(), getMessages()])
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <head>
         {/* Preconnect — reduce latency for external origins */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -127,13 +131,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body style={{ background: "var(--bg)", color: "var(--text)", minHeight: "100vh" }}>
-        <ScrollProgress />
-        <CommandPalette />
-        <RuntimeSignal />
-        <div className="site-grain" aria-hidden="true" />
-        <div className="top-accent" aria-hidden="true" />
-        {children}
-        <BackToTop />
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ScrollProgress />
+          <CommandPalette />
+          <RuntimeSignal />
+          <div className="site-grain" aria-hidden="true" />
+          <div className="top-accent" aria-hidden="true" />
+          {children}
+          <BackToTop />
+        </NextIntlClientProvider>
       </body>
     </html>
   )

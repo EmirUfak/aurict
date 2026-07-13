@@ -1,1 +1,1 @@
-export { metadata, default } from './windows/page'
+export { default, generateMetadata } from './windows/page'

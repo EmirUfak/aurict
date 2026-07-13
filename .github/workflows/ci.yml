@@ -5,6 +5,9 @@ on:
     branches: [main, develop]
     paths:
       - "packages/**"
+      - "apps/desktop/**"
+      - "apps/web/**"
+      - "mobile/**"
       - "scripts/**"
       - "bun.lock"
       - "package.json"
@@ -13,6 +16,9 @@ on:
     branches: [main]
     paths:
       - "packages/**"
+      - "apps/desktop/**"
+      - "apps/web/**"
+      - "mobile/**"
       - "scripts/**"
       - "bun.lock"
       - "package.json"
@@ -37,13 +43,16 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Typecheck core
         run: bunx tsc -p packages/core/tsconfig.json --noEmit
 
       - name: Typecheck cli
         run: bunx tsc -p packages/cli/tsconfig.json --noEmit
+
+      - name: Typecheck desktop
+        run: bunx tsc -p apps/desktop/tsconfig.json --noEmit
 
   # ── 2. Test suite — her push'ta çalışır ──────────────────────────────────
   test:
@@ -58,14 +67,16 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       # runner.temp'i step içinde shell env var olarak set et (job env'de runner context çalışmıyor)
       - name: Set temp dirs
         run: |
-          mkdir -p "$RUNNER_TEMP/aurict-home"
+          mkdir -p "$RUNNER_TEMP/aurict-core"
+          mkdir -p "$RUNNER_TEMP/aurict-remote"
           mkdir -p "$RUNNER_TEMP/aurict-snapshots"
-          echo "AURICT_HOME=$RUNNER_TEMP/aurict-home" >> "$GITHUB_ENV"
+          echo "AURICT_STATE_DIR=$RUNNER_TEMP/aurict-core" >> "$GITHUB_ENV"
+          echo "AURICT_REMOTE_STATE_DIR=$RUNNER_TEMP/aurict-remote" >> "$GITHUB_ENV"
           echo "AURICT_SNAPSHOT_DIR=$RUNNER_TEMP/aurict-snapshots" >> "$GITHUB_ENV"
 
       - name: Run core tests
@@ -89,10 +100,15 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build platform binaries
         run: bun run scripts/build-all.ts
+
+      - name: Verify curl installer
+        run: |
+          bash -n apps/web/public/install.sh
+          bun run scripts/test-install.ts
 
       - name: Smoke test linux binary
         run: ./dist/aurict-linux-x64 --version
@@ -101,3 +117,75 @@ jobs:
         run: |
           cd packages/cli && npm pack --dry-run
           cd ../aurict && npm pack --dry-run
+
+  desktop:
+    name: Desktop quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint desktop
+        run: bun run --cwd apps/desktop lint
+
+      - name: Test desktop
+        run: bun run --cwd apps/desktop test
+
+      - name: Package Debian desktop smoke artifact
+        env:
+          AURICT_SIDECAR_TARGET: bun-linux-x64
+        run: bun run --cwd apps/desktop make -- --targets @electron-forge/maker-deb
+
+      - name: Inspect Debian package metadata
+        run: dpkg-deb -f apps/desktop/out/make/deb/x64/hoprel_*.deb Package Version Architecture
+
+  web:
+    name: Web quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint web
+        run: bun run --cwd apps/web lint
+
+      - name: Build web
+        run: bun run --cwd apps/web build
+
+  mobile:
+    name: Mobile quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze mobile
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Test mobile
+        working-directory: mobile
+        run: flutter test

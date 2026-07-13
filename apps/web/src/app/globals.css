@@ -53,6 +53,25 @@ body {
   font-family: var(--font-serif), Georgia, serif;
 }
 
+.locale-switcher select {
+  appearance: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border-bright);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--font-mono), "IBM Plex Mono", monospace;
+  font-size: 11px;
+  line-height: 1;
+  min-height: 30px;
+  padding: 0 24px 0 9px;
+}
+
+.locale-switcher select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 button,
 input,
 textarea,
@@ -217,6 +236,130 @@ select {
   z-index: 90;
   pointer-events: none;
   background: linear-gradient(90deg, transparent, var(--accent-line), transparent);
+}
+
+.lost-route {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 45%, color-mix(in oklch, var(--accent) 12%, transparent), transparent 25%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100svh;
+  overflow: hidden;
+  padding: 32px 24px;
+  position: relative;
+}
+
+.lost-route::before {
+  background-image: radial-gradient(oklch(1 0 0 / 0.055) 1px, transparent 1px);
+  background-size: 26px 26px;
+  content: "";
+  inset: 0;
+  mask-image: radial-gradient(circle at center, black, transparent 68%);
+  pointer-events: none;
+  position: absolute;
+}
+
+.lost-route-top {
+  left: clamp(24px, 5vw, 64px);
+  position: absolute;
+  top: 28px;
+}
+
+.lost-route-mark {
+  align-items: center;
+  display: flex;
+  gap: clamp(18px, 4vw, 52px);
+  height: 100px;
+  justify-content: center;
+  margin-bottom: 30px;
+  position: relative;
+}
+
+.lost-route-wing {
+  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--accent) 65%, transparent));
+  height: 1px;
+  position: relative;
+  width: clamp(88px, 17vw, 220px);
+}
+
+.lost-route-wing::after {
+  border-top: 1px solid color-mix(in oklch, var(--accent) 36%, transparent);
+  content: "";
+  position: absolute;
+  top: -18px;
+  width: 66%;
+}
+
+.lost-route-wing-left::after {
+  right: 0;
+  transform: rotate(-19deg);
+  transform-origin: right;
+}
+
+.lost-route-wing-right {
+  background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 65%, transparent), transparent);
+}
+
+.lost-route-wing-right::after {
+  left: 0;
+  transform: rotate(19deg);
+  transform-origin: left;
+}
+
+.lost-route-core {
+  color: var(--accent);
+  font-family: var(--font-mono), "IBM Plex Mono", monospace;
+  font-size: 40px;
+  line-height: 1;
+  text-shadow: 0 0 28px color-mix(in oklch, var(--accent) 44%, transparent);
+}
+
+.lost-route-copy {
+  position: relative;
+  text-align: center;
+}
+
+.lost-route-signal {
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.11em;
+  margin-bottom: 13px;
+}
+
+.lost-route h1 {
+  color: var(--text);
+  font-family: var(--font-serif), "Source Serif 4", Georgia, serif;
+  font-size: clamp(42px, 7vw, 82px);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.lost-route-actions {
+  display: flex;
+  gap: 18px;
+  margin-top: 38px;
+  position: relative;
+}
+
+.lost-route-actions a {
+  border-bottom: 1px solid color-mix(in oklch, var(--text-muted) 42%, transparent);
+  color: var(--text-dim);
+  font-family: var(--font-mono), "IBM Plex Mono", monospace;
+  font-size: 12px;
+  padding: 7px 0;
+  text-decoration: none;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+
+.lost-route-actions a:hover,
+.lost-route-actions a:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+  outline: none;
 }
 
 .runtime-signal {
@@ -856,6 +999,7 @@ select {
 .landing-nav-inner {
   align-items: center;
   display: flex;
+  gap: 20px;
   height: 64px;
   justify-content: space-between;
   padding: 0 44px;
@@ -865,6 +1009,8 @@ select {
   align-items: center;
   display: flex;
   gap: 24px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .landing-nav-link {
@@ -876,6 +1022,36 @@ select {
 
 .landing-nav-link:hover {
   color: oklch(0.95 0.004 80);
+}
+
+@media (max-width: 1120px) {
+  .landing-nav-inner {
+    gap: 14px;
+    padding: 0 28px;
+  }
+
+  .landing-nav-links {
+    gap: 14px;
+  }
+
+  .landing-nav-link,
+  .nav-dropdown-trigger {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 980px) {
+  .landing-nav-inner > div:first-child > span {
+    display: none;
+  }
+
+  .landing-nav-links {
+    gap: 10px;
+  }
+
+  .landing-nav-link {
+    display: none;
+  }
 }
 
 .landing-primary-link {
@@ -1939,7 +2115,16 @@ select {
   }
 
   .landing-nav-links {
+    display: flex;
+    gap: 8px;
+  }
+
+  .landing-nav-links > .nav-dropdown:nth-child(2) {
     display: none;
+  }
+
+  .landing-nav-links .nav-dropdown-trigger {
+    font-size: 11px;
   }
 
   .landing-shell {

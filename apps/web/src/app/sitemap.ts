@@ -27,12 +27,27 @@ const staticRoutes: StaticRoute[] = [
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
-    ...staticRoutes.map((route) => ({
-      url: absoluteUrl(route.path),
-      lastModified: new Date(route.lastModified),
-      changeFrequency: route.changeFrequency,
-      priority: route.priority,
-    })),
+    ...staticRoutes.flatMap((route) => {
+      const englishUrl = absoluteUrl(route.path)
+      const turkishUrl = absoluteUrl(`/tr${route.path === "/" ? "" : route.path}`)
+
+      return [
+        {
+          url: englishUrl,
+          lastModified: new Date(route.lastModified),
+          changeFrequency: route.changeFrequency,
+          priority: route.priority,
+          alternates: { languages: { en: englishUrl, tr: turkishUrl, "x-default": englishUrl } },
+        },
+        {
+          url: turkishUrl,
+          lastModified: new Date(route.lastModified),
+          changeFrequency: route.changeFrequency,
+          priority: route.priority,
+          alternates: { languages: { en: englishUrl, tr: turkishUrl, "x-default": englishUrl } },
+        },
+      ]
+    }),
     ...BLOG_POSTS.map((post) => ({
       url: absoluteUrl(`/blog/${post.slug}`),
       lastModified: new Date(post.updatedAt),

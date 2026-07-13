@@ -3,7 +3,7 @@
 > if a line doesn't, delete it. Prune anything that goes stale.
 
 ## Important rules
-- **Build modular first.** No code file longer than ~300 lines. Docs, plans, and configs can be
+- **Build modular first.** No code file longer than ~500 lines. Docs, plans, and configs can a12be
   as long as needed — code must stay modular.
 - **Never limit the work to fit the line cap.** If a task needs more code, split it into more
   files / modules / functions — do not cram or cut corners.

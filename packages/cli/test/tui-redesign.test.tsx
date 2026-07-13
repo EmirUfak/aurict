@@ -23,6 +23,7 @@ import { motionEnabled } from "../src/tui/design-system/motion.js"
 import { StatusBar } from "../src/tui/StatusBar.js"
 import { ExpandableOutput } from "../src/tui/ExpandableOutput.js"
 import { PermissionDialog } from "../src/tui/PermissionDialog.js"
+import { SettingsPanel } from "../src/tui/SettingsPanel.js"
 import { parseSlashCommand, getCommand } from "../src/commands/registry.js"
 import { TerminalSizeContext } from "../src/tui/TerminalSizeContext.js"
 
@@ -94,6 +95,15 @@ describe("brand palette identity", () => {
       expect(THEMES[id]!.bgCardHover).toBeDefined()
       expect(THEMES[id]!.bgAlt).toBeDefined()
       expect(THEMES[id]!.textLabel).toBeDefined()
+    }
+  })
+
+  test("brand palette text and interactive tokens remain semantically distinct", () => {
+    for (const id of BRAND_PALETTE_IDS) {
+      const palette = THEMES[id]!
+      expect(palette.textPrimary).not.toBe(palette.bgDeep)
+      expect(palette.accent).not.toBe(palette.accentInk)
+      expect(palette.borderActive).toBe(palette.accent)
     }
   })
 
@@ -218,6 +228,28 @@ describe("ExpandableOutput terminal header bar", () => {
     )
     const frame = lastFrame() ?? ""
     expect(frame).toContain("bash")
+    expect(frame).toContain("artifact")
+  })
+})
+
+describe("SettingsPanel responsive theme surface", () => {
+  test("keeps the theme picker inside a narrow terminal", () => {
+    const { lastFrame } = render(
+      <TerminalSizeContext.Provider value={{ columns: 40, rows: 24 }}>
+        <SettingsPanel
+          provider="anthropic"
+          model="claude-opus-4"
+          currentTheme="oxblood"
+          workdir="/tmp/project"
+          onTheme={() => {}}
+          onClose={() => {}}
+        />
+      </TerminalSizeContext.Provider>,
+    )
+    const frame = lastFrame() ?? ""
+    const plain = frame.replace(/\x1b\[[0-9;]*m/g, "")
+    expect(frame).toContain("Settings")
+    expect(plain.split("\n").every((line) => line.length <= 40)).toBe(true)
   })
 })
 

@@ -2,7 +2,8 @@
 
 import type { CSSProperties } from "react"
 import { useEffect, useState } from "react"
-import Link from "next/link"
+import { useLocale } from "next-intl"
+import { Link } from "@/i18n/navigation"
 
 const storageKey = [97, 49, 49, 121, 58, 109, 111, 116, 105, 111, 110, 58, 114, 111, 117, 116, 101]
   .map((code) => String.fromCharCode(code))
@@ -23,6 +24,7 @@ const manifesto = [
 ]
 
 export function CursorGate() {
+  const tr = useLocale() === "tr"
   const [state, setState] = useState<"checking" | "closed" | "open">("checking")
 
   useEffect(() => {
@@ -47,8 +49,8 @@ export function CursorGate() {
     return (
       <main className="cursor-page cursor-page-empty">
         <div className="cursor-no-signal mono">
-          <span>no signal</span>
-          <Link href="/">return to surface</Link>
+          <span>{tr ? "sinyal yok" : "no signal"}</span>
+          <Link href="/">{tr ? "ana sayfaya dön" : "return to surface"}</Link>
         </div>
       </main>
     )
@@ -63,8 +65,8 @@ export function CursorGate() {
         <div className="cursor-gate-line" />
       </div>
       <div className="cursor-channel mono" aria-hidden="true">
-        <span>sequence accepted</span>
-        <span>opening ascent channel</span>
+        <span>{tr ? "dizi kabul edildi" : "sequence accepted"}</span>
+        <span>{tr ? "yükseliş kanalı açılıyor" : "opening ascent channel"}</span>
       </div>
       <section className="cursor-manifesto-stage" aria-label="Aurict manifesto">
         <div className="cursor-manifesto-shell">
@@ -82,7 +84,7 @@ export function CursorGate() {
           </div>
         </div>
       </section>
-      <Link className="cursor-return mono" href="/">return to surface</Link>
+      <Link className="cursor-return mono" href="/">{tr ? "ana sayfaya dön" : "return to surface"}</Link>
     </main>
   )
 }

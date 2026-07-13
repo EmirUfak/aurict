@@ -1,0 +1,36 @@
+name: WebRTC Integration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-webrtc:
+    name: Controlled real WebRTC transport
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AURICT_RUN_WEBRTC_INTEGRATION: "1"
+      AURICT_WEBRTC_TEST_STUN_URL: ${{ vars.AURICT_WEBRTC_TEST_STUN_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate controlled STUN endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$AURICT_WEBRTC_TEST_STUN_URL"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run real WebRTC transport test
+        run: bun test packages/cli/test/remote-webrtc-transport.test.ts --timeout 30000

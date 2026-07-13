@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { ColorMode, ExperienceLayout, FontPair, ExperienceTheme, UserProfile, UserType } from '../../shared/ipc-types.js';
 import { createProfile, FONT_OPTIONS, layoutOptions, THEME_OPTIONS, USER_TYPE_OPTIONS } from '../experience/registry.js';
 import { resolveColorMode } from '../experience/appearance.js';
+import { OnboardingModelStep, type ProviderModelPreference } from '../components/OnboardingModelStep.js';
 
-const STEPS = ['Your focus', 'Your surface', 'Appearance', 'Typography'] as const;
+const STEPS = ['Your focus', 'Your surface', 'AI defaults', 'Appearance', 'Typography'] as const;
 
 interface Props {
   onComplete: (profile: UserProfile) => Promise<unknown>;
@@ -16,6 +17,7 @@ export function OnboardingScreen({ onComplete }: Props) {
   const [theme, setTheme] = useState<ExperienceTheme>('paper');
   const [colorMode, setColorMode] = useState<ColorMode>('system');
   const [fontPair, setFontPair] = useState<FontPair>('friendly');
+  const [modelPreference, setModelPreference] = useState<ProviderModelPreference>({ providerId: null, modelId: null });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prefersDark, setPrefersDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -42,7 +44,7 @@ export function OnboardingScreen({ onComplete }: Props) {
     setError(null);
     setSaving(true);
     try {
-      await onComplete(createProfile(userType, { layout, theme, colorMode, fontPair }));
+      await onComplete(createProfile(userType, { layout, theme, colorMode, fontPair, preferredProviderId: modelPreference.providerId, preferredModelId: modelPreference.modelId }));
     } catch (saveError) {
       console.error('Failed to save onboarding profile', saveError);
       setError(saveError instanceof Error ? saveError.message : 'Aurict could not save your choices. Please try again.');
@@ -58,13 +60,14 @@ export function OnboardingScreen({ onComplete }: Props) {
         </ol>
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 10 }}>Welcome to Hoprel by Aurict</div>
-          <h1 style={{ margin: 0, fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 34, color: 'var(--text)' }}>{step === 0 ? 'What are you here to make?' : step === 1 ? 'Choose your starting surface' : step === 2 ? 'Make it feel like yours' : 'Choose your reading rhythm'}</h1>
+          <h1 style={{ margin: 0, fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 34, color: 'var(--text)' }}>{step === 0 ? 'What are you here to make?' : step === 1 ? 'Choose your starting surface' : step === 2 ? 'Choose your AI defaults' : step === 3 ? 'Make it feel like yours' : 'Choose your reading rhythm'}</h1>
           <p style={{ margin: '10px 0 0', fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-muted)' }}>Everything stays local and can be changed later in Settings.</p>
         </div>
 
         {step === 0 && <ChoiceGrid items={USER_TYPE_OPTIONS} selected={userType} onSelect={chooseType} />}
         {step === 1 && <ChoiceGrid items={layouts} selected={layout} onSelect={setLayout} />}
-        {step === 2 && (
+        {step === 2 && <OnboardingModelStep value={modelPreference} onChange={setModelPreference} />}
+        {step === 3 && (
           <div className="aur-onboarding-appearance" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <ChoiceGrid items={THEME_OPTIONS} selected={theme} onSelect={setTheme} compact />
             <div style={{ padding: 18, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
@@ -74,12 +77,12 @@ export function OnboardingScreen({ onComplete }: Props) {
             </div>
           </div>
         )}
-        {step === 3 && <><ChoiceGrid items={FONT_OPTIONS} selected={fontPair} onSelect={setFontPair} /><ExperiencePreview layout={layout} typography /></>}
+        {step === 4 && <><ChoiceGrid items={FONT_OPTIONS} selected={fontPair} onSelect={setFontPair} /><ExperiencePreview layout={layout} typography /></>}
 
         {error && <div role="alert" className="aur-inline-error">{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
           <button onClick={() => setStep((current) => Math.max(0, current - 1))} disabled={step === 0} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, padding: '9px 13px', color: step === 0 ? 'var(--text-disabled)' : 'var(--text)', background: 'transparent', border: '1px solid var(--border-strong)', borderRadius: 7, cursor: step === 0 ? 'default' : 'pointer' }}>← back</button>
-          {step < STEPS.length - 1 ? <button onClick={() => setStep((current) => current + 1)} style={primaryButton}>continue →</button> : <button onClick={() => { void finish(); }} disabled={saving} style={primaryButton}>{saving ? 'saving…' : 'enter Aurict →'}</button>}
+          {step < STEPS.length - 1 ? <button onClick={() => setStep((current) => current + 1)} disabled={step === 2 && (!modelPreference.providerId || !modelPreference.modelId)} style={primaryButton}>continue →</button> : <button onClick={() => { void finish(); }} disabled={saving} style={primaryButton}>{saving ? 'saving…' : 'enter Aurict →'}</button>}
         </div>
       </div>
     </main>

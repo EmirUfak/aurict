@@ -413,6 +413,96 @@ void main() {
     expect(session.recentModelsFor('OpenCode'), ['cached-b', 'cached-a']);
   });
 
+  test(
+    'provider session restores the last selected model, not the first cached one',
+    () async {
+      final cacheStore = MemoryMobileModelCacheStore();
+      await cacheStore.write(
+        MobileCachedModelList(
+          provider: 'OpenCode',
+          models: const ['cached-a', 'cached-b'],
+          fetchedAt: DateTime.now(),
+        ),
+      );
+      await cacheStore.write(
+        MobileCachedModelList(
+          provider: kLastSelectionCacheKey,
+          models: const [],
+          fetchedAt: DateTime.now(),
+          selectedProvider: 'OpenCode',
+          selectedModel: 'cached-b',
+        ),
+      );
+
+      final session = MobileProviderSession(
+        keyStore: MemoryMobileSecureKeyStore(),
+        modelCacheStore: cacheStore,
+      );
+      await _waitFor(() => session.modelsFor('OpenCode').isNotEmpty);
+
+      expect(session.selectedProvider, 'OpenCode');
+      expect(session.selectedModel, 'cached-b');
+    },
+  );
+
+  test(
+    'provider session falls back to the first model when the last '
+    'selection is no longer cached',
+    () async {
+      final cacheStore = MemoryMobileModelCacheStore();
+      await cacheStore.write(
+        MobileCachedModelList(
+          provider: 'OpenCode',
+          models: const ['cached-a', 'cached-b'],
+          fetchedAt: DateTime.now(),
+        ),
+      );
+      await cacheStore.write(
+        MobileCachedModelList(
+          provider: kLastSelectionCacheKey,
+          models: const [],
+          fetchedAt: DateTime.now(),
+          selectedProvider: 'OpenCode',
+          selectedModel: 'model-that-no-longer-exists',
+        ),
+      );
+
+      final session = MobileProviderSession(
+        keyStore: MemoryMobileSecureKeyStore(),
+        modelCacheStore: cacheStore,
+      );
+      await _waitFor(() => session.modelsFor('OpenCode').isNotEmpty);
+
+      expect(session.selectedModel, 'cached-a');
+    },
+  );
+
+  test('selecting a model persists it across a session restart', () async {
+    final cacheStore = MemoryMobileModelCacheStore();
+    final keyStore = MemoryMobileSecureKeyStore();
+    final service = _FakeModelService();
+    final session = MobileProviderSession(
+      keyStore: keyStore,
+      modelCacheStore: cacheStore,
+      modelService: service,
+    );
+    await session.saveProviderKey('OpenCode', 'oc-secret-123456');
+    await _waitFor(() => session.modelsFor('OpenCode').isNotEmpty);
+
+    session.selectModel('OpenCode', 'zen-b');
+    await _waitFor(() => session.selectedModel == 'zen-b');
+
+    final restarted = MobileProviderSession(
+      keyStore: keyStore,
+      modelCacheStore: cacheStore,
+      modelService: service,
+    );
+    await _waitFor(() => restarted.modelsFor('OpenCode').isNotEmpty);
+
+    expect(restarted.selectedProvider, 'OpenCode');
+    expect(restarted.selectedModel, 'zen-b');
+  });
+
   test('memory chat history store lists reads and clears threads', () async {
     final store = MemoryMobileChatHistoryStore();
     final meta = MobileChatThreadMeta(

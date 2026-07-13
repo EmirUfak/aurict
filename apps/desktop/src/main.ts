@@ -81,7 +81,9 @@ function defaultProfile(userType: UserType = 'general'): UserProfile {
     theme: userType === 'finance' ? 'ledger' : userType === 'designer' ? 'studio' : userType === 'general' ? 'paper' : 'oxblood',
     colorMode: 'system',
     fontPair: userType === 'finance' ? 'technical' : userType === 'designer' ? 'editorial' : 'modern',
-    onboardingVersion: 2,
+    preferredProviderId: null,
+    preferredModelId: null,
+    onboardingVersion: 3,
     completedAt: Date.now(),
   };
 }
@@ -95,6 +97,8 @@ function normalizeProfile(profile: Partial<UserProfile>): UserProfile | null {
     theme: profile.theme && THEMES.includes(profile.theme) ? profile.theme : fallback.theme,
     colorMode: profile.colorMode && COLOR_MODES.includes(profile.colorMode) ? profile.colorMode : fallback.colorMode,
     fontPair: profile.fontPair && FONT_PAIRS.includes(profile.fontPair) ? profile.fontPair : fallback.fontPair,
+    preferredProviderId: typeof profile.preferredProviderId === 'string' ? profile.preferredProviderId : null,
+    preferredModelId: typeof profile.preferredModelId === 'string' ? profile.preferredModelId : null,
     onboardingVersion: typeof profile.onboardingVersion === 'number' ? profile.onboardingVersion : 1,
     completedAt: typeof profile.completedAt === 'number' ? profile.completedAt : Date.now(),
   };

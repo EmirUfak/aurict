@@ -1,7 +1,9 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useLocale } from "next-intl"
 
 export function BackToTop() {
+  const tr = useLocale() === "tr"
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export function BackToTop() {
   return (
     <button
       onClick={scrollToTop}
-      aria-label="Back to top"
+      aria-label={tr ? "Başa dön" : "Back to top"}
       style={{
         position: "fixed",
         bottom: 32,

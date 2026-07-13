@@ -2,18 +2,15 @@ import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { getChangelog } from "@/lib/changelog"
 import type { Metadata } from "next"
+import { getLocale } from "next-intl/server"
+import { localizedMetadata } from "@/i18n/metadata"
+import type { AppLocale } from "@/i18n/routing"
 
 export const revalidate = 1800
 
-export const metadata: Metadata = {
-  title:       "Changelog — Release History",
-  description: "Aurict version history and release notes, synced automatically from GitHub Releases.",
-  alternates:  { canonical: "https://aurict.com/changelog" },
-  openGraph: {
-    title:       "Aurict Changelog — Release History",
-    description: "Version history and release notes for Aurict, the open-source terminal AI coding assistant.",
-    url:         "https://aurict.com/changelog",
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale() as AppLocale
+  return localizedMetadata(locale, "/changelog", locale === "tr" ? "Değişiklik Günlüğü — Sürüm Geçmişi" : "Changelog — Release History", locale === "tr" ? "GitHub Releases ile otomatik eşitlenen Aurict sürüm geçmişi ve sürüm notları." : "Aurict version history and release notes, synced automatically from GitHub Releases.")
 }
 
 const breadcrumbJsonLd = {
@@ -33,7 +30,8 @@ const TYPE_STYLE: Record<string, { label: string; color: string; bg: string }> =
 }
 
 export default async function ChangelogPage() {
-  const changelog = await getChangelog()
+  const [changelog, locale] = await Promise.all([getChangelog(), getLocale()])
+  const tr = locale === "tr"
 
   return (
     <>
@@ -41,9 +39,9 @@ export default async function ChangelogPage() {
       <Nav />
       <main className="marketing-main marketing-main-narrow">
         <div className="marketing-hero">
-          <p className="marketing-eyebrow">Changelog</p>
-          <h1 className="marketing-title marketing-title-sm">Release history</h1>
-          <p className="marketing-lede">Every meaningful change to Aurict, synced from GitHub Releases.</p>
+          <p className="marketing-eyebrow">{tr ? "Değişiklik günlüğü" : "Changelog"}</p>
+          <h1 className="marketing-title marketing-title-sm">{tr ? "Sürüm geçmişi" : "Release history"}</h1>
+          <p className="marketing-lede">{tr ? "Aurict'e yapılan her anlamlı değişiklik, GitHub Releases ile eşitlenir." : "Every meaningful change to Aurict, synced from GitHub Releases."}</p>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 56, borderLeft: "1px solid var(--border)", paddingLeft: 32 }}>
@@ -104,6 +102,7 @@ export default async function ChangelogPage() {
               >
                 {release.changes.map((change, i) => {
                   const style = TYPE_STYLE[change.type] ?? TYPE_STYLE.new
+                  const typeLabel = tr ? ({ new: "Yeni", fix: "Düzeltme", break: "Uyumsuz", perf: "Performans" }[change.type] ?? "Yeni") : style.label
                   return (
                     <div
                       key={i}
@@ -128,7 +127,7 @@ export default async function ChangelogPage() {
                           letterSpacing: "0.04em",
                         }}
                       >
-                        {style.label}
+                        {typeLabel}
                       </span>
                       <p style={{ fontFamily: "var(--font-serif)", fontSize: 15, color: "var(--text-dim)", lineHeight: 1.62 }}>
                         {change.text}
@@ -145,7 +144,7 @@ export default async function ChangelogPage() {
                   target="_blank"
                   style={{ display: "inline-flex", fontSize: 12, marginTop: 12 }}
                 >
-                  view release on GitHub
+                  {tr ? "sürümü GitHub'da görüntüle" : "view release on GitHub"}
                 </a>
               )}
             </div>

@@ -4,6 +4,9 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
+import { getLocale } from "next-intl/server"
+import { localizeComparison } from "@/content/comparison-translations"
+import type { AppLocale } from "@/i18n/routing"
 
 interface Comparison {
   slug: string
@@ -194,9 +197,11 @@ export function generateStaticParams() {
 
 export default async function ComparePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const comp = COMPARISONS.find((c) => c.slug === slug)
+  const locale = await getLocale() as AppLocale
+  const sourceComparison = COMPARISONS.find((c) => c.slug === slug)
 
-  if (!comp) notFound()
+  if (!sourceComparison) notFound()
+  const comp = localizeComparison(sourceComparison, locale)
 
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -207,7 +212,7 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
     "author": { "@type": "Organization", "name": "Aurict" },
   }
 
-  const otherComparisons = COMPARISONS.filter((c) => c.slug !== slug)
+  const otherComparisons = COMPARISONS.filter((c) => c.slug !== slug).map((comparison) => localizeComparison(comparison, locale))
 
   return (
     <>
@@ -216,14 +221,14 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
       <main className="marketing-main" style={{ maxWidth: 860 }}>
         <Breadcrumb
           items={[
-            { label: "Home", href: "/" },
+            { label: locale === "tr" ? "Ana sayfa" : "Home", href: "/" },
             { label: `vs ${comp.competitor}`, href: `/compare/${slug}` },
           ]}
         />
 
         {/* Hero */}
         <div className="marketing-hero">
-          <p className="marketing-eyebrow">Comparison</p>
+          <p className="marketing-eyebrow">{locale === "tr" ? "Karşılaştırma" : "Comparison"}</p>
           <h1 className="marketing-title marketing-title-sm">
             Aurict vs {comp.competitor}
           </h1>
@@ -237,7 +242,7 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
 
         {/* Feature Comparison Table */}
         <section style={{ marginBottom: 56 }}>
-          <h2 className="marketing-section-title">Feature Comparison</h2>
+          <h2 className="marketing-section-title">{locale === "tr" ? "Özellik karşılaştırması" : "Feature Comparison"}</h2>
           <div
             className="marketing-card"
             style={{
@@ -259,7 +264,7 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
                 textTransform: "uppercase",
               }}
             >
-              <span>Feature</span>
+              <span>{locale === "tr" ? "Özellik" : "Feature"}</span>
               <span style={{ textAlign: "center", color: "var(--accent)" }}>Aurict</span>
               <span style={{ textAlign: "center" }}>{comp.competitor}</span>
             </div>
@@ -299,7 +304,7 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
 
         {/* Our Strengths */}
         <section style={{ marginBottom: 56 }}>
-          <h2 className="marketing-section-title">Why Choose Aurict</h2>
+          <h2 className="marketing-section-title">{locale === "tr" ? "Neden Aurict?" : "Why Choose Aurict"}</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {comp.ourStrengths.map((strength) => (
               <div
@@ -329,10 +334,10 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
           }}
         >
           <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 28, fontWeight: 600, color: "var(--text)", marginBottom: 12 }}>
-            Ready to try Aurict?
+            {locale === "tr" ? "Aurict'i denemeye hazır mısınız?" : "Ready to try Aurict?"}
           </h2>
           <p style={{ fontFamily: "var(--font-serif)", fontSize: 16, color: "var(--text-dim)", marginBottom: 24 }}>
-            Install in seconds. Open source. No subscription required.
+            {locale === "tr" ? "Saniyeler içinde kurun. Açık kaynak. Abonelik gerekmez." : "Install in seconds. Open source. No subscription required."}
           </p>
           <div
             style={{
@@ -355,7 +360,7 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
 
         {/* Other Comparisons */}
         <section>
-          <h2 className="marketing-section-title" style={{ fontSize: 24 }}>Other Comparisons</h2>
+          <h2 className="marketing-section-title" style={{ fontSize: 24 }}>{locale === "tr" ? "Diğer karşılaştırmalar" : "Other Comparisons"}</h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {otherComparisons.map((c) => (
               <Link

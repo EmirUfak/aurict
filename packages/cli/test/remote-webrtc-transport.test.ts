@@ -12,6 +12,9 @@ import { RTCPeerConnection } from "werift"
 import { WebRtcCliTransport } from "../src/remote/webrtc-transport.js"
 import type { SignalEnvelope } from "../src/remote/transport.js"
 
+const stunUrl = process.env.AURICT_WEBRTC_TEST_STUN_URL
+const integration = process.env.AURICT_RUN_WEBRTC_INTEGRATION === "1" && stunUrl ? describe : describe.skip
+
 const runningTransports: WebRtcCliTransport[] = []
 const runningPeers: RTCPeerConnection[] = []
 
@@ -22,7 +25,7 @@ afterEach(async () => {
 
 /** A bare werift peer mimicking mobile's (Workstream F) future real answerer. */
 async function answerWithBarePeer(offer: SignalEnvelope): Promise<{ answer: SignalEnvelope; pc: RTCPeerConnection; channelOpened: Promise<import("werift").RTCDataChannel> }> {
-  const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] })
+  const pc = new RTCPeerConnection({ iceServers: [{ urls: stunUrl! }] })
   runningPeers.push(pc)
 
   const channelOpened = new Promise<import("werift").RTCDataChannel>((resolve) => {
@@ -52,7 +55,7 @@ async function answerWithBarePeer(offer: SignalEnvelope): Promise<{ answer: Sign
   }
 }
 
-describe("WebRtcCliTransport", () => {
+integration("WebRtcCliTransport", () => {
   it("createOffer() returns a real, signed SDP envelope (not a JSON placeholder)", async () => {
     const transport = new WebRtcCliTransport()
     runningTransports.push(transport)
@@ -60,6 +63,7 @@ describe("WebRtcCliTransport", () => {
     const offer = await transport.createOffer({
       signingKeyFingerprint: "fp_cli_1",
       sign: async (payload) => { signed.push(payload); return `sig(${payload.length})` },
+      iceServers: [{ urls: stunUrl! }],
     })
     expect(offer.type).toBe("offer")
     expect(offer.transport).toBe("webrtc")
@@ -77,6 +81,7 @@ describe("WebRtcCliTransport", () => {
     const offer = await transport.createOffer({
       signingKeyFingerprint: "fp_cli_1",
       sign: async (payload) => `sig(${payload.length})`,
+      iceServers: [{ urls: stunUrl! }],
     })
 
     const { answer, channelOpened } = await answerWithBarePeer(offer)
@@ -107,6 +112,7 @@ describe("WebRtcCliTransport", () => {
     const offer = await transport.createOffer({
       signingKeyFingerprint: "fp_cli_1",
       sign: async () => "sig",
+      iceServers: [{ urls: stunUrl! }],
     })
     // The channel isn't open yet (answer not applied) — this send() must be queued, not dropped.
     transport.send("queued-before-open")
@@ -123,7 +129,7 @@ describe("WebRtcCliTransport", () => {
 
   it("close() tears down the peer connection without throwing", async () => {
     const transport = new WebRtcCliTransport()
-    await transport.createOffer({ signingKeyFingerprint: "fp_x", sign: async () => "sig" })
+    await transport.createOffer({ signingKeyFingerprint: "fp_x", sign: async () => "sig", iceServers: [{ urls: stunUrl! }] })
     await transport.close()
     // After closing, calling applyAnswer must throw a safe error (not crash).
     await expect(transport.applyAnswer({

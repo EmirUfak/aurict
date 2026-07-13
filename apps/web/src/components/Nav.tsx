@@ -1,25 +1,27 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
+import { useTranslations } from "next-intl"
 import { BrandMark } from "@/components/BrandMark"
 import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
+import { LocaleSwitcher } from "@/components/LocaleSwitcher"
+import { Link } from "@/i18n/navigation"
 
 const LINKS = [
-  { href: "/roadmap", label: "roadmap" },
-  { href: "/docs", label: "docs" },
-  { href: "/changelog", label: "changelog" },
+  { href: "/roadmap", key: "roadmap" },
+  { href: "/docs", key: "docs" },
+  { href: "/changelog", key: "changelog" },
 ]
 
 const PRODUCT_LINKS = [
-  { href: "/", label: "overview" },
-  { href: "/#surfaces", label: "surfaces" },
-  { href: "/#capabilities", label: "capabilities" },
-  { href: "/#security", label: "security" },
-  { href: "/#mobile", label: "mobile" },
-  { href: "/downloads", label: "download Hoprel" },
-  { href: "/#install", label: "install" },
-  { href: "/#faq", label: "faq" },
+  { href: "/", key: "overview" },
+  { href: "/#surfaces", key: "surfaces" },
+  { href: "/#capabilities", key: "capabilities" },
+  { href: "/#security", key: "security" },
+  { href: "/#mobile", key: "mobile" },
+  { href: "/downloads", key: "downloadHoprel" },
+  { href: "/#install", key: "install" },
+  { href: "/#faq", key: "faq" },
 ]
 
 const ECOSYSTEM_LINKS = [
@@ -29,6 +31,7 @@ const ECOSYSTEM_LINKS = [
 export function Nav() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const t = useTranslations("Nav")
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16)
@@ -84,12 +87,13 @@ export function Nav() {
           <div className="nav-links">
             <ProductDropdown links={PRODUCT_LINKS} />
             <EcosystemDropdown />
-            {LINKS.map((link) => <NavLink key={link.href} href={link.href}>{link.label}</NavLink>)}
+            {LINKS.map((link) => <NavLink key={link.href} href={link.href}>{t(link.key)}</NavLink>)}
+            <LocaleSwitcher />
             <AuthNavSlot />
           </div>
 
           <button
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-label={menuOpen ? t("closeMenu") : t("openMenu")}
             className="nav-burger"
             onClick={() => setMenuOpen((open) => !open)}
           >
@@ -111,18 +115,19 @@ export function Nav() {
 
       {menuOpen && (
         <div className="nav-drawer" onClick={() => setMenuOpen(false)}>
-          <span className="nav-drawer-label">product</span>
+          <span className="nav-drawer-label">{t("product")}</span>
           {PRODUCT_LINKS.map((link) => (
-            <Link key={link.href} href={link.href}>{link.label}</Link>
+            <Link key={link.href} href={link.href}>{t(link.key)}</Link>
           ))}
-          <span className="nav-drawer-label">ecosystem</span>
+          <span className="nav-drawer-label">{t("ecosystem")}</span>
           {ECOSYSTEM_LINKS.map((link) => (
             <a key={link.href} href={link.href}>{link.label}</a>
           ))}
-          <span className="nav-drawer-label">site</span>
+          <span className="nav-drawer-label">{t("site")}</span>
           {LINKS.map((link) => (
-            <Link key={link.href} href={link.href}>{link.label}</Link>
+            <Link key={link.href} href={link.href}>{t(link.key)}</Link>
           ))}
+          <LocaleSwitcher />
           <AuthNavSlot drawer />
         </div>
       )}
@@ -131,10 +136,12 @@ export function Nav() {
 }
 
 function EcosystemDropdown() {
+  const t = useTranslations("Nav")
+
   return (
     <div className="nav-dropdown">
       <button className="nav-dropdown-trigger" type="button">
-        ecosystem
+        {t("ecosystem")}
         <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
           <path d="m6 9 6 6 6-6" />
         </svg>
@@ -148,11 +155,13 @@ function EcosystemDropdown() {
   )
 }
 
-function ProductDropdown({ links }: { links: Array<{ href: string; label: string }> }) {
+function ProductDropdown({ links }: { links: Array<{ href: string; key: string }> }) {
+  const t = useTranslations("Nav")
+
   return (
     <div className="nav-dropdown">
       <button className="nav-dropdown-trigger" type="button">
-        product
+        {t("product")}
         <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
           <path d="m6 9 6 6 6-6" />
         </svg>
@@ -160,7 +169,7 @@ function ProductDropdown({ links }: { links: Array<{ href: string; label: string
       <div className="nav-dropdown-menu">
         {links.map((link) => (
           <Link key={link.href} className="nav-dropdown-item" href={link.href}>
-            {link.label}
+            {t(link.key)}
           </Link>
         ))}
       </div>

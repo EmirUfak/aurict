@@ -2,7 +2,21 @@
 
 ## Installation
 
-### From source (recommended — single binary, no runtime dependencies)
+### One-line installer (macOS and Linux)
+
+```bash
+curl -fsSL https://aurict.com/install.sh | bash
+```
+
+The installer selects the matching x64 or arm64 release binary, verifies its SHA-256 checksum, and installs it to `~/.local/bin/aurict`. It does not need Node.js, Bun, or `sudo`.
+
+Install a specific release or change the destination by passing variables to `bash`:
+
+```bash
+curl -fsSL https://aurict.com/install.sh | AURICT_INSTALL_VERSION=1.2.0 AURICT_INSTALL_DIR=/path/to/bin bash
+```
+
+### From source
 
 ```bash
 git clone https://github.com/aurict/aurict

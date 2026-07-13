@@ -56,6 +56,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
   const isNarrow  = termCols < 80
   const hints     = termCols >= 100 ? HINTS_WIDE : HINTS_SHORT
   const showHints = !isPasting && !isNarrow
+  const charCount = value.length
 
   const Sep = () => <Text color={theme.borderDim}> · </Text>
 
@@ -72,15 +73,31 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
         variant="flat"
         tone="default"
         accentColor={borderColor}
+        {...(theme.bgCard !== undefined ? { backgroundColor: theme.bgCard } : {})}
         paddingX="md"
         paddingY="none"
         flexGrow={1}
         flexShrink={1}
+        header={!isNarrow ? (
+          <HStack justify="space-between" paddingX="xs">
+            <Text color={modeColor} bold>{modeLabel}</Text>
+            <Text color={theme.textDim} dimColor>
+              {disabled ? "Aurict is working" : charCount > 0 ? `${charCount.toLocaleString()} chars` : "Ask, plan, or build"}
+            </Text>
+          </HStack>
+        ) : undefined}
       >
+        {!disabled && !value && !isNarrow && (
+          <HStack paddingX="xs" gap="sm">
+            <Text color={theme.textDim} dimColor>Try</Text>
+            <Text color={theme.textSecondary}>describe a task</Text>
+            <Text color={theme.borderDim}>·</Text>
+            <Text color={theme.accent}>/plan</Text>
+            <Text color={theme.borderDim}>·</Text>
+            <Text color={theme.accentAlt}>@file</Text>
+          </HStack>
+        )}
         <HStack flexGrow={1} flexShrink={1} gap="xs">
-          {!isNarrow && (
-            <Text color={modeColor} bold>{modeLabel} </Text>
-          )}
           <Typo
             variant="bodyEmphasis"
             tone={disabled ? "muted" : isPasting ? "warning" : "accentAlt"}
@@ -103,6 +120,9 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
             />
           </Box>
           {disabled && !isNarrow && <Typo variant="body" tone="muted" dimColor>working…</Typo>}
+          {!disabled && !isNarrow && value.trim() && (
+            <Typo variant="caption" tone="accent" dimColor>Enter send</Typo>
+          )}
         </HStack>
       </Surface>
 

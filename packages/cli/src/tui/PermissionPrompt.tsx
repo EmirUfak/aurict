@@ -6,7 +6,7 @@ import { Select, type SelectOption } from "./Select.js"
 import { BashPermissionRequest } from "./BashPermissionRequest.js"
 import { FallbackPermissionRequest } from "./FallbackPermissionRequest.js"
 import { PermissionScaffold } from "./PermissionScaffold.js"
-import { DesignBox as Box2 } from "./design-system/types.js"
+import { PermissionCommandPreview } from "./PermissionCommandPreview.js"
 
 type Decision = PermissionDecision | "deny_abort" | "edit"
 export type PermissionPromptDecision = Decision | PermissionResponse
@@ -27,13 +27,6 @@ function patchFileKeys(file: NonNullable<PermissionRequest["files"]>[number]): s
   return file.action === "move" && file.targetPath ? [file.path, file.targetPath] : [file.path]
 }
 
-function patchPreviewLines(patchText: string, maxLines = 80): string[] {
-  const lines = patchText.split("\n")
-  return lines.length > maxLines
-    ? [...lines.slice(0, maxLines), `... ${lines.length - maxLines} more lines`]
-    : lines
-}
-
 function GranularPatchRequest({ request, onDecide }: Props) {
   const theme = useTheme()
   const files  = request.files ?? []
@@ -42,7 +35,7 @@ function GranularPatchRequest({ request, onDecide }: Props) {
   const allSelectedFiles   = useMemo(() => selectableFileKeys.flat(), [selectableFileKeys])
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(() => new Set(allSelectedFiles))
   const [fileIdx,   setFileIdx]   = useState(0)
-  const [showPatch, setShowPatch] = useState(Boolean(patchText))
+  const [showPatch, setShowPatch] = useState(false)
 
   const selectedCount = files.filter((f) => patchFileKeys(f).some((p) => selectedFiles.has(p))).length
 
@@ -65,6 +58,7 @@ function GranularPatchRequest({ request, onDecide }: Props) {
   }, [allSelectedFiles, selectedFiles, onDecide])
 
   useInput((char, key) => {
+    if (showPatch) return
     if (key.leftArrow)  { setFileIdx(i => Math.max(0, i - 1)); return }
     if (key.rightArrow) { setFileIdx(i => Math.min(files.length - 1, i + 1)); return }
     if (char === " ") {
@@ -103,34 +97,14 @@ function GranularPatchRequest({ request, onDecide }: Props) {
           )
         })}
       </Box>
-      {patchText && showPatch && (
-        <Box flexDirection="column" marginBottom={1} borderStyle="single" borderColor={theme.borderDim}>
-          <Box2 paddingX={1} {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
-            <Text color={theme.textDim}> patch </Text>
-            <Text color={theme.accent}>▊</Text>
-            <Text color={theme.textDim}> d hide</Text>
-          </Box2>
-          <Box flexDirection="column" paddingX={1}>
-            {patchPreviewLines(patchText).map((line, i) => {
-              const isAdd     = line.startsWith("+")
-              const isRem     = line.startsWith("-")
-              const isHunk     = line.startsWith("@@")
-              const isFileHdr  = line.startsWith("***") || line.startsWith("---")
-              const color = isAdd    ? theme.success
-                : isRem      ? theme.error
-                : isHunk     ? theme.warning
-                : isFileHdr  ? theme.accent
-                :               theme.textDim
-              const prefix = isAdd ? "+" : isRem ? "-" : " "
-              return (
-                <Text key={i} color={color}>
-                  <Text color={isAdd ? theme.success : isRem ? theme.error : color} bold={isAdd || isRem}>{prefix}</Text>
-                  {line}
-                </Text>
-              )
-            })}
-          </Box>
-        </Box>
+      {patchText && (
+        <PermissionCommandPreview
+          command={patchText}
+          open={showPatch}
+          onOpenChange={setShowPatch}
+          label="patch"
+          linePrefix=""
+        />
       )}
     </Box>
   )

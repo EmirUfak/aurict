@@ -35,6 +35,11 @@ jobs:
       - name: Smoke test (linux-x64)
         run: ./dist/aurict-linux-x64 --version
 
+      - name: Create release checksum manifest
+        run: |
+          cd dist
+          sha256sum aurict-linux-x64 aurict-linux-arm64 aurict-darwin-x64 aurict-darwin-arm64 aurict-win32-x64.exe > checksums.txt
+
       - name: Setup Node.js (for npm publish)
         uses: actions/setup-node@v4
         with:
@@ -105,4 +110,5 @@ jobs:
             dist/aurict-darwin-x64
             dist/aurict-darwin-arm64
             dist/aurict-win32-x64.exe
+            dist/checksums.txt
           generate_release_notes: true

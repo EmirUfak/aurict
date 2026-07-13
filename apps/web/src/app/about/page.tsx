@@ -1,19 +1,16 @@
 import type { Metadata } from "next"
 import type { ReactNode } from "react"
-import Link from "next/link"
+import { getLocale } from "next-intl/server"
+import { Link } from "@/i18n/navigation"
 import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
+import { localizedMetadata } from "@/i18n/metadata"
+import type { AppLocale } from "@/i18n/routing"
 
-export const metadata: Metadata = {
-  title:       "About Aurict — Manifesto",
-  description: "Aurict manifesto: BYOK AI orchestration, radical objectivity, lean architecture, TDD discipline, and the long-term ecosystem vision.",
-  alternates:  { canonical: "https://aurict.com/about" },
-  openGraph: {
-    title:       "About Aurict — Manifesto",
-    description: "Aurict manifesto and ecosystem direction.",
-    url:         "https://aurict.com/about",
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale() as AppLocale
+  return localizedMetadata(locale, "/about", locale === "tr" ? "Aurict Hakkında — Manifesto" : "About Aurict — Manifesto", locale === "tr" ? "Aurict manifestosu: BYOK yapay zekâ orkestrasyonu, nesnel yaklaşım, yalın mimari ve uzun vadeli ekosistem vizyonu." : "Aurict manifesto: BYOK AI orchestration, radical objectivity, lean architecture, TDD discipline, and the long-term ecosystem vision.")
 }
 
 const breadcrumbJsonLd = {
@@ -25,7 +22,7 @@ const breadcrumbJsonLd = {
   ],
 }
 
-const principles = [
+const englishPrinciples = [
   {
     label: "01",
     title: "Architecture As Lean As Possible",
@@ -43,7 +40,7 @@ const principles = [
   },
 ]
 
-const ecosystem = [
+const englishEcosystem = [
   {
     title: "MicroTarget.one Integration",
     body:  "MicroTarget.one is an independent project that uses on-device ML to reduce server load and make customer engagement workflows more efficient. On the Aurict side, the goal is to connect it over time to dashboarding, process management, optimization, and decision support.",
@@ -58,59 +55,71 @@ const ecosystem = [
   },
 ]
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const locale = await getLocale() as AppLocale
+  const tr = locale === "tr"
+  const principles = tr ? [
+    { label: "01", title: "Mümkün Olduğunca Yalın Mimari", body: "Aurict; bağlam şişmesini, gereksiz token harcamasını ve dikkat dağıtan arayüz katmanlarını azaltmaya odaklanır. Amaç, kullanıcıyı savunulabilir en kısa yoldan doğru sonuca taşıyan bir orkestrasyon katmanı kurmaktır." },
+    { label: "02", title: "TDD Disiplini", body: "Aurict test edilebilirliği ve kontrollü değişimi merkeze alır. Kod yazarken, güvenlik iş akışlarını yönetirken veya teknik karar üretirken ayakları yere basan bir mühendislik yaklaşımını izler." },
+    { label: "03", title: "Radikal Nesnellik", body: "Aurict, pohpohlayan olanı değil yararlı olanı söylemek için tasarlanmıştır. Yapay övgü ve belirsiz yönlendirmeler yerine soğuk, net ve rasyonel çıktıyı hedefler." },
+  ] : englishPrinciples
+  const ecosystem = tr ? [
+    { title: "MicroTarget.one entegrasyonu", body: "MicroTarget.one, sunucu yükünü azaltmak ve müşteri etkileşimi iş akışlarını verimli kılmak için cihaz üzerinde ML kullanan bağımsız bir projedir. Aurict tarafındaki hedef; zamanla bunu dashboard, süreç yönetimi, optimizasyon ve karar desteğine bağlamaktır." },
+    { title: "Görsel ve arayüz katmanı", body: "Ekosistem içinde Aurict; yapay zekânın arayüz, kod bileşeni ve tasarım sistemi üretebildiği canlı ve işlevsel bir üretim katmanını desteklemeyi hedefler." },
+    { title: "Siber güvenlik dikeyi", body: "Siber analiz, savunma, sızma testi ve güvenlik iş akışları için bağımsız bir dikey, Aurict vizyonunun temel parçalarından biri olarak konumlanır." },
+  ] : englishEcosystem
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <Nav />
       <main className="marketing-main" style={{ maxWidth: 1040 }}>
-        <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "About", href: "/about" }]} />
+        <Breadcrumb items={[{ label: tr ? "Ana sayfa" : "Home", href: "/" }, { label: tr ? "Hakkında" : "About", href: "/about" }]} />
 
         <section className="marketing-hero" style={{ marginTop: 24 }}>
-          <p className="marketing-eyebrow">Manifesto</p>
-          <h1 className="marketing-title">About Aurict</h1>
+          <p className="marketing-eyebrow">{tr ? "Manifesto" : "Manifesto"}</p>
+          <h1 className="marketing-title">{tr ? "Aurict hakkında" : "About Aurict"}</h1>
           <p className="marketing-lede">
-            The AI world is surrounded by high costs, inflated context, inefficient token usage, and an illusion of artificial praise that often pulls users away from rational solutions.
+            {tr ? "Yapay zekâ dünyası; yüksek maliyetler, şişirilmiş bağlam, verimsiz token kullanımı ve kullanıcıları rasyonel çözümlerden uzaklaştıran yapay bir övgü illüzyonuyla çevrili." : "The AI world is surrounded by high costs, inflated context, inefficient token usage, and an illusion of artificial praise that often pulls users away from rational solutions."}
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 30 }}>
-            <Link className="aur-button aur-button-primary" href="/roadmap">view roadmap</Link>
-            <Link className="aur-button aur-button-secondary" href="/docs">technical docs</Link>
+            <Link className="aur-button aur-button-primary" href="/roadmap">{tr ? "yol haritasını gör" : "view roadmap"}</Link>
+            <Link className="aur-button aur-button-secondary" href="/docs">{tr ? "teknik dokümanlar" : "technical docs"}</Link>
           </div>
         </section>
 
         <section className="resp-grid-2" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 280px", gap: 34, alignItems: "start", marginBottom: 64 }}>
           <article className="marketing-card" style={{ padding: 30 }}>
             <p className="marketing-copy" style={{ fontSize: 18, color: "var(--text)" }}>
-              Aurict was born as an engineering answer to this inefficiency and as a radical optimization movement.
+              {tr ? "Aurict, bu verimsizliğe mühendislik temelli bir yanıt ve radikal bir optimizasyon hareketi olarak doğdu." : "Aurict was born as an engineering answer to this inefficiency and as a radical optimization movement."}
             </p>
             <p className="marketing-copy" style={{ marginTop: 18 }}>
-              We treat the hardware and capital barriers of training large models from scratch not as a dead end, but as a design constraint. The aim is to build an orchestration brain that manages the strongest existing models in a smarter, more efficient, and more controlled way.
+              {tr ? "Büyük modelleri sıfırdan eğitmenin donanım ve sermaye engellerini çıkmaz olarak değil, bir tasarım kısıtı olarak görüyoruz. Amaç, mevcut en güçlü modelleri daha akıllı, verimli ve kontrollü yöneten bir orkestrasyon beyni kurmak." : "We treat the hardware and capital barriers of training large models from scratch not as a dead end, but as a design constraint. The aim is to build an orchestration brain that manages the strongest existing models in a smarter, more efficient, and more controlled way."}
             </p>
             <p className="marketing-copy" style={{ marginTop: 18 }}>
-              What started as a bootstrapped hobby project is now moving toward a more clearly defined technology ecosystem.
+              {tr ? "Kendi imkânlarıyla başlayan hobi projesi, artık daha net tanımlanmış bir teknoloji ekosistemine doğru ilerliyor." : "What started as a bootstrapped hobby project is now moving toward a more clearly defined technology ecosystem."}
             </p>
           </article>
 
           <aside className="marketing-card" style={{ padding: 22, position: "sticky", top: 92 }}>
-            <p className="mono" style={{ color: "var(--accent)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 14 }}>current signal</p>
+            <p className="mono" style={{ color: "var(--accent)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 14 }}>{tr ? "mevcut sinyal" : "current signal"}</p>
             <div className="mono" style={{ color: "var(--text)", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>aurict<span className="aur-cursor">█</span></div>
             <p style={{ color: "var(--text-dim)", fontSize: 14, lineHeight: 1.65 }}>
-              The process is active. The cursor is ready. The product is moving from terminal to mobile, and from there toward a wider AI ecosystem.
+              {tr ? "Süreç aktif. İmleç hazır. Ürün terminalden mobile, oradan daha geniş bir yapay zekâ ekosistemine ilerliyor." : "The process is active. The cursor is ready. The product is moving from terminal to mobile, and from there toward a wider AI ecosystem."}
             </p>
           </aside>
         </section>
 
-        <ManifestoSection title="What Is Aurict?">
+        <ManifestoSection title={tr ? "Aurict nedir?" : "What Is Aurict?"}>
           <p className="marketing-copy">
-            Aurict is a futuristic terminal and mobile AI agent built around the BYOK model: bring your own key. It helps users manage their existing model providers with more control across coding, cybersecurity, research, document generation, and technical problem solving.
+            {tr ? "Aurict, BYOK (Kendi Anahtarını Getir) modeli etrafında kurulan fütüristik bir terminal ve mobil yapay zekâ ajanıdır. Kullanıcıların mevcut model sağlayıcılarını kodlama, siber güvenlik, araştırma, belge üretimi ve teknik problem çözmede daha fazla kontrolle yönetmesine yardım eder." : "Aurict is a futuristic terminal and mobile AI agent built around the BYOK model: bring your own key. It helps users manage their existing model providers with more control across coding, cybersecurity, research, document generation, and technical problem solving."}
           </p>
           <p className="marketing-copy">
-            The user brings the API key. Aurict turns that scattered energy into a more focused, observable, and disciplined workflow.
+            {tr ? "Kullanıcı API anahtarını getirir. Aurict, bu dağınık enerjiyi daha odaklı, gözlemlenebilir ve disiplinli bir iş akışına dönüştürür." : "The user brings the API key. Aurict turns that scattered energy into a more focused, observable, and disciplined workflow."}
           </p>
         </ManifestoSection>
 
         <section style={{ marginBottom: 72 }}>
-          <h2 className="marketing-section-title">Three Core Principles</h2>
+          <h2 className="marketing-section-title">{tr ? "Üç temel ilke" : "Three Core Principles"}</h2>
           <div className="resp-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 }}>
             {principles.map((item) => (
               <article key={item.label} className="marketing-card" style={{ padding: 22 }}>
@@ -122,9 +131,9 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <ManifestoSection title="Our Aim: Building A Multi-Layer AI Ecosystem">
+        <ManifestoSection title={tr ? "Amacımız: Çok katmanlı bir yapay zekâ ekosistemi kurmak" : "Our Aim: Building A Multi-Layer AI Ecosystem"}>
           <p className="marketing-copy">
-            Aurict is still early. But the direction is clear: not a single tool, but an AI ecosystem made of vertical products and platforms that strengthen each other.
+            {tr ? "Aurict henüz erken aşamada. Ancak yön net: tek bir araç değil, birbirini güçlendiren dikey ürünlerden ve platformlardan oluşan bir yapay zekâ ekosistemi." : "Aurict is still early. But the direction is clear: not a single tool, but an AI ecosystem made of vertical products and platforms that strengthen each other."}
           </p>
         </ManifestoSection>
 
@@ -137,24 +146,24 @@ export default function AboutPage() {
           ))}
         </section>
 
-        <ManifestoSection title="The Long-Term Target: Alternative Approaches And Accessible LLMs">
+        <ManifestoSection title={tr ? "Uzun vadeli hedef: Alternatif yaklaşımlar ve erişilebilir LLM'ler" : "The Long-Term Target: Alternative Approaches And Accessible LLMs"}>
           <p className="marketing-copy">
-            As the Aurict ecosystem grows and earns its own financial freedom, we want to focus on one of the largest problems in AI: cost and accuracy.
+            {tr ? "Aurict ekosistemi büyüyüp kendi finansal özgürlüğünü kazandıkça, yapay zekânın en büyük sorunlarından ikisine odaklanmak istiyoruz: maliyet ve doğruluk." : "As the Aurict ecosystem grows and earns its own financial freedom, we want to focus on one of the largest problems in AI: cost and accuracy."}
           </p>
           <p className="marketing-copy">
-            The long-term goal is to move beyond default industry assumptions and experiment with different architectural approaches, aiming for AI models that are more accurate, lower cost, and more accessible.
+            {tr ? "Uzun vadeli hedef, sektörün varsayılan kabullerinin ötesine geçerek daha doğru, daha düşük maliyetli ve daha erişilebilir yapay zekâ modelleri için farklı mimari yaklaşımları denemektir." : "The long-term goal is to move beyond default industry assumptions and experiment with different architectural approaches, aiming for AI models that are more accurate, lower cost, and more accessible."}
           </p>
           <p className="marketing-copy">
-            In the myth, Icarus fell because he flew toward the sun with fragile wax wings. Aurict aims to rise toward the sun with wings reinforced by TDD discipline, cybersecurity armor, efficient growth engineering, and an independent ecosystem architecture.
+            {tr ? "Mitte İkarus, kırılgan balmumu kanatlarla güneşe uçtuğu için düştü. Aurict; TDD disiplini, siber güvenlik zırhı, verimli büyüme mühendisliği ve bağımsız ekosistem mimarisiyle güçlendirilmiş kanatlarla güneşe yükselmeyi hedefler." : "In the myth, Icarus fell because he flew toward the sun with fragile wax wings. Aurict aims to rise toward the sun with wings reinforced by TDD discipline, cybersecurity armor, efficient growth engineering, and an independent ecosystem architecture."}
           </p>
         </ManifestoSection>
 
         <section className="marketing-card" style={{ padding: 28, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 22 }}>
           <div>
-            <p className="marketing-eyebrow" style={{ marginBottom: 10 }}>Direction</p>
-            <h2 style={{ color: "var(--text)", fontSize: 30, fontWeight: 600, lineHeight: 1.18 }}>The manifesto lives here. The route lives in the roadmap.</h2>
+            <p className="marketing-eyebrow" style={{ marginBottom: 10 }}>{tr ? "Yön" : "Direction"}</p>
+            <h2 style={{ color: "var(--text)", fontSize: 30, fontWeight: 600, lineHeight: 1.18 }}>{tr ? "Manifesto burada. Rota yol haritasında." : "The manifesto lives here. The route lives in the roadmap."}</h2>
           </div>
-          <Link className="aur-button aur-button-primary" href="/roadmap">open roadmap</Link>
+          <Link className="aur-button aur-button-primary" href="/roadmap">{tr ? "yol haritasını aç" : "open roadmap"}</Link>
         </section>
       </main>
       <Footer />

@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
+import { useLocale } from "next-intl"
+import { Link } from "@/i18n/navigation"
 import { useSearchParams } from "next/navigation"
 import { CheckCircle2, LoaderCircle, Terminal, XCircle } from "lucide-react"
 import { BrandMark } from "@/components/BrandMark"
@@ -17,6 +18,7 @@ type DeviceActionResponse = {
 }
 
 export function DeviceLogin() {
+  const tr = useLocale() === "tr"
   const search = useSearchParams()
   const userCode = useMemo(
     () => normalizeUserCode(search.get("user_code") ?? search.get("userCode") ?? search.get("code") ?? ""),
@@ -32,7 +34,7 @@ export function DeviceLogin() {
 
     async function checkSession() {
       if (!userCode) {
-        setMessage("CLI login code is missing.")
+        setMessage(tr ? "CLI giriş kodu eksik." : "CLI login code is missing.")
         setStatus("error")
         return
       }
@@ -49,14 +51,14 @@ export function DeviceLogin() {
           return
         }
         if (!response.ok || !body?.ok) {
-          throw new Error(body?.error?.message ?? "Could not verify your session.")
+          throw new Error(body?.error?.message ?? (tr ? "Oturumunuz doğrulanamadı." : "Could not verify your session."))
         }
 
         setUser(body.user)
         setStatus("ready")
       } catch (error) {
         if (cancelled) return
-        setMessage(error instanceof Error ? error.message : "Could not verify your session.")
+        setMessage(error instanceof Error ? error.message : (tr ? "Oturumunuz doğrulanamadı." : "Could not verify your session."))
         setStatus("error")
       }
     }
@@ -65,7 +67,7 @@ export function DeviceLogin() {
     return () => {
       cancelled = true
     }
-  }, [userCode])
+  }, [tr, userCode])
 
   async function submit(decision: "approve" | "deny") {
     if (!userCode || status === "approving" || status === "denying") return
@@ -73,13 +75,13 @@ export function DeviceLogin() {
     setStatus(decision === "approve" ? "approving" : "denying")
     setMessage(null)
     try {
-      const body = await postDevice(`/api/auth/device/${decision}`, { userCode })
-      if (!body.ok) throw new Error(body.error?.message ?? `Could not ${decision} CLI login.`)
+      const body = await postDevice(`/api/auth/device/${decision}`, { userCode }, tr)
+      if (!body.ok) throw new Error(body.error?.message ?? (tr ? `CLI girişi ${decision === "approve" ? "onaylanamadı" : "reddedilemedi"}.` : `Could not ${decision} CLI login.`))
       if (body.clientName) setClientName(body.clientName)
       setStatus(decision === "approve" ? "approved" : "denied")
-      setMessage(decision === "approve" ? "CLI login approved." : "CLI login denied.")
+      setMessage(decision === "approve" ? (tr ? "CLI girişi onaylandı." : "CLI login approved.") : (tr ? "CLI girişi reddedildi." : "CLI login denied."))
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : `Could not ${decision} CLI login.`)
+      setMessage(error instanceof Error ? error.message : (tr ? `CLI girişi ${decision === "approve" ? "onaylanamadı" : "reddedilemedi"}.` : `Could not ${decision} CLI login.`))
       setStatus("ready")
     }
   }
@@ -96,28 +98,28 @@ export function DeviceLogin() {
           {status === "approved" ? <CheckCircle2 size={22} /> : status === "denied" ? <XCircle size={22} /> : <Terminal size={22} />}
         </div>
 
-        <p className="marketing-eyebrow">CLI browser login</p>
+        <p className="marketing-eyebrow">{tr ? "CLI tarayıcı girişi" : "CLI browser login"}</p>
         <h1 className="marketing-title marketing-title-sm" style={{ marginBottom: 12 }}>
-          Authorize this terminal.
+          {tr ? "Bu terminali yetkilendirin." : "Authorize this terminal."}
         </h1>
         <p className="marketing-lede" style={{ fontSize: 16, marginBottom: 24 }}>
-          {complete ? "You can return to your terminal." : "Confirm that the code in your browser matches the code shown by Aurict CLI."}
+          {complete ? (tr ? "Terminalinize dönebilirsiniz." : "You can return to your terminal.") : (tr ? "Tarayıcınızdaki kodun Aurict CLI'ın gösterdiği kodla eşleştiğini doğrulayın." : "Confirm that the code in your browser matches the code shown by Aurict CLI.")}
         </p>
 
-        <div className="auth-device-code" aria-label="CLI login code">
-          {userCode || "NO CODE"}
+        <div className="auth-device-code" aria-label={tr ? "CLI giriş kodu" : "CLI login code"}>
+          {userCode || (tr ? "KOD YOK" : "NO CODE")}
         </div>
 
         {user && (
           <div className="auth-device-meta">
-            <span>signed in as</span>
+            <span>{tr ? "giriş yapan" : "signed in as"}</span>
             <strong>{user.email}</strong>
           </div>
         )}
 
         <div className={`auth-device-status auth-device-status-${status}`} role={status === "error" ? "alert" : "status"}>
           {busy && <LoaderCircle className="auth-spin" size={15} />}
-          {message ?? statusLabel(status, clientName)}
+          {message ?? statusLabel(status, clientName, tr)}
         </div>
 
         {!complete && status !== "error" && (
@@ -129,7 +131,7 @@ export function DeviceLogin() {
               type="button"
             >
               {status === "approving" ? <LoaderCircle className="auth-spin" size={16} /> : <CheckCircle2 aria-hidden="true" size={16} />}
-              approve
+              {tr ? "onayla" : "approve"}
             </button>
             <button
               className="auth-danger-button mono"
@@ -138,20 +140,20 @@ export function DeviceLogin() {
               type="button"
             >
               {status === "denying" ? <LoaderCircle className="auth-spin" size={16} /> : <XCircle aria-hidden="true" size={16} />}
-              deny
+              {tr ? "reddet" : "deny"}
             </button>
           </div>
         )}
 
         {complete && (
           <Link className="auth-muted-link mono" href="/">
-            back to aurict
+            {tr ? "aurict'e dön" : "back to aurict"}
           </Link>
         )}
 
         {status === "error" && (
           <Link className="auth-muted-link mono" href={nextHref("/login", currentPath())}>
-            sign in and try again
+            {tr ? "giriş yapıp tekrar deneyin" : "sign in and try again"}
           </Link>
         )}
       </div>
@@ -159,7 +161,7 @@ export function DeviceLogin() {
   )
 }
 
-async function postDevice(path: string, body: unknown) {
+async function postDevice(path: string, body: unknown, tr: boolean) {
   const response = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -168,12 +170,12 @@ async function postDevice(path: string, body: unknown) {
 
   if (response.status === 401) {
     window.location.assign(nextHref("/login", currentPath()))
-    return { ok: false, error: { message: "Session expired." } } satisfies DeviceActionResponse
+    return { ok: false, error: { message: tr ? "Oturumunuzun süresi doldu." : "Session expired." } } satisfies DeviceActionResponse
   }
 
   return response.json().catch(() => ({
     ok: false,
-    error: { message: "Invalid server response." },
+    error: { message: tr ? "Geçersiz sunucu yanıtı." : "Invalid server response." },
   })) as Promise<DeviceActionResponse>
 }
 
@@ -190,12 +192,12 @@ function nextHref(path: string, nextPath: string) {
   return safeNext === "/" ? path : `${path}?next=${encodeURIComponent(safeNext)}`
 }
 
-function statusLabel(status: DeviceStatus, clientName: string) {
-  if (status === "checking") return "Checking your session..."
-  if (status === "approving") return "Approving CLI login..."
-  if (status === "denying") return "Denying CLI login..."
-  if (status === "approved") return `${clientName} is authorized.`
-  if (status === "denied") return "This CLI login request was denied."
-  if (status === "error") return "Could not continue CLI login."
-  return "Waiting for your decision."
+function statusLabel(status: DeviceStatus, clientName: string, tr: boolean) {
+  if (status === "checking") return tr ? "Oturumunuz denetleniyor..." : "Checking your session..."
+  if (status === "approving") return tr ? "CLI girişi onaylanıyor..." : "Approving CLI login..."
+  if (status === "denying") return tr ? "CLI girişi reddediliyor..." : "Denying CLI login..."
+  if (status === "approved") return tr ? `${clientName} yetkilendirildi.` : `${clientName} is authorized.`
+  if (status === "denied") return tr ? "Bu CLI giriş isteği reddedildi." : "This CLI login request was denied."
+  if (status === "error") return tr ? "CLI girişine devam edilemedi." : "Could not continue CLI login."
+  return tr ? "Kararınız bekleniyor." : "Waiting for your decision."
 }

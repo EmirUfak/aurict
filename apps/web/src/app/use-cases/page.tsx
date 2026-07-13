@@ -1,8 +1,11 @@
-import Link from "next/link"
+import { getLocale } from "next-intl/server"
+import { Link } from "@/i18n/navigation"
 import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
 import { USE_CASES } from "@/content/use-cases"
+import { localizeUseCase } from "@/content/use-case-translations"
+import type { AppLocale } from "@/i18n/routing"
 import { breadcrumbJsonLd, collectionJsonLd } from "@/lib/seo"
 
 const breadcrumb = breadcrumbJsonLd([
@@ -21,7 +24,9 @@ const collection = collectionJsonLd({
   })),
 })
 
-export default function UseCasesPage() {
+export default async function UseCasesPage() {
+  const locale = await getLocale() as AppLocale
+  const tr = locale === "tr"
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
@@ -30,21 +35,23 @@ export default function UseCasesPage() {
       <main style={{ margin: "0 auto", maxWidth: 900, padding: "100px 24px 80px" }}>
         <Breadcrumb
           items={[
-            { label: "Home", href: "/" },
-            { label: "Use Cases", href: "/use-cases" },
+            { label: tr ? "Ana sayfa" : "Home", href: "/" },
+            { label: tr ? "Kullanım alanları" : "Use Cases", href: "/use-cases" },
           ]}
         />
 
         <div style={{ marginBottom: 60 }}>
-          <p className="marketing-eyebrow">Use cases</p>
-          <h1 className="marketing-title marketing-title-sm">What can Aurict do?</h1>
+          <p className="marketing-eyebrow">{tr ? "Kullanım alanları" : "Use cases"}</p>
+          <h1 className="marketing-title marketing-title-sm">{tr ? "Aurict neler yapabilir?" : "What can Aurict do?"}</h1>
           <p className="marketing-lede" style={{ maxWidth: 620 }}>
-            See how Aurict&apos;s specialist agents handle real-world development tasks in a terminal-native workflow.
+            {tr ? "Aurict'in uzman ajanlarının gerçek dünya geliştirme görevlerini terminal odaklı bir iş akışında nasıl ele aldığını görün." : "See how Aurict&apos;s specialist agents handle real-world development tasks in a terminal-native workflow."}
           </p>
         </div>
 
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
-          {USE_CASES.map((useCase) => (
+          {USE_CASES.map((sourceUseCase) => {
+            const useCase = localizeUseCase(sourceUseCase, locale)
+            return (
             <Link
               key={useCase.slug}
               href={`/use-cases/${useCase.slug}`}
@@ -60,7 +67,8 @@ export default function UseCasesPage() {
                 {useCase.description}
               </p>
             </Link>
-          ))}
+            )
+          })}
         </div>
       </main>
       <Footer />

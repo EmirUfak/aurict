@@ -1,9 +1,9 @@
 import { join } from "path"
-import { homedir } from "os"
 import { readFileSync } from "fs"
-import { loadConfig as loadOmniConfig } from "@aurict/core"
+import { coreStatePath } from "@aurict/core/storage/paths"
+import { loadConfig as loadOmniConfig } from "@aurict/core/config"
 import type { AurictConfig } from "./types.js"
-import type { OmniConfig } from "@aurict/core"
+import type { OmniConfig } from "@aurict/core/config"
 
 function readJSON(path: string): Partial<AurictConfig> {
   try {
@@ -13,7 +13,7 @@ function readJSON(path: string): Partial<AurictConfig> {
 
 // Load priority: global < project < CLI flags (last one wins)
 export function loadConfig(workdir: string): AurictConfig {
-  const global  = readJSON(join(homedir(), ".aurict", "config.json"))
+  const global  = readJSON(coreStatePath("config.json"))
   const project = readJSON(join(workdir, ".aurict", "config.json"))
   const raw = deepMerge(
     deepMerge({}, global as Record<string, unknown>) as Record<string, unknown>,

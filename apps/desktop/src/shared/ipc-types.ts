@@ -133,6 +133,8 @@ export interface UserProfile {
   theme: ExperienceTheme;
   colorMode: ColorMode;
   fontPair: FontPair;
+  preferredProviderId: string | null;
+  preferredModelId: string | null;
   onboardingVersion: number;
   completedAt: number;
 }

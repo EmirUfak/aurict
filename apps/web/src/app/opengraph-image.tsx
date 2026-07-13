@@ -1,11 +1,28 @@
 import { ImageResponse } from "next/og"
+import { getLocale } from "next-intl/server"
 
 export const runtime     = "edge"
 export const alt         = "Aurict — Terminal AI Coding Assistant"
 export const size        = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
-export default function OgImage() {
+export default async function OgImage() {
+  let tr = false
+  try {
+    tr = (await getLocale()) === "tr"
+  } catch {
+    tr = false
+  }
+
+  const badge     = tr ? "v1.0.7 · Açık Kaynak" : "v1.0.7 · Open Source"
+  const headline2 = tr ? "Kodlama Asistanı" : "Coding Assistant"
+  const tagline   = tr
+    ? "Açık kaynak · Çoklu ajan · 9 sağlayıcı · IDE gerekmez"
+    : "Open-source · Multi-agent · 9 providers · No IDE required"
+  const statLabels = tr
+    ? ["uzman ajan", "bağlamsal yetenek", "yerel platform"]
+    : ["specialist agents", "contextual skills", "native platforms"]
+
   return new ImageResponse(
     (
       <div
@@ -86,7 +103,7 @@ export default function OgImage() {
               display:      "flex",
             }}
           >
-            v1.0.7 · Open Source
+            {badge}
           </div>
         </div>
 
@@ -117,10 +134,10 @@ export default function OgImage() {
               display:       "flex",
             }}
           >
-            Coding Assistant
+            {headline2}
           </div>
           <div style={{ fontSize: 22, color: "#71717a", marginTop: 8, display: "flex" }}>
-            Open-source · Multi-agent · 9 providers · No IDE required
+            {tagline}
           </div>
         </div>
 
@@ -129,9 +146,9 @@ export default function OgImage() {
           {/* Stat pills */}
           <div style={{ display: "flex", gap: 12 }}>
             {[
-              ["9", "specialist agents"],
-              ["218+", "contextual skills"],
-              ["3", "native platforms"],
+              ["9", statLabels[0]],
+              ["218+", statLabels[1]],
+              ["3", statLabels[2]],
             ].map(([val, label]) => (
               <div
                 key={label}

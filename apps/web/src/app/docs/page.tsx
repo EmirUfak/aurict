@@ -1,37 +1,14 @@
 import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import type { Metadata } from "next"
+import { getLocale } from "next-intl/server"
+import { localizedMetadata } from "@/i18n/metadata"
+import type { AppLocale } from "@/i18n/routing"
+import { localizeDocsSections, localizeDocsBreadcrumbJsonLd, localizeDocsArticleJsonLd } from "@/content/docs-translations"
 
-export const metadata: Metadata = {
-  title:       "Documentation — Getting Started",
-  description: "Install Aurict, configure providers and API keys, create custom tools and skills, connect MCP servers, manage sessions, use hooks, and understand multi-agent orchestration.",
-  alternates:  { canonical: "https://aurict.com/docs" },
-  openGraph: {
-    title:       "Aurict Documentation — Getting Started",
-    description: "Complete guide to installing, configuring, and extending Aurict — the open-source terminal AI coding assistant.",
-    url:         "https://aurict.com/docs",
-  },
-}
-
-const breadcrumbJsonLd = {
-  "@context": "https://schema.org",
-  "@type":    "BreadcrumbList",
-  "itemListElement": [
-    { "@type": "ListItem", "position": 1, "name": "Home",          "item": "https://aurict.com" },
-    { "@type": "ListItem", "position": 2, "name": "Documentation", "item": "https://aurict.com/docs" },
-  ],
-}
-
-const articleJsonLd = {
-  "@context":    "https://schema.org",
-  "@type":       "TechArticle",
-  "headline":    "Aurict Documentation — Getting Started",
-  "description": "Complete installation, configuration, and extension guide for Aurict terminal AI coding assistant.",
-  "url":         "https://aurict.com/docs",
-  "author": { "@type": "Organization", "name": "aurict", "url": "https://github.com/aurict" },
-  "publisher": { "@type": "Organization", "name": "Aurict", "url": "https://aurict.com" },
-  "datePublished": "2026-06-07",
-  "dateModified":  "2026-06-09",
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale() as AppLocale
+  return localizedMetadata(locale, "/docs", locale === "tr" ? "Dokümantasyon — Başlangıç" : "Documentation — Getting Started", locale === "tr" ? "Aurict'i kurun, sağlayıcıları ve API anahtarlarını yapılandırın, MCP sunucularını bağlayın ve çoklu ajan orkestrasyonunu kullanın." : "Install Aurict, configure providers and API keys, create custom tools and skills, connect MCP servers, manage sessions, use hooks, and understand multi-agent orchestration.")
 }
 
 const DOCS_SECTIONS = [
@@ -77,9 +54,24 @@ const DOCS_SECTIONS = [
     anchor: "installation",
     content: [
       {
-        heading: "npm (recommended)",
-        body: "Install the global binary via npm. The correct platform binary (macOS arm64/x64, Linux x64/arm64, Windows x64) is selected automatically — no separate download needed.",
+        heading: "macOS and Linux",
+        body: "Download the matching self-contained release binary without installing Node.js or Bun. The installer verifies the release SHA-256 checksum before installing to ~/.local/bin.",
+        code: "curl -fsSL https://aurict.com/install.sh | bash",
+      },
+      {
+        heading: "npm",
+        body: "Use npm when you prefer package-manager updates or are on Windows. The correct platform binary (macOS arm64/x64, Linux x64/arm64, Windows x64) is selected automatically.",
         code: "npm install -g aurict",
+      },
+      {
+        heading: "Direct release binary",
+        body: "Use a GitHub Release when you need a portable binary, an offline-friendly deployment, or a fully manual installation. Download the asset for your operating system and CPU architecture, then compare its SHA-256 hash with the matching entry in checksums.txt before you run it.",
+        code: "# Linux x64\ncurl -LO https://github.com/aurict/aurict/releases/latest/download/aurict-linux-x64\ncurl -LO https://github.com/aurict/aurict/releases/latest/download/checksums.txt\nsha256sum -c checksums.txt --ignore-missing\nchmod +x aurict-linux-x64\n./aurict-linux-x64\n\n# Windows PowerShell\nInvoke-WebRequest https://github.com/aurict/aurict/releases/latest/download/aurict-win32-x64.exe -OutFile aurict.exe\nInvoke-WebRequest https://github.com/aurict/aurict/releases/latest/download/checksums.txt -OutFile checksums.txt\nGet-FileHash .\\aurict.exe -Algorithm SHA256",
+      },
+      {
+        heading: "Versioned, custom-directory, and removal options",
+        body: "The one-line installer accepts a release version and an installation directory through environment variables. It installs only the Aurict binary; removing that binary removes this installation method. npm users can uninstall with npm.",
+        code: "# Install a specific version into a custom user directory\nAURICT_INSTALL_VERSION=1.2.0 AURICT_INSTALL_DIR=~/.local/bin curl -fsSL https://aurict.com/install.sh | bash\n\n# Remove the curl-installer binary\nrm ~/.local/bin/aurict\n\n# Remove the npm package\nnpm uninstall -g aurict",
       },
       {
         heading: "First run",
@@ -280,7 +272,12 @@ const DOCS_SECTIONS = [
   },
 ]
 
-export default function DocsPage() {
+export default async function DocsPage() {
+  const locale = await getLocale() as AppLocale
+  const tr = locale === "tr"
+  const sections = locale === "tr" ? localizeDocsSections("tr") : DOCS_SECTIONS
+  const breadcrumbJsonLd = localizeDocsBreadcrumbJsonLd(locale)
+  const articleJsonLd = localizeDocsArticleJsonLd(locale)
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
@@ -288,10 +285,10 @@ export default function DocsPage() {
       <Nav />
       <main className="marketing-main" style={{ maxWidth: 1040 }}>
         <div className="marketing-hero">
-          <p className="marketing-eyebrow">Documentation</p>
-          <h1 className="marketing-title">Getting started</h1>
+          <p className="marketing-eyebrow">{tr ? "Dokümantasyon" : "Documentation"}</p>
+          <h1 className="marketing-title">{tr ? "Başlangıç" : "Getting started"}</h1>
           <p className="marketing-lede">
-            Everything you need to install, configure, and extend Aurict.
+            {tr ? "Aurict'i kurmak, yapılandırmak ve genişletmek için gereken her şey." : "Everything you need to install, configure, and extend Aurict."}
           </p>
         </div>
 
@@ -307,10 +304,10 @@ export default function DocsPage() {
                 marginBottom: 14,
               }}
             >
-              On this page
+              {tr ? "Bu sayfada" : "On this page"}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {DOCS_SECTIONS.map((s) => (
+              {sections.map((s) => (
                 <a key={s.anchor} href={`#${s.anchor}`} className="docs-sidebar-link">
                   {s.title}
                 </a>
@@ -319,7 +316,7 @@ export default function DocsPage() {
           </nav>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 64 }}>
-            {DOCS_SECTIONS.map((section) => (
+            {sections.map((section) => (
               <div key={section.anchor} id={section.anchor}>
                 <h2 className="marketing-section-title">{section.title}</h2>
                 <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>

@@ -1,0 +1,48 @@
+{
+  "Locale": {
+    "label": "Language",
+    "en": "English",
+    "tr": "Turkish"
+  },
+  "Nav": {
+    "product": "product",
+    "overview": "overview",
+    "surfaces": "surfaces",
+    "capabilities": "capabilities",
+    "security": "security",
+    "mobile": "mobile",
+    "downloadHoprel": "download Hoprel",
+    "install": "install",
+    "faq": "FAQ",
+    "ecosystem": "ecosystem",
+    "roadmap": "roadmap",
+    "docs": "docs",
+    "changelog": "changelog",
+    "site": "site",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
+  },
+  "Footer": {
+    "product": "product",
+    "capabilities": "capabilities",
+    "roadmap": "roadmap",
+    "compare": "compare",
+    "docs": "docs",
+    "changelog": "changelog",
+    "company": "company",
+    "about": "about",
+    "blog": "blog",
+    "useCases": "use cases",
+    "legal": "legal",
+    "privacy": "privacy",
+    "terms": "terms",
+    "openSource": "open source"
+  },
+  "Auth": {
+    "login": "login",
+    "register": "register",
+    "account": "account",
+    "console": "console",
+    "signOut": "sign out"
+  }
+}

@@ -19,7 +19,9 @@
   },
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./config": "./src/config/config.ts",
+    "./storage/paths": "./src/storage/paths.ts"
   },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",

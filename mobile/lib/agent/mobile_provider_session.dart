@@ -195,7 +195,9 @@ class MobileProviderSession extends ChangeNotifier {
 
   bool _applyModelCache(Map<String, MobileCachedModelList> loaded) {
     if (loaded.isEmpty) return false;
+    final lastSelection = loaded[kLastSelectionCacheKey];
     for (final entry in loaded.entries) {
+      if (entry.key == kLastSelectionCacheKey) continue;
       final cached = entry.value;
       if (cached.models.isEmpty) continue;
       _models[entry.key] = cached.models;
@@ -207,10 +209,34 @@ class MobileProviderSession extends ChangeNotifier {
           )
           .toList(growable: false);
     }
-    if (_models[_selectedProvider]?.isNotEmpty == true) {
+    // Son gerçekten seçilen provider/model hâlâ geçerliyse (cache'de duruyorsa)
+    // onu geri yükle — aksi halde eski davranışa (ilk model) düş.
+    final restoredProvider = lastSelection?.selectedProvider;
+    final restoredModel = lastSelection?.selectedModel;
+    if (restoredProvider != null &&
+        restoredModel != null &&
+        (_models[restoredProvider]?.contains(restoredModel) ?? false)) {
+      _selectedProvider = restoredProvider;
+      _selectedModel = restoredModel;
+    } else if (_models[_selectedProvider]?.isNotEmpty == true) {
       _selectedModel = _models[_selectedProvider]!.first;
     }
     return true;
+  }
+
+  Future<void> _persistLastSelection() {
+    final provider = _selectedProvider;
+    final model = _selectedModel;
+    if (model == null) return Future.value();
+    return _modelCacheStore.write(
+      MobileCachedModelList(
+        provider: kLastSelectionCacheKey,
+        models: const [],
+        fetchedAt: DateTime.now(),
+        selectedProvider: provider,
+        selectedModel: model,
+      ),
+    );
   }
 
   Future<void> saveTemporaryKey(String provider, String key) {
@@ -313,6 +339,7 @@ class MobileProviderSession extends ChangeNotifier {
     _selectedModel = model;
     _recordRecentModel(provider, model);
     unawaited(_persistModelMetadata(provider));
+    unawaited(_persistLastSelection());
     notifyListeners();
   }
 
@@ -341,6 +368,7 @@ class MobileProviderSession extends ChangeNotifier {
       _selectedProvider = provider.name;
       if (_selectedModel == null && _models[provider.name]!.isNotEmpty) {
         _selectedModel = _models[provider.name]!.first;
+        unawaited(_persistLastSelection());
       }
       notifyListeners();
       return;
@@ -374,6 +402,7 @@ class MobileProviderSession extends ChangeNotifier {
             ? _selectedModel
             : result.models.first;
         _recordRecentModel(provider.name, _selectedModel!);
+        unawaited(_persistLastSelection());
       }
     } catch (error) {
       _errors[provider.name] = error.toString();

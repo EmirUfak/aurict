@@ -21,23 +21,11 @@
 
 import { RTCPeerConnection, type RTCDataChannel } from "werift"
 import type { CliRemoteTransport, SignalEnvelope, IceServer } from "./transport.js"
+import { requireIceCandidates, waitForIceGatheringComplete } from "./ice-gathering.js"
 
 const DATA_CHANNEL_LABEL     = "aurict-remote"
 const ICE_GATHER_TIMEOUT_MS  = 8000
 const DEFAULT_ICE_SERVERS: IceServer[] = [{ urls: "stun:stun.l.google.com:19302" }]
-
-async function waitForIceGatheringComplete(pc: RTCPeerConnection, timeoutMs = ICE_GATHER_TIMEOUT_MS): Promise<void> {
-  if (pc.iceGatheringState === "complete") return
-  await new Promise<void>((resolve) => {
-    let settled = false
-    const done = () => { if (!settled) { settled = true; resolve() } }
-    pc.onicecandidate = ({ candidate }) => {
-      if (candidate === undefined) done()  // the standard "candidates done" signal
-    }
-    pc.iceGatheringStateChange.subscribe((state) => { if (state === "complete") done() })
-    setTimeout(done, timeoutMs)  // safety net — gathering may never finish on restricted networks
-  })
-}
 
 export class WebRtcCliTransport implements CliRemoteTransport {
   private pc:      RTCPeerConnection | null = null
@@ -60,8 +48,9 @@ export class WebRtcCliTransport implements CliRemoteTransport {
 
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
-    await waitForIceGatheringComplete(pc)
+    await waitForIceGatheringComplete(pc, ICE_GATHER_TIMEOUT_MS)
     const sdp = pc.localDescription!.sdp
+    requireIceCandidates(sdp)
 
     return {
       version:                1,

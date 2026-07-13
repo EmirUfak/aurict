@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react"
 import type { FormEvent } from "react"
-import Link from "next/link"
+import { useLocale } from "next-intl"
+import { Link } from "@/i18n/navigation"
 import { AlertTriangle, CheckCircle2, KeyRound, LoaderCircle, LogOut, ShieldCheck, Trash2, UserRound } from "lucide-react"
 import { BrandMark } from "@/components/BrandMark"
 import { firebaseProvider, loadFirebase, readFirebaseError } from "@/lib/auth/firebase-client"
@@ -21,6 +22,7 @@ type LoadState =
   | { status: "ready"; user: ConsoleUser }
 
 export function AccountConsole() {
+  const tr = useLocale() === "tr"
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -61,10 +63,10 @@ export function AccountConsole() {
       <div className="console-layout">
         <aside className="console-sidebar">
           <BrandMark compact />
-          <nav className="console-nav" aria-label="Console">
+          <nav className="console-nav" aria-label={tr ? "Konsol" : "Console"}>
             <Link className="console-nav-link console-nav-link-active" href="/console/account">
               <UserRound aria-hidden="true" size={15} />
-              account
+              {tr ? "hesap" : "account"}
             </Link>
           </nav>
         </aside>
@@ -72,19 +74,19 @@ export function AccountConsole() {
         <section className="console-main">
           <div className="console-header">
             <div>
-              <p className="marketing-eyebrow">console</p>
-              <h1 className="console-title">Account</h1>
+              <p className="marketing-eyebrow">{tr ? "konsol" : "console"}</p>
+              <h1 className="console-title">{tr ? "Hesap" : "Account"}</h1>
             </div>
             <button className="console-secondary-action mono" onClick={signOut} type="button">
               <LogOut aria-hidden="true" size={15} />
-              sign out
+              {tr ? "çıkış yap" : "sign out"}
             </button>
           </div>
 
           {state.status === "loading" && (
             <div className="console-panel console-loading mono">
               <LoaderCircle className="auth-spin" size={16} />
-              loading account...
+              {tr ? "hesap yükleniyor..." : "loading account..."}
             </div>
           )}
 
@@ -92,9 +94,9 @@ export function AccountConsole() {
 
           {state.status === "ready" && (
             <>
-              <AccountOverview user={state.user} />
-              <DangerZone user={state.user} onDelete={() => setDeleteOpen(true)} />
-              {deleteOpen && <DeleteAccountDialog user={state.user} onClose={() => setDeleteOpen(false)} />}
+              <AccountOverview tr={tr} user={state.user} />
+              <DangerZone tr={tr} user={state.user} onDelete={() => setDeleteOpen(true)} />
+              {deleteOpen && <DeleteAccountDialog tr={tr} user={state.user} onClose={() => setDeleteOpen(false)} />}
             </>
           )}
         </section>
@@ -103,23 +105,23 @@ export function AccountConsole() {
   )
 }
 
-function AccountOverview({ user }: { user: ConsoleUser }) {
+function AccountOverview({ tr, user }: { tr: boolean; user: ConsoleUser }) {
   const providers = user.providers?.length ? user.providers : ["password"]
   return (
     <div className="console-panel">
       <div className="console-panel-heading">
         <ShieldCheck aria-hidden="true" size={18} />
         <div>
-          <h2>Profile</h2>
-          <p>Core account identity used by web, mobile, and browser-based CLI login.</p>
+          <h2>{tr ? "Profil" : "Profile"}</h2>
+          <p>{tr ? "Web, mobil ve tarayıcı tabanlı CLI girişinde kullanılan temel hesap kimliği." : "Core account identity used by web, mobile, and browser-based CLI login."}</p>
         </div>
       </div>
       <div className="console-info-grid">
-        <InfoItem label="email" value={user.email} />
-        <InfoItem label="created" value={formatDate(user.createdAt)} />
-        <InfoItem label="email verification" value={user.emailVerifiedAt ? "verified" : "not verified"} />
+        <InfoItem label={tr ? "e-posta" : "email"} value={user.email} />
+        <InfoItem label={tr ? "oluşturulma" : "created"} value={formatDate(user.createdAt, tr)} />
+        <InfoItem label={tr ? "e-posta doğrulaması" : "email verification"} value={user.emailVerifiedAt ? (tr ? "doğrulandı" : "verified") : (tr ? "doğrulanmadı" : "not verified")} />
         <div className="console-info-item">
-          <span>providers</span>
+          <span>{tr ? "sağlayıcılar" : "providers"}</span>
           <div className="console-provider-row">
             {providers.map((provider) => <span key={provider} className="console-provider-pill">{provider}</span>)}
           </div>
@@ -129,25 +131,25 @@ function AccountOverview({ user }: { user: ConsoleUser }) {
   )
 }
 
-function DangerZone({ user, onDelete }: { user: ConsoleUser; onDelete(): void }) {
+function DangerZone({ tr, user, onDelete }: { tr: boolean; user: ConsoleUser; onDelete(): void }) {
   return (
     <div className="console-panel console-danger-panel">
       <div className="console-panel-heading">
         <AlertTriangle aria-hidden="true" size={18} />
         <div>
-          <h2>Danger zone</h2>
-          <p>Delete {user.email} and revoke account sessions, trusted devices, secret transfers, and remote sessions.</p>
+          <h2>{tr ? "Tehlikeli alan" : "Danger zone"}</h2>
+          <p>{tr ? `${user.email} hesabını silin; hesap oturumları, güvenilen cihazlar, gizli aktarım ve uzaktan oturumları iptal edin.` : `Delete ${user.email} and revoke account sessions, trusted devices, secret transfers, and remote sessions.`}</p>
         </div>
       </div>
       <button className="auth-danger-button mono" onClick={onDelete} type="button">
         <Trash2 aria-hidden="true" size={16} />
-        delete account
+        {tr ? "hesabı sil" : "delete account"}
       </button>
     </div>
   )
 }
 
-function DeleteAccountDialog({ user, onClose }: { user: ConsoleUser; onClose(): void }) {
+function DeleteAccountDialog({ tr, user, onClose }: { tr: boolean; user: ConsoleUser; onClose(): void }) {
   const providers = useMemo(() => new Set(user.providers ?? []), [user.providers])
   const needsPassword = providers.has("password")
   const hasFirebase = providers.has("firebase")
@@ -207,13 +209,13 @@ function DeleteAccountDialog({ user, onClose }: { user: ConsoleUser; onClose(): 
         <div className="console-modal-head">
           <div className="console-modal-icon"><Trash2 aria-hidden="true" size={18} /></div>
           <div>
-            <h2>Delete account</h2>
-            <p>This action revokes active sessions and removes Aurict account access.</p>
+            <h2>{tr ? "Hesabı sil" : "Delete account"}</h2>
+            <p>{tr ? "Bu işlem etkin oturumları iptal eder ve Aurict hesap erişimini kaldırır." : "This action revokes active sessions and removes Aurict account access."}</p>
           </div>
         </div>
 
         <label className="auth-label">
-          confirm email
+          {tr ? "e-postayı doğrula" : "confirm email"}
           <span className="auth-input-wrap">
             <UserRound aria-hidden="true" size={16} />
             <input className="auth-input" onChange={(event) => setConfirmation(event.target.value)} placeholder={user.email} value={confirmation} />
@@ -222,7 +224,7 @@ function DeleteAccountDialog({ user, onClose }: { user: ConsoleUser; onClose(): 
 
         {needsPassword && (
           <label className="auth-label">
-            password
+            {tr ? "parola" : "password"}
             <span className="auth-input-wrap">
               <KeyRound aria-hidden="true" size={16} />
               <input className="auth-input" minLength={10} onChange={(event) => setPassword(event.target.value)} placeholder="account password" type="password" value={password} />
@@ -234,16 +236,16 @@ function DeleteAccountDialog({ user, onClose }: { user: ConsoleUser; onClose(): 
           <div className="console-provider-verify">
             <button className="auth-provider-button" disabled={providerLoading !== null || submitting} onClick={() => verifyProvider("google")} type="button">
               <span aria-hidden="true">{providerLoading === "google" ? <LoaderCircle className="auth-spin" size={16} /> : "G"}</span>
-              verify with Google
+              {tr ? "Google ile doğrula" : "verify with Google"}
             </button>
             <button className="auth-provider-button" disabled={providerLoading !== null || submitting} onClick={() => verifyProvider("github")} type="button">
               <span aria-hidden="true">{providerLoading === "github" ? <LoaderCircle className="auth-spin" size={16} /> : "GH"}</span>
-              verify with GitHub
+              {tr ? "GitHub ile doğrula" : "verify with GitHub"}
             </button>
             {verifiedProvider && (
               <div className="console-verified mono">
                 <CheckCircle2 aria-hidden="true" size={14} />
-                {verifiedProvider} verified
+                {verifiedProvider} {tr ? "doğrulandı" : "verified"}
               </div>
             )}
           </div>
@@ -252,10 +254,10 @@ function DeleteAccountDialog({ user, onClose }: { user: ConsoleUser; onClose(): 
         {error && <div className="auth-error">{error}</div>}
 
         <div className="console-modal-actions">
-          <button className="console-secondary-action mono" disabled={submitting} onClick={onClose} type="button">cancel</button>
+          <button className="console-secondary-action mono" disabled={submitting} onClick={onClose} type="button">{tr ? "vazgeç" : "cancel"}</button>
           <button className="auth-danger-button mono" disabled={!canSubmit || submitting} type="submit">
             {submitting ? <LoaderCircle className="auth-spin" size={16} /> : <Trash2 aria-hidden="true" size={16} />}
-            delete permanently
+            {tr ? "kalıcı olarak sil" : "delete permanently"}
           </button>
         </div>
       </form>
@@ -272,8 +274,8 @@ function InfoItem({ label, value }: { label: string; value: string }) {
   )
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, tr: boolean) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(date)
+  return new Intl.DateTimeFormat(tr ? "tr-TR" : "en", { dateStyle: "medium" }).format(date)
 }

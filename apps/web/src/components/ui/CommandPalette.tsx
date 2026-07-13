@@ -1,49 +1,13 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-
-interface CommandItem {
-  label: string
-  href: string
-  icon?: string
-  category: string
-}
-
-const COMMANDS: CommandItem[] = [
-  // Pages
-  { label: "Home", href: "/", category: "Pages", icon: "🏠" },
-  { label: "About", href: "/about", category: "Pages", icon: "▣" },
-  { label: "Roadmap", href: "/roadmap", category: "Pages", icon: "▤" },
-  { label: "Documentation", href: "/docs", category: "Pages", icon: "📖" },
-  { label: "Changelog", href: "/changelog", category: "Pages", icon: "📋" },
-  { label: "Blog", href: "/blog", category: "Pages", icon: "✍️" },
-
-  // Sections
-  { label: "Features", href: "/#features", category: "Sections", icon: "⚡" },
-  { label: "Install", href: "/#install", category: "Sections", icon: "📦" },
-  { label: "FAQ", href: "/#faq", category: "Sections", icon: "❓" },
-  { label: "Install", href: "/#install", category: "Sections", icon: "📦" },
-
-  // Compare
-  { label: "All Comparisons", href: "/compare", category: "Compare", icon: "⚖️" },
-  { label: "vs Claude Code", href: "/compare/claude-code", category: "Compare", icon: "⚔️" },
-  { label: "vs Cursor", href: "/compare/cursor", category: "Compare", icon: "⚔️" },
-  { label: "vs Aider", href: "/compare/aider", category: "Compare", icon: "⚔️" },
-  { label: "vs GitHub Copilot", href: "/compare/github-copilot", category: "Compare", icon: "⚔️" },
-
-  // Use Cases
-  { label: "Refactoring", href: "/use-cases/refactoring", category: "Use Cases", icon: "🔄" },
-  { label: "Code Review", href: "/use-cases/code-review", category: "Use Cases", icon: "🔍" },
-  { label: "Testing", href: "/use-cases/testing", category: "Use Cases", icon: "🧪" },
-  { label: "Documentation", href: "/use-cases/documentation", category: "Use Cases", icon: "📝" },
-
-  // External
-  { label: "GitHub", href: "https://github.com/aurict/aurict", category: "External", icon: "🐙" },
-  { label: "npm", href: "https://www.npmjs.com/package/aurict", category: "External", icon: "📦" },
-]
+import { Link, useRouter } from "@/i18n/navigation"
+import { useLocale } from "next-intl"
+import { localizeCommands, type CommandItem } from "@/content/command-translations"
 
 export function CommandPalette() {
+  const locale = useLocale()
+  const tr = locale === "tr"
+  const COMMANDS = localizeCommands(locale)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -172,7 +136,7 @@ export function CommandPalette() {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search pages, sections, commands..."
+            placeholder={tr ? "Sayfaları, bölümleri, komutları ara..." : "Search pages, sections, commands..."}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -276,7 +240,7 @@ export function CommandPalette() {
                 fontSize: 14,
               }}
             >
-              No results found
+              {tr ? "Sonuç bulunamadı" : "No results found"}
             </div>
           )}
         </div>
@@ -295,10 +259,10 @@ export function CommandPalette() {
           }}
         >
           <span>
-            <kbd style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", borderRadius: 3, padding: "1px 4px" }}>↑↓</kbd> navigate
+             <kbd style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", borderRadius: 3, padding: "1px 4px" }}>↑↓</kbd> {tr ? "gezin" : "navigate"}
           </span>
           <span>
-            <kbd style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", borderRadius: 3, padding: "1px 4px" }}>↵</kbd> select
+             <kbd style={{ background: "var(--bg-subtle)", border: "1px solid var(--border)", borderRadius: 3, padding: "1px 4px" }}>↵</kbd> {tr ? "seç" : "select"}
           </span>
         </div>
       </div>

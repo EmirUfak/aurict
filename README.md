@@ -149,7 +149,21 @@ Release APKs are produced by the manual **Mobile Android Release** workflow.
 
 The APK is signed during CI with the configured Android release keystore and Firebase `google-services.json` restored from GitHub Actions secrets. Signing files are not committed to the repository.
 
-### Compile from source (recommended)
+### One-line installer (macOS and Linux)
+
+Downloads the matching self-contained binary from GitHub Releases and verifies its SHA-256 checksum. No Node.js, Bun, or `sudo` is required.
+
+```bash
+curl -fsSL https://aurict.com/install.sh | bash
+```
+
+Install a specific release or choose another directory by passing variables to `bash`:
+
+```bash
+curl -fsSL https://aurict.com/install.sh | AURICT_INSTALL_VERSION=1.2.0 AURICT_INSTALL_DIR=/path/to/bin bash
+```
+
+### Compile from source
 
 Produces a single self-contained binary with the Bun runtime embedded — no runtime dependencies.
 

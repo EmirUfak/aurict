@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+// Model cache dosyalarıyla aynı klasörde/kanalda saklanan, native tarafta
+// hiçbir değişiklik gerektirmeyen "son seçilen provider/model" kaydı için
+// ayrılmış anahtar. Gerçek provider adlarıyla çakışmaz.
+const kLastSelectionCacheKey = '__last_selection__';
+
 class MobileCachedModelList {
   const MobileCachedModelList({
     required this.provider,
@@ -10,6 +15,8 @@ class MobileCachedModelList {
     required this.fetchedAt,
     this.favoriteModels = const [],
     this.recentModels = const [],
+    this.selectedProvider,
+    this.selectedModel,
   });
 
   final String provider;
@@ -17,6 +24,8 @@ class MobileCachedModelList {
   final DateTime fetchedAt;
   final List<String> favoriteModels;
   final List<String> recentModels;
+  final String? selectedProvider;
+  final String? selectedModel;
 
   Map<String, Object?> toJson() => {
     'provider': provider,
@@ -24,6 +33,8 @@ class MobileCachedModelList {
     'fetchedAt': fetchedAt.toIso8601String(),
     'favoriteModels': favoriteModels,
     'recentModels': recentModels,
+    if (selectedProvider != null) 'selectedProvider': selectedProvider,
+    if (selectedModel != null) 'selectedModel': selectedModel,
   };
 
   static MobileCachedModelList? fromJson(Map<String, Object?> json) {
@@ -42,6 +53,8 @@ class MobileCachedModelList {
       fetchedAt: fetchedAt,
       favoriteModels: _stringList(json['favoriteModels']),
       recentModels: _stringList(json['recentModels']),
+      selectedProvider: json['selectedProvider']?.toString(),
+      selectedModel: json['selectedModel']?.toString(),
     );
   }
 

@@ -5,6 +5,9 @@ import { CodeBlock } from "@/components/ui/CodeBlock"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
+import { getLocale } from "next-intl/server"
+import { localizeBlogPost } from "@/content/blog-translations"
+import type { AppLocale } from "@/i18n/routing"
 
 interface BlogPost {
   slug: string
@@ -208,9 +211,11 @@ export function generateStaticParams() {
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const post = POSTS.find((p) => p.slug === slug)
+  const locale = await getLocale() as AppLocale
+  const sourcePost = POSTS.find((p) => p.slug === slug)
 
-  if (!post) notFound()
+  if (!sourcePost) notFound()
+  const post = localizeBlogPost(sourcePost, locale)
 
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -230,7 +235,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       <main className="marketing-main marketing-main-narrow">
         <Breadcrumb
           items={[
-            { label: "Home", href: "/" },
+            { label: locale === "tr" ? "Ana sayfa" : "Home", href: "/" },
             { label: "Blog", href: "/blog" },
             { label: post.title, href: `/blog/${slug}` },
           ]}
@@ -321,7 +326,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                 textDecoration: "none",
               }}
             >
-              ← Back to Blog
+              ← {locale === "tr" ? "Blog'a dön" : "Back to Blog"}
             </Link>
           </div>
         </article>

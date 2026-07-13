@@ -2,6 +2,7 @@ import React from "react"
 import { Box, Text } from "ink"
 import { PermissionRequestTitle } from "./PermissionRequestTitle.js"
 import { useTheme } from "../utils/theme.js"
+import { useTerminalSize } from "./TerminalSizeContext.js"
 
 export type PermissionTone = "safe" | "warning" | "danger" | "accent"
 
@@ -23,18 +24,20 @@ function toneForColor(color: string, theme: ReturnType<typeof useTheme>): Permis
 
 export function PermissionDialog({ title, subtitle, color, tone, innerPaddingX = 2, children }: Props) {
   const theme = useTheme()
+  const { columns } = useTerminalSize()
   const resolvedTone = tone ?? toneForColor(color, theme)
   const borderColor = color
+  const width = Math.max(28, Math.min(columns - 2, 104))
 
   const cornerTop = <Text color={borderColor}>┌</Text>
   const cornerBot = <Text color={borderColor}>└</Text>
 
   return (
-    <Box flexDirection="column" marginY={1}>
+    <Box flexDirection="column" marginY={1} width={width} {...(theme.bgCard !== undefined ? { backgroundColor: theme.bgCard } : {})}>
       <Box flexDirection="row">
         {cornerTop}
         <Text color={borderColor}>{"─".repeat(2)}</Text>
-        <Text color={theme.textDim}> awaiting permission </Text>
+        <Text color={theme.textDim}> awaiting permission · action required </Text>
         <Text color={borderColor}>{"─".repeat(2)}</Text>
       </Box>
       <Box
@@ -47,7 +50,10 @@ export function PermissionDialog({ title, subtitle, color, tone, innerPaddingX =
         borderBottom={true}
       >
         <Box paddingX={2} paddingTop={1} flexDirection="column" marginBottom={1}>
-          <PermissionRequestTitle title={title} subtitle={subtitle} color={color} />
+          <Box flexDirection="row" justifyContent="space-between">
+            <PermissionRequestTitle title={title} subtitle={subtitle} color={color} />
+            <Text color={borderColor} bold>{resolvedTone.toUpperCase()}</Text>
+          </Box>
         </Box>
         <Box flexDirection="column" paddingX={innerPaddingX} paddingBottom={1}>
           {children}

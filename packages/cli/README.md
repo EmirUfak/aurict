@@ -40,9 +40,16 @@ it's a structured context injection that shapes how the AI reasons about your pa
 combination of technologies.
 
 **It stays out of your way.**
-The TUI is built on Ink (React for terminals). It renders cleanly, scrolls correctly, handles
-wide output, and gets out of the way when you're not interacting with it. No flickering, no
-full-screen takeovers.
+The TUI is built on Ink (React for terminals). Its transcript is a deterministic, Ink-compatible
+visual-row buffer: wide or unbroken output is hard-wrapped before it is painted, so scrolling and
+terminal resizing do not overlap previous text. Permission commands, patch diffs, and expanded
+tool output use the same bounded, pageable treatment. The default Oxblood palette gives the
+workspace, composer, conversation roles, context meter, artifact viewer, and permission prompts
+one coherent visual language while every supported theme keeps the same semantic hierarchy. No
+flickering, no full-screen takeovers.
+
+If a terminal or font cannot render the interface glyphs reliably, start Aurict with
+`AURICT_ASCII=1` for an ASCII-safe presentation without changing its colors, controls, or layout.
 
 **It exposes a local API.**
 Every session is reachable over HTTP with bearer-token auth. Pipe output from scripts, drive
@@ -137,6 +144,13 @@ aurict
 - **Bun** 1.3+ (for building from source)
 - **Node.js** 20+ (for the npm package)
 - An API key for at least one supported provider
+
+### State directories
+
+Aurict resolves writable state in this order: `AURICT_STATE_DIR`, then the
+compatibility alias `AURICT_HOME`, then `~/.aurict`. Remote-control credentials
+use `AURICT_REMOTE_STATE_DIR` when set and otherwise live under the canonical
+state directory. This lets desktop packaging and CI keep user data isolated.
 
 ---
 

@@ -13,6 +13,7 @@
     "prepare-sidecar": "bun run ../../scripts/prepare-macos-icon.ts && bun run ../../scripts/build-desktop-sidecar.ts",
     "package": "bun run prepare-sidecar && bun run ../../scripts/package-desktop.ts",
     "make": "bun run prepare-sidecar && bun run ../../scripts/package-desktop.ts make",
+    "test": "bun test test/ --timeout 30000",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx ."
   },

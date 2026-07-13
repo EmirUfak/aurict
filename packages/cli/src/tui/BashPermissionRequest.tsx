@@ -1,66 +1,131 @@
-import React, { useState, useCallback } from "react"
-import { Box, Text } from "ink"
-import { useTheme } from "../utils/theme.js"
-import type { PermissionRequest } from "@aurict/core"
-import { Select, type SelectOption } from "./Select.js"
-import type { PermissionPromptDecision } from "./PermissionPrompt.js"
-import type { PermissionDecision } from "@aurict/core"
-import { PermissionScaffold } from "./PermissionScaffold.js"
-import { StatusDot } from "./design-system/StatusDot.js"
+import React, { useState, useCallback } from "react";
+import { Box, Text, useInput } from "ink";
+import { useTheme } from "../utils/theme.js";
+import type { PermissionRequest } from "@aurict/core";
+import { Select, type SelectOption } from "./Select.js";
+import type { PermissionPromptDecision } from "./PermissionPrompt.js";
+import type { PermissionDecision } from "@aurict/core";
+import { PermissionScaffold } from "./PermissionScaffold.js";
+import { StatusDot } from "./design-system/StatusDot.js";
+import { PermissionCommandPreview } from "./PermissionCommandPreview.js";
 
-type Decision = PermissionDecision | "deny_abort" | "edit"
+type Decision = PermissionDecision | "deny_abort" | "edit";
 
 interface Props {
-  request:  PermissionRequest
-  onDecide: (d: PermissionPromptDecision) => void
+  request: PermissionRequest;
+  onDecide: (d: PermissionPromptDecision) => void;
 }
 
 function sandboxLine(request: PermissionRequest): string | null {
-  if (!request.sandbox) return null
-  const { backend, reason } = request.sandbox
-  if (backend === "policy") return reason ? `sandboxed · ${reason}` : "sandboxed"
-  if (backend === "docker") return "docker sandbox"
-  return reason ?? null
+  if (!request.sandbox) return null;
+  const { backend, reason } = request.sandbox;
+  if (backend === "policy")
+    return reason ? `sandboxed · ${reason}` : "sandboxed";
+  if (backend === "docker") return "docker sandbox";
+  return reason ?? null;
 }
 
-function blastGauge(level: string): { tone: "safe" | "warning" | "danger"; bars: number } {
-  if (level === "danger")  return { tone: "danger",  bars: 5 }
-  if (level === "warning") return { tone: "warning", bars: 3 }
-  return { tone: "safe", bars: 1 }
+function blastGauge(level: string): {
+  tone: "safe" | "warning" | "danger";
+  bars: number;
+} {
+  if (level === "danger") return { tone: "danger", bars: 5 };
+  if (level === "warning") return { tone: "warning", bars: 3 };
+  return { tone: "safe", bars: 1 };
 }
 
 export function BashPermissionRequest({ request, onDecide }: Props) {
-  const theme       = useTheme()
-  const isDanger    = request.level === "danger"
-  const isWarning   = request.level === "warning"
-  const accentColor = isDanger ? theme.error : isWarning ? theme.warning : theme.accent
+  const theme = useTheme();
+  const isDanger = request.level === "danger";
+  const isWarning = request.level === "warning";
+  const accentColor = isDanger
+    ? theme.error
+    : isWarning
+      ? theme.warning
+      : theme.accent;
 
   const options: SelectOption<Decision>[] = isDanger
     ? [
-        { id: "allow_once", label: "Allow once",       hint: "allow this time (risky)",           color: theme.warning },
-        { id: "edit",       label: "Edit command",      hint: "move command to input",             color: theme.accent  },
-        { id: "deny",       label: "Deny",              hint: "safest default, AI receives error", color: theme.success },
-        { id: "deny_abort", label: "Deny & stop agent", hint: "reject and abort execution",        color: theme.error   },
+        {
+          id: "allow_once",
+          label: "Allow once",
+          hint: "allow this time (risky)",
+          color: theme.warning,
+        },
+        {
+          id: "edit",
+          label: "Edit command",
+          hint: "move command to input",
+          color: theme.accent,
+        },
+        {
+          id: "deny",
+          label: "Deny",
+          hint: "safest default, AI receives error",
+          color: theme.success,
+        },
+        {
+          id: "deny_abort",
+          label: "Deny & stop agent",
+          hint: "reject and abort execution",
+          color: theme.error,
+        },
       ]
     : [
-        { id: "allow_once", label: "Allow once",        hint: "just this time, don't remember" },
-        { id: "allow",      label: "Allow for session",  hint: "remember until exit" },
-        { id: "edit",       label: "Edit command",       hint: "move command to input", color: theme.accent },
-        { id: "deny",       label: "Deny",               hint: "reject, AI continues with error", color: theme.error },
-      ]
+        {
+          id: "allow_once",
+          label: "Allow once",
+          hint: "just this time, don't remember",
+        },
+        {
+          id: "allow",
+          label: "Allow for session",
+          hint: "remember until exit",
+        },
+        {
+          id: "edit",
+          label: "Edit command",
+          hint: "move command to input",
+          color: theme.accent,
+        },
+        {
+          id: "deny",
+          label: "Deny",
+          hint: "reject, AI continues with error",
+          color: theme.error,
+        },
+      ];
 
-  const [selectIdx, setSelectIdx] = useState(isDanger ? 2 : 0)
+  const [selectIdx, setSelectIdx] = useState(isDanger ? 2 : 0);
+  const [showCommand, setShowCommand] = useState(false);
 
-  const handleSelect = useCallback((opt: SelectOption<Decision>) => {
-    onDecide(opt.id === "edit" ? "edit" : opt.id)
-  }, [onDecide])
+  useInput((input, key) => {
+    if (!showCommand && input === "d" && !key.ctrl && !key.meta)
+      setShowCommand(true);
+  });
 
-  const sandbox  = sandboxLine(request)
-  const title    = request.sandbox?.backend === "none" ? "Bash command (unsandboxed)" : "Bash command"
-  const subtitle = isDanger ? "destructive operation" : isWarning ? "elevated privileges" : undefined
-  const blast    = isDanger ? "high" : isWarning ? "medium" : "low"
-  const gauge    = blastGauge(isDanger ? "danger" : isWarning ? "warning" : "safe")
-  const bareBackends = request.sandbox?.backend === "none"
+  const handleSelect = useCallback(
+    (opt: SelectOption<Decision>) => {
+      onDecide(opt.id === "edit" ? "edit" : opt.id);
+    },
+    [onDecide],
+  );
+
+  const sandbox = sandboxLine(request);
+  const title =
+    request.sandbox?.backend === "none"
+      ? "Bash command (unsandboxed)"
+      : "Bash command";
+  const subtitle = isDanger
+    ? "destructive operation"
+    : isWarning
+      ? "elevated privileges"
+      : undefined;
+  const blast = isDanger ? "high" : isWarning ? "medium" : "low";
+  const gauge = blastGauge(
+    isDanger ? "danger" : isWarning ? "warning" : "safe",
+  );
+  const bareBackends = request.sandbox?.backend === "none";
 
   const header = (
     <Box flexDirection="column" marginBottom={1}>
@@ -68,45 +133,74 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
         <Box gap={1}>
           <Text color={theme.textDim}>blast</Text>
           <StatusDot tone={gauge.tone} active />
-          <Text color={accentColor} bold>{`[${"▮".repeat(gauge.bars)}${"▯".repeat(5 - gauge.bars)}] ${blast}`}</Text>
+          <Text
+            color={accentColor}
+            bold
+          >{`[${"▮".repeat(gauge.bars)}${"▯".repeat(5 - gauge.bars)}] ${blast}`}</Text>
         </Box>
         <Text color={bareBackends ? theme.warning : theme.accentAlt}>
-          {bareBackends ? "unsandboxed" : request.sandbox?.backend === "docker" ? "docker shield" : "policy shield"}
+          {bareBackends
+            ? "unsandboxed"
+            : request.sandbox?.backend === "docker"
+              ? "docker shield"
+              : "policy shield"}
         </Text>
       </Box>
-      <Text color={isDanger ? theme.error : isWarning ? theme.warning : theme.textPrimary} bold={isDanger}>
-        $ {request.pattern}
-      </Text>
+      <PermissionCommandPreview
+        command={request.pattern}
+        open={showCommand}
+        onOpenChange={setShowCommand}
+      />
       {request.summary && (
-        <Text color={theme.textDim} dimColor>{request.summary}</Text>
+        <Text color={theme.textDim} dimColor>
+          {request.summary}
+        </Text>
       )}
       {sandbox && (
-        <Text color={theme.textDim} dimColor>{sandbox}</Text>
+        <Text color={theme.textDim} dimColor>
+          {sandbox}
+        </Text>
       )}
-      {request.command?.executables && request.command.executables.length > 0 && (
-        <Box gap={1}>
-          <Text color={theme.textDim} dimColor>exec</Text>
-          <Text color={theme.textDim}>{request.command.executables.filter(Boolean).join(", ")}</Text>
-        </Box>
-      )}
+      {request.command?.executables &&
+        request.command.executables.length > 0 && (
+          <Box gap={1}>
+            <Text color={theme.textDim} dimColor>
+              exec
+            </Text>
+            <Text color={theme.textDim}>
+              {request.command.executables.filter(Boolean).join(", ")}
+            </Text>
+          </Box>
+        )}
       {(request.reason || request.permissionSummary) && (
         <Box
           borderStyle="single"
           borderColor={accentColor}
-          borderTop={false} borderLeft={true} borderRight={false} borderBottom={false}
+          borderTop={false}
+          borderLeft={true}
+          borderRight={false}
+          borderBottom={false}
           paddingLeft={1}
           marginTop={1}
         >
-          <Text color={isDanger || isWarning ? accentColor : theme.accent} wrap="wrap">
+          <Text
+            color={isDanger || isWarning ? accentColor : theme.accent}
+            wrap="wrap"
+          >
             {request.reason ?? request.permissionSummary}
           </Text>
         </Box>
       )}
     </Box>
-  )
+  );
 
   return (
-    <PermissionScaffold title={title} subtitle={subtitle} color={accentColor} header={header}>
+    <PermissionScaffold
+      title={title}
+      subtitle={subtitle}
+      color={accentColor}
+      header={header}
+    >
       <Box marginBottom={1}>
         <Text color={theme.textSecondary}>Do you want to proceed?</Text>
       </Box>
@@ -116,10 +210,15 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
         onChange={setSelectIdx}
         onSelect={handleSelect}
         onCancel={() => onDecide("deny")}
+        isActive={!showCommand}
       />
       <Box marginTop={1}>
-        <Text color={theme.textDim} dimColor>↑↓ select  Enter confirm  Esc deny</Text>
+        <Text color={theme.textDim} dimColor>
+          {showCommand
+            ? "d/Esc command details  ↑↓ scroll"
+            : "↑↓ select  Enter confirm  d inspect command  Esc deny"}
+        </Text>
       </Box>
     </PermissionScaffold>
-  )
+  );
 }

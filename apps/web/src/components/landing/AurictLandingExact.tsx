@@ -3,63 +3,20 @@
 import { useState } from "react"
 import type { CSSProperties, ReactNode } from "react"
 import Image from "next/image"
+import { useLocale, useTranslations } from "next-intl"
 import { BrandMark } from "@/components/BrandMark"
 import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
+import { LocaleSwitcher } from "@/components/LocaleSwitcher"
+import { Link } from "@/i18n/navigation"
+import { localizeWhyItems, localizeCapabilityItems, localizeSecurityProfiles, localizeInstallSteps, localizeMobileAssistantItems, localizeFaqs } from "@/content/landing-translations"
 
 const providers = ["Anthropic", "OpenAI", "Google", "xAI", "Azure", "AWS Bedrock", "Ollama", "OpenRouter"]
 
-const whyItems = [
-  ["01", "Agent-first, not prompt-first.", "Every task routes to a domain specialist — explore, code, review, test, debug, docs, security, performance, analytics — each with its own tools and context budget. Complex work decomposes and runs in parallel instead of waiting in a single queue."],
-  ["02", "Reads your codebase before your prompt.", "On first run, Aurict walks your directory tree, detects framework and package manager, and ranks the files most likely to matter — no manual context to attach, nothing to paste."],
-  ["03", "Zero-setup, genuinely cross-platform.", "One install command ships a native compiled binary for macOS, Linux, and Windows — no Node runtime at execution time, no WSL detour, no Rosetta tax on Apple Silicon."],
-  ["04", "Open, and built to be extended.", "Bring your own MCP servers, custom commands, and shared team skills. Your existing config works on first run — nothing is locked behind a proprietary cloud."],
-]
-
-const capabilityItems = [
-  ["bash classifier", "Every shell command is analyzed before it runs — safe commands execute instantly, destructive ones stop for confirmation.", "oklch(0.65 0.19 25)"],
-  ["sandbox execution", "Risky calls pass through a policy sandbox: approvals, protected paths, scrubbed env, timeouts, and an audit trail.", "oklch(0.65 0.19 25)"],
-  ["multi-agent orchestration", "Nine specialists in isolated workers — explore, code, review, test, docs, security, debug, performance, analytics.", "var(--accent)"],
-  ["218+ contextual skills", "Framework and tool-specific context, injected automatically the moment your stack is detected.", "oklch(0.72 0.15 145)"],
-  ["mcp client", "Drop in your existing config and every MCP server you use — filesystem, GitHub, Postgres, browser — works immediately.", "oklch(0.72 0.15 145)"],
-  ["windows native", "A real compiled binary for x64 — no WSL, no PowerShell workarounds. Shell auto-detected.", "oklch(0.78 0.15 80)"],
-  ["persistent memory", "Decisions and conventions stored locally and recalled per-session — across every restart.", "var(--accent)"],
-  ["design agent", "150+ design systems and 111 skill templates — describe a UI idea, pick a system, get a full implementation brief.", "var(--accent)"],
-]
-
-const securityProfiles = [
-  ["safe · default", "Passive", "Defensive review and reporting only. No offensive tooling is exposed to the model.", "oklch(0.72 0.15 145)"],
-  ["warning · opt-in", "Active Lite", "Controlled, Docker-backed scans against an allowlisted target — rate-limited and permissioned.", "oklch(0.78 0.15 80)"],
-  ["danger · explicit", "Kali Full", "The larger experimental image, for when you deliberately need the full toolset. Approval required every time.", "oklch(0.65 0.19 25)"],
-]
-
-const installSteps = [
-  ["01 · install", "$ npm install -g aurict", "macOS, Linux, or Windows — same command everywhere.", "var(--accent)"],
-  ["02 · run", "$ aurict", "Launch inside any project directory.", "var(--accent)"],
-  ["03 · configure", "# provider, key, model", "Interactive setup — security tools stay off unless you opt in.", "var(--accent)"],
-  ["04 · security", "$ aurict /config security active-lite", "Optional. Targets still need explicit allow-listing.", "oklch(0.78 0.15 80)"],
-]
-
 const integrations = ["GitHub", "PostgreSQL", "Docker", "Slack", "Jira", "Linear", "Figma", "Sentry", "Vercel", "AWS", "Notion", "Browser"]
-
-const mobileAssistantItems = [
-  ["BYOK chat", "Use your own OpenAI, Anthropic, Google, OpenRouter, xAI, Azure, Bedrock, or local model keys."],
-  ["Research mode", "Ask for market scans, technical comparisons, repo research, source summaries, or planning briefs."],
-  ["Document output", "Turn conversations into PDFs, specs, reports, checklists, release notes, or client-ready summaries."],
-  ["Terminal companion", "Keep the same account for browser login, mobile approvals, and live CLI session control."],
-]
-
-const faqs = [
-  ["Is Aurict free?", "Yes — Aurict is AGPLv3 licensed and open source on GitHub, free for individuals and teams alike. You bring your own model provider key."],
-  ["How is this different from a single-agent chat tool?", "Aurict routes work across nine domain-specialist agents running in parallel, and isn't tied to a single model vendor — swap providers without changing your workflow."],
-  ["Does it run natively on Windows?", "Yes — a real compiled binary for Windows x64. No WSL, no PowerShell workarounds; shell detection picks Git Bash, MSYS2, or PowerShell automatically."],
-  ["What does the mobile app do?", "The mobile app is both a BYOK AI assistant and a companion for Aurict CLI. Chat with your own providers, run research tasks, generate PDFs or reports, and approve terminal actions from your phone."],
-  ["Do I need Node.js installed?", "No. npm is only used as the installer — Aurict runs as a standalone compiled binary at execution time."],
-  ["Can I use my existing MCP servers?", "Yes — point Aurict at your existing MCP config and every server you've already set up works immediately, no migration required."],
-]
 
 const landingProductLinks = [
   ["overview", "#why"],
-  ["Hoprel desktop", "/downloads"],
+  ["downloadHoprel", "/downloads"],
   ["surfaces", "#surfaces"],
   ["capabilities", "#capabilities"],
   ["security", "#security"],
@@ -103,6 +60,8 @@ export function AurictLandingExact() {
 }
 
 function LandingNav() {
+  const t = useTranslations("Nav")
+
   return (
     <div data-screen-label="Nav" style={{ position: "sticky", top: 0, zIndex: 20, backdropFilter: "blur(10px)", background: "color-mix(in oklch, var(--bg) 82%, transparent)", borderBottom: "1px solid oklch(1 0 0 / .07)" }}>
       <div className="landing-shell landing-nav-inner">
@@ -113,20 +72,20 @@ function LandingNav() {
         <div className="landing-nav-links">
           <div className="nav-dropdown">
             <button className="nav-dropdown-trigger" type="button">
-              product
+              {t("product")}
               <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
                 <path d="m6 9 6 6 6-6" />
               </svg>
             </button>
             <div className="nav-dropdown-menu">
               {landingProductLinks.map(([label, href]) => (
-                <a key={href} className="nav-dropdown-item" href={href}>{label}</a>
+                <Link key={href} className="nav-dropdown-item" href={href}>{t(label)}</Link>
               ))}
             </div>
           </div>
           <div className="nav-dropdown">
             <button className="nav-dropdown-trigger" type="button">
-              ecosystem
+              {t("ecosystem")}
               <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
                 <path d="m6 9 6 6 6-6" />
               </svg>
@@ -137,9 +96,10 @@ function LandingNav() {
               ))}
             </div>
           </div>
-          <a className="mono landing-nav-link" href="/roadmap">roadmap</a>
-          <a className="mono landing-nav-link" href="/docs">docs</a>
-          <a className="mono landing-nav-link" href="/changelog">changelog</a>
+          <Link className="mono landing-nav-link" href="/roadmap">{t("roadmap")}</Link>
+          <Link className="mono landing-nav-link" href="/docs">{t("docs")}</Link>
+          <Link className="mono landing-nav-link" href="/changelog">{t("changelog")}</Link>
+          <LocaleSwitcher />
           <AuthNavSlot />
         </div>
       </div>
@@ -148,6 +108,8 @@ function LandingNav() {
 }
 
 function Hero() {
+  const tr = useLocale() === "tr"
+
   return (
     <div data-screen-label="Hero" className="landing-shell" style={{ padding: "120px 44px 80px", position: "relative" }}>
       <div style={{ position: "absolute", top: 20, left: "56%", width: 560, height: 440, background: "radial-gradient(circle, color-mix(in oklch, var(--accent) 9%, transparent), transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
@@ -155,14 +117,14 @@ function Hero() {
         <div>
           <div className="aur-rise mono" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, letterSpacing: ".03em", color: "var(--accent)", marginBottom: 28 }}>
             <span className="aur-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "oklch(0.72 0.15 145)" }} />
-            open source · hoprel desktop · mobile · terminal
+            {tr ? "açık kaynak · hoprel masaüstü · mobil · terminal" : "open source · hoprel desktop · mobile · terminal"}
           </div>
-          <h1 className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 78, lineHeight: 1.03, letterSpacing: "-.015em", color: "oklch(0.96 0.004 80)", margin: "0 0 32px", animationDelay: ".05s" }}>One intelligence.<br />Every surface.</h1>
-          <p className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 400, fontSize: 19, lineHeight: 1.62, color: "oklch(0.7 0.01 75)", maxWidth: 490, margin: "0 0 20px", animationDelay: ".1s" }}>Aurict brings agentic work to the surface that fits: Hoprel for a local-first desktop workspace, a native terminal runtime for code, and Aurict Mobile for research and remote control.</p>
-          <p className="aur-rise mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", margin: "0 0 40px", animationDelay: ".12s" }}>one account · your providers · local context · explicit control</p>
+          <h1 className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 78, lineHeight: 1.03, letterSpacing: "-.015em", color: "oklch(0.96 0.004 80)", margin: "0 0 32px", animationDelay: ".05s" }}>{tr ? <>İşiniz neredeyse,<br />Aurict orada.</> : <>One intelligence.<br />Every surface.</>}</h1>
+          <p className="aur-rise" style={{ fontFamily: "var(--font-serif)", fontWeight: 400, fontSize: 19, lineHeight: 1.62, color: "oklch(0.7 0.01 75)", maxWidth: 490, margin: "0 0 20px", animationDelay: ".1s" }}>{tr ? "İşiniz neredeyse Aurict oradadır: Hoprel'de yerel öncelikli masaüstü çalışma alanı, terminalde kodlama, Aurict Mobile ile araştırma ve uzaktan kontrol." : "Aurict brings agentic work to the surface that fits: Hoprel for a local-first desktop workspace, a native terminal runtime for code, and Aurict Mobile for research and remote control."}</p>
+          <p className="aur-rise mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", margin: "0 0 40px", animationDelay: ".12s" }}>{tr ? "tek hesap · kendi sağlayıcılarınız · yerel bağlam · açık kontrol" : "one account · your providers · local context · explicit control"}</p>
           <div className="aur-rise landing-cta-row" style={{ animationDelay: ".15s" }}>
-            <a className="mono landing-button-primary" href="/downloads">↓ download Hoprel</a>
-            <a className="mono landing-button-secondary" href="#install">$ npm install -g aurict</a>
+            <Link className="mono landing-button-primary" href="/downloads">↓ {tr ? "Hoprel'i indir" : "download Hoprel"}</Link>
+            <a className="mono landing-button-secondary" href="#install">$ curl -fsSL https://aurict.com/install.sh | bash</a>
             <a className="mono landing-button-secondary" href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">★ GitHub</a>
           </div>
         </div>
@@ -170,31 +132,33 @@ function Hero() {
       </div>
 
       <div className="aur-rise landing-provider-row" style={{ animationDelay: ".25s" }}>
-        <span className="mono" style={{ fontSize: 11.5, color: "oklch(0.48 0.008 75)", marginRight: 8 }}>works with</span>
+        <span className="mono" style={{ fontSize: 11.5, color: "oklch(0.48 0.008 75)", marginRight: 8 }}>{tr ? "uyumlu" : "works with"}</span>
         {providers.map((provider) => <ProviderChip key={provider}>{provider}</ProviderChip>)}
-        <span className="mono" style={{ fontSize: 11.5, color: "oklch(0.48 0.008 75)", marginLeft: 6 }}>+1 more — bring your own key</span>
+        <span className="mono" style={{ fontSize: 11.5, color: "oklch(0.48 0.008 75)", marginLeft: 6 }}>{tr ? "+1 daha — kendi anahtarını getir" : "+1 more — bring your own key"}</span>
       </div>
     </div>
   )
 }
 
 function Surfaces() {
+  const tr = useLocale() === "tr"
+
   return (
     <section id="surfaces" data-screen-label="Surfaces" style={{ background: "var(--bg-alt)", borderTop: "1px solid oklch(1 0 0/.06)", borderBottom: "1px solid oklch(1 0 0/.06)" }}>
       <div className="landing-shell" style={{ padding: "88px 44px" }}>
-        <Eyebrow>the aurict ecosystem</Eyebrow>
+        <Eyebrow>{tr ? "aurict ekosistemi" : "the aurict ecosystem"}</Eyebrow>
         <div className="landing-section-head" style={{ marginBottom: 38 }}>
-          <h2 style={h2Style({ maxWidth: 610 })}>Choose the surface. Keep the context.</h2>
-          <p className="mono" style={{ maxWidth: 330, color: "oklch(0.55 0.01 75)", fontSize: 12.5, lineHeight: 1.6 }}>Each product has a distinct job. The same Aurict identity, providers, and work travel with you.</p>
+          <h2 style={h2Style({ maxWidth: 610 })}>{tr ? "Nerede çalışacağınızı seçin. Bağlamı koruyun." : "Choose the surface. Keep the context."}</h2>
+          <p className="mono" style={{ maxWidth: 330, color: "oklch(0.55 0.01 75)", fontSize: 12.5, lineHeight: 1.6 }}>{tr ? "Her ürünün ayrı bir işi var. Aynı Aurict kimliği, sağlayıcıları ve çalışmanız sizinle birlikte yolculuk eder." : "Each product has a distinct job. The same Aurict identity, providers, and work travel with you."}</p>
         </div>
         <div className="landing-security-grid">
           <article className="aur-card" style={{ padding: 25, background: "var(--bg-card)", borderColor: "color-mix(in oklch, var(--accent) 42%, var(--border))" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 18 }}><Image alt="Hoprel icon" height={46} src="/hoprel-icon.svg" width={46} /><div><div className="mono" style={{ color: "var(--accent)", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>desktop workspace</div><h3 style={{ color: "var(--text)", fontFamily: "var(--font-serif)", fontSize: 25, margin: "3px 0 0" }}>Hoprel <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 400 }}>by Aurict</span></h3></div></div>
-            <p style={{ color: "var(--text-dim)", fontFamily: "var(--font-serif)", fontSize: 15, lineHeight: 1.6, marginBottom: 18 }}>A local-first AI workspace for conversations, files, artifacts, Design Studio, Finance Desk, and remote control.</p>
-            <a className="mono landing-button-secondary" href="/downloads">download Hoprel →</a>
+            <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 18 }}><Image alt="Hoprel icon" height={46} src="/hoprel-icon.svg" width={46} /><div><div className="mono" style={{ color: "var(--accent)", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>{tr ? "masaüstü çalışma alanı" : "desktop workspace"}</div><h3 style={{ color: "var(--text)", fontFamily: "var(--font-serif)", fontSize: 25, margin: "3px 0 0" }}>Hoprel <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 10.5, fontWeight: 400 }}>by Aurict</span></h3></div></div>
+            <p style={{ color: "var(--text-dim)", fontFamily: "var(--font-serif)", fontSize: 15, lineHeight: 1.6, marginBottom: 18 }}>{tr ? "Sohbetler, dosyalar, çıktılar, Tasarım Stüdyosu, Finans Masası ve uzaktan kontrol için yerel öncelikli bir yapay zekâ çalışma alanı." : "A local-first AI workspace for conversations, files, artifacts, Design Studio, Finance Desk, and remote control."}</p>
+            <Link className="mono landing-button-secondary" href="/downloads">{tr ? "Hoprel'i indir →" : "download Hoprel →"}</Link>
           </article>
-          <SurfaceCard eyebrow="native runtime" title="Aurict Terminal" body="The open-source runtime for agentic coding, multi-agent execution, MCP, local context, and explicit command approvals." href="#install" link="install in your shell →" />
-          <SurfaceCard eyebrow="companion" title="Aurict Mobile" body="BYOK chat, research, document generation, and live remote control when your desktop work needs your attention." href="https://mobile.aurict.com" link="visit Aurict Mobile →" />
+          <SurfaceCard eyebrow={tr ? "yerel çalışma zamanı" : "native runtime"} title="Aurict Terminal" body={tr ? "Ajan tabanlı kodlama, çoklu ajan yürütmesi, MCP, yerel bağlam ve açık komut onayları için açık kaynak çalışma zamanı." : "The open-source runtime for agentic coding, multi-agent execution, MCP, local context, and explicit command approvals."} href="#install" link={tr ? "kabuğunuza kurun →" : "install in your shell →"} />
+          <SurfaceCard eyebrow={tr ? "yoldaş" : "companion"} title="Aurict Mobile" body={tr ? "BYOK sohbeti, araştırma, belge üretimi ve masaüstü çalışmanız ilginizi gerektirdiğinde canlı uzaktan kontrol." : "BYOK chat, research, document generation, and live remote control when your desktop work needs your attention."} href="https://mobile.aurict.com" link={tr ? "Aurict Mobile'ı ziyaret et →" : "visit Aurict Mobile →"} />
         </div>
       </div>
     </section>
@@ -230,11 +194,14 @@ function TerminalMock() {
 }
 
 function WhyAurict() {
+  const tr = useLocale() === "tr"
+  const whyItems = localizeWhyItems(tr ? "tr" : "en")
+
   return (
     <div id="why" data-screen-label="WhyAurict" className="landing-shell" style={{ padding: "64px 44px 112px" }}>
       <div className="landing-section-head">
-        <h2 style={h2Style({ maxWidth: 560 })}>An agent runtime, not a chat window bolted to an editor.</h2>
-        <div className="mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", maxWidth: 320, lineHeight: 1.6 }}>Most AI coding tools wrap a single model call. Aurict is engineered differently, from the architecture up.</div>
+        <h2 style={h2Style({ maxWidth: 560 })}>{tr ? "Editöre eklenmiş bir sohbet penceresi değil, ajan çalışma zamanı." : "An agent runtime, not a chat window bolted to an editor."}</h2>
+        <div className="mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", maxWidth: 320, lineHeight: 1.6 }}>{tr ? "Çoğu yapay zekâ kodlama aracı tek bir model çağrısını sarar. Aurict, mimarinin temelinden farklı tasarlanmıştır." : "Most AI coding tools wrap a single model call. Aurict is engineered differently, from the architecture up."}</div>
       </div>
       <div style={{ display: "flex", flexDirection: "column" }}>
         {whyItems.map(([index, title, body], itemIndex) => (
@@ -252,11 +219,14 @@ function WhyAurict() {
 }
 
 function Capabilities() {
+  const tr = useLocale() === "tr"
+  const capabilityItems = localizeCapabilityItems(tr ? "tr" : "en")
+
   return (
     <div id="capabilities" data-screen-label="Capabilities" style={{ background: "var(--bg-alt)", borderTop: "1px solid oklch(1 0 0/.06)", borderBottom: "1px solid oklch(1 0 0/.06)" }}>
       <div className="landing-shell" style={{ padding: "104px 44px" }}>
-        <Eyebrow>capabilities</Eyebrow>
-        <h2 style={h2Style({ maxWidth: 660, margin: "0 0 52px" })}>Not autocomplete. An AI team with real tool access.</h2>
+        <Eyebrow>{tr ? "yetenekler" : "capabilities"}</Eyebrow>
+        <h2 style={h2Style({ maxWidth: 660, margin: "0 0 52px" })}>{tr ? "Otomatik tamamlama değil. Gerçek araç erişimi olan bir yapay zekâ ekibi." : "Not autocomplete. An AI team with real tool access."}</h2>
         <div className="landing-capability-grid">
           {capabilityItems.map(([title, body, color]) => <CapabilityCard key={title} color={color} title={title} body={body} />)}
         </div>
@@ -277,11 +247,14 @@ function CapabilityCard({ color, title, body }: { color: string; title: string; 
 }
 
 function Security() {
+  const tr = useLocale() === "tr"
+  const securityProfiles = localizeSecurityProfiles(tr ? "tr" : "en")
+
   return (
     <div id="security" data-screen-label="Security" className="landing-shell" style={{ padding: "112px 44px" }}>
-      <Eyebrow>security posture</Eyebrow>
-      <h2 style={h2Style({ maxWidth: 640, margin: "0 0 16px" })}>Confirmation is the default, not an afterthought.</h2>
-      <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, lineHeight: 1.6, color: "oklch(0.63 0.01 75)", maxWidth: 600, margin: "0 0 52px" }}>Security capability starts hidden from the model entirely. You choose how far Aurict is allowed to reach.</p>
+      <Eyebrow>{tr ? "güvenlik duruşu" : "security posture"}</Eyebrow>
+      <h2 style={h2Style({ maxWidth: 640, margin: "0 0 16px" })}>{tr ? "Onay varsayılan; sonradan eklenen bir düşünce değil." : "Confirmation is the default, not an afterthought."}</h2>
+      <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, lineHeight: 1.6, color: "oklch(0.63 0.01 75)", maxWidth: 600, margin: "0 0 52px" }}>{tr ? "Güvenlik yeteneği tamamen modele gizli başlar. Aurict'in ne kadar ileri uzanabileceğine siz karar verirsiniz." : "Security capability starts hidden from the model entirely. You choose how far Aurict is allowed to reach."}</p>
       <div className="landing-security-grid">
         {securityProfiles.map(([tag, title, body, color]) => <SecurityCard key={title} tag={tag} title={title} body={body} color={color} />)}
       </div>
@@ -307,13 +280,16 @@ function SecurityCard({ tag, title, body, color }: { tag: string; title: string;
 }
 
 function Mobile() {
+  const tr = useLocale() === "tr"
+  const mobileAssistantItems = localizeMobileAssistantItems(tr ? "tr" : "en")
+
   return (
     <div id="mobile" data-screen-label="Mobile" className="landing-shell" style={{ padding: "72px 44px 118px" }}>
       <div className="landing-mobile-grid">
         <div>
-          <Eyebrow>mobile · BYOK assistant</Eyebrow>
-          <h2 style={h2Style({ maxWidth: 540, fontSize: 40, margin: "0 0 20px" })}>A personal AI workspace in your pocket.</h2>
-          <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, lineHeight: 1.65, color: "oklch(0.63 0.01 75)", maxWidth: 520, margin: "0 0 28px" }}>Aurict mobile is not just a remote approval screen. It is a bring-your-own-key assistant where users can chat with the models they already trust, ask for research, generate PDFs and reports, and continue work away from the terminal.</p>
+          <Eyebrow>{tr ? "mobil · BYOK asistanı" : "mobile · BYOK assistant"}</Eyebrow>
+          <h2 style={h2Style({ maxWidth: 540, fontSize: 40, margin: "0 0 20px" })}>{tr ? "Cebinizde kişisel bir yapay zeka çalışma alanı." : "A personal AI workspace in your pocket."}</h2>
+          <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, lineHeight: 1.65, color: "oklch(0.63 0.01 75)", maxWidth: 520, margin: "0 0 28px" }}>{tr ? "Aurict mobil yalnızca uzak onay ekranı değildir. Kullanıcıların zaten güvendiği modellerle sohbet edebildiği, araştırma isteyebildiği, PDF ve raporlar üretebildiği ve terminalden uzakta çalışmaya devam edebildiği kendi anahtarını-getir (BYOK) asistanıdır." : "Aurict mobile is not just a remote approval screen. It is a bring-your-own-key assistant where users can chat with the models they already trust, ask for research, generate PDFs and reports, and continue work away from the terminal."}</p>
 
           <div className="landing-mobile-feature-grid">
             {mobileAssistantItems.map(([title, body], index) => (
@@ -328,9 +304,9 @@ function Mobile() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 500, marginTop: 28 }}>
-            <MobileBullet color="oklch(0.72 0.15 145)">chat like a modern AI assistant, without locking every user into one provider</MobileBullet>
-            <MobileBullet color="oklch(0.78 0.15 80)">research, summarize, compare, plan, draft, and export results from the same account</MobileBullet>
-            <MobileBullet color="var(--accent)">mirror live CLI sessions — approve, deny, or stop work when a terminal action needs permission</MobileBullet>
+            <MobileBullet color="oklch(0.72 0.15 145)">{tr ? "modern bir yapay zeka asistanı gibi sohbet edin, her kullanıcıyı tek bir sağlayıcıya kilitlemeden" : "chat like a modern AI assistant, without locking every user into one provider"}</MobileBullet>
+            <MobileBullet color="oklch(0.78 0.15 80)">{tr ? "aynı hesaptan araştırın, özetleyin, karşılaştırın, planlayın, taslak çıkarın ve sonuçları dışa aktarın" : "research, summarize, compare, plan, draft, and export results from the same account"}</MobileBullet>
+            <MobileBullet color="var(--accent)">{tr ? "canlı CLI oturumlarını yansıtın — bir terminal eylemi izin gerektirdiğinde onaylayın, reddedin veya durdurun" : "mirror live CLI sessions — approve, deny, or stop work when a terminal action needs permission"}</MobileBullet>
           </div>
         </div>
         <PhoneMock />
@@ -416,11 +392,14 @@ function SessionCard({ active = false }: { active?: boolean }) {
 }
 
 function Install() {
+  const tr = useLocale() === "tr"
+  const installSteps = localizeInstallSteps(tr ? "tr" : "en")
+
   return (
     <div id="install" data-screen-label="Install" style={{ background: "var(--bg-alt)", borderTop: "1px solid oklch(1 0 0/.06)", borderBottom: "1px solid oklch(1 0 0/.06)" }}>
       <div className="landing-shell" style={{ padding: "112px 44px" }}>
-        <Eyebrow>install</Eyebrow>
-        <h2 style={h2Style({ maxWidth: 600, margin: "0 0 56px" })}>Thirty seconds, one command, your existing shell.</h2>
+        <Eyebrow>{tr ? "kurulum" : "install"}</Eyebrow>
+        <h2 style={h2Style({ maxWidth: 600, margin: "0 0 56px" })}>{tr ? "Otuz saniye, tek komut, halihazırda kullandığınız kabuk." : "Thirty seconds, one command, your existing shell."}</h2>
         <div className="landing-install-grid">
           {installSteps.map(([title, code, note, color]) => (
             <div key={title}>
@@ -436,11 +415,13 @@ function Install() {
 }
 
 function Integrations() {
+  const tr = useLocale() === "tr"
+
   return (
     <div data-screen-label="Integrations" className="landing-shell" style={{ padding: "96px 44px" }}>
       <div className="landing-section-head" style={{ marginBottom: 36 }}>
-        <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 32, color: "oklch(0.95 0.004 80)", margin: 0 }}>Works with the tools you already run.</h2>
-        <div className="mono" style={{ fontSize: 12.5, color: "oklch(0.5 0.01 75)" }}>via MCP — connect anything with a config file</div>
+        <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 32, color: "oklch(0.95 0.004 80)", margin: 0 }}>{tr ? "Zaten kullandığınız araçlarla çalışır." : "Works with the tools you already run."}</h2>
+        <div className="mono" style={{ fontSize: 12.5, color: "oklch(0.5 0.01 75)" }}>{tr ? "MCP ile — bir yapılandırma dosyası olan her şeyi bağlayın" : "via MCP — connect anything with a config file"}</div>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
         {integrations.map((item) => <span key={item} className="mono landing-pill">{item}</span>)}
@@ -450,10 +431,13 @@ function Integrations() {
 }
 
 function FAQ({ openFaq, setOpenFaq }: { openFaq: number; setOpenFaq: (value: number) => void }) {
+  const tr = useLocale() === "tr"
+  const faqs = localizeFaqs(tr ? "tr" : "en")
+
   return (
     <div id="faq" data-screen-label="FAQ" style={{ maxWidth: 820, margin: "0 auto", padding: "80px 44px 112px" }}>
-      <Eyebrow>faq</Eyebrow>
-      <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 38, color: "oklch(0.95 0.004 80)", margin: "0 0 44px" }}>Questions engineers actually ask.</h2>
+      <Eyebrow>{tr ? "sss" : "faq"}</Eyebrow>
+      <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 38, color: "oklch(0.95 0.004 80)", margin: "0 0 44px" }}>{tr ? "Mühendislerin gerçekten sorduğu sorular." : "Questions engineers actually ask."}</h2>
       <div style={{ borderTop: "1px solid oklch(1 0 0/.1)" }}>
         {faqs.map(([question, answer], index) => (
           <div key={question} style={{ padding: "22px 0", borderBottom: "1px solid oklch(1 0 0/.1)", cursor: "pointer" }} onClick={() => setOpenFaq(openFaq === index ? -1 : index)}>
@@ -469,13 +453,15 @@ function FAQ({ openFaq, setOpenFaq }: { openFaq: number; setOpenFaq: (value: num
 }
 
 function FinalCTA() {
+  const tr = useLocale() === "tr"
+
   return (
     <div data-screen-label="FinalCTA" style={{ background: "var(--bg-alt)", borderTop: "1px solid oklch(1 0 0/.06)" }}>
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "104px 44px", textAlign: "center" }}>
-        <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 40, letterSpacing: "-.01em", color: "oklch(0.95 0.004 80)", margin: "0 0 16px" }}>Start where your work belongs.</h2>
-        <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, color: "oklch(0.63 0.01 75)", margin: "0 0 36px" }}>Download Hoprel for a local-first desktop workspace, or run Aurict directly in your terminal.</p>
+        <h2 style={{ fontFamily: "var(--font-serif)", fontWeight: 600, fontSize: 40, letterSpacing: "-.01em", color: "oklch(0.95 0.004 80)", margin: "0 0 16px" }}>{tr ? "İşinizin ait olduğu yerde başlayın." : "Start where your work belongs."}</h2>
+        <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, color: "oklch(0.63 0.01 75)", margin: "0 0 36px" }}>{tr ? "Yerel öncelikli bir masaüstü çalışma alanı için Hoprel'i indirin veya Aurict'i doğrudan terminalinizde çalıştırın." : "Download Hoprel for a local-first desktop workspace, or run Aurict directly in your terminal."}</p>
         <div className="landing-final-buttons">
-          <a className="mono landing-button-primary" href="/downloads">↓ download Hoprel</a>
+          <a className="mono landing-button-primary" href="/downloads">{tr ? "↓ Hoprel'i indir" : "↓ download Hoprel"}</a>
           <a className="mono landing-button-secondary" href="#install">$ npm install -g aurict</a>
         </div>
       </div>
@@ -484,17 +470,19 @@ function FinalCTA() {
 }
 
 function LandingFooter() {
+  const tr = useLocale() === "tr"
+
   return (
     <div data-screen-label="Footer" className="landing-shell landing-footer">
       <div>
         <div className="mono" style={{ fontSize: 16, fontWeight: 600, color: "oklch(0.9 0.004 80)", marginBottom: 10 }}>aurict</div>
-        <div className="mono" style={{ fontSize: 12, color: "oklch(0.5 0.01 75)" }}>AGPLv3 License · © 2026 aurict</div>
+        <div className="mono" style={{ fontSize: 12, color: "oklch(0.5 0.01 75)" }}>{tr ? "AGPLv3 Lisansı · © 2026 aurict" : "AGPLv3 License · © 2026 aurict"}</div>
       </div>
       <div style={{ display: "flex", gap: 56, flexWrap: "wrap" }}>
-        <FooterColumn title="product" links={[["Hoprel desktop", "/downloads"], ["capabilities", "#capabilities"], ["roadmap", "/roadmap"], ["compare", "/compare"], ["docs", "/docs"], ["changelog", "/changelog"]]} />
-        <FooterColumn title="company" links={[["about", "/about"], ["blog", "/blog"], ["use cases", "/use-cases"]]} />
-        <FooterColumn title="legal" links={[["privacy", "/privacy"], ["terms", "/terms"]]} />
-        <FooterColumn title="open source" links={[["GitHub", "https://github.com/aurict/aurict"], ["npm", "https://www.npmjs.com/package/aurict"]]} />
+        <FooterColumn title={tr ? "ürün" : "product"} links={[[tr ? "Hoprel masaüstü" : "Hoprel desktop", "/downloads"], [tr ? "yetenekler" : "capabilities", "#capabilities"], [tr ? "yol haritası" : "roadmap", "/roadmap"], [tr ? "karşılaştır" : "compare", "/compare"], [tr ? "belgeler" : "docs", "/docs"], [tr ? "değişiklik günlüğü" : "changelog", "/changelog"]]} />
+        <FooterColumn title={tr ? "şirket" : "company"} links={[[tr ? "hakkında" : "about", "/about"], ["blog", "/blog"], [tr ? "kullanım senaryoları" : "use cases", "/use-cases"]]} />
+        <FooterColumn title={tr ? "yasal" : "legal"} links={[[tr ? "gizlilik" : "privacy", "/privacy"], [tr ? "koşullar" : "terms", "/terms"]]} />
+        <FooterColumn title={tr ? "açık kaynak" : "open source"} links={[["GitHub", "https://github.com/aurict/aurict"], ["npm", "https://www.npmjs.com/package/aurict"]]} />
       </div>
     </div>
   )

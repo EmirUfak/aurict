@@ -14,8 +14,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test-desktop:
+    name: Test desktop release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint desktop
+        run: bun run --cwd apps/desktop lint
+
+      - name: Test desktop
+        run: bun run --cwd apps/desktop test
+
   build-self-signed-beta:
     name: Build self-signed Windows beta
+    needs: test-desktop
     runs-on: windows-2022
     timeout-minutes: 45
     env:
@@ -72,6 +95,7 @@ jobs:
 
   build-debian-beta:
     name: Build Debian desktop beta
+    needs: test-desktop
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -113,6 +137,7 @@ jobs:
 
   build-macos-beta:
     name: Build macOS ${{ matrix.architecture }} desktop beta
+    needs: test-desktop
     strategy:
       fail-fast: false
       matrix:

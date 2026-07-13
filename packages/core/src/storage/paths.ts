@@ -13,7 +13,7 @@ export function legacyCoreStateDir(): string {
  * lives under Electron userData; CLI keeps the established ~/.aurict default.
  */
 export function coreStateDir(): string {
-  const configured = process.env.AURICT_STATE_DIR?.trim()
+  const configured = process.env.AURICT_STATE_DIR?.trim() || process.env.AURICT_HOME?.trim()
   return configured ? resolve(configured) : legacyCoreStateDir()
 }
 

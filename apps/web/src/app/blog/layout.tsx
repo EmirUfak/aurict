@@ -1,14 +1,19 @@
 import type { Metadata } from "next"
+import { getLocale } from "next-intl/server"
+import { localizedMetadata } from "@/i18n/metadata"
+import type { AppLocale } from "@/i18n/routing"
 
-export const metadata: Metadata = {
-  title: "Blog — AI Coding Insights & Tutorials",
-  description: "Learn about AI coding assistants, terminal AI tools, multi-agent architecture, and how to supercharge your development workflow with Aurict.",
-  alternates: { canonical: "https://aurict.com/blog" },
-  openGraph: {
-    title: "Aurict Blog — AI Coding Insights",
-    description: "Tutorials, comparisons, and insights about AI coding assistants and developer tools.",
-    url: "https://aurict.com/blog",
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = (await getLocale()) as AppLocale
+  const title =
+    locale === "tr"
+      ? "Blog — Yapay Zeka Kodlama İçgörüleri ve Eğitimleri"
+      : "Blog — AI Coding Insights & Tutorials"
+  const description =
+    locale === "tr"
+      ? "Yapay zeka kodlama asistanları, terminal yapay zeka araçları, çoklu ajan mimarisi ve Aurict ile geliştirme akışını nasıl hızlandıracağını öğren."
+      : "Learn about AI coding assistants, terminal AI tools, multi-agent architecture, and how to supercharge your development workflow with Aurict."
+  return localizedMetadata(locale, "/blog", title, description)
 }
 
 export default function BlogLayout({ children }: { children: React.ReactNode }) {

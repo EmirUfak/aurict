@@ -1,4 +1,7 @@
 import type { Metadata } from "next"
+import { getLocale } from "next-intl/server"
+import { localizeComparison } from "@/content/comparison-translations"
+import type { AppLocale } from "@/i18n/routing"
 import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
@@ -28,27 +31,27 @@ const collection = collectionJsonLd({
   })),
 })
 
-export default function ComparePage() {
+export default async function ComparePage() {
+  const locale = await getLocale() as AppLocale
+  const tr = locale === "tr"
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collection) }} />
       <Nav />
       <main className="marketing-main" style={{ maxWidth: 900 }}>
-        <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Compare", href: "/compare" }]} />
+        <Breadcrumb items={[{ label: tr ? "Ana sayfa" : "Home", href: "/" }, { label: tr ? "Karşılaştır" : "Compare", href: "/compare" }]} />
 
         <div className="marketing-hero" style={{ marginTop: 24 }}>
-          <p className="marketing-eyebrow">Comparisons</p>
-          <h1 className="marketing-title marketing-title-sm">Aurict vs. the alternatives</h1>
+          <p className="marketing-eyebrow">{tr ? "Karşılaştırmalar" : "Comparisons"}</p>
+          <h1 className="marketing-title marketing-title-sm">{tr ? "Aurict ve alternatifleri" : "Aurict vs. the alternatives"}</h1>
           <p className="marketing-lede">
-            How does Aurict compare to other AI coding tools? Here&apos;s an honest look at where it wins, where competitors have their strengths, and which tool fits which workflow.
+            {tr ? "Aurict diğer yapay zekâ kodlama araçlarıyla nasıl karşılaştırılıyor? Nerede öne çıktığına, rakiplerin güçlü olduğu alanlara ve hangi aracın hangi iş akışına uyduğuna dürüstçe bakın." : "How does Aurict compare to other AI coding tools? Here&apos;s an honest look at where it wins, where competitors have their strengths, and which tool fits which workflow."}
           </p>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {COMPARISONS.map((c) => (
-            <CompareCard key={c.slug} {...c} />
-          ))}
+          {COMPARISONS.map((comparison) => <CompareCard key={comparison.slug} {...localizeComparison(comparison, locale)} />)}
         </div>
       </main>
       <Footer />

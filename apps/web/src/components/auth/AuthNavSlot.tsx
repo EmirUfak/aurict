@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
+import { useTranslations } from "next-intl"
 import { ChevronDown, LogOut, MonitorCog, UserRound } from "lucide-react"
+import { Link } from "@/i18n/navigation"
 
 type AuthUser = {
   id: string
@@ -17,6 +18,7 @@ type AuthState =
 
 export function AuthNavSlot({ drawer = false }: { drawer?: boolean }) {
   const [state, setState] = useState<AuthState>({ status: "loading" })
+  const t = useTranslations("Auth")
 
   useEffect(() => {
     let cancelled = false
@@ -43,13 +45,13 @@ export function AuthNavSlot({ drawer = false }: { drawer?: boolean }) {
   if (state.status !== "user") {
     return drawer ? (
       <>
-        <Link href="/login">login</Link>
-        <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>register</Link>
+        <Link href="/login">{t("login")}</Link>
+        <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>{t("register")}</Link>
       </>
     ) : (
       <>
-        <a className="mono landing-nav-link" href="/login">login</a>
-        <a className="mono landing-primary-link" href="/register">register →</a>
+        <Link className="mono landing-nav-link" href="/login">{t("login")}</Link>
+        <Link className="mono landing-primary-link" href="/register">{t("register")} →</Link>
       </>
     )
   }
@@ -62,10 +64,10 @@ export function AuthNavSlot({ drawer = false }: { drawer?: boolean }) {
   if (drawer) {
     return (
       <>
-        <span className="nav-drawer-label">account</span>
-        <Link href="/console">console</Link>
-        <Link href="/console/account">account</Link>
-        <button className="nav-drawer-button" onClick={signOut} type="button">sign out</button>
+        <span className="nav-drawer-label">{t("account")}</span>
+        <Link href="/console">{t("console")}</Link>
+        <Link href="/console/account">{t("account")}</Link>
+        <button className="nav-drawer-button" onClick={signOut} type="button">{t("signOut")}</button>
       </>
     )
   }
@@ -80,15 +82,15 @@ export function AuthNavSlot({ drawer = false }: { drawer?: boolean }) {
       <div className="nav-dropdown-menu profile-menu-panel">
         <Link className="nav-dropdown-item profile-menu-item" href="/console">
           <MonitorCog aria-hidden="true" size={14} />
-          console
+          {t("console")}
         </Link>
         <Link className="nav-dropdown-item profile-menu-item" href="/console/account">
           <UserRound aria-hidden="true" size={14} />
-          account
+          {t("account")}
         </Link>
         <button className="nav-dropdown-item profile-menu-item profile-menu-button" onClick={signOut} type="button">
           <LogOut aria-hidden="true" size={14} />
-          sign out
+          {t("signOut")}
         </button>
       </div>
     </div>

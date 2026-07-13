@@ -1,9 +1,10 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Box, Text, useInput } from "ink"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
 import { useBlinkFrame } from "./design-system/motion.js"
 import { DesignBox as Box2 } from "./design-system/types.js"
+import { wrapTranscriptText } from "./conversation/line-buffer.js"
 
 interface Props {
   content:  string
@@ -25,18 +26,39 @@ function formatBytes(text: string): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+function artifactKind(content: string): string {
+  const trimmed = content.trim();
+  if (/^(---|\+\+\+|@@)/m.test(trimmed)) return "diff";
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) return "json";
+  return "output";
+}
+
 export function ExpandableOutput({ content, toolName, onClose }: Props) {
   const theme    = useTheme()
   const { columns: termCols, rows: termRows } = useTerminalSize()
   const blink    = useBlinkFrame()
   const pageSize = Math.max(5, termRows - 8)
   const cols     = Math.max(40, termCols)
-  const lines    = stripAnsi(content)
+  const sourceLines = stripAnsi(content)
     .split("\n")
     .map((line) => line.replace(/\t/g, "    "))
+  const sourceLineCount = content.length === 0 ? 0 : sourceLines.length
+  const lineNoWidth = Math.max(1, String(sourceLineCount).length)
+  const contentWidth = Math.max(20, cols - lineNoWidth - 6)
+  const lines = sourceLines.flatMap((line, sourceIndex) =>
+    wrapTranscriptText(line, contentWidth).map((text, visualIndex) => ({
+      text,
+      sourceIndex,
+      continuation: visualIndex > 0,
+    })),
+  )
   const [offset, setOffset] = useState(0)
   const totalLines = content.length === 0 ? 0 : lines.length
   const maxOffset = Math.max(0, totalLines - pageSize)
+
+  useEffect(() => {
+    setOffset((current) => Math.min(current, maxOffset))
+  }, [maxOffset])
 
   useInput((input, key) => {
     if (key.escape || key.return) { onClose(); return }
@@ -50,18 +72,19 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
 
   const visible     = lines.slice(offset, offset + pageSize)
   const pct         = totalLines <= pageSize ? 100 : Math.round(((offset + pageSize) / totalLines) * 100)
-  const lineNoWidth = Math.max(1, String(totalLines).length)
-  const contentWidth = Math.max(20, cols - lineNoWidth - 6)
-
+  const kind = artifactKind(content)
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={theme.borderActive} width="100%">
       <Box2 {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
         <Box paddingX={1} justifyContent="space-between">
           <Box gap={1}>
-            <Text color={theme.textDim}> {toolName} </Text>
+            <Text color={theme.accent} bold>{kind} artifact</Text>
+            <Text color={theme.textSecondary}>/ {toolName}</Text>
             <Text color={theme.accent}>{blink ? "▊" : " "}</Text>
           </Box>
-          <Text color={theme.textDim}>{totalLines} lines  {formatBytes(content)}  {pct}%</Text>
+          <Text color={theme.textDim}>
+            {totalLines} lines · {sourceLineCount} source · {formatBytes(content)} · {pct}%
+          </Text>
         </Box>
       </Box2>
 
@@ -70,12 +93,13 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
           <Text color={theme.textDim} dimColor>(empty output)</Text>
         )}
         {content.length > 0 && visible.map((line, i) => {
-          const lineNo = offset + i + 1
-          const display = line.length > contentWidth ? line.slice(0, contentWidth - 1) + "…" : line
+          const lineNo = line.sourceIndex + 1
           return (
-            <Box key={i} gap={1}>
-              <Text color={theme.borderBright} dimColor>{String(lineNo).padStart(lineNoWidth)}</Text>
-              <Text color={theme.textSecondary}>{display || " "}</Text>
+            <Box key={`${line.sourceIndex}-${offset + i}`} gap={1}>
+              <Text color={theme.borderBright} dimColor>
+                {line.continuation ? "↳".padStart(lineNoWidth) : String(lineNo).padStart(lineNoWidth)}
+              </Text>
+              <Text color={theme.textSecondary} wrap="truncate-end">{line.text || " "}</Text>
             </Box>
           )
         })}
@@ -86,7 +110,7 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
              borderBottom={false} borderLeft={false} borderRight={false}>
           <Text color={theme.textDim}>
             {offset + 1}-{Math.min(offset + pageSize, totalLines)} / {totalLines}
-            {"  "}Ctrl+U/D half page  g/G top/bottom  ↑↓ line  Esc close
+            {"  "}↑↓ scan  Ctrl+U/D page  g/G ends  Esc close
           </Text>
         </Box>
       )}

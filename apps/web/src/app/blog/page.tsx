@@ -1,4 +1,7 @@
-import Link from "next/link"
+import { getLocale } from "next-intl/server"
+import { Link } from "@/i18n/navigation"
+import { localizeBlogPost } from "@/content/blog-translations"
+import type { AppLocale } from "@/i18n/routing"
 import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
@@ -21,7 +24,9 @@ const collection = collectionJsonLd({
   })),
 })
 
-export default function BlogPage() {
+export default async function BlogPage() {
+  const locale = await getLocale() as AppLocale
+  const tr = locale === "tr"
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
@@ -30,21 +35,23 @@ export default function BlogPage() {
       <main className="marketing-main marketing-main-narrow">
         <Breadcrumb
           items={[
-            { label: "Home", href: "/" },
+            { label: tr ? "Ana sayfa" : "Home", href: "/" },
             { label: "Blog", href: "/blog" },
           ]}
         />
 
         <div className="marketing-hero">
           <p className="marketing-eyebrow">Blog</p>
-          <h1 className="marketing-title marketing-title-sm">AI coding insights</h1>
+          <h1 className="marketing-title marketing-title-sm">{tr ? "Yapay zekâ ile kodlama içgörüleri" : "AI coding insights"}</h1>
           <p className="marketing-lede">
-            Tutorials, comparisons, and deep dives into terminal AI coding assistants, BYOK workflows, and agentic development.
+            {tr ? "Terminal yapay zekâ kodlama asistanları, BYOK iş akışları ve ajan tabanlı geliştirme için rehberler, karşılaştırmalar ve derinlemesine incelemeler." : "Tutorials, comparisons, and deep dives into terminal AI coding assistants, BYOK workflows, and agentic development."}
           </p>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {BLOG_POSTS.map((post) => (
+          {BLOG_POSTS.map((sourcePost) => {
+            const post = localizeBlogPost(sourcePost, locale)
+            return (
             <Link
               key={post.slug}
               href={`/blog/${post.slug}`}
@@ -63,7 +70,8 @@ export default function BlogPage() {
                 {post.description}
               </p>
             </Link>
-          ))}
+            )
+          })}
         </div>
       </main>
       <Footer />

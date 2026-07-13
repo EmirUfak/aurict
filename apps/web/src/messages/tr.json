@@ -1,0 +1,48 @@
+{
+  "Locale": {
+    "label": "Dil",
+    "en": "İngilizce",
+    "tr": "Türkçe"
+  },
+  "Nav": {
+    "product": "ürün",
+    "overview": "genel bakış",
+    "surfaces": "platformlar",
+    "capabilities": "yetenekler",
+    "security": "güvenlik",
+    "mobile": "mobil",
+    "downloadHoprel": "Hoprel'i indir",
+    "install": "kurulum",
+    "faq": "SSS",
+    "ecosystem": "ekosistem",
+    "roadmap": "yol haritası",
+    "docs": "dokümanlar",
+    "changelog": "değişiklikler",
+    "site": "site",
+    "openMenu": "Menüyü aç",
+    "closeMenu": "Menüyü kapat"
+  },
+  "Footer": {
+    "product": "ürün",
+    "capabilities": "yetenekler",
+    "roadmap": "yol haritası",
+    "compare": "karşılaştırmalar",
+    "docs": "dokümanlar",
+    "changelog": "değişiklikler",
+    "company": "şirket",
+    "about": "hakkında",
+    "blog": "blog",
+    "useCases": "kullanım alanları",
+    "legal": "yasal",
+    "privacy": "gizlilik",
+    "terms": "koşullar",
+    "openSource": "açık kaynak"
+  },
+  "Auth": {
+    "login": "giriş yap",
+    "register": "kayıt ol",
+    "account": "hesap",
+    "console": "konsol",
+    "signOut": "çıkış yap"
+  }
+}

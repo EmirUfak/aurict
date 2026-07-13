@@ -47,7 +47,9 @@ export function createProfile(userType: UserType, overrides: Partial<UserProfile
     theme,
     colorMode: 'system',
     fontPair,
-    onboardingVersion: 2,
+    preferredProviderId: null,
+    preferredModelId: null,
+    onboardingVersion: 3,
     completedAt: Date.now(),
     ...overrides,
   };

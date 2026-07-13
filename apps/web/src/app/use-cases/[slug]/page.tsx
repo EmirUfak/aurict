@@ -5,6 +5,9 @@ import { CodeBlock } from "@/components/ui/CodeBlock"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
+import { getLocale } from "next-intl/server"
+import { localizeUseCase } from "@/content/use-case-translations"
+import type { AppLocale } from "@/i18n/routing"
 
 interface UseCase {
   slug: string
@@ -166,9 +169,12 @@ export function generateStaticParams() {
 
 export default async function UseCasePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const uc = USE_CASES.find((u) => u.slug === slug)
+  const locale = await getLocale() as AppLocale
+  const tr = locale === "tr"
+  const sourceUseCase = USE_CASES.find((u) => u.slug === slug)
 
-  if (!uc) notFound()
+  if (!sourceUseCase) notFound()
+  const uc = localizeUseCase(sourceUseCase, locale)
 
   const howToJsonLd = {
     "@context": "https://schema.org",
@@ -183,7 +189,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
     })),
   }
 
-  const otherUseCases = USE_CASES.filter((u) => u.slug !== slug)
+  const otherUseCases = USE_CASES.filter((u) => u.slug !== slug).map((useCase) => localizeUseCase(useCase, locale))
 
   return (
     <>
@@ -192,8 +198,8 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
       <main style={{ maxWidth: 780, margin: "0 auto", padding: "100px 24px 80px" }}>
         <Breadcrumb
           items={[
-            { label: "Home", href: "/" },
-            { label: "Use Cases", href: "/use-cases" },
+            { label: tr ? "Ana sayfa" : "Home", href: "/" },
+            { label: tr ? "Kullanım alanları" : "Use Cases", href: "/use-cases" },
             { label: uc.title, href: `/use-cases/${slug}` },
           ]}
         />
@@ -245,7 +251,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
             }}
           >
             <span style={{ color: "var(--error)" }}>✕</span>
-            The Problem
+            {tr ? "Sorun" : "The Problem"}
           </h2>
           <p style={{ fontSize: 15, color: "var(--text-dim)", lineHeight: 1.8 }}>
             {uc.problem}
@@ -266,7 +272,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
             }}
           >
             <span style={{ color: "var(--success)" }}>✓</span>
-            How Aurict Solves It
+            {tr ? "Aurict bunu nasıl çözer?" : "How Aurict Solves It"}
           </h2>
           <p style={{ fontSize: 15, color: "var(--text-dim)", lineHeight: 1.8 }}>
             {uc.solution}
@@ -283,7 +289,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
               marginBottom: 20,
             }}
           >
-            How It Works
+            {tr ? "Nasıl çalışır?" : "How It Works"}
           </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {uc.steps.map((step, i) => (
@@ -329,18 +335,18 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
                 marginBottom: 20,
               }}
             >
-              Before & After
+            {tr ? "Önce ve sonra" : "Before & After"}
             </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, fontFamily: "var(--font-geist-mono)" }}>
-                  BEFORE
+                  {tr ? "ÖNCE" : "BEFORE"}
                 </p>
                 <CodeBlock code={uc.beforeCode} language="typescript" />
               </div>
               <div>
                 <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8, fontFamily: "var(--font-geist-mono)" }}>
-                  AFTER
+                  {tr ? "SONRA" : "AFTER"}
                 </p>
                 <CodeBlock code={uc.afterCode} language="typescript" />
               </div>
@@ -358,7 +364,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
               marginBottom: 20,
             }}
           >
-            Benefits
+            {tr ? "Faydalar" : "Benefits"}
           </h2>
           <div
             style={{
@@ -399,10 +405,10 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
           }}
         >
           <h2 style={{ fontSize: 22, fontWeight: 700, color: "var(--text)", marginBottom: 12 }}>
-            Try it yourself
+            {tr ? "Kendiniz deneyin" : "Try it yourself"}
           </h2>
           <p style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 24 }}>
-            Install Aurict and see the {uc.agent.toLowerCase()} in action.
+            {tr ? <>Aurict&apos;i kurun ve {uc.agent.toLowerCase()} çalışırken görün.</> : <>Install Aurict and see the {uc.agent.toLowerCase()} in action.</>}
           </p>
           <div
             style={{
@@ -426,7 +432,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
         {/* Other Use Cases */}
         <section>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--text)", marginBottom: 16 }}>
-            Other Use Cases
+            {tr ? "Diğer kullanım alanları" : "Other Use Cases"}
           </h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {otherUseCases.map((u) => (

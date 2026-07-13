@@ -1,36 +1,46 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs"
-import { homedir, tmpdir } from "node:os"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { coreStatePath } from "@aurict/core/storage/paths"
 import { applyFlags, loadConfig } from "../src/config/loader.js"
 
-const GLOBAL_PATH = join(homedir(), ".aurict", "config.json")
+let globalPath = ""
+let stateDir = ""
+let previousStateDir: string | undefined
 let savedGlobalConfig: string | null = null
 let dirs: string[] = []
 
 beforeAll(() => {
-  savedGlobalConfig = existsSync(GLOBAL_PATH) ? readFileSync(GLOBAL_PATH, "utf8") : null
-  mkdirSync(join(homedir(), ".aurict"), { recursive: true })
-  writeFileSync(GLOBAL_PATH, "{}", "utf8")
+  stateDir = mkdtempSync(join(tmpdir(), "aurict-cli-config-state-"))
+  previousStateDir = process.env.AURICT_STATE_DIR
+  process.env.AURICT_STATE_DIR = stateDir
+  globalPath = coreStatePath("config.json")
+  savedGlobalConfig = existsSync(globalPath) ? readFileSync(globalPath, "utf8") : null
+  mkdirSync(stateDir, { recursive: true })
+  writeFileSync(globalPath, "{}", "utf8")
 })
 
 afterEach(() => {
-  writeFileSync(GLOBAL_PATH, "{}", "utf8")
+  writeFileSync(globalPath, "{}", "utf8")
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
   dirs = []
 })
 
 afterAll(() => {
   if (savedGlobalConfig !== null) {
-    writeFileSync(GLOBAL_PATH, savedGlobalConfig, "utf8")
-  } else if (existsSync(GLOBAL_PATH)) {
-    unlinkSync(GLOBAL_PATH)
+    writeFileSync(globalPath, savedGlobalConfig, "utf8")
+  } else if (existsSync(globalPath)) {
+    unlinkSync(globalPath)
   }
+  rmSync(stateDir, { recursive: true, force: true })
+  if (previousStateDir === undefined) delete process.env.AURICT_STATE_DIR
+  else process.env.AURICT_STATE_DIR = previousStateDir
 })
 
 describe("CLI config loader", () => {
   it("flattens canonical defaults for CLI bootstrap", () => {
-    writeFileSync(GLOBAL_PATH, JSON.stringify({
+    writeFileSync(globalPath, JSON.stringify({
       defaults: { provider: "anthropic", model: "claude-test" },
     }), "utf8")
 
@@ -41,7 +51,7 @@ describe("CLI config loader", () => {
   })
 
   it("preserves legacy top-level provider/model over canonical defaults", () => {
-    writeFileSync(GLOBAL_PATH, JSON.stringify({
+    writeFileSync(globalPath, JSON.stringify({
       provider: "openai",
       model: "gpt-test",
       defaults: { provider: "anthropic", model: "claude-test" },
