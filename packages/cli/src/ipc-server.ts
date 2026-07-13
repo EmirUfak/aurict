@@ -57,9 +57,16 @@ import { parseFinanceResearchAudit } from './finance-research-audit.js'
 import { desktopSessionMetadata } from './session-metadata.js'
 import { CliRemoteRuntime } from './remote/runtime.js'
 import { WebRtcCliTransport } from './remote/webrtc-transport.js'
-import { getAuthStatus, loginWithBrowser, logout as remoteLogout } from './remote/auth.js'
+import { ensureAccessToken, getAuthStatus, loginWithBrowser, logout as remoteLogout } from './remote/auth.js'
 import { existsSync } from 'node:fs'
 import { extname, resolve } from 'node:path'
+
+/** bonds/rates/legal gibi backend-konuşan tool'lar için — kullanıcı giriş yapmamışsa
+ *  veya refresh başarısız olursa turn'ü hiç engellemeden undefined döner; tool'lar
+ *  eksik token'ı kendileri algılayıp nazikçe raporlar (bkz. _shared/aurict-api.ts). */
+async function resolveBackendAccessToken(): Promise<string | undefined> {
+  try { return await ensureAccessToken() } catch { return undefined }
+}
 
 interface ChatAttachment { path: string; content?: string }
 interface ChatSubmitPayload { text: string; attachments?: ChatAttachment[]; agentId?: string; artifactId?: string; artifactIntent?: "create" | "iterate" | "promote"; displayText?: string; financeResearchId?: string }
@@ -247,11 +254,13 @@ export async function runIpcServer(workdir: string): Promise<void> {
     const controller = new AbortController()
     activeController = controller
     try {
+      const backendAccessToken = await resolveBackendAccessToken()
       await runAgent({
         provider: currentProvider,
         model: currentModel,
         workdir,
         sessionId,
+        ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
         ...(agentDef.system ? { system: agentDef.system } : {}),
         messages: nextHistory,
         ...(attachments ? { attachments } : {}),

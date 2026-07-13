@@ -59,6 +59,7 @@ function buildAITools(
   failureTracker?: Map<string, number>,
   recentReads?: Map<string, number>,
   toolCallIndexRef?: { current: number },
+  backendAccessToken?: string,
 ): ToolSet {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
@@ -112,6 +113,7 @@ function buildAITools(
           signal: signal ?? new AbortController().signal,
           provider, model,
           ...(onChunk !== undefined ? { onChunk } : {}),
+          ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
         }
         const res = await executeTool(captured, args, ctx)
 
@@ -237,7 +239,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   const recentReads      = new Map<string, number>()
   const toolCallIndexRef = { current: 0 }
   const rawTools = hasToolSupport
-    ? buildAITools(workdir, sessionId ?? "", providerName, modelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef)
+    ? buildAITools(workdir, sessionId ?? "", providerName, modelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken)
     : ({} as ToolSet)
 
   // toolsOverride: session agent kısıtlaması — sadece izin verilen tool'lar
@@ -412,7 +414,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
       ?? findCachedModelInfo(attemptProviderId, attemptModelId)
     const attemptHasToolSupport = attemptModelInfo?.supportsTools !== false
     const attemptRawTools = attemptHasToolSupport
-      ? buildAITools(workdir, sessionId ?? "", attemptProviderId, attemptModelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef)
+      ? buildAITools(workdir, sessionId ?? "", attemptProviderId, attemptModelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken)
       : ({} as ToolSet)
     const attemptAiTools: ToolSet = toolsOverride
       ? Object.fromEntries(

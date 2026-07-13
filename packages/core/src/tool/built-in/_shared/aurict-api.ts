@@ -1,0 +1,98 @@
+import type { ToolContext } from "../../types.js"
+
+/**
+ * bonds/rates/legal tool'larının ortak HTTP client'ı.
+ *
+ * bonds ve rates gateway'in (modules.aurict.com) arkasında — auth orada
+ * yapılır. legal aurict-backend'in içinde bir modül, gateway'in arkasında
+ * DEĞİL — kendi requireAuth middleware'iyle doğrulanır. İkisi de AYNI
+ * Aurict access token'ını kabul eder (backend'in Ed25519-imzalı JWT'si),
+ * sadece base URL farklı.
+ */
+
+const DEFAULT_MODULES_URL = "https://modules.aurict.com"
+const DEFAULT_BACKEND_URL = "https://api.aurict.com"
+const REQUEST_TIMEOUT_MS = 15_000
+
+export type AurictApiTarget = "modules" | "backend"
+
+export type AurictApiResult<T> =
+  | { kind: "success"; data: T }
+  | { kind: "not_authenticated" }
+  | { kind: "unavailable"; detail: string }
+  | { kind: "error"; status: number; detail: string }
+
+function baseUrlFor(target: AurictApiTarget): string {
+  if (target === "modules") return (process.env["AURICT_MODULES_URL"]?.trim() || DEFAULT_MODULES_URL)
+  return process.env["AURICT_BACKEND_URL"]?.trim() || DEFAULT_BACKEND_URL
+}
+
+export async function callAurictApi<T>(
+  ctx: ToolContext,
+  target: AurictApiTarget,
+  path: string,
+): Promise<AurictApiResult<T>> {
+  if (!ctx.backendAccessToken) return { kind: "not_authenticated" }
+
+  const timeoutController = new AbortController()
+  const timer = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
+  const signal = typeof AbortSignal.any === "function"
+    ? AbortSignal.any([ctx.signal, timeoutController.signal])
+    : ctx.signal
+
+  let response: Response
+  try {
+    response = await fetch(new URL(path, baseUrlFor(target)), {
+      headers: { authorization: `Bearer ${ctx.backendAccessToken}` },
+      signal,
+    })
+  } catch (error) {
+    return { kind: "unavailable", detail: error instanceof Error ? error.message : String(error) }
+  } finally {
+    clearTimeout(timer)
+  }
+
+  if (response.status === 401) return { kind: "not_authenticated" }
+  if (response.status === 502 || response.status === 503 || response.status === 504) {
+    return { kind: "unavailable", detail: `HTTP ${response.status}` }
+  }
+
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    return { kind: "error", status: response.status, detail: "Response was not valid JSON." }
+  }
+
+  if (!response.ok) {
+    return { kind: "error", status: response.status, detail: extractErrorDetail(body, response.status) }
+  }
+
+  return { kind: "success", data: body as T }
+}
+
+/** bonds/rates (FastAPI, `{"detail": "..."}`) ve legal (Hono, `{"error":{"message":"..."}}`) hata şekillerini normalize eder. */
+function extractErrorDetail(body: unknown, status: number): string {
+  if (typeof body === "object" && body !== null) {
+    const record = body as Record<string, unknown>
+    if (typeof record["detail"] === "string") return record["detail"]
+    if (typeof record["error"] === "string") return record["error"]
+    if (typeof record["error"] === "object" && record["error"] !== null) {
+      const message = (record["error"] as Record<string, unknown>)["message"]
+      if (typeof message === "string") return message
+    }
+  }
+  return `HTTP ${status}`
+}
+
+/** not_authenticated/unavailable/error sonuçları için tutarlı, kullanıcıya gösterilebilir mesaj. */
+export function describeAurictApiFailure(result: Exclude<AurictApiResult<unknown>, { kind: "success" }>): string {
+  switch (result.kind) {
+    case "not_authenticated":
+      return "Kullanıcı Aurict hesabına giriş yapmamış (veya oturumun süresi dolmuş). Bu veriye erişmek için önce giriş yapması gerekiyor — kullanıcıya bunu açıkça söyle, veriyi uydurma."
+    case "unavailable":
+      return `Veri servisine şu an ulaşılamıyor (${result.detail}). Kullanıcıya servisin geçici olarak erişilemez olduğunu söyle, aynı sorguyu art arda tekrar deneme.`
+    case "error":
+      return `Veri servisi bir hata döndürdü (HTTP ${result.status}: ${result.detail}). Kullanıcıya bunu dürüstçe ilet.`
+  }
+}

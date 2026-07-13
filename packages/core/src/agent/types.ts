@@ -19,6 +19,10 @@ export interface AgentRunOptions {
   sessionId?:   string
   provider?:    string
   model?:       string
+  /** Aurict backend access token (varsa) — bonds/rates/legal gibi backend'e konuşan
+   *  tool'lara ToolContext üzerinden aktarılır. Yoksa bu tool'lar "giriş yapmamışsın"
+   *  mesajı döner, agent turn'u hiç engellenmez. */
+  backendAccessToken?: string
   system?:      string
   undercover?:  boolean
   /** false ise coordinator promptu bu turn'e hiç enjekte edilmez (kullanıcı /coordinator ile

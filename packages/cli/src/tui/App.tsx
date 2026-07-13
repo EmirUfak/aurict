@@ -63,6 +63,7 @@ import type { CommandResult, PickerItem } from "../commands/types.js";
 // Lightweight — werift is only in webrtc-transport.js (lazy-imported, see startRemoteSession).
 import { CliRemoteRuntime, type CliRemoteStatus } from "../remote/runtime.js";
 import { RemoteEventTypes, type RemoteEvent } from "../remote/event-codec.js";
+import { ensureAccessToken } from "../remote/auth.js";
 import { ThemeContext, THEMES, DEFAULT_THEME } from "../utils/theme.js";
 import { TerminalSizeContext } from "./TerminalSizeContext.js";
 import { KeybindingsProvider } from "../keybindings/index.js";
@@ -147,6 +148,17 @@ function configuredSandboxBackend(): "none" | "policy" | "docker" {
 }
 
 const PERM_FILE = join(homedir(), ".aurict", "permissions.json");
+
+/** bonds/rates/legal gibi backend-konuşan tool'lar için — kullanıcı giriş yapmamışsa
+ *  veya refresh başarısız olursa turn'ü hiç engellemeden undefined döner; tool'lar
+ *  eksik token'ı kendileri algılayıp nazikçe raporlar (bkz. _shared/aurict-api.ts). */
+async function resolveBackendAccessToken(): Promise<string | undefined> {
+  try {
+    return await ensureAccessToken();
+  } catch {
+    return undefined;
+  }
+}
 
 export function App({
   initialProvider,
@@ -1867,11 +1879,13 @@ export function App({
             setStreamingReason(streamReasonRef.current);
         };
 
+        const backendAccessToken = await resolveBackendAccessToken();
         await runAgent({
           provider,
           model,
           workdir: workdirState,
           sessionId: mainSessionId.current,
+          ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
           ...(effectiveSystem ? { system: effectiveSystem } : {}),
           // If disabled via /coordinator (false), loop.ts never injects it; if true/undefined,
           // loop.ts makes its own complexity-gated decision (cfg.orchestration.mode).

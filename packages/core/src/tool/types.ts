@@ -21,6 +21,9 @@ export interface ToolContext {
   signal:       AbortSignal
   provider?:    string
   model?:       string
+  /** Aurict backend access token (varsa) — bkz. AgentRunOptions.backendAccessToken.
+   *  v1'de sadece ana thread'de doldurulur (subagent/worker path'inde yok). */
+  backendAccessToken?: string
   /** Araç çalışırken canlı çıktı chunk'larını iletir (bash streaming için) */
   onChunk?:     (chunk: string) => void
   // Agent worker'ları için — pool üzerinden başka worker'a mesaj yollar
