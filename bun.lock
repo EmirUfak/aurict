@@ -194,6 +194,7 @@
     },
   },
   "trustedDependencies": [
+    "electron-winstaller",
     "sharp",
     "unrs-resolver",
   ],

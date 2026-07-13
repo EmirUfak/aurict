@@ -56,6 +56,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Verify Squirrel archiver
+        shell: pwsh
+        run: |
+          $archiver = 'node_modules/electron-winstaller/vendor/7z.exe'
+          if (-not (Test-Path -LiteralPath $archiver -PathType Leaf)) {
+            throw "Squirrel requires $archiver. Check Bun trustedDependencies."
+          }
+
       - name: Generate ephemeral beta certificate
         shell: pwsh
         run: pwsh -File scripts/prepare-self-signed-windows-certificate.ps1
