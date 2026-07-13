@@ -5,6 +5,7 @@ import { Link } from '@/i18n/navigation'
 import { Footer } from '@/components/sections/Footer'
 import { Nav } from '@/components/Nav'
 import { Breadcrumb } from '@/components/ui/Breadcrumb'
+import { TrackedDownloadLink } from '@/components/analytics/TrackedDownloadLink'
 import { getDesktopBetaRelease, type ReleaseAsset } from '@/lib/desktop-beta-release'
 import { localizedMetadata } from '@/i18n/metadata'
 import type { AppLocale } from '@/i18n/routing'
@@ -54,28 +55,36 @@ export default async function WindowsDownloadPage() {
                 asset={beta.windows}
                 command="Get-FileHash .\Hoprel-Beta-Setup.exe -Algorithm SHA256"
                 detail={tr ? 'Windows x64 · kendinden imzalı beta yükleyicisi' : 'Windows x64 · self-signed beta installer'}
+                analyticsPlatform="windows"
                 platform="Windows"
+                releaseVersion={beta.version}
                 tr={tr}
               />
               <DownloadCard
                 asset={beta.debian}
                 command="sha256sum Hoprel-Beta-amd64.deb"
                 detail={tr ? 'Debian amd64 · doğrudan .deb paketi' : 'Debian amd64 · direct .deb package'}
+                analyticsPlatform="debian"
                 platform="Debian / Ubuntu"
+                releaseVersion={beta.version}
                 tr={tr}
               />
               <DownloadCard
                 asset={beta.macosArm64}
                 command="shasum -a 256 Hoprel-Beta-macos-arm64.zip"
                 detail={tr ? 'Apple Silicon · imzasız macOS ZIP' : 'Apple Silicon · unsigned macOS ZIP'}
+                analyticsPlatform="macos_arm64"
                 platform="macOS · Apple Silicon"
+                releaseVersion={beta.version}
                 tr={tr}
               />
               <DownloadCard
                 asset={beta.macosX64}
                 command="shasum -a 256 Hoprel-Beta-macos-x64.zip"
                 detail={tr ? 'Intel · imzasız macOS ZIP' : 'Intel · unsigned macOS ZIP'}
+                analyticsPlatform="macos_x64"
                 platform="macOS · Intel"
+                releaseVersion={beta.version}
                 tr={tr}
               />
             </div>
@@ -106,13 +115,17 @@ function DownloadCard({
   asset,
   command,
   detail,
+  analyticsPlatform,
   platform,
+  releaseVersion,
   tr,
 }: {
   asset: ReleaseAsset | undefined
   command: string
   detail: string
+  analyticsPlatform: "windows" | "debian" | "macos_arm64" | "macos_x64"
   platform: string
+  releaseVersion: string
   tr: boolean
 }) {
   if (!asset) {
@@ -129,7 +142,7 @@ function DownloadCard({
       <p className="mono" style={{ color: 'var(--accent)', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 10 }}>{platform}</p>
       <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.55, marginBottom: 18 }}>{detail}</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, marginBottom: 16 }}>
-        <a className="aur-button aur-button-primary" href={asset.downloadUrl}>{tr ? 'indir' : 'download'}</a>
+        <TrackedDownloadLink className="aur-button aur-button-primary" href={asset.downloadUrl} platform={analyticsPlatform} releaseVersion={releaseVersion}>{tr ? 'indir' : 'download'}</TrackedDownloadLink>
         <a className="aur-button aur-button-secondary" href={asset.checksumUrl}>SHA-256</a>
       </div>
       <p className="mono" style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.65 }}>{command}</p>

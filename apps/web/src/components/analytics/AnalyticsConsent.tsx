@@ -10,6 +10,7 @@ const consentChangeEvent = "aurict:analytics-consent-change"
 const googleTagId = "aurict-google-tag"
 
 type Consent = "granted" | "denied"
+type AnalyticsEventParameters = Record<string, string | number | boolean>
 
 declare global {
   interface Window {
@@ -78,6 +79,11 @@ function bootstrapGoogleTag() {
 function readConsent(): Consent | null {
   const value = window.localStorage.getItem(consentStorageKey)
   return value === "granted" || value === "denied" ? value : null
+}
+
+export function trackAnalyticsEvent(name: string, parameters: AnalyticsEventParameters) {
+  if (readConsent() !== "granted") return
+  window.gtag?.("event", name, { ...parameters, transport_type: "beacon" })
 }
 
 function subscribeToConsent(onStoreChange: () => void) {
