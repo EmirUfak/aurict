@@ -5,6 +5,7 @@ import { ScrollProgress } from "@/components/ui/ScrollProgress"
 import { BackToTop } from "@/components/ui/BackToTop"
 import { CommandPalette } from "@/components/ui/CommandPalette"
 import { RuntimeSignal } from "@/components/ui/RuntimeSignal"
+import { AnalyticsConsent } from "@/components/analytics/AnalyticsConsent"
 import "./globals.css"
 
 const BASE_URL = "https://aurict.com"
@@ -135,6 +136,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ScrollProgress />
           <CommandPalette />
           <RuntimeSignal />
+          <AnalyticsConsent />
           <div className="site-grain" aria-hidden="true" />
           <div className="top-accent" aria-hidden="true" />
           {children}

@@ -12,7 +12,8 @@
     "packages/cli-darwin-x64",
     "packages/cli-darwin-arm64",
     "packages/cli-win32-x64",
-    "apps/desktop"
+    "apps/desktop",
+    "apps/web"
   ],
   "scripts": {
     "dev": "bun run packages/cli/src/index.ts",

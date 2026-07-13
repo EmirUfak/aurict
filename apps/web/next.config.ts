@@ -1,12 +1,16 @@
 import type { NextConfig } from "next"
+import { dirname, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 import createNextIntlPlugin from "next-intl/plugin"
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts")
+const appRoot = dirname(fileURLToPath(import.meta.url))
+const workspaceRoot = resolve(appRoot, "../..")
 
 const nextConfig: NextConfig = {
   output: process.env.DOCKER_BUILD ? "standalone" : undefined,
   turbopack: {
-    root: process.cwd(),
+    root: workspaceRoot,
   },
 
   // aurict.dev → aurict.com kalıcı yönlendirme
