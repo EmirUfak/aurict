@@ -21,6 +21,7 @@ export function LocaleSwitcher() {
           const nextLocale = event.target.value as AppLocale
           document.cookie = `AURICT_LOCALE=${nextLocale}; Path=/; SameSite=Lax`
           router.replace(pathname, { locale: nextLocale })
+          router.refresh()
         }}
         value={locale}
       >

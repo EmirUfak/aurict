@@ -9,6 +9,7 @@ import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
 import { LocaleSwitcher } from "@/components/LocaleSwitcher"
 import { Link } from "@/i18n/navigation"
 import { localizeWhyItems, localizeCapabilityItems, localizeSecurityProfiles, localizeInstallSteps, localizeMobileAssistantItems, localizeFaqs } from "@/content/landing-translations"
+import { CopyCommand } from "@/components/CopyCommand"
 
 const providers = ["Anthropic", "OpenAI", "Google", "xAI", "Azure", "AWS Bedrock", "Ollama", "OpenRouter"]
 
@@ -67,7 +68,7 @@ function LandingNav() {
       <div className="landing-shell landing-nav-inner">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <BrandMark compact />
-          <span className="mono" style={{ fontSize: 10.5, padding: "4px 7px", borderRadius: 6, border: "1px solid var(--border)", background: "oklch(1 0 0/.06)", color: "oklch(0.55 0.01 75)" }}>v1.2.1 · AGPLv3</span>
+          <span className="mono" style={{ fontSize: 10.5, padding: "4px 7px", borderRadius: 6, border: "1px solid var(--border)", background: "oklch(1 0 0/.06)", color: "oklch(0.55 0.01 75)" }}>v1.2.2 · AGPLv3</span>
         </div>
         <div className="landing-nav-links">
           <div className="nav-dropdown">
@@ -124,7 +125,7 @@ function Hero() {
           <p className="aur-rise mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", margin: "0 0 40px", animationDelay: ".12s" }}>{tr ? "tek hesap · kendi sağlayıcılarınız · yerel bağlam · açık kontrol" : "one account · your providers · local context · explicit control"}</p>
           <div className="aur-rise landing-cta-row" style={{ animationDelay: ".15s" }}>
             <Link className="mono landing-button-primary" href="/downloads">↓ {tr ? "Hoprel'i indir" : "download Hoprel"}</Link>
-            <a className="mono landing-button-secondary" href="#install">$ curl -fsSL https://aurict.com/install.sh | bash</a>
+            <a className="mono landing-button-secondary" href="#install">{tr ? "$ kur" : "$ install"}</a>
             <a className="mono landing-button-secondary" href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">★ GitHub</a>
           </div>
         </div>
@@ -404,7 +405,9 @@ function Install() {
           {installSteps.map(([title, code, note, color]) => (
             <div key={title}>
               <div className="mono" style={{ fontSize: 12, color, marginBottom: 10 }}>{title}</div>
-              <div className="mono" style={{ background: "var(--bg-deep)", border: "1px solid oklch(1 0 0/.08)", borderRadius: 6, padding: "14px 16px", fontSize: 12.5, color: code.startsWith("#") ? "oklch(0.6 0.01 75)" : "oklch(0.88 0.004 80)", marginBottom: 12 }}>{code}</div>
+              {code.startsWith("#")
+                ? <div className="mono" style={{ background: "var(--bg-deep)", border: "1px solid oklch(1 0 0/.08)", borderRadius: 6, padding: "14px 16px", fontSize: 12.5, color: "oklch(0.6 0.01 75)", marginBottom: 12 }}>{code}</div>
+                : <CopyCommand command={code} color="oklch(0.88 0.004 80)" />}
               <div style={{ fontFamily: "var(--font-serif)", fontSize: 14, lineHeight: 1.5, color: "oklch(0.58 0.01 75)" }}>{note}</div>
             </div>
           ))}
@@ -462,7 +465,7 @@ function FinalCTA() {
         <p style={{ fontFamily: "var(--font-serif)", fontSize: 16.5, color: "oklch(0.63 0.01 75)", margin: "0 0 36px" }}>{tr ? "Yerel öncelikli bir masaüstü çalışma alanı için Hoprel'i indirin veya Aurict'i doğrudan terminalinizde çalıştırın." : "Download Hoprel for a local-first desktop workspace, or run Aurict directly in your terminal."}</p>
         <div className="landing-final-buttons">
           <a className="mono landing-button-primary" href="/downloads">{tr ? "↓ Hoprel'i indir" : "↓ download Hoprel"}</a>
-          <a className="mono landing-button-secondary" href="#install">$ npm install -g aurict</a>
+          <a className="mono landing-button-secondary" href="#install">{tr ? "$ hızlı kurulum" : "$ quick install"}</a>
         </div>
       </div>
     </div>
