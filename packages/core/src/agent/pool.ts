@@ -399,7 +399,10 @@ class AgentPool {
   }
 
   cancel(id: string): void {
+    const entry = this.entries.get(id)
+    if (!entry) return
     this.terminate(id, "cancelled")
+    entry.reject(new Error(`Agent ${id} cancelled`))
   }
 }
 

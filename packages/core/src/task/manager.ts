@@ -1,4 +1,4 @@
-import type { Task, TaskStatus } from "./types.js"
+import type { Task } from "./types.js"
 
 type Listener = () => void
 

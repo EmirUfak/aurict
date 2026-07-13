@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach } from "bun:test"
+import { describe, it, expect } from "bun:test"
 import { ProviderFallback, DEFAULT_FALLBACK_CONFIG, NonRetryableStreamError } from "../src/provider/fallback.js"
-import type { ProviderPlugin } from "../src/provider/plugin.js"
 
 describe("ProviderFallback", () => {
   describe("constructor", () => {

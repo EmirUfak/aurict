@@ -1,5 +1,4 @@
 import { ProviderRegistry } from "./registry.js"
-import type { ModelInfo } from "./plugin.js"
 
 /**
  * Cost-Aware Model Router

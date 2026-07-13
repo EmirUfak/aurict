@@ -75,7 +75,7 @@ describe("agentLearner persistence — Faz 5.2", () => {
   })
 
   it("silently tolerates a corrupt persisted file instead of throwing", () => {
-    const { dir, cleanup, createFile } = createTempDir()
+    const { cleanup, createFile } = createTempDir()
     cleanups.push(cleanup)
     const persistPath = createFile("agent-perf.json", "{ not valid json")
     agentLearner.setPersistPathForTests(persistPath)

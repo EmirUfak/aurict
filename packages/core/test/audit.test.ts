@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, afterEach } from "bun:test"
 import { AuditLogger, readAuditLogs, filterAuditLogs } from "../src/security/audit.js"
-import { rmSync, existsSync } from "fs"
-import { join } from "path"
+import { rmSync } from "fs"
 
 describe("Audit Logging", () => {
   const testLogPath = ".aurict/test-audit.log"

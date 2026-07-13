@@ -16,8 +16,6 @@ const DOCKER_SCAN_TYPES = [
   "sqlmap",
 ] as const
 
-type DockerScanType = typeof DOCKER_SCAN_TYPES[number]
-
 export const securityScanTool: ToolDef = {
   id: "security_scan",
   description: `Run a controlled baseline security scan for an explicitly allowlisted target.

@@ -46,13 +46,6 @@ interface PageInfo {
 
 const SKIP_ROLES = new Set(["none", "presentation", "generic"])
 
-const INTERACTIVE_ROLES = new Set([
-  "button", "link", "checkbox", "radio", "textbox", "combobox",
-  "listbox", "menuitem", "menuitemcheckbox", "menuitemradio",
-  "option", "switch", "tab", "treeitem", "searchbox", "spinbutton",
-  "slider", "scrollbar",
-])
-
 function formatTree(node: AXNode, depth: number, lines: string[], maxDepth: number): void {
   if (depth > maxDepth) return
   if (SKIP_ROLES.has(node.role) && !node.name && !(node.children?.length)) return

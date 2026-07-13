@@ -1053,19 +1053,40 @@ const commands: CommandDef[] = [
   {
     name:        "background",
     aliases:     ["bg"],
-    description: "Move current task to background or list background tasks",
+    description: "Run, inspect, or cancel an independent background task",
+    usage:       "/bg run <prompt>  |  /bg [list]  |  /bg <id>  |  /bg cancel <id>",
     handler: (args, ctx): CommandResult => {
+      if (args[0] === "run") {
+        const prompt = args.slice(1).join(" ").trim()
+        if (!prompt) return { type: "error", message: "Usage: /bg run <prompt>" }
+        try {
+          const id = ctx.startBackgroundTask(prompt)
+          return { type: "text", content: `Background task ${id} started. Use /bg or /bg ${id} to inspect it.` }
+        } catch (error) {
+          return {
+            type: "error",
+            message: error instanceof Error ? error.message : String(error),
+          }
+        }
+      }
+
+      if (args[0] === "cancel") {
+        const id = args[1]
+        if (!id) return { type: "error", message: "Usage: /bg cancel <id>" }
+        return ctx.cancelBackgroundTask(id)
+          ? { type: "text", content: `Background task ${id} cancelled.` }
+          : { type: "error", message: `No running background task with id ${id}.` }
+      }
+
       // /bg <id> → show a specific task's output
       if (args[0] && args[0] !== "list") {
         ctx.showBgTask(args[0])
         return { type: "text", content: "" }
       }
 
-      // /bg list or /bg (no args + no task)
+      // /bg list or /bg
       if (!ctx.bgTasks.length) {
-        // Move the current load to the background if there is one
-        ctx.sendToBackground()
-        return { type: "text", content: "Task sent to background." }
+        return { type: "text", content: "No background tasks. Start one with /bg run <prompt>." }
       }
 
       // Task list

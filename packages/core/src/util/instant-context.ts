@@ -8,8 +8,7 @@
  */
 
 import { readFile } from "fs/promises"
-import { resolve, basename } from "path"
-import { readdir } from "fs/promises"
+import { resolve } from "path"
 
 export interface InstantContextResult {
   files: Array<{ path: string; preview: string }>

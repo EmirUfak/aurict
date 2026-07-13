@@ -64,11 +64,13 @@ Toggle autopilot mode — auto-approves all permission prompts. Use with care; i
 List custom agents defined in `.aurict/agents/`. Shows name, type, and activation status.
 
 ### `/background` (alias: `/bg`)
-Move the current running task to the background, or list all background tasks.
+Run, inspect, or cancel an independent worker-pool task. Background tasks use a separate session, so they never detach or race the active conversation.
 
 ```
-/background          # move current task to background
-/background          # (when idle) list background tasks
+/background run Inspect the repository and report the test failures
+/background          # list background tasks
+/background <id>     # inspect a task's current output
+/background cancel <id>
 ```
 
 ---

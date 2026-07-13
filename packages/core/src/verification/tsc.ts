@@ -1,6 +1,4 @@
 import { spawn } from "bun"
-import { stat } from "node:fs/promises"
-import { resolve, dirname } from "node:path"
 
 /**
  * Smart TypeScript Verification

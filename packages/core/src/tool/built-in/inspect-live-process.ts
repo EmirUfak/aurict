@@ -101,9 +101,7 @@ function parseGdbOutput(output: string, binary: string): ProcessInspectResult {
 
   // Buffer distance estimation (pattern offset heuristic)
   if (result.stack_overflow_detected && result.crash_address) {
-    const addr = parseInt(result.crash_address, 16)
-    // If EIP is 0x41414141 + offset pattern, try to calculate distance
-    // Simple heuristic: distance = (addr - 0x41414141) / 0x01010101 * 4 + base
+    // If EIP is a cyclic-pattern value, estimate the offset from the output.
     const dist = estimateBufferDistance(output)
     if (dist !== null) result.buffer_distance_to_eip = dist
   }

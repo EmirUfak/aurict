@@ -468,28 +468,22 @@ export async function compact(
   const tokensBefore = current
 
   let result: CoreMessage[] | null = null
-  let strategy: "micro" | "snip" | "session" = "session"
-
   // Küçük taşma (<8% of context): microCompact dene, yetersizse session'a geç
   if (overflow < cfg.contextLimit * 0.08) {
-    strategy = "micro"
     const micro = microCompact(messages, usable)
     if (estimateTokens(micro) <= usable) {
       result = micro
     } else {
-      strategy = "session"
     }
   }
 
   // Tool output ağırlıklı (>55%): snipCompact
   if (!result && health.toolOutputPct > 0.55) {
-    strategy = "snip"
     result   = await snipCompact(messages, cfg)
   }
 
   // Varsayılan: tam session compaction
   if (!result) {
-    strategy = "session"
     result   = await sessionCompact(messages, cfg)
   }
 

@@ -268,7 +268,7 @@ Full reference: [docs/slash-commands.md](docs/slash-commands.md)
 | `/coordinator` | Toggle multi-agent coordinator mode |
 | `/autopilot` | Toggle auto-approve all permission prompts |
 | `/agents` | List custom agents in `.aurict/agents/` |
-| `/background` | Move current task to background or list background tasks |
+| `/background` | Run, inspect, or cancel an independent background task |
 
 ### Code & Git
 

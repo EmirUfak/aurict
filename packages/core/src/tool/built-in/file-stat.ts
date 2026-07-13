@@ -15,7 +15,7 @@
 import { z }                                         from "zod"
 import { existsSync, statSync, readFileSync,
          readdirSync }                               from "node:fs"
-import { join, relative, resolve as pathResolve }   from "node:path"
+import { join, relative }                           from "node:path"
 import type { ToolDef, ToolContext, ExecuteResult }  from "../types.js"
 
 // ── Yardımcı: insan dostu boyut ──────────────────────────────────────────────
@@ -113,9 +113,6 @@ function expandGlob(pattern: string, workdir: string): string[] {
 
   // ** içeriyorsa recursive
   const results: string[] = []
-  const parts  = pattern.split("/")
-  const root   = parts[0]?.startsWith("/") ? "/" : workdir
-
   function walk(dir: string, remaining: string[]): void {
     if (results.length >= 50) return
     if (remaining.length === 0) return

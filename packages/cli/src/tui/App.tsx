@@ -31,7 +31,6 @@ import {
   getAllSessionAgents,
   notifyTaskDone,
   notifyError,
-  memoryStore,
   extractAndStoreMemories,
   fileWatcher,
   snapshotManager,
@@ -70,7 +69,6 @@ import { KeybindingsProvider } from "../keybindings/index.js";
 import type { Context as KeybindingContext } from "../keybindings/index.js";
 
 import {
-  Message,
   type DisplayMessage,
   type AssistantContentBlock,
 } from "./Message.js";
@@ -120,10 +118,10 @@ import {
 import {
   clearDraft,
   hasPendingCrashReport,
-  writeCrashReport,
 } from "../util/draft.js";
 import { getTerminalCaps } from "../util/terminal-caps.js";
 import { useOverlayState } from "./hooks/useOverlayState.js";
+import { useBackgroundTasks } from "./hooks/useBackgroundTasks.js";
 import { HistorySearch } from "./HistorySearch.js";
 import { KeyboardShortcuts } from "./KeyboardShortcuts.js";
 import { AUTO_CONTINUE_PROMPT } from "./auto-continue.js";
@@ -236,7 +234,6 @@ export function App({
   const [turnSkillNames, setTurnSkillNames] = useState<string[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
   const [startupBannerVisible, setStartupBannerVisible] = useState(true);
   // A counter that increments on MCP log events — refreshes McpStatusPanel.
   const [mcpRefresh, setMcpRefresh] = useState(0);
@@ -264,18 +261,6 @@ export function App({
   const [promptCacheHealth, setPromptCacheHealth] = useState<
     PromptCacheHealthResult | undefined
   >(undefined);
-  const [memoryCount, setMemoryCount] = useState(0);
-  const [bgTasks, setBgTasks] = useState<
-    Array<{
-      id: string;
-      prompt: string;
-      startedAt: number;
-      status: "running" | "done" | "error";
-      output?: string;
-    }>
-  >([]);
-  const bgControllersRef = useRef<Map<string, AbortController>>(new Map());
-
   // Active subagent count — updated reactively via agentPool.onChange
   const [activeAgentCount, setActiveAgentCount] = useState(
     () => agentPool.active.length,
@@ -410,8 +395,6 @@ export function App({
     return "modal";
   }, [focusLayer]);
 
-  const draftTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // Watch Mode
   const [watchedPaths, setWatchedPaths] = useState<
     Array<{ path: string; prompt?: string }>
@@ -468,6 +451,20 @@ export function App({
   const skipSubmitRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const loadingRef = useRef(false);
+  const { tasks: bgTasks, startBackgroundTask, cancelBackgroundTask } =
+    useBackgroundTasks({
+      provider,
+      model,
+      workdir: workdirState,
+      parentSessionId: mainSessionId.current,
+      getParentContext: () =>
+        historyRef.current
+          .slice(-10)
+          .map((message) =>
+            `${message.role}: ${typeof message.content === "string" ? message.content : JSON.stringify(message.content)}`,
+          )
+          .join("\n"),
+    });
 
   // Auto-continue: automatically continues if the model stops mid-task
   const autoContinueRef = useRef<{
@@ -714,11 +711,6 @@ export function App({
       addSystemMsg(
         `⚠ Missing API key for ${info.name} — set the environment variable`,
       );
-    }
-    try {
-      setMemoryCount(memoryStore.list(workdir).length);
-    } catch {
-      /* ignore */
     }
     detectUndercoverRepo(workdir)
       .then((isPublic) => {
@@ -1353,13 +1345,8 @@ export function App({
           return next;
         });
       },
-      sendToBackground: () => {
-        if (!loading) return;
-        setLoading(false);
-        setIsStreaming(false);
-        setActiveTool(undefined);
-        addSystemMsg("Task moved to background. Use /bg to check status.");
-      },
+      startBackgroundTask,
+      cancelBackgroundTask,
       bgTasks,
       showBgTask: (id: string) => {
         const t = bgTasks.find((b) => b.id === id);
@@ -1588,6 +1575,9 @@ export function App({
       activeBranchIdx,
       watchedPaths,
       remoteConnected,
+      bgTasks,
+      startBackgroundTask,
+      cancelBackgroundTask,
     ],
   );
 
@@ -1690,9 +1680,6 @@ export function App({
       const userMsgsBefore = messages
         .slice(0, msgIndex)
         .filter((m) => m.role === "user").length;
-      const historySlice = history
-        .filter((h) => h.role === "user")
-        .slice(0, userMsgsBefore);
       // Interleave: rebuild history from scratch keeping only what's before the edit point
       const newHistory: CoreMessage[] = [];
       let uCount = 0;
@@ -1820,7 +1807,6 @@ export function App({
       const controller = new AbortController();
       abortControllerRef.current = controller;
       setLoading(true);
-      setIsStreaming(true);
       remoteRuntimeRef.current
         ?.publish(RemoteEventTypes.agentStatus, { state: "working" })
         .catch(() => {});
@@ -1879,33 +1865,6 @@ export function App({
           if (streamTextRef.current) setStreamingText(streamTextRef.current);
           if (streamReasonRef.current)
             setStreamingReason(streamReasonRef.current);
-        };
-
-        const flushAssistantSegment = (
-          textSegment: string,
-          reasonSegment: string,
-        ) => {
-          if (!textSegment && !reasonSegment) return;
-          setMessages((prev) => {
-            const next = [...prev];
-            const last = next[next.length - 1];
-            const segment = {
-              content: textSegment,
-              pending: false,
-              ...(reasonSegment ? { reasoningContent: reasonSegment } : {}),
-            };
-            if (last?.role === "assistant" && last.pending) {
-              next[next.length - 1] = { ...last, ...segment };
-            } else {
-              next.push({
-                id: crypto.randomUUID(),
-                role: "assistant" as const,
-                timestamp: Date.now(),
-                ...segment,
-              });
-            }
-            return next;
-          });
         };
 
         await runAgent({
@@ -2321,13 +2280,6 @@ export function App({
                 [...newHistory, ...newMessages],
                 workdirState,
               )
-                .then(() => {
-                  try {
-                    setMemoryCount(memoryStore.list(workdirState).length);
-                  } catch {
-                    /* ignore */
-                  }
-                })
                 .catch(() => metrics.recordError("memory_extract"));
             }
             const updatedHistory = [
@@ -2490,7 +2442,6 @@ export function App({
         }
       } finally {
         setLoading(false);
-        setIsStreaming(false);
         remoteRuntimeRef.current
           ?.publish(RemoteEventTypes.agentStatus, { state: "idle" })
           .catch(() => {});

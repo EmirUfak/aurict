@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { execSync, spawnSync } from "node:child_process"
+import { spawnSync } from "node:child_process"
 import { platform } from "node:os"
 import { writeFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"

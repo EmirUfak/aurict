@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "bun:test"
-import { mkdirSync, writeFileSync, rmSync, readFileSync } from "fs"
+import { mkdirSync, writeFileSync, rmSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 

@@ -1,7 +1,6 @@
-import { describe, it, expect, mock, beforeAll } from "bun:test"
+import { describe, it, expect, mock } from "bun:test"
 import { DAGOrchestrator } from "../src/agent/dag-orchestrator.js"
 import type { DAGNode } from "../src/agent/dag-orchestrator.js"
-import { agentPool } from "../src/agent/pool.js"
 
 describe("DAGOrchestrator", () => {
   it("detects cycle and throws error", () => {

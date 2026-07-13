@@ -125,9 +125,6 @@ describe("importanceScore", () => {
   })
 
   it("code message scores higher than plain conversation (same position)", () => {
-    const msgs = [codeMsg(), userMsg("just a chat message")]
-    const codeScore  = importanceScore(msgs[0], msgs, 0)
-    const chatScore  = importanceScore(msgs[1], msgs, 1)
     // code: +20 bonus; conversation: +10 but also has recency (+30 as last)
     // to compare fairly, test code at the same idx=0 of a same-length array
     const msgs2 = [codeMsg(), codeMsg()]

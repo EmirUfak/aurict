@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test"
-import { ModelRouter, DEFAULT_ROUTER_CONFIG, type TaskComplexity, type ModelTier } from "../src/provider/router.js"
+import { ModelRouter, DEFAULT_ROUTER_CONFIG } from "../src/provider/router.js"
+import { ProviderRegistry } from "../src/provider/registry.js"
 
 describe("ModelRouter", () => {
   describe("constructor", () => {
@@ -111,12 +112,14 @@ describe("ModelRouter", () => {
     })
 
     it("returns null when no providers have API keys", () => {
-      // Test ortamında API key yok — selectModel null döner
       const router = new ModelRouter({ enabled: true })
-      const decision = router.route("trivial")
-      // API key olmadığından null dönebilir
-      // Ama tier mapping doğru çalışmalı
-      expect(router.complexityToTier("trivial")).toBe("economy")
+      const available = ProviderRegistry.available
+      ProviderRegistry.available = () => []
+      try {
+        expect(router.route("trivial")).toBeNull()
+      } finally {
+        ProviderRegistry.available = available
+      }
     })
 
     it("complexity to tier mapping works correctly", () => {

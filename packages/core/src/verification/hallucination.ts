@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises"
-import { resolve, dirname, join } from "node:path"
+import { resolve, dirname } from "node:path"
 import * as ts from "typescript"
 
 /**

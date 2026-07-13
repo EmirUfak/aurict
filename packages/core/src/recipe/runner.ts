@@ -21,7 +21,6 @@ export async function runRecipe(opts: RecipeRunOptions): Promise<RecipeRunResult
 
     if (step.parallel) {
       // Paralel blok: tüm alt adımları aynı anda çalıştır
-      const parallelLabel = step.name ?? `Step ${i + 1}: parallel (${step.parallel.length} tasks)`
       opts.onStepStart?.(i, step)
       const parallelResults = await runParallelSteps(
         step.parallel, i, workdir, providerName, modelId,
@@ -108,7 +107,7 @@ async function runParallelSteps(
     } else if (step.prompt) {
       let output = ""
       try {
-        const finish = await runAgent({
+        await runAgent({
           provider: providerName,
           model:    modelId,
           workdir,

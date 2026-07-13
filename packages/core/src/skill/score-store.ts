@@ -1,5 +1,5 @@
 import { join } from "node:path"
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
 
 interface SkillScore {
   injectCount:   number

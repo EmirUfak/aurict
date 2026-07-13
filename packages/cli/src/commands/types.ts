@@ -4,6 +4,14 @@ export interface PickerItem {
   hint?: string
 }
 
+export interface BackgroundTask {
+  id: string
+  prompt: string
+  startedAt: number
+  status: "running" | "done" | "error"
+  output?: string
+}
+
 export type CommandResult =
   | { type: "text";   content: string; color?: string }
   | { type: "error";  message: string }
@@ -42,8 +50,9 @@ export interface CommandContext {
   toggleCoordinator: () => void
   autopilotMode:     boolean
   toggleAutopilot:   () => void
-  sendToBackground:  () => void
-  bgTasks:           Array<{ id: string; prompt: string; startedAt: number; status: string; output?: string }>
+  startBackgroundTask:  (prompt: string) => string
+  cancelBackgroundTask: (id: string) => boolean
+  bgTasks:           BackgroundTask[]
   showBgTask:        (id: string) => void
   showPicker:        (title: string, items: PickerItem[], onSelect: (item: PickerItem) => void) => void
   showPrompt:        (title: string, placeholder: string, secret: boolean, onSubmit: (value: string) => void) => void

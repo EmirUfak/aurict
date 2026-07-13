@@ -134,10 +134,10 @@ Autopilot respects the permission system — dangerous operations (destructive b
 
 ## Background tasks
 
-Long tasks can be moved to the background:
+Run an independent task in the background without sharing the active conversation's stream or session state:
 
 ```
-/background
+/background run Inspect the repository and report the test failures
 ```
 
-Running this while a task is in progress detaches it. Check status with `/background` when idle, and pick up results when they complete.
+Use `/background` to list tasks, `/background <id>` to inspect output, and `/background cancel <id>` to stop a running task.

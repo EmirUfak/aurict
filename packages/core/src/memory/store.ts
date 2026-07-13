@@ -1,5 +1,4 @@
 import { join } from "path"
-import { homedir } from "os"
 import { mkdirSync, writeFileSync } from "fs"
 import {
   insertMemory, deleteMemory, listMemories, clearMemories,

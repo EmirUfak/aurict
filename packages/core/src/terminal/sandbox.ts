@@ -1,4 +1,3 @@
-import { spawn } from "bun"
 import type { CommandAnalysis } from "./classifier.js"
 import { ptyManager } from "../pty/manager.js"
 

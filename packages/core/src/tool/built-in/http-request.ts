@@ -1,5 +1,5 @@
 import { z } from "zod"
-import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
+import type { ToolDef, ExecuteResult } from "../types.js"
 
 export const httpRequestTool: ToolDef = {
   id: "http_request",

@@ -5,7 +5,6 @@
  */
 
 import { join } from "path"
-import { homedir } from "os"
 import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync, existsSync } from "fs"
 import { PLUGIN_DIR } from "./loader.js"
 

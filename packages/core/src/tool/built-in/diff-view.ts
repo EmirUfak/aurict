@@ -16,13 +16,6 @@ import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 
 // ── Myers diff algoritması (saf JS, git bağımsız) ─────────────────────────────
 
-interface DiffHunk {
-  oldStart: number   // 1-based
-  oldLines: string[]
-  newStart: number
-  newLines: string[]
-}
-
 function myersDiff(oldLines: string[], newLines: string[]): Array<{ type: "equal" | "delete" | "insert"; line: string; oldIdx: number; newIdx: number }> {
   // Basit LCS tabanlı diff — büyük dosyalar için örnekleme ile çalışır
   const MAX_LINES = 2000
@@ -203,7 +196,6 @@ export const diffViewTool: ToolDef = {
     // ── patch ─────────────────────────────────────────────────────────────────
     if (action === "patch") {
       const patchText = args["patch"] ? String(args["patch"]) : undefined
-      const filePath  = args["path"]  ? String(args["path"])  : undefined
       if (!patchText) return { output: "", error: "patch text is required for action='patch'" }
 
       // git apply --check ile doğrula
