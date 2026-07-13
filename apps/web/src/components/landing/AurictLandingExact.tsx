@@ -125,7 +125,12 @@ function Hero() {
           <p className="aur-rise mono" style={{ fontSize: 13, color: "oklch(0.5 0.01 75)", margin: "0 0 40px", animationDelay: ".12s" }}>{tr ? "tek hesap · kendi sağlayıcılarınız · yerel bağlam · açık kontrol" : "one account · your providers · local context · explicit control"}</p>
           <div className="aur-rise landing-cta-row" style={{ animationDelay: ".15s" }}>
             <Link className="mono landing-button-primary" href="/downloads">↓ {tr ? "Hoprel'i indir" : "download Hoprel"}</Link>
-            <a className="mono landing-button-secondary" href="#install">{tr ? "$ kur" : "$ install"}</a>
+            <CopyCommand
+              className="mono landing-button-secondary"
+              command="curl -fsSL https://aurict.com/install.sh | bash"
+              label={tr ? "$ kur" : "$ install"}
+              copiedLabel={tr ? "$ kopyalandı" : "$ copied"}
+            />
             <a className="mono landing-button-secondary" href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">★ GitHub</a>
           </div>
         </div>

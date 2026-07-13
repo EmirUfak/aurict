@@ -1,0 +1,60 @@
+diff --git a/resources/spec.ejs b/resources/spec.ejs
+index e07a8a3dac52b7ac5e165d203bc26d0ac336c6ec..0b3f447a049fad02cbb249978e59bd24d5aa47cb 100644
+--- a/resources/spec.ejs
++++ b/resources/spec.ejs
+@@ -24,7 +24,7 @@ print('\n\n\n') }
+ 
+ %>%install
+ mkdir -p %{buildroot}/usr/
+-cp <%= process.platform === 'darwin' ? '-R' : '-r' %> usr/* %{buildroot}/usr/
++cp <%= process.platform === 'darwin' ? '-R' : '-r' %> <%= usrPath %> %{buildroot}/usr/
+ 
+ 
+ %files
+diff --git a/src/dependencies.js b/src/dependencies.js
+index 0b583b90169e1d97cd0e62eda5ff3dbd27b9d298..a9a16eddc0275cc7f87e42052999c0c136f6fbe2 100644
+--- a/src/dependencies.js
++++ b/src/dependencies.js
+@@ -33,6 +33,10 @@ async function rpmSupportsBooleanDependencies (logger) {
+   return rpmVersionSupportsBooleanDependencies(await getRpmVersion(logger))
+ }
+ 
++async function getRpmUsrPath (logger) {
++  return rpmUsrPath(await getRpmVersion(logger))
++}
++
+ async function getRpmVersion (logger) {
+   const versionOutput = await spawn('rpmbuild', ['--version'], logger)
+   return _.last(versionOutput.trim().split(' '))
+@@ -48,6 +52,11 @@ function rpmVersionSupportsBooleanDependencies (rpmVersionString) {
+   return rpmVersion >= [4, 13, 0]
+ }
+ 
++function rpmUsrPath (rpmVersionString) {
++  const rpmVersion = rpmVersionString.split('.').slice(0, 3).map(n => parseInt(n))
++  return rpmVersion >= [4, 20, 0] ? '../usr/.' : 'usr/*'
++}
++
+ /**
+  * Transforms the list of trash requires into an RPM boolean dependency list.
+  */
+@@ -75,6 +84,7 @@ module.exports = {
+     }
+   },
+   getRpmVersion,
++  getRpmUsrPath,
+   rpmSupportsBooleanDependencies,
+   rpmVersionSupportsBooleanDependencies,
+   trashRequiresAsBoolean
+diff --git a/src/installer.js b/src/installer.js
+index c7a3dbbf7c6a299c712cc5086e2ab479c41c5dc5..59d6a1336519267d13b3c98a04196ef7a6a8d543 100644
+--- a/src/installer.js
++++ b/src/installer.js
+@@ -87,6 +87,7 @@ class RedhatInstaller extends common.ElectronInstaller {
+     ])
+     this.defaults = {
+       ...common.getDefaultsFromPackageJSON(pkg, { revision: 1 }),
++      usrPath: await redhatDependencies.getRpmUsrPath(this.userSupplied.logger),
+       version: pkg.version || '0.0.0',
+       license: pkg.license,
+       compressionLevel: 2,

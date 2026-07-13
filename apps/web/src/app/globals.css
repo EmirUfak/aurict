@@ -1258,10 +1258,13 @@ select {
 }
 
 .landing-button-secondary {
+  background: transparent;
   border: 1px solid oklch(1 0 0 / 0.16);
   border-radius: 6px;
   color: oklch(0.9 0.004 80);
+  cursor: pointer;
   display: inline-flex;
+  font-family: inherit;
   font-size: 14px;
   padding: 13px 20px;
   text-decoration: none;

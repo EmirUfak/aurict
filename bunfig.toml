@@ -1,0 +1,3 @@
+[install]
+linker = "isolated"
+publicHoistPattern = ["@tanstack/virtual-core"]

@@ -14,7 +14,13 @@ mkdirSync(resourcesDir, { recursive: true });
 
 const command = [
   'bun', 'build', join(root, 'packages', 'cli', 'src', 'index.ts'),
-  '--compile', '--minify', '--external', 'fsevents', '--outfile', output,
+  '--compile', '--minify',
+  '--external', 'fsevents',
+  // Browser drivers are optional runtime integrations. Keep their dynamic imports
+  // out of the compiled sidecar even when a workspace test dependency is present.
+  '--external', 'playwright-core',
+  '--external', 'puppeteer-core',
+  '--outfile', output,
   ...(target ? ['--target', target] : []),
 ];
 

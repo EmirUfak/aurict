@@ -27,6 +27,13 @@ Bun sidecar and copies the design catalog into `apps/desktop/resources/`.
 Electron Forge places both beside the packaged application. Generated resource
 files are ignored by Git.
 
+The repository uses Bun's isolated workspace installs. Its root `bunfig.toml`
+publicly hoists `@tanstack/virtual-core` so Vite can bundle the renderer's
+virtualized session list; keep that setting when updating dependencies.
+
+Until `electron-installer-redhat` releases its RPM 4.20+ fix, Bun applies the
+tracked upstream patch in `patches/electron-installer-redhat@3.4.0.patch`.
+
 ## Windows beta release
 
 Pushing a `desktop-beta-v*` tag creates a self-signed Windows x64 installer
