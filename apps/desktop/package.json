@@ -18,6 +18,7 @@
     "lint": "eslint --ext .ts,.tsx ."
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",
     "@electron-forge/maker-rpm": "^7.11.2",
@@ -27,6 +28,7 @@
     "@electron-forge/plugin-fuses": "^7.11.2",
     "@electron-forge/plugin-vite": "^7.11.2",
     "@electron/fuses": "^1.8.0",
+    "@playwright/test": "^1.61.1",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.0",
@@ -80,6 +82,7 @@
     "@lezer/xml": "^1.0.6",
     "@lezer/yaml": "^1.0.4",
     "@marijn/find-cluster-break": "^1.0.3",
+    "@tanstack/react-virtual": "^3.14.6",
     "codemirror": "^6.0.1",
     "crelt": "^1.0.7",
     "electron-squirrel-startup": "^1.0.1",

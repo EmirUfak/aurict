@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { UserType } from '../../shared/ipc-types.js';
 import type { useChat } from '../hooks/useChat.js';
 import { ModelSelector } from '../components/ModelSelector.js';
+import { TaskActivity } from '../components/TaskActivity.js';
 import { displayMessageText } from '../types.js';
 
 interface Props {
@@ -117,6 +118,7 @@ export function HomeScreen({ chat, userType }: Props) {
         <button type="button" onClick={send} disabled={chat.pending || !draft.trim()} style={{ alignSelf: 'flex-end', padding: '9px 15px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: chat.pending || !draft.trim() ? 'var(--text-subtle)' : 'var(--accent-ink)', background: chat.pending || !draft.trim() ? 'var(--control-hover)' : 'var(--accent)', border: 'none', borderRadius: 7, cursor: chat.pending || !draft.trim() ? 'default' : 'pointer' }}>{chat.pending ? 'working…' : 'send ↵'}</button>
       </div>
       {chat.pending && <div role="status" className="aur-inline-status">{chat.statusMessage ?? 'Aurict is working…'} <button type="button" className="aur-text-action" onClick={chat.cancel}>stop</button></div>}
+      {(chat.pending || chat.activities.length > 0) && <div style={{ marginTop: 14 }}><TaskActivity activities={chat.activities} pending={chat.pending} /></div>}
 
       {recentMessages.length > 0 && <section style={{ marginTop: 42 }} aria-labelledby="recent-conversation">
         <div id="recent-conversation" style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--text-subtle)', marginBottom: 10 }}>Recent conversation</div>

@@ -37,6 +37,26 @@ export const SessionManager = {
     dbDeleteSession(id)
   },
 
+  rename(id: string, title: string): void {
+    const normalized = title.trim()
+    if (!normalized) throw new Error("Session title cannot be empty")
+    updateSession(id, { title: normalized })
+  },
+
+  archive(id: string, archived: boolean): void {
+    updateSession(id, { status: archived ? "archived" : "complete" })
+  },
+
+  branch(id: string): string {
+    const parent = getSession(id)
+    if (!parent) throw new Error("Session to branch was not found")
+    if (!parent.config) throw new Error("Session configuration is unavailable")
+    const config = JSON.parse(parent.config) as SessionConfig
+    const childId = this.create(config, { parentId: id, title: parent.title ? `${parent.title} — branch` : "Branched session" })
+    for (const part of getSessionParts(id)) this.addPart({ sessionId: childId, role: part.role, type: part.type, content: part.content, ...(part.tokens === null ? {} : { tokens: part.tokens }) })
+    return childId
+  },
+
   ensureExists(id: string, cfg: SessionConfig): void {
     if (!getSession(id)) {
       createSession({ id, config: JSON.stringify(cfg) })

@@ -75,6 +75,10 @@ type SidecarCommand =
   | { type: "session:list" }
   | { type: "session:select"; id: string }
   | { type: "session:new" }
+  | { type: "session:rename"; id: string; title: string }
+  | { type: "session:archive"; id: string; archived: boolean }
+  | { type: "session:branch"; id: string }
+  | { type: "session:search"; query: string }
   | { type: "session:delete"; id: string }
   | { type: "skills:list" }
   | { type: "skills:install"; url: string }
@@ -104,6 +108,10 @@ type SidecarMessage =
   | { type: "session:list-result"; sessions: Array<{ id: string; title: string | null; createdAt: number; updatedAt: number; status: string; parentId: string | null; turnCount: number; totalInputTokens: number; totalOutputTokens: number; totalCacheTokens: number; accumulatedCostUsd: number; provider: string | null; lastModel: string | null }> }
   | { type: "session:select-result"; messages: Array<{ role: "user" | "assistant"; content: string }> }
   | { type: "session:new-result"; id: string }
+  | { type: "session:rename-result"; id: string; title: string }
+  | { type: "session:archive-result"; id: string; archived: boolean }
+  | { type: "session:branch-result"; id: string; messages: Array<{ role: "user" | "assistant"; content: string }> }
+  | { type: "session:search-result"; results: Array<{ sessionId: string; title: string | null; updatedAt: number; matchCount: number; excerpt: string }> }
   | { type: "session:delete-result"; id: string; wasActive: boolean }
   | { type: "skills:list-result"; skills: Array<{ id: string; name: string; description: string; active: boolean; installed: boolean }> }
   | { type: "skills:install-result"; result: { id: string; name: string } | { error: string } }
@@ -378,6 +386,28 @@ export async function runIpcServer(workdir: string): Promise<void> {
         sessionId = crypto.randomUUID()
         history.length = 0
         send({ type: "session:new-result", id: sessionId })
+        return
+      }
+      case "session:rename": {
+        SessionManager.rename(cmd.id, cmd.title)
+        send({ type: "session:rename-result", id: cmd.id, title: cmd.title.trim() })
+        return
+      }
+      case "session:archive": {
+        SessionManager.archive(cmd.id, cmd.archived)
+        send({ type: "session:archive-result", id: cmd.id, archived: cmd.archived })
+        return
+      }
+      case "session:branch": {
+        sessionId = SessionManager.branch(cmd.id)
+        history.length = 0
+        const messages: Array<{ role: "user" | "assistant"; content: string }> = []
+        for (const part of SessionManager.getParts(sessionId)) if (part.role === "user" || part.role === "assistant") { history.push({ role: part.role, content: part.content } as CoreMessage); messages.push({ role: part.role, content: part.content }) }
+        send({ type: "session:branch-result", id: sessionId, messages })
+        return
+      }
+      case "session:search": {
+        send({ type: "session:search-result", results: SessionManager.search(cmd.query) })
         return
       }
       case "session:delete": {

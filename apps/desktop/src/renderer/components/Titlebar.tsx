@@ -15,30 +15,31 @@ interface Props {
 
 export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userType, layout }: Props) {
   const [status, setStatus] = useState<SidecarStatus>({ connected: false, message: 'connecting' });
+  const [compactNav, setCompactNav] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     void window.aurict.runtime.getStatus().then(setStatus).catch((error) => setStatus({ connected: false, message: String(error) }));
     return window.aurict.runtime.onStatus(setStatus);
   }, []);
 
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1040px)');
+    const update = () => { setCompactNav(media.matches); if (!media.matches) setMoreOpen(false); };
+    update(); media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  const navigation = navigationFor(userType);
+  const primaryNavigation = compactNav ? navigation.slice(0, 3) : navigation;
+  const overflowNavigation = compactNav ? navigation.slice(3) : [];
+
   return (
     <div
       className="aur-titlebar"
       data-layout={layout}
-      style={{
-        height: 44,
-        minHeight: 44,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 14px 0 16px',
-        background: 'var(--bg-deep)',
-        borderBottom: '1px solid var(--border-subtle)',
-        WebkitAppRegion: 'drag',
-        userSelect: 'none',
-      } as React.CSSProperties}
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="aur-titlebar-left" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <div style={{ display: 'flex', gap: 7 }}>
           <TrafficDot label="Close window" color="var(--titlebar-control)" hoverColor="var(--danger)" onClick={() => window.aurict.window.close()} />
           <TrafficDot label="Minimize window" color="var(--titlebar-control)" hoverColor="var(--warning)" onClick={() => window.aurict.window.minimize()} />
@@ -56,18 +57,9 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
 
       <div
         className="aur-titlebar-nav"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-          maxWidth: 'min(56vw, 760px)', overflowX: 'auto',
-          WebkitAppRegion: 'no-drag',
-          background: 'var(--control-bg)',
-          borderRadius: 7,
-          padding: 3,
-        } as React.CSSProperties}
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
       >
-        {navigationFor(userType).map((item) => (
+        {primaryNavigation.map((item) => (
           <button
             key={item.id}
             aria-current={screen === item.id ? 'page' : undefined}
@@ -87,9 +79,13 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
             {item.label}
           </button>
         ))}
+        {overflowNavigation.length > 0 && <div className="aur-titlebar-more">
+          <button type="button" aria-expanded={moreOpen} aria-haspopup="menu" onClick={() => setMoreOpen((open) => !open)} style={navButtonStyle(false)}>More</button>
+          {moreOpen && <div role="menu" className="aur-titlebar-more-menu">{overflowNavigation.map((item) => <button key={item.id} type="button" role="menuitem" aria-current={screen === item.id ? 'page' : undefined} onClick={() => { onNavigate(item.id); setMoreOpen(false); }}>{item.label}</button>)}</div>}
+        </div>}
       </div>
 
-      <div className="aur-titlebar-status" style={{ display: 'flex', alignItems: 'center', gap: 14, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="aur-titlebar-status" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           className="aur-titlebar-workdir"
           onClick={() => { void onChooseWorkdir().catch((reason) => console.error('Workspace selection failed', reason)); }}
@@ -109,6 +105,8 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
     </div>
   );
 }
+
+function navButtonStyle(active: boolean): React.CSSProperties { return { fontFamily: 'var(--font-mono)', fontSize: 11.5, fontWeight: 600, padding: '6px 14px', border: 'none', borderRadius: 5, cursor: 'pointer', background: active ? 'var(--bg-card)' : 'transparent', color: active ? 'var(--text)' : 'var(--titlebar-muted)' }; }
 
 function TrafficDot({ label, color, hoverColor, onClick }: { label: string; color: string; hoverColor: string; onClick: () => void }) {
   const [hover, setHover] = React.useState(false);

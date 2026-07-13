@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { PermissionRequestPayload, PermissionDecision } from '../../shared/ipc-types.js';
 
 interface Props {
@@ -16,11 +16,21 @@ export function ApprovalModal({ request, onRespond }: Props) {
   const stopProp = (e: React.MouseEvent) => e.stopPropagation();
   const meta = LEVEL_META[request.level ?? 'warning'];
   const denyRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     denyRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onRespond('deny');
+      if (event.key !== 'Tab') return;
+      const controls = dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])');
+      if (!controls?.length) return;
+      const first = controls.item(0); const last = controls.item(controls.length - 1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -28,15 +38,15 @@ export function ApprovalModal({ request, onRespond }: Props) {
 
   return (
     <div
-      onClick={() => onRespond('deny')}
+      onClick={stopProp}
       style={{ position: 'absolute', inset: 0, background: 'oklch(0 0 0 / .55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(2px)' }}
     >
       <div
         aria-modal="true"
         aria-labelledby="aur-approval-title"
-        onClick={stopProp}
+        ref={dialogRef}
         role="dialog"
-        style={{ width: 460, maxWidth: '88%', background: 'var(--bg-card)', border: `1px solid color-mix(in oklch, ${meta.color} 40%, transparent)`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 40px 90px -20px oklch(0 0 0 / .7)' }}
+        style={{ width: 'min(620px, calc(100vw - 40px))', background: 'var(--bg-card)', border: `1px solid color-mix(in oklch, ${meta.color} 40%, transparent)`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 40px 90px -20px oklch(0 0 0 / .7)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -49,9 +59,10 @@ export function ApprovalModal({ request, onRespond }: Props) {
         </div>
         <div style={{ padding: '18px 20px' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 10 }}>{request.tool}</div>
-          <div style={{ background: 'var(--bg-deep)', borderRadius: 8, padding: '13px 15px', fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.85, marginBottom: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 260, overflowY: 'auto' }}>
+          <div style={{ background: 'var(--bg-deep)', borderRadius: 8, padding: '13px 15px', fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.85, marginBottom: 8, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: expanded ? '40vh' : 150, overflowY: 'auto' }}>
             <div style={{ color: 'var(--text)' }}>{request.pattern}</div>
           </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}><button type="button" className="aur-text-action" onClick={() => setExpanded((value) => !value)}>{expanded ? 'show less' : 'show full command'}</button><button type="button" className="aur-text-action" onClick={() => void navigator.clipboard.writeText(request.pattern).then(() => setCopied(true))}>{copied ? 'copied' : 'copy command'}</button></div>
           {(request.summary || request.reason) && (
             <div style={{ fontFamily: 'var(--font-serif)', fontSize: 14.5, lineHeight: 1.55, color: 'var(--text-muted)' }}>
               {request.summary ?? request.reason}

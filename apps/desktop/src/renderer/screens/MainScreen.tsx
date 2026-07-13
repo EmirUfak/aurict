@@ -9,21 +9,21 @@ import { CodeEditorTab } from '../components/CodeEditorTab.js';
 import { ConfirmDialog, PromptDialog } from '../components/Dialog.js';
 import { ToastRegion, useToasts } from '../components/ToastRegion.js';
 import type { usePermission } from '../hooks/usePermission.js';
-import type { DisplayMessage, AssistantBlock } from '../types.js';
-import type { SessionInfo, UserType } from '../../shared/ipc-types.js';
-
+import type { UserType } from '../../shared/ipc-types.js';
+import { ChatTranscript } from '../components/ChatTranscript.js';
+import { ContextDrawer, TaskActivity } from '../components/TaskActivity.js';
+import { CenterTab, PanelTab, SessionMetadata } from '../components/WorkspaceChrome.js';
+import { VirtualSessionList } from '../components/VirtualSessionList.js';
 const selectStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)',
   background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 5,
   padding: '3px 6px', cursor: 'pointer',
 };
-
 const fileActionButtonStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)', fontSize: 10.5, fontWeight: 600, padding: '4px 8px',
   background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-strong)',
   borderRadius: 5, cursor: 'pointer',
 };
-
 const fileIconButtonStyle: React.CSSProperties = {
   minHeight: 22, padding: 0, fontFamily: 'var(--font-mono)', fontSize: 10.5,
   color: 'var(--text-subtle)', background: 'transparent', border: 'none', cursor: 'pointer',
@@ -34,18 +34,6 @@ const LEVEL_META = {
   warning: { color: 'var(--warning)', label: 'warning' },
   danger: { color: 'var(--danger)', label: 'danger' },
 } as const;
-
-function formatRelativeTime(ms: number): string {
-  const diff = Date.now() - ms;
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return 'yesterday';
-  return `${days}d ago`;
-}
 
 interface MainScreenProps {
   permission: ReturnType<typeof usePermission>;
@@ -84,6 +72,10 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [promptKind, setPromptKind] = useState<'file' | 'folder' | null>(null);
   const [promptValue, setPromptValue] = useState('');
+  const [contextOpen, setContextOpen] = useState(false);
+  const [sessionRenameId, setSessionRenameId] = useState<string | null>(null);
+  const [sessionTitleDraft, setSessionTitleDraft] = useState('');
+  const [sessionQuery, setSessionQuery] = useState('');
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
   const profileCopy = PROFILE_COPY[userType === 'designer' ? 'developer' : userType];
   const activeSession = sessions.sessions.find((session) => session.id === sessions.activeId) ?? null;
@@ -178,6 +170,12 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
       showToast('File renamed', 'success');
     });
   };
+  const commitSessionRename = () => {
+    const id = sessionRenameId; const title = sessionTitleDraft.trim();
+    setSessionRenameId(null);
+    if (!id || !title) return;
+    void sessions.rename(id, title).then(() => showToast('Session renamed', 'success')).catch((error) => showToast(error instanceof Error ? error.message : 'Session could not be renamed', 'error'));
+  };
 
   return (
     <div className="aur-developer-layout" style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
@@ -199,56 +197,9 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
         <div style={{ padding: '4px 14px 8px', fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-subtle)' }}>
           sessions
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {sessions.sessions.length === 0 && (
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-subtle)', padding: '8px 10px' }}>
-              no sessions yet
-            </div>
-          )}
-          {sessions.sessions.map((s) => {
-            const active = s.id === sessions.activeId;
-            return (
-              <div
-                key={s.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => sessions.select(s.id)}
-                onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); sessions.select(s.id); } }}
-                style={{
-                  width: '100%', padding: '9px 10px', borderRadius: 6, cursor: 'pointer',
-                  background: active ? 'color-mix(in oklch, var(--accent) 12%, transparent)' : 'transparent',
-                  borderLeft: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: active ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                    {s.title ?? 'untitled session'}
-                  </div>
-                  {active && <span className="aur-pulse" style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />}
-                  <button
-                    type="button"
-                    aria-label={`Delete ${s.title ?? 'session'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmAction({
-                        title: 'Delete session?',
-                        description: `Delete ${s.title ?? 'this session'} and its local conversation history?`,
-                        confirmLabel: 'Delete session',
-                        onConfirm: () => sessions.remove(s.id),
-                      });
-                    }}
-                    style={{ minHeight: 20, padding: 0, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-subtle)', background: 'transparent', border: 'none', flexShrink: 0, cursor: 'pointer' }}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-subtle)', marginTop: 2 }}>
-                  {formatRelativeTime(s.updatedAt)} · {s.turnCount} turn{s.turnCount === 1 ? '' : 's'}{s.lastModel ? ` · ${s.lastModel}` : ''}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <div style={{ padding: '0 14px 8px' }}><input aria-label="Search session history" value={sessionQuery} onChange={(event) => { const value = event.target.value; setSessionQuery(value); void sessions.search(value); }} placeholder="search history" style={{ width: '100%', minHeight: 30, padding: '5px 7px', color: 'var(--text)', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 10.5 }} /></div>
+        {sessionQuery.trim() && <div style={{ maxHeight: 132, overflowY: 'auto', padding: '0 14px 8px' }}>{sessions.searchResults.length === 0 ? <small style={{ color: 'var(--text-subtle)', fontFamily: 'var(--font-mono)' }}>No matching messages.</small> : sessions.searchResults.map((result) => <button key={result.sessionId} type="button" onClick={() => { sessions.select(result.sessionId); setSessionQuery(''); }} style={{ width: '100%', padding: '6px 0', color: 'var(--text-muted)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10.5, textAlign: 'left' }}><b style={{ display: 'block', color: 'var(--text)' }}>{result.title ?? 'untitled session'}</b><span>{result.matchCount} matches · {result.excerpt}</span></button>)}</div>}
+        <VirtualSessionList sessions={sessions.sessions} activeId={sessions.activeId} onSelect={sessions.select} onRename={(session) => { setSessionRenameId(session.id); setSessionTitleDraft(session.title ?? ''); }} onBranch={(session) => { void sessions.branch(session.id).then(() => showToast('Branched session is ready', 'success')).catch((error) => showToast(error instanceof Error ? error.message : 'Session could not be branched', 'error')); }} onArchive={(session) => { void sessions.archive(session.id, session.status !== 'archived').then(() => showToast(session.status === 'archived' ? 'Session restored' : 'Session archived', 'success')).catch((error) => showToast(error instanceof Error ? error.message : 'Session could not be updated', 'error')); }} onRemove={(session) => setConfirmAction({ title: 'Delete session?', description: `Delete ${session.title ?? 'this session'} and its local conversation history?`, confirmLabel: 'Delete session', onConfirm: () => sessions.remove(session.id) })} />
         {activeSession && <SessionMetadata session={activeSession} />}
         <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border-subtle)' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-subtle)', marginBottom: 8 }}>
@@ -276,9 +227,9 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
       {/* CENTER: chat + open file tabs */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, background: 'var(--bg)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '10px 16px 0', borderBottom: '1px solid var(--border-subtle)', overflowX: 'auto' }}>
-          <CenterTabButton label="chat" active={activeCenterTab === 'chat'} onClick={() => setActiveCenterTab('chat')} />
+          <CenterTab label="chat" active={activeCenterTab === 'chat'} onClick={() => setActiveCenterTab('chat')} />
           {openFiles.map((path) => (
-            <CenterTabButton
+            <CenterTab
               key={path}
               label={path.split('/').pop() ?? path}
               active={activeCenterTab === path}
@@ -300,9 +251,8 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
                     {profileCopy.empty}
                   </div>
                 )}
-                {chat.messages.map((m) => (
-                  <ChatBubble key={m.id} message={m} {...(m.role === 'error' ? { onRetry: chat.retryLast } : {})} />
-                ))}
+                <TaskActivity activities={chat.activities} pending={chat.pending} />
+                <ChatTranscript messages={chat.messages} onRetry={chat.retryLast} />
               </div>
             </div>
 
@@ -368,6 +318,7 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
               </select>
+              <button type="button" className="aur-context-button" onClick={() => setContextOpen(true)}>context</button>
               <div style={{ flex: 1 }} />
               {chat.pending && (
                 <>
@@ -386,8 +337,8 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
       {/* RIGHT: files / tasks */}
       <div style={{ width: 268, minWidth: 268, background: 'var(--bg-alt)', borderLeft: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ padding: '12px 14px 0', display: 'flex', alignItems: 'center', gap: 2, borderBottom: '1px solid var(--border-subtle)' }}>
-          <TabButton label="files" active={rightTab === 'files'} onClick={() => setRightTab('files')} />
-          <TabButton label="tasks" active={rightTab === 'tasks'} onClick={() => setRightTab('tasks')} />
+          <PanelTab label="files" active={rightTab === 'files'} onClick={() => setRightTab('files')} />
+          <PanelTab label="tasks" active={rightTab === 'tasks'} onClick={() => setRightTab('tasks')} />
           <div style={{ flex: 1 }} />
           {rightTab === 'tasks' && permission.pendingCount > 0 && (
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, fontWeight: 600, color: 'var(--accent)', background: 'color-mix(in oklch, var(--accent) 16%, transparent)', padding: '2px 7px', borderRadius: 9, margin: '0 10px 8px 0' }}>
@@ -502,131 +453,9 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
           value={promptValue}
         />
       )}
+      {sessionRenameId && <PromptDialog title="Rename session" description="This changes only the local session title." label="Session title" placeholder="Project exploration" confirmLabel="Rename" value={sessionTitleDraft} onCancel={() => setSessionRenameId(null)} onChange={setSessionTitleDraft} onConfirm={commitSessionRename} />}
+      {contextOpen && <ContextDrawer agent={agents.agents.find((agent) => agent.id === agents.agentId)?.name ?? 'Aurict'} provider={providers.providers.find((provider) => provider.id === modelSelection.providerId)?.name ?? 'Not configured'} model={modelSelection.models.find((model) => model.id === modelSelection.modelId)?.name ?? 'Not selected'} session={activeSession?.title ?? 'New local session'} attachments={chat.contextAttachments} sources={chat.contextSources} onClose={() => setContextOpen(false)} />}
       <ToastRegion onDismiss={dismissToast} toasts={toasts} />
-    </div>
-  );
-}
-
-function SessionMetadata({ session }: { session: SessionInfo }) {
-  const totalTokens = session.totalInputTokens + session.totalOutputTokens + session.totalCacheTokens;
-  return <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border-subtle)', display: 'grid', gap: 4 }}>
-    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-subtle)' }}>session metadata</div>
-    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, lineHeight: 1.45, color: 'var(--text-muted)' }}>status: {session.status} · updated {formatRelativeTime(session.updatedAt)}</div>
-    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, lineHeight: 1.45, color: 'var(--text-muted)' }}>{session.provider ?? 'provider unknown'} · {session.lastModel ?? 'model pending'}</div>
-    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, lineHeight: 1.45, color: 'var(--text-muted)' }}>{totalTokens.toLocaleString()} tokens · ${session.accumulatedCostUsd.toFixed(4)} cost</div>
-    {session.parentId && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-subtle)' }}>child of {session.parentId.slice(0, 12)}</div>}
-  </div>;
-}
-
-function TabButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, padding: '8px 4px', marginRight: 16,
-        border: 'none', borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`, cursor: 'pointer',
-        background: 'transparent', color: active ? 'var(--text)' : 'var(--text-muted)',
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function CenterTabButton({ label, active, dirty, onClick, onClose }: { label: string; active: boolean; dirty?: boolean; onClick: () => void; onClose?: () => void }) {
-  return (
-    <div
-      onClick={onClick}
-      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); } }}
-      aria-selected={active}
-      role="tab"
-      tabIndex={0}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', marginRight: 2,
-        borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`, cursor: 'pointer', whiteSpace: 'nowrap',
-      }}
-    >
-      {dirty && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />}
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, fontWeight: 600, color: active ? 'var(--text)' : 'var(--text-muted)' }}>
-        {label}
-      </span>
-      {onClose && (
-        <button
-          aria-label={`Close ${label}`}
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
-          style={{ minHeight: 20, padding: 0, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-subtle)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-        >
-          ×
-        </button>
-      )}
-    </div>
-  );
-}
-
-function ChatBubble({ message, onRetry }: { message: DisplayMessage; onRetry?: () => boolean }) {
-  if (message.role === 'user') {
-    return (
-      <div style={{ alignSelf: 'flex-end', maxWidth: '78%' }}>
-        <div style={{ background: 'var(--bg-card)', borderRadius: '10px 10px 2px 10px', padding: '12px 16px', fontFamily: 'var(--font-serif)', fontSize: 15.5, lineHeight: 1.55, color: 'var(--text)' }}>
-          {message.content}
-        </div>
-      </div>
-    );
-  }
-  if (message.role === 'error') {
-    return (
-      <div style={{ maxWidth: '92%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--danger)' }}>
-          <span>{message.content}</span>
-          {onRetry && <button className="aur-text-action" onClick={onRetry} style={{ marginTop: 0 }}>retry last task</button>}
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div style={{ maxWidth: '88%' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>aurict</span>
-        {message.pending && <span className="aur-pulse" style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }} />}
-        <CopyMessageButton message={message} />
-      </div>
-      {(message.blocks ?? []).map((block, i) => (
-        <AssistantBlockView key={i} block={block} />
-      ))}
-    </div>
-  );
-}
-
-function CopyMessageButton({ message }: { message: DisplayMessage }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    const text = (message.blocks ?? []).map((block) => block.type === 'text' ? block.content : `${block.tool}: ${block.result ?? block.argsSummary}`).join('\n\n').trim();
-    if (!text) return;
-    void navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1_800);
-    }).catch((error: unknown) => console.error('Failed to copy assistant message', error));
-  };
-  return <button type="button" onClick={copy} style={{ minHeight: 20, marginLeft: 'auto', padding: '0 3px', color: 'var(--text-subtle)', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10.5 }}>{copied ? 'copied' : 'copy'}</button>;
-}
-
-function AssistantBlockView({ block }: { block: AssistantBlock }) {
-  if (block.type === 'text') {
-    return <div style={{ fontFamily: 'var(--font-serif)', fontSize: 15.5, lineHeight: 1.62, color: 'var(--text-muted)', marginBottom: 10, whiteSpace: 'pre-wrap' }}>{block.content}</div>;
-  }
-  return (
-    <div style={{ background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 14px' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-muted)' }}>{block.tool} · {block.argsSummary}</div>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: block.pending ? 'var(--accent)' : 'var(--text-subtle)' }}>
-          {block.pending ? 'running…' : block.durationMs !== undefined ? `${block.durationMs}ms` : 'done'}
-        </div>
-      </div>
-      {block.result && (
-        <div style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: 12.5, lineHeight: 1.7, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 220, overflowY: 'auto', borderTop: '1px solid var(--border-subtle)' }}>
-          {block.result}
-        </div>
-      )}
     </div>
   );
 }

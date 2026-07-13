@@ -11,7 +11,7 @@ export interface ChatAttachment {
 export type ArtifactKind = 'pdf' | 'html' | 'image' | 'markdown' | 'code' | 'table' | 'document' | 'unknown';
 export type ArtifactLifecycle = 'generating' | 'ready' | 'failed' | 'unavailable';
 export type ArtifactSource = 'workspace' | 'aurict-managed';
-export interface ArtifactInfo { id: string; title: string; kind: ArtifactKind; lifecycle: ArtifactLifecycle; source: ArtifactSource; workspace: string; mimeType?: string; createdAt: number; updatedAt: number; sessionId?: string; tool?: string; prompt?: string; error?: string; }
+export interface ArtifactInfo { id: string; title: string; kind: ArtifactKind; lifecycle: ArtifactLifecycle; source: ArtifactSource; workspace: string; mimeType?: string; createdAt: number; updatedAt: number; sessionId?: string; tool?: string; prompt?: string; error?: string; previousId?: string; }
 
 export interface ChatSubmitPayload {
   text: string;
@@ -97,6 +97,7 @@ export interface SessionMessage {
   role: 'user' | 'assistant';
   content: string;
 }
+export interface SessionSearchResult { sessionId: string; title: string | null; updatedAt: number; matchCount: number; excerpt: string; }
 
 export interface SkillInfo {
   id: string;
@@ -309,6 +310,10 @@ export interface AurictWindowApi {
     list(): Promise<SessionInfo[]>;
     select(id: string): Promise<SessionMessage[]>;
     create(): Promise<string>;
+    rename(id: string, title: string): Promise<{ id: string; title: string }>;
+    archive(id: string, archived: boolean): Promise<{ id: string; archived: boolean }>;
+    branch(id: string): Promise<{ id: string; messages: SessionMessage[] }>;
+    search(query: string): Promise<SessionSearchResult[]>;
     remove(id: string): Promise<{ wasActive: boolean }>;
   };
   skills: {
@@ -372,6 +377,9 @@ export interface AurictWindowApi {
   artifact: {
     list(): Promise<ArtifactInfo[]>;
     previewUrl(id: string): Promise<string>;
+    reveal(id: string): Promise<void>;
+    readText(id: string): Promise<string>;
+    export(id: string): Promise<boolean>;
   };
   memory: {
     list(): Promise<MemoryInfo[]>;
@@ -395,6 +403,10 @@ export type SidecarCommand =
   | { type: 'session:list' }
   | { type: 'session:select'; id: string }
   | { type: 'session:new' }
+  | { type: 'session:rename'; id: string; title: string }
+  | { type: 'session:archive'; id: string; archived: boolean }
+  | { type: 'session:branch'; id: string }
+  | { type: 'session:search'; query: string }
   | { type: 'session:delete'; id: string }
   | { type: 'skills:list' }
   | { type: 'skills:install'; url: string }
@@ -424,6 +436,10 @@ export type SidecarMessage =
   | { type: 'session:list-result'; sessions: SessionInfo[] }
   | { type: 'session:select-result'; messages: SessionMessage[] }
   | { type: 'session:new-result'; id: string }
+  | { type: 'session:rename-result'; id: string; title: string }
+  | { type: 'session:archive-result'; id: string; archived: boolean }
+  | { type: 'session:branch-result'; id: string; messages: SessionMessage[] }
+  | { type: 'session:search-result'; results: SessionSearchResult[] }
   | { type: 'session:delete-result'; id: string; wasActive: boolean }
   | { type: 'skills:list-result'; skills: SkillInfo[] }
   | { type: 'skills:install-result'; result: { id: string; name: string } | { error: string } }

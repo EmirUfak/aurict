@@ -5,6 +5,7 @@ import { useAgents } from '../hooks/useAgents.js';
 import type { ColorMode, ExperienceLayout, ExperienceTheme, FontPair, UserProfile, UserType } from '../../shared/ipc-types.js';
 import type { RemoteStatus } from '../../shared/ipc-types.js';
 import { createProfile, FONT_OPTIONS, layoutOptions, THEME_OPTIONS, USER_TYPE_OPTIONS } from '../experience/registry.js';
+import { DEFAULT_SHORTCUTS, eventShortcut, readShortcuts, saveShortcuts, type ShortcutAction } from '../shortcuts.js';
 
 const COMING_SOON_POLICY = [
   { label: 'Warn on cross-directory writes', desc: 'apply_patch outside the active allowlist' },
@@ -33,7 +34,10 @@ export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, wo
   const [keyDraft, setKeyDraft] = useState('');
   const [providerMessage, setProviderMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
-  const [section, setSection] = useState<'appearance' | 'account' | 'providers' | 'safety' | 'agents'>('appearance');
+  const [section, setSection] = useState<'appearance' | 'account' | 'providers' | 'safety' | 'agents' | 'keyboard'>('appearance');
+  const [query, setQuery] = useState('');
+  const sections = [['appearance', 'appearance'], ['account', 'account & remote'], ['providers', 'providers'], ['safety', 'safety'], ['agents', 'agents & onboarding'], ['keyboard', 'keyboard shortcuts']] as const;
+  const visibleSections = sections.filter(([, label]) => label.includes(query.trim().toLowerCase()));
 
   const submitKey = async (providerId: string) => {
     if (!keyDraft.trim()) return;
@@ -52,7 +56,8 @@ export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, wo
   return (
     <div className="aur-settings-shell">
       <nav className="aur-settings-nav" aria-label="Settings sections">
-        {([['appearance', 'appearance'], ['account', 'account & remote'], ['providers', 'providers'], ['safety', 'safety'], ['agents', 'agents & onboarding']] as const).map(([id, label]) => <button key={id} type="button" aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}>{label}</button>)}
+        <input aria-label="Search settings" value={query} onChange={(event) => setQuery(event.target.value.toLowerCase())} placeholder="search settings" />
+        {visibleSections.map(([id, label]) => <button key={id} type="button" aria-current={section === id ? 'page' : undefined} onClick={() => setSection(id)}>{label}</button>)}
       </nav>
       <div className="aur-settings-content">
         <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 28, color: 'var(--text)', margin: '0 0 6px' }}>
@@ -181,9 +186,16 @@ export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, wo
           {resetError && <div role="alert" className="aur-inline-error">{resetError}</div>}
         </div>
         </>}
+        {section === 'keyboard' && <KeyboardSettings />}
       </div>
     </div>
   );
+}
+
+function KeyboardSettings() {
+  const [shortcuts, setShortcuts] = useState(readShortcuts);
+  const update = (action: ShortcutAction, value: string) => { const next = { ...shortcuts, [action]: value }; if (Object.entries(next).some(([key, shortcut]) => key !== action && shortcut === value)) return; setShortcuts(next); saveShortcuts(next); };
+  return <section aria-labelledby="keyboard-heading"><div id="keyboard-heading" style={sectionHeading}>keyboard shortcuts</div><p style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-muted)' }}>Select a shortcut, then press the new combination. Conflicting assignments are ignored.</p><div style={{ display: 'grid', gap: 1, background: 'var(--control-bg)', borderRadius: 8, overflow: 'hidden' }}>{(Object.entries(shortcuts) as Array<[ShortcutAction, string]>).map(([action, shortcut]) => <label key={action} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 14px', background: 'var(--bg-card)', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text)' }}><span>{action.replace(/([A-Z])/g, ' $1').toLowerCase()}</span><input readOnly value={shortcut} onKeyDown={(event) => { event.preventDefault(); update(action, eventShortcut(event.nativeEvent)); }} style={{ width: 120, padding: '5px 7px', color: 'var(--text)', background: 'var(--bg-deep)', border: '1px solid var(--border-strong)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 11, textAlign: 'center' }} /></label>)}</div><button type="button" className="aur-button" style={{ marginTop: 14 }} onClick={() => { setShortcuts(DEFAULT_SHORTCUTS); saveShortcuts(DEFAULT_SHORTCUTS); }}>Reset defaults</button></section>;
 }
 
 function WorkspaceSettings({ workspace, error, onChooseWorkspace }: { workspace: string; error: string | null; onChooseWorkspace: () => Promise<unknown> }) {

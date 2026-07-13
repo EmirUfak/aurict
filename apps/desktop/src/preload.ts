@@ -10,6 +10,7 @@ import type {
   CustomProviderDef,
   SessionInfo,
   SessionMessage,
+  SessionSearchResult,
   SkillInfo,
   FileTreeEntry,
   ModelInfo,
@@ -74,6 +75,10 @@ const api: AurictWindowApi = {
     list: () => ipcRenderer.invoke('session:list') as Promise<SessionInfo[]>,
     select: (id: string) => ipcRenderer.invoke('session:select', { id }) as Promise<SessionMessage[]>,
     create: () => ipcRenderer.invoke('session:new') as Promise<string>,
+    rename: (id: string, title: string) => ipcRenderer.invoke('session:rename', { id, title }) as Promise<{ id: string; title: string }>,
+    archive: (id: string, archived: boolean) => ipcRenderer.invoke('session:archive', { id, archived }) as Promise<{ id: string; archived: boolean }>,
+    branch: (id: string) => ipcRenderer.invoke('session:branch', id) as Promise<{ id: string; messages: SessionMessage[] }>,
+    search: (query: string) => ipcRenderer.invoke('session:search', query) as Promise<SessionSearchResult[]>,
     remove: (id: string) => ipcRenderer.invoke('session:delete', id) as Promise<{ wasActive: boolean }>,
   },
   skills: {
@@ -147,6 +152,9 @@ const api: AurictWindowApi = {
   artifact: {
     list: () => ipcRenderer.invoke('artifact:list') as Promise<ArtifactInfo[]>,
     previewUrl: (id: string) => ipcRenderer.invoke('artifact:preview-url', id) as Promise<string>,
+    reveal: (id: string) => ipcRenderer.invoke('artifact:reveal', id) as Promise<void>,
+    readText: (id: string) => ipcRenderer.invoke('artifact:read-text', id) as Promise<string>,
+    export: (id: string) => ipcRenderer.invoke('artifact:export', id) as Promise<boolean>,
   },
   memory: {
     list: () => ipcRenderer.invoke('memory:list') as Promise<MemoryInfo[]>,

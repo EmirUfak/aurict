@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { UserType } from '../../shared/ipc-types.js';
 import type { useChat } from '../hooks/useChat.js';
 import { ModelSelector } from '../components/ModelSelector.js';
+import { TaskActivity } from '../components/TaskActivity.js';
 import { displayMessageText } from '../types.js';
 
 type Role = Extract<UserType, 'product' | 'operator'>;
@@ -60,6 +61,7 @@ export function RoleWorkspaceScreen({ role, chat, onOpenDesign }: Props) {
         <div><span>{chat.pending ? chat.statusMessage ?? 'Aurict is working…' : 'Enter to send · Shift+Enter for a new line'}</span><button type="button" className="aur-button aur-button-primary" disabled={!draft.trim() || chat.pending} onClick={submit}>{chat.pending ? 'working…' : 'send'}</button></div>
         <ModelSelector />
       </div>
+      {(chat.pending || chat.activities.length > 0) && <TaskActivity activities={chat.activities} pending={chat.pending} />}
       {recent.length > 0 && <div className="aur-role-recent">{recent.map((message) => <article key={message.id} data-role={message.role}><small>{message.role}</small><p>{displayMessageText(message) || (message.pending ? 'Working…' : '')}</p></article>)}</div>}
     </section>
   </main>;

@@ -1,7 +1,7 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron';
 import path from 'node:path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { readdirSync, readFileSync, writeFileSync, existsSync, statSync, unlinkSync, renameSync, mkdirSync, openSync, closeSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync, statSync, unlinkSync, renameSync, mkdirSync, openSync, closeSync, copyFileSync } from 'node:fs';
 import started from 'electron-squirrel-startup';
 import type {
   SidecarCommand,
@@ -9,6 +9,7 @@ import type {
   ProviderInfo,
   SessionInfo,
   SessionMessage,
+  SessionSearchResult,
   SkillInfo,
   PermissionDecision,
   CustomProviderDef,
@@ -124,6 +125,10 @@ const pendingProviderList: PendingQueue<ProviderInfo[]> = [];
 const pendingSessionList: PendingQueue<SessionInfo[]> = [];
 const pendingSessionSelect: PendingQueue<SessionMessage[]> = [];
 const pendingSessionNew: PendingQueue<string> = [];
+const pendingSessionRename: PendingQueue<{ id: string; title: string }> = [];
+const pendingSessionArchive: PendingQueue<{ id: string; archived: boolean }> = [];
+const pendingSessionBranch: PendingQueue<{ id: string; messages: SessionMessage[] }> = [];
+const pendingSessionSearch: PendingQueue<SessionSearchResult[]> = [];
 const pendingSessionDelete: PendingQueue<{ wasActive: boolean }> = [];
 const pendingSkillsList: PendingQueue<SkillInfo[]> = [];
 const pendingModelList: PendingQueue<ModelInfo[]> = [];
@@ -305,6 +310,18 @@ function handleSidecarMessage(msg: SidecarMessage): void {
     case 'session:new-result':
       resolveNext(pendingSessionNew, msg.id);
       return;
+    case 'session:rename-result':
+      resolveNext(pendingSessionRename, { id: msg.id, title: msg.title });
+      return;
+    case 'session:archive-result':
+      resolveNext(pendingSessionArchive, { id: msg.id, archived: msg.archived });
+      return;
+    case 'session:branch-result':
+      resolveNext(pendingSessionBranch, { id: msg.id, messages: msg.messages });
+      return;
+    case 'session:search-result':
+      resolveNext(pendingSessionSearch, msg.results);
+      return;
     case 'session:delete-result':
       resolveNext(pendingSessionDelete, { wasActive: msg.wasActive });
       return;
@@ -474,6 +491,14 @@ ipcMain.handle('session:select', (_e, { id }: { id: string }) => {
 ipcMain.handle('session:new', () => {
   return requestFromSidecar(pendingSessionNew, 'New session', () => sendToSidecar({ type: 'session:new' }));
 });
+ipcMain.handle('session:rename', (_e, { id, title }: { id: string; title: string }) => {
+  return requestFromSidecar(pendingSessionRename, 'Session rename', () => sendToSidecar({ type: 'session:rename', id, title }));
+});
+ipcMain.handle('session:archive', (_e, { id, archived }: { id: string; archived: boolean }) => {
+  return requestFromSidecar(pendingSessionArchive, 'Session archive', () => sendToSidecar({ type: 'session:archive', id, archived }));
+});
+ipcMain.handle('session:branch', (_e, id: string) => requestFromSidecar(pendingSessionBranch, 'Session branch', () => sendToSidecar({ type: 'session:branch', id })));
+ipcMain.handle('session:search', (_e, query: string) => requestFromSidecar(pendingSessionSearch, 'Session search', () => sendToSidecar({ type: 'session:search', query })));
 ipcMain.handle('session:delete', (_e, id: string) => {
   return requestFromSidecar(pendingSessionDelete, 'Delete session', () => sendToSidecar({ type: 'session:delete', id }));
 });
@@ -616,6 +641,24 @@ ipcMain.handle('artifact:list', () => artifactStore.list());
 ipcMain.handle('artifact:preview-url', (_event, id: string) => {
   artifactStore.resolve(id);
   return `aurict-artifact://${encodeURIComponent(id)}`;
+});
+ipcMain.handle('artifact:reveal', (_event, id: string) => {
+  const artifact = artifactStore.resolve(id);
+  shell.showItemInFolder(artifact.path);
+});
+ipcMain.handle('artifact:read-text', (_event, id: string) => {
+  const artifact = artifactStore.resolve(id);
+  if (!['markdown', 'code', 'table', 'document'].includes(artifact.kind)) {
+    throw new Error('This artifact cannot be copied as text.');
+  }
+  return readFileSync(artifact.path, 'utf8');
+});
+ipcMain.handle('artifact:export', async (_event, id: string) => {
+  const artifact = artifactStore.resolve(id);
+  const result = mainWindow ? await dialog.showSaveDialog(mainWindow, { defaultPath: artifact.title }) : await dialog.showSaveDialog({ defaultPath: artifact.title });
+  if (result.canceled || !result.filePath) return false;
+  copyFileSync(artifact.path, result.filePath);
+  return true;
 });
 ipcMain.handle('runtime:retry', () => {
   restartAttempts = 0;

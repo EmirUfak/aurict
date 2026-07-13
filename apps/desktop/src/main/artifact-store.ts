@@ -21,7 +21,10 @@ export function createArtifactStore(userDataPath: () => string, workspace: () =>
   return {
     register(record: ArtifactInfo & { path: string }) {
       if (!within(record.path, record.source === 'workspace' ? workspace() : userDataPath())) throw new Error(`Artifact path is outside its approved root: ${record.id}`);
-      const records = read().filter((item) => item.id !== record.id); records.unshift(record); save(records); return record;
+      const records = read().filter((item) => item.id !== record.id);
+      const prior = records.find((item) => item.title === record.title && item.kind === record.kind && item.sessionId === record.sessionId);
+      const versioned = record.previousId || !prior ? record : { ...record, previousId: prior.id };
+      records.unshift(versioned); save(records); return versioned;
     },
     list(): ArtifactInfo[] {
       return read().map((record) => {

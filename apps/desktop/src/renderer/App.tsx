@@ -20,6 +20,7 @@ import { applyAppearance } from './experience/appearance.js';
 import { AppStateScreen } from './components/AppStateScreen.js';
 import { ArtifactRail } from './components/ArtifactRail.js';
 import { useArtifacts } from './hooks/useArtifacts.js';
+import { eventShortcut, readShortcuts, screenForShortcut, type ShortcutAction } from './shortcuts.js';
 
 function startScreen(layout: ExperienceLayout): Screen {
   if (layout === 'design') return 'design';
@@ -49,6 +50,17 @@ export function App() {
       hasAppliedInitialScreen.current = true;
     }
   }, [onboarding.profile]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement | null)?.matches('input, textarea, select')) return;
+      const match = (Object.entries(readShortcuts()) as Array<[ShortcutAction, string]>).find(([, shortcut]) => shortcut === eventShortcut(event));
+      if (!match) return;
+      event.preventDefault();
+      if (match[0] === 'newSession') sessions.create(); else { const next = screenForShortcut(match[0]); if (next) setScreen(next); }
+    };
+    window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown);
+  }, [sessions]);
 
   useEffect(() => {
     const profile = onboarding.profile;
@@ -101,7 +113,7 @@ export function App() {
       {permission.current && (
         <ApprovalModal request={permission.current} onRespond={permission.respond} />
       )}
-      <ArtifactRail artifacts={artifacts.artifacts} activeId={artifacts.activeId} open={artifacts.open} onClose={() => artifacts.setOpen(false)} onSelect={artifacts.select} />
+      <ArtifactRail artifacts={artifacts.artifacts} activeId={artifacts.activeId} open={artifacts.open} onClose={() => artifacts.setOpen(false)} onSelect={artifacts.select} onRetry={(artifact) => { if (artifact.prompt) chat.submit(artifact.prompt, undefined, artifact.id, `Retry artifact: ${artifact.title}`, 'iterate'); }} />
     </div>
   );
 }
