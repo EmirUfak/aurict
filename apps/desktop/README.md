@@ -45,10 +45,10 @@ Gatekeeper warning. The ephemeral Windows beta certificate is generated only
 inside the CI run and is never committed or reused. Do not ask users to add it
 to their trusted root store.
 
-`electron-winstaller` selects its host-architecture 7-Zip binary during its
-install lifecycle script. As it is a transitive optional dependency, the
-Windows workflow runs that upstream selector explicitly before invoking the
-Squirrel maker and verifies the generated `vendor/7z.exe` file.
+`electron-winstaller` is a direct root development dependency because the
+Windows release workflow needs its host-architecture 7-Zip selector. The
+workflow runs that upstream selector explicitly before invoking the Squirrel
+maker and verifies the generated `vendor/7z.exe` file.
 
 ## Local data
 
