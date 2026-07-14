@@ -55,8 +55,8 @@ const SOURCE_FILES: Array<{ path: string; pattern: RegExp; replace: string }> = 
     replace: `v${version} · AGPLv3`,
   },
   {
-    path: "apps/web/src/app/page.tsx",
-    pattern: /"softwareVersion":(\s*)"\d+\.\d+\.\d+"/,
+    path: "apps/web/src/content/home-translations.ts",
+    pattern: /"softwareVersion":(\s*)"\d+\.\d+\.\d+"/g,
     replace: `"softwareVersion":$1"${version}"`,
   },
 ]

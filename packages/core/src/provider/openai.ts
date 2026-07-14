@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, type ModelInfo } from "./plugin.js"
+import { getCachedModels } from "./models-fetch.js"
 
 export class OpenAIPlugin extends ProviderPlugin {
   readonly id      = "openai"
@@ -29,6 +30,10 @@ export class OpenAIPlugin extends ProviderPlugin {
       { id: "o4-mini",      name: "o4 Mini",       contextWindow: 200_000, maxOutput: 100_000, supportsTools: true, supportsVision: true,  supportsThinking: true  },
       { id: "gpt-4-turbo",  name: "GPT-4 Turbo",  contextWindow: 128_000, maxOutput: 4_096,   supportsTools: true, supportsVision: true,  supportsThinking: false },
     ]
+  }
+
+  override async listModelsRemote(): Promise<ModelInfo[]> {
+    return getCachedModels("openai", "https://api.openai.com/v1/models", process.env["OPENAI_API_KEY"] ?? "")
   }
 
   tokenizerEncoding(modelId: string): string {

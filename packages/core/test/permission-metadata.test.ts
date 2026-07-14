@@ -4,6 +4,7 @@ import { join } from "path"
 import { mkdirSync, rmSync } from "fs"
 import { executeTool, ExecutorEvents, PermissionGate, PermissionStore } from "../src/index.js"
 import { bashTool } from "../src/tool/built-in/bash.js"
+import { marketDataTool } from "../src/tool/built-in/market-data.js"
 import { writeTool } from "../src/tool/built-in/write.js"
 import type { PermissionRequest } from "../src/index.js"
 
@@ -58,6 +59,30 @@ describe("permission request metadata", () => {
 
     expect(result.error).toBeUndefined()
     expect(asked).toBe(false)
+  })
+
+  it("marks low-risk Aurict Modules requests safe for desktop auto-approval", async () => {
+    let seen: PermissionRequest | null = null
+    const off = ExecutorEvents.on((event) => {
+      seen = event.request
+      PermissionGate.respond(event.request.id, "deny")
+    })
+
+    const result = await executeTool(
+      marketDataTool,
+      { action: "tlref_latest" },
+      {
+        workdir: tmpdir(),
+        sessionId: "test",
+        signal: new AbortController().signal,
+      },
+    )
+
+    off()
+
+    expect(result.error).toContain("Permission denied by user")
+    expect(seen?.tool).toBe("market_data")
+    expect(seen?.level).toBe("safe")
   })
 
   it("allow_directory remembers the normalized parent directory for later writes", async () => {

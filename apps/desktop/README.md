@@ -125,12 +125,20 @@ readable.
 
 For conversation quality, simulate a failed task and confirm the assistant
 turn stops showing as active, the error exposes **retry last task**, and a
-completed response can be copied. For Design Studio, exercise workflow
+completed response can be copied. On Home, Workspace, Product Hub, and
+Operations Desk, confirm the composer remains at the bottom, a response
+follows the latest turn while the reader is at the bottom, and manually
+scrolling upward stops that follow until **latest ↓** is chosen. For Design Studio, exercise workflow
 matching, reference-image selection, refresh, a failed artifact retry, and
 Escape dismissal of its sandboxed preview. For Finance Desk, exercise a
 research template, a calculation reset, copying an exact calculation record,
 newest-history selection, and confirmation before deleting local research or
 calculation records.
+
+**Auto-allow safe commands** is enabled by default for a new installation.
+Confirm that low-risk Aurict data requests proceed without a modal while
+writes, destructive commands, and warning-level requests still require an
+explicit approval.
 
 For the role and recovery pass, complete onboarding for every user type and
 confirm that each type’s recommended layout, live theme, color mode, and font

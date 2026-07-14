@@ -40,6 +40,13 @@ export function resolveNext<T>(queue: PendingQueue<T>, value: T): void {
   pending.resolve(value);
 }
 
+export function rejectNext<T>(queue: PendingQueue<T>, error: Error): void {
+  const pending = queue.shift();
+  if (!pending) return;
+  clearTimeout(pending.timeout);
+  pending.reject(error);
+}
+
 export function rejectQueue<T>(queue: PendingQueue<T>, error: Error): void {
   for (const pending of queue.splice(0)) {
     clearTimeout(pending.timeout);

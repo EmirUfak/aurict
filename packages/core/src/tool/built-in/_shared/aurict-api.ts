@@ -19,6 +19,7 @@ export type AurictApiTarget = "modules" | "backend"
 export type AurictApiResult<T> =
   | { kind: "success"; data: T }
   | { kind: "not_authenticated" }
+  | { kind: "authorization_rejected"; target: AurictApiTarget }
   | { kind: "unavailable"; detail: string }
   | { kind: "error"; status: number; detail: string }
 
@@ -52,7 +53,7 @@ export async function callAurictApi<T>(
     clearTimeout(timer)
   }
 
-  if (response.status === 401) return { kind: "not_authenticated" }
+  if (response.status === 401) return { kind: "authorization_rejected", target }
   if (response.status === 502 || response.status === 503 || response.status === 504) {
     return { kind: "unavailable", detail: `HTTP ${response.status}` }
   }
@@ -85,11 +86,13 @@ function extractErrorDetail(body: unknown, status: number): string {
   return `HTTP ${status}`
 }
 
-/** not_authenticated/unavailable/error sonuçları için tutarlı, kullanıcıya gösterilebilir mesaj. */
+/** Auth, erişim ve servis hataları için tutarlı, kullanıcıya gösterilebilir mesaj. */
 export function describeAurictApiFailure(result: Exclude<AurictApiResult<unknown>, { kind: "success" }>): string {
   switch (result.kind) {
     case "not_authenticated":
       return "Kullanıcı Aurict hesabına giriş yapmamış (veya oturumun süresi dolmuş). Bu veriye erişmek için önce giriş yapması gerekiyor — kullanıcıya bunu açıkça söyle, veriyi uydurma."
+    case "authorization_rejected":
+      return `Kullanıcı Aurict hesabında oturum açmış görünüyor, ancak ${result.target === "modules" ? "veri servisi" : "Aurict API"} bu oturum belirtecini HTTP 401 ile reddetti. Bu, giriş yapılmadığı anlamına gelmez; servis tarafındaki belirteç doğrulaması veya yetki yapılandırması incelenmeli.`
     case "unavailable":
       return `Veri servisine şu an ulaşılamıyor (${result.detail}). Kullanıcıya servisin geçici olarak erişilemez olduğunu söyle, aynı sorguyu art arda tekrar deneme.`
     case "error":

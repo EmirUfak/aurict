@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import type { UserType } from '../../shared/ipc-types.js';
 import type { useChat } from '../hooks/useChat.js';
 import { ModelSelector } from '../components/ModelSelector.js';
-import { TaskActivity } from '../components/TaskActivity.js';
-import { displayMessageText } from '../types.js';
+import { ChatTimeline } from '../components/ChatTimeline.js';
 
 type Role = Extract<UserType, 'product' | 'operator'>;
 
@@ -35,7 +34,6 @@ interface Props { role: Role; chat: ReturnType<typeof useChat>; onOpenDesign: ()
 export function RoleWorkspaceScreen({ role, chat, onOpenDesign }: Props) {
   const content = CONTENT[role];
   const [draft, setDraft] = useState('');
-  const recent = useMemo(() => chat.messages.slice(-4), [chat.messages]);
   const submit = () => {
     const value = draft.trim();
     if (!value || chat.pending) return;
@@ -44,25 +42,20 @@ export function RoleWorkspaceScreen({ role, chat, onOpenDesign }: Props) {
   };
 
   return <main className="aur-role-workspace">
-    <section className="aur-role-hero">
-      <div className="aur-role-eyebrow">{content.eyebrow}</div>
-      <h1>{content.title}</h1>
-      <p>{content.detail}</p>
-      <div className="aur-role-templates">
-        {content.templates.map((template) => <button key={template.title} type="button" onClick={() => setDraft(template.prompt)}>
-          <strong>{template.title}</strong><span>{template.detail}</span>
-        </button>)}
-      </div>
-      {role === 'product' && <button type="button" className="aur-text-action" onClick={onOpenDesign}>Open Design Studio for a prototype →</button>}
-    </section>
+    <ChatTimeline
+      activities={chat.activities}
+      contentStyle={{ maxWidth: 920, padding: 'clamp(28px, 5vw, 72px) clamp(20px, 6vw, 96px) 32px' }}
+      intro={<section className="aur-role-hero"><div className="aur-role-eyebrow">{content.eyebrow}</div><h1>{content.title}</h1><p>{content.detail}</p><div className="aur-role-templates">{content.templates.map((template) => <button key={template.title} type="button" onClick={() => setDraft(template.prompt)}><strong>{template.title}</strong><span>{template.detail}</span></button>)}</div>{role === 'product' && <button type="button" className="aur-text-action" onClick={onOpenDesign}>Open Design Studio for a prototype →</button>}</section>}
+      messages={chat.messages}
+      onRetry={chat.retryLast}
+      pending={chat.pending}
+    />
     <section className="aur-role-conversation" aria-label="Working conversation">
       <div className="aur-role-composer">
         <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submit(); } }} placeholder={content.placeholder} rows={3} />
         <div><span>{chat.pending ? chat.statusMessage ?? 'Aurict is working…' : 'Enter to send · Shift+Enter for a new line'}</span><button type="button" className="aur-button aur-button-primary" disabled={!draft.trim() || chat.pending} onClick={submit}>{chat.pending ? 'working…' : 'send'}</button></div>
         <ModelSelector />
       </div>
-      {(chat.pending || chat.activities.length > 0) && <TaskActivity activities={chat.activities} pending={chat.pending} />}
-      {recent.length > 0 && <div className="aur-role-recent">{recent.map((message) => <article key={message.id} data-role={message.role}><small>{message.role}</small><p>{displayMessageText(message) || (message.pending ? 'Working…' : '')}</p></article>)}</div>}
     </section>
   </main>;
 }

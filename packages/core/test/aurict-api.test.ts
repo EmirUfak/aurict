@@ -52,9 +52,9 @@ describe('callAurictApi', () => {
     expect(result.kind).toBe('not_authenticated')
   })
 
-  it('returns not_authenticated on HTTP 401', async () => {
+  it('distinguishes an HTTP 401 from a missing local session token', async () => {
     const result = await callAurictApi(fakeCtx(), 'modules', '/unauthorized')
-    expect(result.kind).toBe('not_authenticated')
+    expect(result).toEqual({ kind: 'authorization_rejected', target: 'modules' })
   })
 
   it('returns unavailable on 502/503/504', async () => {
@@ -112,11 +112,13 @@ describe('callAurictApi', () => {
 describe('describeAurictApiFailure', () => {
   it('produces a distinct, human-readable message per failure kind', () => {
     const notAuth = describeAurictApiFailure({ kind: 'not_authenticated' })
+    const rejected = describeAurictApiFailure({ kind: 'authorization_rejected', target: 'modules' })
     const unavailable = describeAurictApiFailure({ kind: 'unavailable', detail: 'timeout' })
     const error = describeAurictApiFailure({ kind: 'error', status: 500, detail: 'oops' })
     expect(notAuth).toContain('giriş yapmamış')
+    expect(rejected).toContain('oturum açmış')
     expect(unavailable).toContain('ulaşılamıyor')
     expect(error).toContain('500')
-    expect(new Set([notAuth, unavailable, error]).size).toBe(3)
+    expect(new Set([notAuth, rejected, unavailable, error]).size).toBe(4)
   })
 })

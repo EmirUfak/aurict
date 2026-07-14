@@ -445,6 +445,7 @@ export type SidecarMessage =
   | { type: 'skills:install-result'; result: { id: string; name: string } | { error: string } }
   | { type: 'skills:uninstall-result'; ok: boolean }
   | { type: 'model:list-result'; models: ModelInfo[] }
+  | { type: 'model:list-error'; message: string }
   | { type: 'model:current-result'; providerId: string; modelId: string }
   | { type: 'agents:list-result'; agents: SessionAgentInfo[] }
   | { type: 'design:list-systems-result'; systems: DesignSystemInfo[] }

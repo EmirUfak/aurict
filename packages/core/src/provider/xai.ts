@@ -1,6 +1,7 @@
 import { createXai } from "@ai-sdk/xai"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, type ModelInfo } from "./plugin.js"
+import { getCachedModels } from "./models-fetch.js"
 
 export class XAIPlugin extends ProviderPlugin {
   readonly id      = "xai"
@@ -28,6 +29,10 @@ export class XAIPlugin extends ProviderPlugin {
       { id: "grok-3-mini-fast",   name: "Grok 3 Mini Fast",   contextWindow: 131_072, maxOutput: 8_192,  supportsTools: true,  supportsVision: false, supportsThinking: true  },
       { id: "grok-2-vision-1212", name: "Grok 2 Vision",      contextWindow: 32_768,  maxOutput: 8_192,  supportsTools: true,  supportsVision: true,  supportsThinking: false },
     ]
+  }
+
+  override async listModelsRemote(): Promise<ModelInfo[]> {
+    return getCachedModels("xai", "https://api.x.ai/v1/models", process.env["XAI_API_KEY"] ?? "")
   }
 
   // xAI'nın reasoning API'si OpenAI o-series ile aynı format değil

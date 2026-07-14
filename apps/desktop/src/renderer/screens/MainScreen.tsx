@@ -10,8 +10,8 @@ import { ConfirmDialog, PromptDialog } from '../components/Dialog.js';
 import { ToastRegion, useToasts } from '../components/ToastRegion.js';
 import type { usePermission } from '../hooks/usePermission.js';
 import type { UserType } from '../../shared/ipc-types.js';
-import { ChatTranscript } from '../components/ChatTranscript.js';
-import { ContextDrawer, TaskActivity } from '../components/TaskActivity.js';
+import { ChatTimeline } from '../components/ChatTimeline.js';
+import { ContextDrawer } from '../components/TaskActivity.js';
 import { CenterTab, PanelTab, SessionMetadata } from '../components/WorkspaceChrome.js';
 import { VirtualSessionList } from '../components/VirtualSessionList.js';
 const selectStyle: React.CSSProperties = {
@@ -244,17 +244,15 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
           <CodeEditorTab path={activeCenterTab} onDirtyChange={handleFileDirtyChange} />
         ) : (
           <>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px 8px' }}>
-              <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                {chat.messages.length === 0 && (
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-subtle)', textAlign: 'center', marginTop: 40 }}>
-                    {profileCopy.empty}
-                  </div>
-                )}
-                <TaskActivity activities={chat.activities} pending={chat.pending} />
-                <ChatTranscript messages={chat.messages} onRetry={chat.retryLast} />
-              </div>
-            </div>
+            <ChatTimeline
+              activities={chat.activities}
+              contentStyle={{ maxWidth: 760, padding: '24px 32px 8px' }}
+              empty={<div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-subtle)', textAlign: 'center', marginTop: 40 }}>{profileCopy.empty}</div>}
+              messages={chat.messages}
+              onRetry={chat.retryLast}
+              pending={chat.pending}
+              sessionId={sessions.activeId}
+            />
 
             {/* Composer */}
             <div style={{ padding: '14px 32px 20px', borderTop: '1px solid var(--border-subtle)' }}>

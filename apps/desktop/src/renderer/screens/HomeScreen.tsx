@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import type { UserType } from '../../shared/ipc-types.js';
 import type { useChat } from '../hooks/useChat.js';
 import { ModelSelector } from '../components/ModelSelector.js';
-import { TaskActivity } from '../components/TaskActivity.js';
-import { displayMessageText } from '../types.js';
+import { ChatTimeline } from '../components/ChatTimeline.js';
 
 interface Props {
   chat: ReturnType<typeof useChat>;
@@ -90,7 +89,6 @@ const CONTENT: Record<UserType, HomeContent> = {
 export function HomeScreen({ chat, userType }: Props) {
   const content = CONTENT[userType];
   const [draft, setDraft] = useState('');
-  const recentMessages = useMemo(() => chat.messages.slice(-3), [chat.messages]);
 
   const send = () => {
     const question = draft.trim();
@@ -99,36 +97,21 @@ export function HomeScreen({ chat, userType }: Props) {
     setDraft('');
   };
 
-  return <main style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: 'var(--bg)' }}>
-    <div style={{ width: 'min(900px, 100%)', margin: '0 auto', padding: '64px 32px 56px' }}>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)' }}>{content.eyebrow}</div>
-      <h1 style={{ maxWidth: 700, margin: '12px 0 0', fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 42, lineHeight: 1.06, color: 'var(--text)' }}>{content.title}</h1>
-      <p style={{ maxWidth: 660, margin: '16px 0 0', fontFamily: 'var(--font-serif)', fontSize: 17, lineHeight: 1.55, color: 'var(--text-muted)' }}>{content.detail}</p>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 34 }}>
-        {content.prompts.map((prompt) => <button key={prompt.title} type="button" onClick={() => setDraft(prompt.prompt)} style={{ minHeight: 118, padding: 16, textAlign: 'left', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 10, cursor: 'pointer' }}>
-          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--text)' }}>{prompt.title}</div>
-          <div style={{ marginTop: 7, fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.5, color: 'var(--text-muted)' }}>{prompt.detail}</div>
-        </button>)}
+  return <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+    <ChatTimeline
+      activities={chat.activities}
+      contentStyle={{ maxWidth: 900, padding: '64px 32px 32px' }}
+      intro={<><div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)' }}>{content.eyebrow}</div><h1 style={{ maxWidth: 700, margin: '12px 0 0', fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 42, lineHeight: 1.06, color: 'var(--text)' }}>{content.title}</h1><p style={{ maxWidth: 660, margin: '16px 0 0', fontFamily: 'var(--font-serif)', fontSize: 17, lineHeight: 1.55, color: 'var(--text-muted)' }}>{content.detail}</p><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 14 }}>{content.prompts.map((prompt) => <button key={prompt.title} type="button" onClick={() => setDraft(prompt.prompt)} style={{ minHeight: 118, padding: 16, textAlign: 'left', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 10, cursor: 'pointer' }}><div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--text)' }}>{prompt.title}</div><div style={{ marginTop: 7, fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.5, color: 'var(--text-muted)' }}>{prompt.detail}</div></button>)}</div></>}
+      messages={chat.messages}
+      onRetry={chat.retryLast}
+      pending={chat.pending}
+    />
+    <div style={{ padding: '14px 32px 20px', borderTop: '1px solid var(--border-subtle)' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, padding: '10px 10px 10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 11 }}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder={content.placeholder} rows={2} style={{ flex: 1, minWidth: 0, resize: 'vertical', fontFamily: 'var(--font-serif)', fontSize: 16, lineHeight: 1.45, color: 'var(--text)', background: 'transparent', border: 'none' }} /><button type="button" onClick={send} disabled={chat.pending || !draft.trim()} style={{ alignSelf: 'flex-end', padding: '9px 15px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: chat.pending || !draft.trim() ? 'var(--text-subtle)' : 'var(--accent-ink)', background: chat.pending || !draft.trim() ? 'var(--control-hover)' : 'var(--accent)', border: 'none', borderRadius: 7, cursor: chat.pending || !draft.trim() ? 'default' : 'pointer' }}>{chat.pending ? 'working…' : 'send ↵'}</button></div>
+        <ModelSelector />
+        {chat.pending && <div role="status" className="aur-inline-status">{chat.statusMessage ?? 'Aurict is working…'} <button type="button" className="aur-text-action" onClick={chat.cancel}>stop</button></div>}
       </div>
-      <ModelSelector />
-
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, marginTop: 18, padding: '10px 10px 10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 11 }}>
-        <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder={content.placeholder} rows={2} style={{ flex: 1, minWidth: 0, resize: 'vertical', fontFamily: 'var(--font-serif)', fontSize: 16, lineHeight: 1.45, color: 'var(--text)', background: 'transparent', border: 'none' }} />
-        <button type="button" onClick={send} disabled={chat.pending || !draft.trim()} style={{ alignSelf: 'flex-end', padding: '9px 15px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: chat.pending || !draft.trim() ? 'var(--text-subtle)' : 'var(--accent-ink)', background: chat.pending || !draft.trim() ? 'var(--control-hover)' : 'var(--accent)', border: 'none', borderRadius: 7, cursor: chat.pending || !draft.trim() ? 'default' : 'pointer' }}>{chat.pending ? 'working…' : 'send ↵'}</button>
-      </div>
-      {chat.pending && <div role="status" className="aur-inline-status">{chat.statusMessage ?? 'Aurict is working…'} <button type="button" className="aur-text-action" onClick={chat.cancel}>stop</button></div>}
-      {(chat.pending || chat.activities.length > 0) && <div style={{ marginTop: 14 }}><TaskActivity activities={chat.activities} pending={chat.pending} /></div>}
-
-      {recentMessages.length > 0 && <section style={{ marginTop: 42 }} aria-labelledby="recent-conversation">
-        <div id="recent-conversation" style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--text-subtle)', marginBottom: 10 }}>Recent conversation</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {recentMessages.map((message) => <div key={message.id} style={{ padding: '12px 14px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
-            <div style={{ marginBottom: 4, fontFamily: 'var(--font-mono)', fontSize: 10.5, color: message.role === 'error' ? 'var(--danger)' : message.role === 'user' ? 'var(--accent)' : 'var(--text-subtle)', textTransform: 'uppercase' }}>{message.role}</div>
-            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 14.5, lineHeight: 1.5, color: message.role === 'error' ? 'var(--danger)' : 'var(--text)' }}>{displayMessageText(message) || (message.pending ? 'Working…' : '')}</div>
-          </div>)}
-        </div>
-      </section>}
     </div>
   </main>;
 }

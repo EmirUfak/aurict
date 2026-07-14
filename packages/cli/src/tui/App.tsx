@@ -64,6 +64,7 @@ import type { CommandResult, PickerItem } from "../commands/types.js";
 import { CliRemoteRuntime, type CliRemoteStatus } from "../remote/runtime.js";
 import { RemoteEventTypes, type RemoteEvent } from "../remote/event-codec.js";
 import { ensureAccessToken } from "../remote/auth.js";
+import { RemoteApiError } from "../remote/backend-client.js";
 import { ThemeContext, THEMES, DEFAULT_THEME } from "../utils/theme.js";
 import { TerminalSizeContext } from "./TerminalSizeContext.js";
 import { KeybindingsProvider } from "../keybindings/index.js";
@@ -155,7 +156,9 @@ const PERM_FILE = join(homedir(), ".aurict", "permissions.json");
 async function resolveBackendAccessToken(): Promise<string | undefined> {
   try {
     return await ensureAccessToken();
-  } catch {
+  } catch (error) {
+    const reason = error instanceof RemoteApiError ? `${error.code} (${error.requestId})` : error instanceof Error ? error.message : String(error);
+    console.warn(`[aurict] Backend access token is unavailable: ${reason}`);
     return undefined;
   }
 }

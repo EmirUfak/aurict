@@ -133,7 +133,7 @@ export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, wo
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: 'var(--bg-card)' }}>
             <div>
               <div style={{ fontFamily: 'var(--font-serif)', fontSize: 15, color: 'var(--text)', marginBottom: 2 }}>Auto-allow safe commands</div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-muted)' }}>read, glob, grep — never touches files</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-muted)' }}>enabled by default for read-only tools and low-risk Aurict data requests — never writes files or runs destructive commands</div>
             </div>
             <button
               type="button"

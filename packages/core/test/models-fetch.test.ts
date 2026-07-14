@@ -11,7 +11,7 @@ import { describe, it, expect, afterAll, afterEach, beforeAll } from "bun:test"
 import { join, dirname } from "node:path"
 import { tmpdir } from "node:os"
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs"
-import { resolveModelInfo, findCachedModelInfo, setModelCacheDirectoryForTests } from "../src/provider/models-fetch.js"
+import { listAvailableModels, resolveModelInfo, findCachedModelInfo, setModelCacheDirectoryForTests } from "../src/provider/models-fetch.js"
 import { resetModelsDevCacheForTests } from "../src/provider/models-dev.js"
 import { createMockProvider } from "./helpers.js"
 
@@ -138,5 +138,31 @@ describe("resolveModelInfo — 3 katmanlı çözüm", () => {
   it("findCachedModelInfo hâlâ eski davranışıyla senkron çalışıyor (geriye dönük uyumluluk)", () => {
     const info = findCachedModelInfo("no-such-provider-ever", "no-such-model")
     expect(info).toBeUndefined()
+  })
+
+  it("canlı model listesini statik modellerle birleştirir", async () => {
+    const plugin = createMockProvider({
+      models: [{
+        id: "known-model", name: "Known Model", contextWindow: 128_000, maxOutput: 8_000,
+        supportsTools: true, supportsVision: false, supportsThinking: false,
+      }],
+    })
+    plugin.listModelsRemote = async () => [
+      { id: "known-model", name: "Live name", contextWindow: 200_000, maxOutput: 16_000, supportsTools: true, supportsVision: true },
+      { id: "new-live-model", name: "New Live Model", contextWindow: 64_000, maxOutput: 4_000, supportsTools: true, supportsVision: false },
+    ]
+
+    const models = await listAvailableModels(plugin)
+
+    expect(models).toHaveLength(2)
+    expect(models[0]).toMatchObject({ id: "known-model", name: "Known Model", contextWindow: 200_000, supportsVision: true })
+    expect(models[1]?.id).toBe("new-live-model")
+  })
+
+  it("canlı model listesi isteği başarısız olunca hatayı iletir", async () => {
+    const plugin = createMockProvider()
+    plugin.listModelsRemote = async () => { throw new Error("provider unavailable") }
+
+    await expect(listAvailableModels(plugin)).rejects.toThrow("provider unavailable")
   })
 })

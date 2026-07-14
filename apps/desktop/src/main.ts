@@ -40,7 +40,7 @@ import type {
   RemoteStatus,
 } from './shared/ipc-types.js';
 import { createFinanceStore } from './main/finance-store.js';
-import { rejectQueue, requestFromSidecar, resolveNext, type PendingQueue } from './main/pending-requests.js';
+import { rejectNext, rejectQueue, requestFromSidecar, resolveNext, type PendingQueue } from './main/pending-requests.js';
 import { createDesktopStores, isDirectory } from './main/desktop-stores.js';
 import { markChangedFiles, readFileTree, resolveWithinRoot } from './main/workspace-files.js';
 import { createArtifactStore } from './main/artifact-store.js';
@@ -330,6 +330,9 @@ function handleSidecarMessage(msg: SidecarMessage): void {
       return;
     case 'model:list-result':
       resolveNext(pendingModelList, msg.models);
+      return;
+    case 'model:list-error':
+      rejectNext(pendingModelList, new Error(msg.message));
       return;
     case 'model:current-result':
       resolveNext(pendingModelCurrent, { providerId: msg.providerId, modelId: msg.modelId });

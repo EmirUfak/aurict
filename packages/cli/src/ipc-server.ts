@@ -17,6 +17,7 @@
 import {
   runAgent,
   ProviderRegistry,
+  listAvailableModels,
   PermissionGate,
   ExecutorEvents,
   SessionManager,
@@ -58,6 +59,7 @@ import { desktopSessionMetadata } from './session-metadata.js'
 import { CliRemoteRuntime } from './remote/runtime.js'
 import { WebRtcCliTransport } from './remote/webrtc-transport.js'
 import { ensureAccessToken, getAuthStatus, loginWithBrowser, logout as remoteLogout } from './remote/auth.js'
+import { RemoteApiError } from './remote/backend-client.js'
 import { existsSync } from 'node:fs'
 import { extname, resolve } from 'node:path'
 
@@ -65,7 +67,13 @@ import { extname, resolve } from 'node:path'
  *  veya refresh başarısız olursa turn'ü hiç engellemeden undefined döner; tool'lar
  *  eksik token'ı kendileri algılayıp nazikçe raporlar (bkz. _shared/aurict-api.ts). */
 async function resolveBackendAccessToken(): Promise<string | undefined> {
-  try { return await ensureAccessToken() } catch { return undefined }
+  try {
+    return await ensureAccessToken()
+  } catch (error) {
+    const reason = error instanceof RemoteApiError ? `${error.code} (${error.requestId})` : error instanceof Error ? error.message : String(error)
+    console.warn(`[aurict] Backend access token is unavailable: ${reason}`)
+    return undefined
+  }
 }
 
 interface ChatAttachment { path: string; content?: string }
@@ -124,6 +132,7 @@ type SidecarMessage =
   | { type: "skills:install-result"; result: { id: string; name: string } | { error: string } }
   | { type: "skills:uninstall-result"; ok: boolean }
   | { type: "model:list-result"; models: ModelInfo[] }
+  | { type: "model:list-error"; message: string }
   | { type: "model:current-result"; providerId: string; modelId: string }
   | { type: "agents:list-result"; agents: Array<{ id: string; name: string; description: string; color: string }> }
   | { type: "design:list-systems-result"; systems: Array<{ id: string; name: string; category: string; tagline: string }> }
@@ -151,6 +160,9 @@ export async function runIpcServer(workdir: string): Promise<void> {
   let remoteRuntime: CliRemoteRuntime | null = null
   let currentProvider = ProviderRegistry.detectDefault()
   let currentModel = ProviderRegistry.get(currentProvider).defaultModel()
+  // Electron's pending-request queue resolves model responses in send order.
+  // Keep live requests serialized so slow providers cannot reorder responses.
+  let modelListQueue = Promise.resolve()
   const toolCalls = new Map<string, { tool: string; args: unknown }>()
 
   const artifactKindFor = (filePath: string) => {
@@ -458,7 +470,16 @@ export async function runIpcServer(workdir: string): Promise<void> {
         return
       }
       case "model:list": {
-        send({ type: "model:list-result", models: ProviderRegistry.get(cmd.providerId).listModels() })
+        modelListQueue = modelListQueue.then(async () => {
+          try {
+            const models = await listAvailableModels(ProviderRegistry.get(cmd.providerId))
+            send({ type: "model:list-result", models })
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            console.error(`[aurict] failed to load live models for ${cmd.providerId}`, error)
+            send({ type: "model:list-error", message })
+          }
+        })
         return
       }
       case "model:get-current": {

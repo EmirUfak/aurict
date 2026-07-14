@@ -117,8 +117,8 @@ button:disabled { cursor: not-allowed; }
 .aur-appearance-preview b { color: var(--accent); }
 .aur-appearance-preview strong { color: var(--text); font-family: var(--font-serif); font-size: 15px; }
 .aur-appearance-preview p { margin: 0; color: var(--text-muted); font-family: var(--font-mono); font-size: 10.5px; }
-.aur-role-workspace { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(28px, 5vw, 72px) clamp(20px, 6vw, 96px); background: radial-gradient(circle at 85% 0%, color-mix(in oklch, var(--accent) 12%, transparent), var(--bg) 40%); }
-.aur-role-hero, .aur-role-conversation { width: min(920px, 100%); margin: 0 auto; }
+.aur-role-workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: radial-gradient(circle at 85% 0%, color-mix(in oklch, var(--accent) 12%, transparent), var(--bg) 40%); }
+.aur-role-hero { width: 100%; }
 .aur-role-eyebrow { color: var(--accent); font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .aur-role-hero h1 { max-width: 700px; margin: 12px 0 0; color: var(--text); font-family: var(--font-serif); font-size: clamp(32px, 4vw, 48px); line-height: 1.05; }
 .aur-role-hero > p { max-width: 670px; margin: 16px 0 0; color: var(--text-muted); font-size: 17px; line-height: 1.55; }
@@ -128,17 +128,11 @@ button:disabled { cursor: not-allowed; }
 .aur-role-templates strong { display: block; font-family: var(--font-serif); font-size: 16px; }
 .aur-role-templates span { display: block; margin-top: 6px; color: var(--text-muted); font-family: var(--font-mono); font-size: 11px; line-height: 1.45; }
 .aur-text-action { margin-top: 16px; padding: 0; color: var(--accent); background: transparent; border: none; font-family: var(--font-mono); font-size: 12px; cursor: pointer; }
-.aur-role-conversation { margin-top: 34px; }
+.aur-role-conversation { width: min(920px, 100%); margin: 0 auto; padding: 14px clamp(20px, 6vw, 96px) 20px; border-top: 1px solid var(--border-subtle); }
 .aur-role-composer { padding: 14px; background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 12px; }
 .aur-role-composer textarea { width: 100%; resize: vertical; color: var(--text); background: transparent; border: none; font-family: var(--font-serif); font-size: 16px; line-height: 1.5; }
 .aur-role-composer > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
 .aur-role-composer span { color: var(--text-subtle); font-family: var(--font-mono); font-size: 10.5px; }
-.aur-role-recent { display: grid; gap: 8px; margin-top: 16px; }
-.aur-role-recent article { padding: 12px 14px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 8px; }
-.aur-role-recent article[data-role='user'] { border-left: 3px solid var(--accent); }
-.aur-role-recent article[data-role='error'] { border-color: var(--danger); }
-.aur-role-recent small { color: var(--text-subtle); font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; }
-.aur-role-recent p { margin: 5px 0 0; color: var(--text); font-family: var(--font-serif); font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
 .aur-artifact-rail { position: absolute; z-index: 40; top: 44px; right: 0; bottom: 0; width: min(48vw, 680px); min-width: 380px; display: grid; grid-template-columns: 150px minmax(0, 1fr); background: var(--bg); border-left: 1px solid var(--border-strong); box-shadow: -20px 0 50px oklch(0 0 0 / .2); }
 .aur-artifact-rail header { grid-column: 1 / -1; height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--border-subtle); font-family: var(--font-mono); font-size: 12px; }
 .aur-artifact-rail header button { border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 18px; }

@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, thinkingOptionsForSDK, type ModelInfo, type SDKType } from "./plugin.js"
 import { enrichWithReasoning } from "./models-dev.js"
+import { getCachedModels } from "./models-fetch.js"
 
 // OpenRouter model ID prefix → underlying SDK type
 const PREFIX_SDK: Record<string, SDKType> = {
@@ -51,10 +52,14 @@ export class OpenRouterPlugin extends ProviderPlugin {
     ]
   }
 
-  // models.dev'den reasoning flag'lerini çek — supportsThinking güncel kalır
+  // API key'in erişebildiği güncel katalogdan modelleri al.
   override async listModelsRemote(): Promise<ModelInfo[]> {
-    const base = this.listModels()
-    return enrichWithReasoning(base)
+    const models = await getCachedModels(
+      "openrouter",
+      "https://openrouter.ai/api/v1/models",
+      process.env["OPENROUTER_API_KEY"] ?? "",
+    )
+    return enrichWithReasoning(models)
   }
 
   // OpenRouter: model prefix'inden underlying SDK tipini belirle

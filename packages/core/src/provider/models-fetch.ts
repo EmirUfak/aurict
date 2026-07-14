@@ -17,6 +17,22 @@ interface OpenAIModelsResponse {
   data:   OpenAIModelEntry[]
 }
 
+export interface RemoteModelDescriptor {
+  id: string
+  name?: string
+  contextWindow?: number
+  maxOutput?: number
+  supportsTools?: boolean
+  supportsVision?: boolean
+  supportsThinking?: boolean
+}
+
+export interface RemoteModelListOptions {
+  authentication?: "bearer" | "none"
+  headers?: Record<string, string>
+  parseModels?: (payload: unknown) => RemoteModelDescriptor[]
+}
+
 function cachePath(providerId: string): string {
   const safeProviderId = providerId.replace(/[^a-zA-Z0-9_.-]/g, '_')
   const directory = modelCacheDirectoryOverride ?? coreStatePath('cache')
@@ -89,31 +105,44 @@ function guessMaxOutput(id: string): number {
   return 8_000
 }
 
-async function fetchFromEndpoint(url: string, apiKey: string): Promise<ModelInfo[]> {
+function parseOpenAIModels(payload: unknown): RemoteModelDescriptor[] {
+  const data = (payload as Partial<OpenAIModelsResponse>).data
+  if (!Array.isArray(data)) throw new Error("Model endpoint returned an invalid response.")
+  return data
+    .filter((model): model is OpenAIModelEntry => typeof model?.id === "string" && model.id.length > 0)
+    .map((model) => ({ id: model.id }))
+}
+
+async function fetchFromEndpoint(url: string, apiKey: string, options: RemoteModelListOptions): Promise<ModelInfo[]> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 10_000)
   try {
+    const headers = { ...options.headers }
+    if ((options.authentication ?? "bearer") === "bearer") headers.Authorization = `Bearer ${apiKey}`
     const res = await fetch(url, {
-      headers: { "Authorization": `Bearer ${apiKey}`, "User-Agent": "Aurict/0.0.1" },
+      headers: { ...headers, "User-Agent": "Aurict/0.0.1" },
       signal: controller.signal,
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const json = await res.json() as OpenAIModelsResponse
+    const descriptors = (options.parseModels ?? parseOpenAIModels)(await res.json())
+    if (descriptors.length === 0) throw new Error("Model endpoint returned no models.")
     // models.dev'den gerçek context/output/tool/vision/reasoning metadata'sı çek;
     // bulunamazsa (bilinmeyen model, models.dev erişilemez) heuristik tahmine düş.
     // Önceden burada her modele sabit 200k/32k yazılıyordu — sessizce yanlış
     // compaction zamanlamasına yol açıyordu.
-    return await Promise.all(json.data.map(async (m) => {
-      const meta = await fetchModelMeta(m.id).catch(() => null)
-      const guessed = guessCapabilities(m.id)
+    return await Promise.all(descriptors.map(async (model) => {
+      const meta = await fetchModelMeta(model.id).catch(() => null)
+      const guessed = guessCapabilities(model.id)
       return {
-        id:             m.id,
-        name:           m.id,
-        contextWindow:  meta?.contextWindow ?? guessContextWindow(m.id),
-        maxOutput:      meta?.maxOutput     ?? guessMaxOutput(m.id),
-        supportsTools:  meta?.tools         ?? guessed.supportsTools,
-        supportsVision: meta?.vision        ?? guessed.supportsVision,
-        ...(meta?.reasoning !== undefined ? { supportsThinking: meta.reasoning } : {}),
+        id:             model.id,
+        name:           model.name ?? model.id,
+        contextWindow:  meta?.contextWindow ?? model.contextWindow ?? guessContextWindow(model.id),
+        maxOutput:      meta?.maxOutput     ?? model.maxOutput ?? guessMaxOutput(model.id),
+        supportsTools:  meta?.tools         ?? model.supportsTools ?? guessed.supportsTools,
+        supportsVision: meta?.vision        ?? model.supportsVision ?? guessed.supportsVision,
+        ...(meta?.reasoning !== undefined
+          ? { supportsThinking: meta.reasoning }
+          : model.supportsThinking !== undefined ? { supportsThinking: model.supportsThinking } : {}),
       }
     }))
   } finally {
@@ -172,7 +201,12 @@ export async function resolveModelInfo(
   }
 }
 
-export async function getCachedModels(providerId: string, url: string, apiKey: string): Promise<ModelInfo[]> {
+export async function getCachedModels(
+  providerId: string,
+  url: string,
+  apiKey: string,
+  options: RemoteModelListOptions = {},
+): Promise<ModelInfo[]> {
   const path = cachePath(providerId)
   const cachedModels = await readCachedModels(path)
 
@@ -183,7 +217,7 @@ export async function getCachedModels(providerId: string, url: string, apiKey: s
   let lastError: unknown
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const models = await fetchFromEndpoint(url, apiKey)
+      const models = await fetchFromEndpoint(url, apiKey, options)
       // Model discovery can still succeed if its optional cache cannot be
       // written, but the storage failure must remain visible.
       try {
@@ -198,6 +232,37 @@ export async function getCachedModels(providerId: string, url: string, apiKey: s
       if (attempt === 0) await new Promise((r) => setTimeout(r, 500)) // 0.5s backoff
     }
   }
-  if (cachedModels) return cachedModels
+  if (cachedModels) {
+    console.warn(`[aurict] live model refresh failed for ${providerId}; using cached models`, lastError)
+    return cachedModels
+  }
   throw lastError
+}
+
+export function mergeModelLists(base: ModelInfo[], remote: ModelInfo[]): ModelInfo[] {
+  const merged = new Map<string, ModelInfo>()
+  const order: string[] = []
+
+  const put = (model: ModelInfo) => {
+    const existing = merged.get(model.id)
+    if (!existing) {
+      order.push(model.id)
+      merged.set(model.id, model)
+      return
+    }
+    const next: ModelInfo = { ...existing, ...model, name: existing.name }
+    const supportsThinking = existing.supportsThinking ?? model.supportsThinking
+    if (supportsThinking !== undefined) next.supportsThinking = supportsThinking
+    merged.set(model.id, next)
+  }
+
+  base.forEach(put)
+  remote.forEach(put)
+  return order.map((id) => merged.get(id)!)
+}
+
+export async function listAvailableModels(plugin: ProviderPlugin): Promise<ModelInfo[]> {
+  const base = plugin.listModels()
+  if (!plugin.listModelsRemote) return base
+  return mergeModelLists(base, await plugin.listModelsRemote())
 }

@@ -7,7 +7,7 @@ export interface WorkspaceStore {
   recent?: string[];
 }
 
-const DEFAULT_POLICY: Policy = { autoAllowSafe: false };
+const DEFAULT_POLICY: Policy = { autoAllowSafe: true };
 
 export function isDirectory(dir: string | undefined): dir is string {
   if (!dir) return false;

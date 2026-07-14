@@ -645,6 +645,12 @@ export async function executeTool(
       level = "warning";
     } else if (specConfirm && decision === "allow") {
       decision = "ask";
+    } else if (
+      def.spec.riskLevel === "low" &&
+      decision === "ask" &&
+      !specConfirm
+    ) {
+      level = "safe";
     }
 
     if (def.spec.permissionSummary) reason = def.spec.permissionSummary;

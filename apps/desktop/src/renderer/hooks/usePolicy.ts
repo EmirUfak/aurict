@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Policy } from '../../shared/ipc-types.js';
 
 export function usePolicy() {
-  const [policy, setPolicyState] = useState<Policy>({ autoAllowSafe: false });
+  const [policy, setPolicyState] = useState<Policy>({ autoAllowSafe: true });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

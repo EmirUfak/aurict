@@ -10,6 +10,7 @@ import { FinanceScreen } from './screens/FinanceScreen.js';
 import { HomeScreen } from './screens/HomeScreen.js';
 import { RoleWorkspaceScreen } from './screens/RoleWorkspaceScreen.js';
 import { usePermission } from './hooks/usePermission.js';
+import { usePolicy } from './hooks/usePolicy.js';
 import { useWorkdir } from './hooks/useWorkdir.js';
 import { useChat } from './hooks/useChat.js';
 import { useSessions } from './hooks/useSessions.js';
@@ -31,6 +32,7 @@ function startScreen(layout: ExperienceLayout): Screen {
 export function App() {
   const [screen, setScreen] = useState<Screen>('main');
   const permission = usePermission();
+  const policy = usePolicy();
   const workdir = useWorkdir();
   // Lifted above MainScreen/DesignScreen so a design brief submitted from the
   // Design tab shows up in the same transcript/session when we switch back to Main.
@@ -111,7 +113,7 @@ export function App() {
       {screen === 'settings' && onboarding.profile && <SettingsScreen profile={onboarding.profile} onUpdateProfile={onboarding.update} onResetOnboarding={onboarding.reset} workspace={workdir.workdir} workspaceError={workdir.error} onChooseWorkspace={workdir.choose} />}
 
       {permission.current && (
-        <ApprovalModal request={permission.current} onRespond={permission.respond} />
+        <ApprovalModal request={permission.current} onRespond={permission.respond} onEnableAutoApproveSafe={() => policy.setAutoAllowSafe(true)} />
       )}
       <ArtifactRail artifacts={artifacts.artifacts} activeId={artifacts.activeId} open={artifacts.open} onClose={() => artifacts.setOpen(false)} onSelect={artifacts.select} onRetry={(artifact) => { if (artifact.prompt) chat.submit(artifact.prompt, undefined, artifact.id, `Retry artifact: ${artifact.title}`, 'iterate'); }} />
     </div>
