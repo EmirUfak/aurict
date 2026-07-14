@@ -44,9 +44,11 @@ const copy = {
   },
 } as const
 
-function gtag(...args: unknown[]) {
+function gtag() {
   window.dataLayer = window.dataLayer ?? []
-  window.dataLayer.push(args)
+  // Google Tag processes the native Arguments object, not a rest-parameter array.
+  // eslint-disable-next-line prefer-rest-params
+  window.dataLayer.push(arguments)
 }
 
 function bootstrapGoogleTag() {
