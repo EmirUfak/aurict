@@ -42,11 +42,12 @@ combination of technologies.
 **It stays out of your way.**
 The TUI is built on Ink (React for terminals). Its transcript is a deterministic, Ink-compatible
 visual-row buffer: wide or unbroken output is hard-wrapped before it is painted, so scrolling and
-terminal resizing do not overlap previous text. Permission commands, patch diffs, and expanded
-tool output use the same bounded, pageable treatment. The default Oxblood palette gives the
-workspace, composer, conversation roles, context meter, artifact viewer, and permission prompts
-one coherent visual language while every supported theme keeps the same semantic hierarchy. No
-flickering, no full-screen takeovers.
+terminal resizing do not overlap previous text. The composer is bounded to 12,000 characters and
+200 lines and reports truncation, preventing an oversized terminal paste from exhausting memory.
+Permission commands, patch diffs, and expanded tool output use the same bounded, pageable
+treatment. The default Oxblood palette gives the workspace, composer, conversation roles, context
+meter, artifact viewer, and permission prompts one coherent visual language while every supported
+theme keeps the same semantic hierarchy. No flickering, no full-screen takeovers.
 
 If a terminal or font cannot render the interface glyphs reliably, start Aurict with
 `AURICT_ASCII=1` for an ASCII-safe presentation without changing its colors, controls, or layout.
@@ -327,6 +328,7 @@ bun run dev              # start in development mode (hot reload)
 bun run test             # run the test suite
 bun run typecheck        # TypeScript strict check (both packages)
 bun run build            # compile to standalone binary → dist/aurict
+bun run bump-version:cli 1.2.3 --dry-run  # preview a CLI-only version bump
 ```
 
 ### Project Structure

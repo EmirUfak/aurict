@@ -3020,9 +3020,9 @@ export function App({
                             disabled={loading}
                             history={commandHistory}
                             inlineSuggestionActive={inlineSuggestionActive}
-                            onPasteTruncated={(orig, trunc) =>
+                            onInputTruncated={(orig, trunc) =>
                               addSystemMsg(
-                                `Paste truncated: ${orig.toLocaleString()} → ${trunc.toLocaleString()} chars`,
+                                `Input truncated: ${orig.toLocaleString()} → ${trunc.toLocaleString()} chars`,
                               )
                             }
                             onCopied={(n) =>

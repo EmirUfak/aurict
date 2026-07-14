@@ -61,14 +61,14 @@ profileCheckpoint("flags_parsed")
 
 // --version
 if (flags.version) {
-  console.log("Aurict v1.2.2")
+  console.log("Aurict v1.2.3")
   process.exit(0)
 }
 
 // --help
 if (flags.help) {
   console.log(`
-Aurict v1.2.2 — Terminal AI assistant
+Aurict v1.2.3 — Terminal AI assistant
 
 Usage:
   aurict [options]

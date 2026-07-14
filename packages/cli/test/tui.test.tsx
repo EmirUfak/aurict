@@ -26,7 +26,7 @@ import {
   getCommandMatches,
 } from "../src/tui/CommandSuggest.js";
 import { DesignWizard } from "../src/tui/DesignWizard.js";
-import { sanitizePaste } from "../src/tui/MultilineInput.js";
+import { inputWasTruncated, limitInputInsertion, MAX_DRAFT_CHARS, MAX_DRAFT_LINES, sanitizeInput, sanitizePaste } from "../src/tui/input-limits.js";
 import { TerminalSizeContext } from "../src/tui/TerminalSizeContext.js";
 import {
   mergeModelLists,
@@ -433,6 +433,21 @@ describe("MultilineInput", () => {
     expect(sanitizePaste("\x1b[200~first line\nsecond line\x1b[201~")).toBe(
       "first line\nsecond line",
     );
+  });
+
+  it("caps a long one-line paste before Ink renders it", () => {
+    expect(sanitizePaste("x".repeat(MAX_DRAFT_CHARS + 1))).toHaveLength(MAX_DRAFT_CHARS);
+  });
+
+  it("caps a long multi-line paste before Ink creates a node for each row", () => {
+    expect(sanitizePaste("\n".repeat(MAX_DRAFT_LINES + 10)).split("\n")).toHaveLength(MAX_DRAFT_LINES);
+  });
+
+  it("rejects a plain input event once the current draft reaches its cap", () => {
+    const cleaned = sanitizeInput("y");
+    const inserted = limitInputInsertion(sanitizePaste("y"), MAX_DRAFT_CHARS, 1);
+    expect(inserted).toBe("");
+    expect(inputWasTruncated("y", cleaned, inserted)).toBe(true);
   });
 });
 

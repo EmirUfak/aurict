@@ -20,6 +20,7 @@
     "build": "bun run scripts/build.ts",
     "build:all": "bun run scripts/build-all.ts",
     "bump-version": "bun run scripts/bump-version.ts",
+    "bump-version:cli": "bun run scripts/bump-cli-version.ts",
     "publish:all": "bun run scripts/publish.ts",
     "publish:dry": "bun run scripts/publish.ts --dry-run",
     "eval": "bun run scripts/eval.ts",

@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from "react"
 import { Box, Text, useInput, measureElement, type DOMElement } from "ink"
-import { stripVTControlCharacters } from "node:util"
 import { useTheme } from "../utils/theme.js"
 import { useMouseEvents } from "./mouse.js"
 import { measureAbsolutePosition } from "./event-system/measure-position.js"
 import { writeClipboard } from "../util/clipboard.js"
-
-// Safe paste size: very large pastes lock up the terminal
-const MAX_PASTE_CHARS = 50_000
+import {
+  MAX_DRAFT_CHARS,
+  MAX_DRAFT_LINES,
+  inputWasTruncated,
+  limitInputInsertion,
+  sanitizeInput,
+  sanitizePaste,
+} from "./input-limits.js"
 
 interface Props {
   value:              string
@@ -16,9 +20,7 @@ interface Props {
   disabled:           boolean
   history:            string[]
   inlineSuggestionActive?: boolean
-  onPasteTruncated?:  (originalLen: number, truncatedLen: number) => void
-  onPasteStart?:      () => void
-  onPasteEnd?:        () => void
+  onInputTruncated?:  (originalLen: number, truncatedLen: number) => void
   onCopied?:          (charCount: number) => void
 }
 
@@ -58,46 +60,28 @@ function wordRight(line: string, col: number): number {
   return i
 }
 
-// For pasted text: ANSI strip + \r normalization + size limit + bracketed paste cleanup
-export function sanitizePaste(raw: string): string {
-  return stripVTControlCharacters(raw)
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/\x1b\[200~/g, "")  // Bracketed paste start
-    .replace(/\x1b\[201~/g, "")  // Bracketed paste end
-    .replace(/\[200~/g, "")      // variant without ESC
-    .replace(/\[201~/g, "")      // variant without ESC
-    .slice(0, MAX_PASTE_CHARS)
-}
-
-// For normal input: strip VT escape codes, convert \r → \n, bracketed paste cleanup
-function sanitizeInput(raw: string): string {
-  return stripVTControlCharacters(raw)
-    .replace(/\r/g, "\n")
-    .replace(/\x1b\[200~/g, "")
-    .replace(/\x1b\[201~/g, "")
-    .replace(/\[200~/g, "")
-    .replace(/\[201~/g, "")
-}
-
-export function MultilineInput({ value, onChange, onSubmit, disabled, history, inlineSuggestionActive = false, onPasteTruncated, onPasteStart, onPasteEnd, onCopied }: Props) {
+export function MultilineInput({ value, onChange, onSubmit, disabled, history, inlineSuggestionActive = false, onInputTruncated, onCopied }: Props) {
   const theme = useTheme()
 
-  const [lines, setLines]   = useState<string[]>(() => splitLines(value))
+  const [lines, setLines]   = useState<string[]>(() => splitLines(sanitizePaste(value)))
   const [cursor, setCursor] = useState<{ row: number; col: number }>({ row: 0, col: 0 })
   const [hIdx, setHIdx]     = useState(-1)
   const draftRef            = useRef<string[]>([""])
-  const isPastingRef        = useRef(false)
-  const pasteBufferRef      = useRef("")
   const linesRef            = useRef(lines)
   const cursorRef           = useRef(cursor)
   const boxRef              = useRef<DOMElement>(null)
   const boundsRef           = useRef({ row: 0, col: 0, width: 0, height: 0 })
   const dragStartRef        = useRef<LocalPoint | null>(null)
+  const hasReportedLimitRef = useRef(false)
 
   // Keep refs in sync with state
   useEffect(() => { linesRef.current = lines }, [lines])
   useEffect(() => { cursorRef.current = cursor }, [cursor])
+  useEffect(() => {
+    if (lines.join("\n").length < MAX_DRAFT_CHARS && lines.length < MAX_DRAFT_LINES) {
+      hasReportedLimitRef.current = false
+    }
+  }, [lines])
 
   // Update the input box's absolute on-screen bounds after every render
   // — needed so click/release events (absolute terminal coordinates from
@@ -161,7 +145,7 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
   useEffect(() => {
     const joined = lines.join("\n")
     if (value !== joined && value !== prevValueRef.current) {
-      const next = splitLines(value)
+      const next = splitLines(sanitizePaste(value))
       setLines(next)
       const lastRow = Math.max(0, next.length - 1)
       setCursor({ row: lastRow, col: (next[lastRow] ?? "").length })
@@ -171,33 +155,40 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
 
   // Paste operation: insert the sanitized text at the cursor
   function applyPaste(raw: string) {
-    const normalized  = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-    const pasted      = sanitizePaste(raw)
-    if (!pasted) return
-    if (normalized.length > MAX_PASTE_CHARS) {
-      onPasteTruncated?.(raw.length, pasted.length)
+    const cleaned = sanitizeInput(raw)
+    const currentLines = linesRef.current
+    const pasted = limitInputInsertion(
+      sanitizePaste(raw),
+      currentLines.join("\n").length,
+      currentLines.length,
+    )
+    if (inputWasTruncated(raw, cleaned, pasted) && !hasReportedLimitRef.current) {
+      hasReportedLimitRef.current = true
+      onInputTruncated?.(raw.length, pasted.length)
     }
+    if (!pasted) return
     const pastedLines = pasted.split("\n")
     const currentCursor = cursorRef.current
-    setLines(prev => {
-      const next   = [...prev]
-      const before = (next[currentCursor.row] ?? "").slice(0, currentCursor.col)
-      const after  = (next[currentCursor.row] ?? "").slice(currentCursor.col)
-      next[currentCursor.row] = before + pastedLines[0]!
-      const rest = pastedLines.slice(1)
-      if (rest.length > 0) {
-        rest[rest.length - 1] = rest[rest.length - 1]! + after
-        next.splice(currentCursor.row + 1, 0, ...rest)
-      } else {
-        next[currentCursor.row] += after
-      }
-      return next
-    })
+    const next = [...currentLines]
+    const before = (next[currentCursor.row] ?? "").slice(0, currentCursor.col)
+    const after = (next[currentCursor.row] ?? "").slice(currentCursor.col)
+    next[currentCursor.row] = before + pastedLines[0]!
+    const rest = pastedLines.slice(1)
+    if (rest.length > 0) {
+      rest[rest.length - 1] = rest[rest.length - 1]! + after
+      next.splice(currentCursor.row + 1, 0, ...rest)
+    } else {
+      next[currentCursor.row] += after
+    }
+    linesRef.current = next
+    setLines(next)
     const lastLine = pastedLines[pastedLines.length - 1]!
-    setCursor(c => ({
-      row: c.row + pastedLines.length - 1,
-      col: pastedLines.length === 1 ? c.col + lastLine.length : lastLine.length,
-    }))
+    const nextCursor = {
+      row: currentCursor.row + pastedLines.length - 1,
+      col: pastedLines.length === 1 ? currentCursor.col + lastLine.length : lastLine.length,
+    }
+    cursorRef.current = nextCursor
+    setCursor(nextCursor)
   }
 
   useInput((input, key) => {
@@ -484,21 +475,9 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
         return
       }
 
-      // Non-bracketed paste: if it contains \n or \r, treat it as a paste
-      // (for terminals/SSH that don't support bracketed paste)
-      if (clean.includes("\n")) {
-        applyPaste(clean)
-        return
-      }
-
-      // Normal single/multi-character insertion
-      setLines(prev => {
-        const next = [...prev]
-        const line = next[cursor.row] ?? ""
-        next[cursor.row] = line.slice(0, cursor.col) + clean + line.slice(cursor.col)
-        return next
-      })
-      setCursor(c => ({ ...c, col: c.col + clean.length }))
+      // Route every printable event through the same cap. Some terminals and
+      // SSH sessions deliver a non-bracketed paste as one long plain event.
+      applyPaste(input)
     }
   }, { isActive: !disabled })
 

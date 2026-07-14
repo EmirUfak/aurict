@@ -8,7 +8,7 @@
  * Design system: VStack, HStack, Surface, Typo.
  */
 
-import React, { useState } from "react"
+import React from "react"
 import { Box, Text } from "ink"
 import { MultilineInput } from "./MultilineInput.js"
 import { useTheme } from "../utils/theme.js"
@@ -23,7 +23,7 @@ interface Props {
   history?:           string[]
   queued?:            string | undefined
   inlineSuggestionActive?: boolean
-  onPasteTruncated?:  (originalLen: number, truncatedLen: number) => void
+  onInputTruncated?:  (originalLen: number, truncatedLen: number) => void
   onCopied?:          (charCount: number) => void
 }
 
@@ -42,20 +42,19 @@ const HINTS_SHORT: { key: string; label: string }[] = [
   { key: "@",  label: "file" },
 ]
 
-export function ChatInput({ value, onChange, onSubmit, disabled, history = [], queued, inlineSuggestionActive = false, onPasteTruncated, onCopied }: Props) {
+export function ChatInput({ value, onChange, onSubmit, disabled, history = [], queued, inlineSuggestionActive = false, onInputTruncated, onCopied }: Props) {
   const theme = useTheme()
-  const [isPasting, setIsPasting] = useState(false)
   const promptChar = "❯"
-  const borderColor = isPasting ? theme.warning : disabled ? theme.borderDim : theme.borderActive
+  const borderColor = disabled ? theme.borderDim : theme.borderActive
 
   // Mod etiketi: paste / working / INSERT
-  const modeLabel = isPasting ? "PASTE" : disabled ? "BUSY" : "INSERT"
-  const modeColor = isPasting ? theme.warning : disabled ? theme.textDim : theme.accent
+  const modeLabel = disabled ? "BUSY" : "INSERT"
+  const modeColor = disabled ? theme.textDim : theme.accent
 
   const termCols  = useTerminalSize().columns
   const isNarrow  = termCols < 80
   const hints     = termCols >= 100 ? HINTS_WIDE : HINTS_SHORT
-  const showHints = !isPasting && !isNarrow
+  const showHints = !isNarrow
   const charCount = value.length
 
   const Sep = () => <Text color={theme.borderDim}> · </Text>
@@ -100,7 +99,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
         <HStack flexGrow={1} flexShrink={1} gap="xs">
           <Typo
             variant="bodyEmphasis"
-            tone={disabled ? "muted" : isPasting ? "warning" : "accentAlt"}
+            tone={disabled ? "muted" : "accentAlt"}
             bold
           >
             {promptChar}
@@ -113,10 +112,8 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
               disabled={disabled}
               history={history}
               inlineSuggestionActive={inlineSuggestionActive}
-              {...(onPasteTruncated !== undefined ? { onPasteTruncated } : {})}
+              {...(onInputTruncated !== undefined ? { onInputTruncated } : {})}
               {...(onCopied !== undefined ? { onCopied } : {})}
-              onPasteStart={() => setIsPasting(true)}
-              onPasteEnd={() => setIsPasting(false)}
             />
           </Box>
           {disabled && !isNarrow && <Typo variant="body" tone="muted" dimColor>working…</Typo>}
