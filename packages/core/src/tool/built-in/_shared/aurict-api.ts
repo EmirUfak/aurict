@@ -16,6 +16,11 @@ const REQUEST_TIMEOUT_MS = 15_000
 
 export type AurictApiTarget = "modules" | "backend"
 
+export type AurictApiRequestOptions = {
+  method?: "GET" | "POST"
+  body?: RequestInit["body"]
+}
+
 export type AurictApiResult<T> =
   | { kind: "success"; data: T }
   | { kind: "not_authenticated" }
@@ -32,6 +37,7 @@ export async function callAurictApi<T>(
   ctx: ToolContext,
   target: AurictApiTarget,
   path: string,
+  options: AurictApiRequestOptions = {},
 ): Promise<AurictApiResult<T>> {
   if (!ctx.backendAccessToken) return { kind: "not_authenticated" }
 
@@ -44,7 +50,9 @@ export async function callAurictApi<T>(
   let response: Response
   try {
     response = await fetch(new URL(path, baseUrlFor(target)), {
+      method: options.method ?? "GET",
       headers: { authorization: `Bearer ${ctx.backendAccessToken}` },
+      body: options.body,
       signal,
     })
   } catch (error) {

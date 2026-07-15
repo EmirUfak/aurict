@@ -158,7 +158,7 @@ const jsonLdEn = {
       "url":                 "https://aurict.com",
       "downloadUrl":         "https://www.npmjs.com/package/aurict",
       "installUrl":          "https://www.npmjs.com/package/aurict",
-      "softwareVersion":     "1.2.4",
+      "softwareVersion":     "1.2.5",
       "releaseNotes":        "https://aurict.com/changelog",
       "license":             "https://www.gnu.org/licenses/agpl-3.0.html",
       "author": {
@@ -227,7 +227,7 @@ const jsonLdTr = {
       "url":                 "https://aurict.com",
       "downloadUrl":         "https://www.npmjs.com/package/aurict",
       "installUrl":          "https://www.npmjs.com/package/aurict",
-      "softwareVersion":     "1.2.4",
+      "softwareVersion":     "1.2.5",
       "releaseNotes":        "https://aurict.com/changelog",
       "license":             "https://www.gnu.org/licenses/agpl-3.0.html",
       "author": {

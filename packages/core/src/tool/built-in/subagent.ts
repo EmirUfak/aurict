@@ -109,6 +109,7 @@ Focus your prompt on the specific task — no need to repeat what was already di
         sessionId,
         workerSessionId: `${id}-session`,
         allowedTools,
+        ...(ctx.backendAccessToken !== undefined ? { backendAccessToken: ctx.backendAccessToken } : {}),
         ...(parentContext ? { parentContext } : {}),
       })
 
@@ -123,6 +124,7 @@ Focus your prompt on the specific task — no need to repeat what was already di
           system:   getAgentPrompt(agentType, AGENT_MAX_STEPS[agentType]),
           messages: [{ role: "user", content: prompt }],
           toolsOverride: allowedTools,
+          ...(ctx.backendAccessToken !== undefined ? { backendAccessToken: ctx.backendAccessToken } : {}),
         })
         return { output: formatResult(role, agentType, r.text, Date.now() - startMs) }
       }

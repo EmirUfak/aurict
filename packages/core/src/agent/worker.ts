@@ -97,6 +97,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest | WorkerControl>) => {
             isSubagent:  true,
             provider:    req.provider,
             model:       req.model,
+            ...(req.backendAccessToken !== undefined ? { backendAccessToken: req.backendAccessToken } : {}),
           }
           const res = await executeTool(captured, args, ctx)
           return res.error ? `ERROR: ${res.error}\n${res.output}` : res.output

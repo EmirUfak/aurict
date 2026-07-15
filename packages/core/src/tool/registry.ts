@@ -59,6 +59,8 @@ import { securityThreatModelTool } from "./built-in/security-threat-model.js"
 import { financeCalculateTool } from "./built-in/finance.js"
 import { marketDataTool } from "./built-in/market-data.js"
 import { legalSearchTool } from "./built-in/legal-search.js"
+import { documentExtractTool } from "./built-in/document-extract.js"
+import { structuredDataTool } from "./built-in/structured-data.js"
 
 const tools = new Map<string, ToolDef>()
 
@@ -86,6 +88,8 @@ for (const t of [
   financeCalculateTool,
   marketDataTool,
   legalSearchTool,
+  documentExtractTool,
+  structuredDataTool,
 ]) {
   tools.set(t.id, t)
 

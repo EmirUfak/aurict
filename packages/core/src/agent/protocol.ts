@@ -83,6 +83,8 @@ export interface WorkerRequest {
   workdir:       string
   allowedTools:  string[]    // AGENT_TYPE_TOOLS[type] veya config'den
   sessionId:     string      // worker'ın kendi session ID'si
+  /** Parent turn'den gelen kısa ömürlü token; yalnızca worker ToolContext'ine aktarılır. */
+  backendAccessToken?: string
   envVars?:      Record<string, string>  // API keys from parent process
   parentContext?: string     // son N parent mesajının özeti — subagent'a bağlam sağlar
 }

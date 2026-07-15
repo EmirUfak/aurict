@@ -240,6 +240,7 @@ export const critiqueTool: ToolDef = {
         sessionId:     sid,
         workerSessionId: `critic-${sid.slice(0, 8)}-${Date.now()}`,
         allowedTools:  AGENT_TYPE_TOOLS["critic"],
+        ...(ctx.backendAccessToken !== undefined ? { backendAccessToken: ctx.backendAccessToken } : {}),
       })
 
       if (!adversarial) {
@@ -260,6 +261,7 @@ export const critiqueTool: ToolDef = {
         sessionId:     sid,
         workerSessionId: `critic-adv-${sid.slice(0, 8)}-${Date.now()}`,
         allowedTools:  AGENT_TYPE_TOOLS["critic"],
+        ...(ctx.backendAccessToken !== undefined ? { backendAccessToken: ctx.backendAccessToken } : {}),
       })
 
       return {

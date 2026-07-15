@@ -185,6 +185,7 @@ class AgentPool {
     workdir:         string
     sessionId:       string
     workerSessionId: string
+    backendAccessToken?: string
     allowedTools?:   string[]
     onText?:         (delta: string) => void
     parentContext?:  string
@@ -263,6 +264,7 @@ class AgentPool {
         workdir:       opts.workdir,
         allowedTools:  opts.allowedTools ?? AGENT_TYPE_TOOLS[opts.agentType],
         sessionId:     subSessionId,
+        ...(opts.backendAccessToken !== undefined ? { backendAccessToken: opts.backendAccessToken } : {}),
         envVars:       collectEnvVars(),
         ...(opts.parentContext ? { parentContext: opts.parentContext } : {}),
       }

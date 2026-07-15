@@ -46,6 +46,7 @@ export interface MockContextOptions {
   signal?:     AbortSignal
   provider?:   string
   model?:      string
+  backendAccessToken?: string
   isSubagent?: boolean
 }
 
@@ -60,6 +61,7 @@ export function createMockContext(opts: MockContextOptions = {}): ToolContext {
     signal:    opts.signal    ?? ac.signal,
     provider:  opts.provider  ?? "anthropic",
     model:     opts.model     ?? "claude-sonnet-4-6",
+    ...(opts.backendAccessToken !== undefined ? { backendAccessToken: opts.backendAccessToken } : {}),
     ...(opts.isSubagent !== undefined ? { isSubagent: opts.isSubagent } : {}),
   }
 }

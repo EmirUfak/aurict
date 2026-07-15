@@ -59,16 +59,33 @@ const flags   = parseFlags()
 const workdir = process.cwd()
 profileCheckpoint("flags_parsed")
 
+/** Resolves the signed backend token only for runs that may call Aurict modules. */
+async function resolveBackendAccessToken(): Promise<string | undefined> {
+  const [{ ensureAccessToken }, { RemoteApiError }] = await Promise.all([
+    import("./remote/auth.js"),
+    import("./remote/backend-client.js"),
+  ])
+  try {
+    return await ensureAccessToken()
+  } catch (error) {
+    const reason = error instanceof RemoteApiError
+      ? `${error.code} (${error.requestId})`
+      : error instanceof Error ? error.message : String(error)
+    console.warn(`[aurict] Backend access token is unavailable: ${reason}`)
+    return undefined
+  }
+}
+
 // --version
 if (flags.version) {
-  console.log("Aurict v1.2.4")
+  console.log("Aurict v1.2.5")
   process.exit(0)
 }
 
 // --help
 if (flags.help) {
   console.log(`
-Aurict v1.2.4 — Terminal AI assistant
+Aurict v1.2.5 — Terminal AI assistant
 
 Usage:
   aurict [options]
@@ -239,9 +256,11 @@ if (subCmd === "run") {
     process.exit(1)
   }
   console.log(`\n▶  ${recipe.name}${recipe.description ? `\n   ${recipe.description}` : ""}\n`)
+  const backendAccessToken = await resolveBackendAccessToken()
   const result = await runRecipe({
     recipe,
     workdir,
+    ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
     onStepStart: (i, step) => {
       const label = step.name ?? (step.bash ? `bash: ${step.bash.slice(0, 50)}` : `prompt ${i + 1}`)
       process.stdout.write(`\n[${ i + 1}] ${label}\n`)
@@ -351,8 +370,10 @@ if (process.stdin.isTTY) {
 
   process.stdout.write("\n")
   try {
+    const backendAccessToken = await resolveBackendAccessToken()
     await runAgent({
       provider, model, workdir,
+      ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
       ...(cfg.system !== undefined ? { system: cfg.system } : {}),
       messages: [{ role: "user", content: input }],
       onText:   (d) => process.stdout.write(d),

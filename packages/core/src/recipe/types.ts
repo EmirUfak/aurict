@@ -34,6 +34,8 @@ export interface RecipeRunOptions {
   model?:      string
   /** Agent adımları için parent session ID (workspace paylaşımı için) */
   sessionId?:  string
+  /** Aurict modüllerine erişen araçlar için çağıranın sağladığı kısa ömürlü access token. */
+  backendAccessToken?: string
   /** Her prompt adımı tamamlandığında */
   onStepStart?:  (index: number, step: RecipeStep) => void
   onStepFinish?: (index: number, step: RecipeStep, output: string) => void

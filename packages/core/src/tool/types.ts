@@ -22,7 +22,7 @@ export interface ToolContext {
   provider?:    string
   model?:       string
   /** Aurict backend access token (varsa) — bkz. AgentRunOptions.backendAccessToken.
-   *  v1'de sadece ana thread'de doldurulur (subagent/worker path'inde yok). */
+   *  Aynı süreçte çalışan subagent worker'larına yalnızca ToolContext üzerinden aktarılır. */
   backendAccessToken?: string
   /** Araç çalışırken canlı çıktı chunk'larını iletir (bash streaming için) */
   onChunk?:     (chunk: string) => void

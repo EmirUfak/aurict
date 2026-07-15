@@ -23,7 +23,7 @@ export async function runRecipe(opts: RecipeRunOptions): Promise<RecipeRunResult
       // Paralel blok: tüm alt adımları aynı anda çalıştır
       opts.onStepStart?.(i, step)
       const parallelResults = await runParallelSteps(
-        step.parallel, i, workdir, providerName, modelId,
+        step.parallel, i, workdir, providerName, modelId, opts.backendAccessToken,
         opts.onText,
       )
       results.push(...parallelResults)
@@ -36,7 +36,7 @@ export async function runRecipe(opts: RecipeRunOptions): Promise<RecipeRunResult
 
     if (step.agent && step.prompt) {
       // Subagent adımı — agentPool üzerinden bağımsız worker
-      const result = await runAgentStep(step, workdir, providerName, modelId, opts.sessionId)
+      const result = await runAgentStep(step, workdir, providerName, modelId, opts.sessionId, opts.backendAccessToken)
       opts.onStepFinish?.(i, step, result.output)
       results.push({ index: i, name: stepName, ...result })
 
@@ -64,6 +64,7 @@ export async function runRecipe(opts: RecipeRunOptions): Promise<RecipeRunResult
           workdir,
           messages: conversationHistory,
           ...(recipe.system ? { system: recipe.system } : {}),
+          ...(opts.backendAccessToken !== undefined ? { backendAccessToken: opts.backendAccessToken } : {}),
           stream:   false,
           onText: (text) => {
             stepOutput += text
@@ -92,6 +93,7 @@ async function runParallelSteps(
   workdir:      string,
   providerName: string,
   modelId:      string,
+  backendAccessToken: string | undefined,
   onText?:      (text: string) => void,
 ): Promise<RecipeRunResult["steps"]> {
   const promises = steps.map(async (step, j) => {
@@ -99,7 +101,7 @@ async function runParallelSteps(
     const stepName = step.name ?? labelStep(j, step)
 
     if (step.agent && step.prompt) {
-      const result = await runAgentStep(step, workdir, providerName, modelId)
+      const result = await runAgentStep(step, workdir, providerName, modelId, undefined, backendAccessToken)
       return { index: idx, name: stepName, ...result }
     } else if (step.bash) {
       const result = await runBashStep(step.bash, workdir)
@@ -112,6 +114,7 @@ async function runParallelSteps(
           model:    modelId,
           workdir,
           messages: [{ role: "user", content: step.prompt }],
+          ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
           stream:   false,
           onText:   (text) => { output += text; onText?.(text) },
         })
@@ -132,6 +135,7 @@ async function runAgentStep(
   providerName: string,
   modelId:      string,
   sessionId?:   string,
+  backendAccessToken?: string,
 ): Promise<{ output: string; error?: string }> {
   const agentType   = (step.agent ?? "explore") as AgentType
   const allowedTools = AGENT_TYPE_TOOLS[agentType] ?? AGENT_TYPE_TOOLS["explore"]
@@ -149,6 +153,7 @@ async function runAgentStep(
       sessionId:       sessionId ?? "recipe",
       workerSessionId: `${id}-session`,
       allowedTools,
+      ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
     })
     return { output: result }
   } catch (err) {
@@ -160,6 +165,7 @@ async function runAgentStep(
         model:    modelId,
         workdir,
         messages: [{ role: "user", content: step.prompt! }],
+        ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
         stream:   false,
       })
       return { output: r.text }

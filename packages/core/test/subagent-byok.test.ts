@@ -10,11 +10,13 @@ import { ProviderRegistry } from "../src/provider/registry.js"
 import { createMockProvider, createMockContext } from "./helpers.js"
 
 let capturedModel: string | undefined
+let capturedBackendAccessToken: string | undefined
 
 mock.module("../src/agent/pool.js", () => ({
   agentPool: {
-    spawn: async (opts: { model: string }) => {
+    spawn: async (opts: { model: string; backendAccessToken?: string }) => {
       capturedModel = opts.model
+      capturedBackendAccessToken = opts.backendAccessToken
       return "mock subagent result"
     },
   },
@@ -54,5 +56,19 @@ describe("subagentTool — BYOK model fallback (Faz 0.3b)", () => {
 
     expect(result.error).toBeUndefined()
     expect(capturedModel).toBe("explicit-model")
+  })
+
+  it("signed backend token'ı worker'a yalnızca spawn seçeneği olarak aktarır", async () => {
+    ProviderRegistry.register(createMockProvider({
+      id: "test-subagent-provider-3",
+      defaultModel: "provider-default",
+    }))
+    capturedBackendAccessToken = undefined
+
+    const ctx = createMockContext({ provider: "test-subagent-provider-3", backendAccessToken: "signed-access-token" })
+    const result = await subagentTool.execute({ type: "explore", role: "Test Worker", prompt: "hello" }, ctx)
+
+    expect(result.error).toBeUndefined()
+    expect(capturedBackendAccessToken).toBe("signed-access-token")
   })
 })
