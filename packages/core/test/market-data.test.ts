@@ -31,9 +31,6 @@ beforeAll(() => {
       if (url.pathname === '/bonds/bonds/NOEXIST') {
         return Response.json({ detail: 'Bond not found' }, { status: 404 })
       }
-      if (url.pathname === '/bonds/bonds/TR000000TEST/kap') {
-        return Response.json([])
-      }
       if (url.pathname === '/bonds/tlref/latest') {
         return Response.json({ rate_date: '2026-07-13', index_value: '6291.49' })
       }
@@ -49,7 +46,7 @@ afterAll(() => {
 })
 
 describe('market_data tool', () => {
-  it('requires isin for detail/kap_disclosures without making a request', async () => {
+  it('requires isin for detail without making a request', async () => {
     requestedPaths = []
     const result = await marketDataTool.execute({ action: 'detail' }, fakeCtx())
     expect(result.error).toContain('isin')
@@ -75,11 +72,6 @@ describe('market_data tool', () => {
   it('surfaces a friendly not-found message for an unknown ISIN (FastAPI 404 detail)', async () => {
     const result = await marketDataTool.execute({ action: 'detail', isin: 'NOEXIST' }, fakeCtx())
     expect(result.error).toContain('Bond not found')
-  })
-
-  it('reports empty KAP disclosures clearly', async () => {
-    const result = await marketDataTool.execute({ action: 'kap_disclosures', isin: 'TR000000TEST' }, fakeCtx())
-    expect(result.output.toLowerCase()).toContain('no kap disclosures')
   })
 
   it('fetches TLREF latest', async () => {

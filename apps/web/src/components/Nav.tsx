@@ -80,7 +80,7 @@ export function Nav() {
                 padding:    "4px 7px",
               }}
             >
-              v1.2.3 · AGPLv3
+              v1.2.4 · AGPLv3
             </span>
           </div>
 

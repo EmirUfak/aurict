@@ -1,5 +1,11 @@
 import { z } from "zod"
-import { findChromium } from "./_browser-renderer.js"
+import {
+  launchBrowser,
+  readAccessibilitySnapshot,
+  requireBrowserPage,
+  type AccessibilitySnapshot,
+  type BrowserPage,
+} from "./_ui-inspect-browser.js"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -38,7 +44,7 @@ interface PageInfo {
   viewport:     { width: number; height: number }
   colorScheme:  "dark" | "light" | "unknown"
   cssVars:      { prop: string; value: string }[]
-  axTree:       AXNode | null
+  axTree:       AccessibilitySnapshot | null
   interactive:  InteractiveEl[]
 }
 
@@ -111,11 +117,16 @@ function format(info: PageInfo): string {
   lines.push("")
 
   // ── ARIA tree ─────────────────────────────────────────────────────────
-  if (info.axTree) {
+  if (info.axTree?.kind === "tree") {
     lines.push(`${C.bold}Accessibility tree:${C.reset}`)
     const treeLines: string[] = []
-    formatTree(info.axTree, 0, treeLines, 8)
+    formatTree(info.axTree.value as AXNode, 0, treeLines, 8)
     for (const l of treeLines) lines.push(`  ${l}`)
+    lines.push("")
+  }
+  if (info.axTree?.kind === "aria") {
+    lines.push(`${C.bold}Accessibility tree:${C.reset}`)
+    for (const line of info.axTree.value.split("\n")) lines.push(`  ${line}`)
     lines.push("")
   }
 
@@ -151,52 +162,6 @@ function format(info: PageInfo): string {
 }
 
 // ── Browser launcher ──────────────────────────────────────────────────────────
-
-type BrowserPage = {
-  goto(url: string, opts?: unknown):             Promise<void>
-  setContent(html: string, opts?: unknown):      Promise<void>
-  setViewportSize?(opts: unknown):               Promise<void>
-  evaluate<T>(fn: (...args: unknown[]) => T):    Promise<T>
-  title():                                       Promise<string>
-  url():                                         string
-  accessibility: { snapshot(opts?: unknown):     Promise<AXNode | null> }
-  close():                                       Promise<void>
-}
-
-type Browser = {
-  newPage():   Promise<BrowserPage>
-  close():     Promise<void>
-}
-
-async function launchBrowser(): Promise<{ browser: Browser; error?: never } | { browser?: never; error: string }> {
-  const executablePath = await findChromium()
-  const launchOpts = {
-    executablePath: executablePath ?? undefined,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-  }
-
-  try {
-    // @ts-ignore — optional peer dependency
-    const pw = await import("playwright-core")
-    const browser = await (pw.chromium as { launch(o: unknown): Promise<Browser> }).launch(launchOpts)
-    return { browser }
-  } catch { /* try puppeteer */ }
-
-  try {
-    // @ts-ignore — optional peer dependency
-    const pp = await import("puppeteer-core")
-    const browser = await (pp.default as { launch(o: unknown): Promise<Browser> }).launch(launchOpts)
-    return { browser }
-  } catch { /* neither available */ }
-
-  return {
-    error: [
-      "No browser library found. Install one:",
-      "  bun add -d playwright-core   # then: bunx playwright install chromium",
-      "  bun add -d puppeteer-core",
-    ].join("\n"),
-  }
-}
 
 // ── In-page extraction scripts ────────────────────────────────────────────────
 
@@ -293,13 +258,14 @@ EXAMPLES:
     if (!url && !html) return { output: "", error: "Either 'url' or 'html' is required" }
 
     const launched = await launchBrowser()
-    if (launched.error) return { output: "", error: launched.error }
-    const browser = launched.browser!
+    if (!launched.ok) return { output: "", error: launched.error }
+    const browser = launched.browser
 
     let page: BrowserPage | undefined
     try {
-      page = await browser.newPage()
-      page.setViewportSize?.({ width: viewport.width, height: viewport.height })
+      page = requireBrowserPage(await browser.newPage())
+      if (page.setViewportSize) await page.setViewportSize({ width: viewport.width, height: viewport.height })
+      else await page.setViewport?.({ width: viewport.width, height: viewport.height })
 
       if (url) {
         await page.goto(url, { waitUntil: "networkidle", timeout: 15000 } as never)
@@ -310,27 +276,15 @@ EXAMPLES:
       const title         = await page.title()
       const currentUrl    = url ?? "(inline html)"
 
-      // ── Scoped root for accessibility snapshot ───────────────────────
-      let axRoot: BrowserPage | unknown = page
-      if (selector) {
-        // @ts-ignore
-        const el = await page.$(selector)
-        if (el) axRoot = el
-      }
-
-      // @ts-ignore — accessibility API shared across playwright/puppeteer
-      const axTree: AXNode | null = await (axRoot as { accessibility?: { snapshot(): Promise<AXNode | null> } })
-        .accessibility?.snapshot?.() ?? null
+      const axTree = await readAccessibilitySnapshot(page, launched.engine, selector)
 
       // ── In-page data ─────────────────────────────────────────────────
-      // @ts-ignore
       const pageData = await page.evaluate(GET_PAGE_INFO) as {
         isDark:    boolean | null
         cssVars:   { prop: string; value: string }[]
         metaDesc:  string
       }
 
-      // @ts-ignore
       const interactive = await page.evaluate(GET_INTERACTIVE) as InteractiveEl[]
 
       const info: PageInfo = {
