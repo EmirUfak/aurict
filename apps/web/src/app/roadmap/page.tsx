@@ -6,6 +6,7 @@ import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
 import { localizedMetadata } from "@/i18n/metadata"
 import type { AppLocale } from "@/i18n/routing"
+import styles from "./RoadmapPage.module.css"
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale() as AppLocale
@@ -116,7 +117,7 @@ export default async function RoadmapPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <Nav />
-      <main className="marketing-main" style={{ maxWidth: 1120 }}>
+      <main className={`marketing-main ${styles.roadmap}`}>
         <Breadcrumb items={[{ label: tr ? "Ana sayfa" : "Home", href: "/" }, { label: tr ? "Yol haritası" : "Roadmap", href: "/roadmap" }]} />
 
         <section className="marketing-hero" style={{ marginTop: 24 }}>
@@ -131,20 +132,21 @@ export default async function RoadmapPage() {
           </div>
         </section>
 
-        <section className="resp-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 42 }}>
+        <section className={`resp-grid-3 ${styles.signals}`} style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 42 }}>
           {signals.map(([label, body]) => (
-            <article key={label} className="marketing-card" style={{ padding: 20 }}>
+            <article key={label} className={`${styles.signal} marketing-card`} style={{ padding: 20 }}>
               <p className="mono" style={{ color: "var(--accent)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 12 }}>{label}</p>
               <p style={{ color: "var(--text)", fontSize: 18, lineHeight: 1.45 }}>{body}</p>
             </article>
           ))}
         </section>
 
-        <section style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "color-mix(in oklch, var(--bg-card) 72%, transparent)", marginBottom: 64 }}>
+        <section className={styles.phaseTrack} style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "color-mix(in oklch, var(--bg-card) 72%, transparent)", marginBottom: 64 }}>
           <div className="resp-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(240px, 1fr))" }}>
             {phases.map((phase, index) => (
               <article
                 key={phase.label}
+                className={styles.phase}
                 style={{
                   borderRight: index < phases.length - 1 ? "1px solid var(--border)" : "none",
                   minHeight:   520,
@@ -171,15 +173,15 @@ export default async function RoadmapPage() {
           </div>
         </section>
 
-        <section className="resp-grid-2" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 18, alignItems: "stretch" }}>
-          <article className="marketing-card" style={{ padding: 28 }}>
+        <section className={`resp-grid-2 ${styles.policyGrid}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: 18, alignItems: "stretch" }}>
+          <article className={`${styles.policy} marketing-card`} style={{ padding: 28 }}>
             <p className="marketing-eyebrow" style={{ marginBottom: 12 }}>{tr ? "Yol haritası ilkesi" : "Roadmap policy"}</p>
             <h2 style={{ color: "var(--text)", fontSize: 30, fontWeight: 600, lineHeight: 1.18, marginBottom: 14 }}>{tr ? "Bu sayfa bir yön haritasıdır, vaat listesi değil." : "This page is a direction map, not a promise list."}</h2>
             <p className="marketing-copy">
               {tr ? "Yol haritası ürünün nereye gittiğini, hangi fazların etkin olduğunu ve sırada hangi stratejik katmanların bulunduğunu gösterir. Tamamlanan işler değişiklik günlüğünde ayrıntılı olarak izlenir." : "The roadmap shows where the product is going, which phases are active, and which strategic layers are waiting next. Completed work is tracked in detail through the changelog."}
             </p>
           </article>
-          <article className="marketing-card" style={{ padding: 28, background: "linear-gradient(180deg, color-mix(in oklch, var(--accent) 10%, var(--bg-card)), var(--bg-card))" }}>
+          <article className={`${styles.policy} marketing-card`} style={{ padding: 28, background: "linear-gradient(180deg, color-mix(in oklch, var(--accent) 10%, var(--bg-card)), var(--bg-card))" }}>
             <p className="mono" style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 20 }}>{tr ? "sürüm doğruluk kaynağı" : "release truth source"}</p>
             <Link className="aur-button aur-button-secondary" href="/changelog" style={{ width: "100%" }}>{tr ? "değişiklik günlüğü" : "changelog"}</Link>
             <Link className="aur-button aur-button-primary" href="/docs" style={{ width: "100%" }}>{tr ? "dokümanlar" : "docs"}</Link>

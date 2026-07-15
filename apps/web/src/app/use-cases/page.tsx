@@ -32,7 +32,7 @@ export default async function UseCasesPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collection) }} />
       <Nav />
-      <main style={{ margin: "0 auto", maxWidth: 900, padding: "100px 24px 80px" }}>
+      <main className="marketing-main" style={{ maxWidth: 900 }}>
         <Breadcrumb
           items={[
             { label: tr ? "Ana sayfa" : "Home", href: "/" },
@@ -40,7 +40,7 @@ export default async function UseCasesPage() {
           ]}
         />
 
-        <div style={{ marginBottom: 60 }}>
+        <div className="marketing-hero">
           <p className="marketing-eyebrow">{tr ? "Kullanım alanları" : "Use cases"}</p>
           <h1 className="marketing-title marketing-title-sm">{tr ? "Aurict neler yapabilir?" : "What can Aurict do?"}</h1>
           <p className="marketing-lede" style={{ maxWidth: 620 }}>

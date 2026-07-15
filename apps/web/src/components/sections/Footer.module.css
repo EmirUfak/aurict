@@ -1,0 +1,6 @@
+.footer { border-top: 1px solid var(--border); background: color-mix(in oklch, var(--bg-alt) 78%, transparent); }
+.frame { display: grid; grid-template-columns: minmax(190px, .7fr) minmax(0, 1.3fr); gap: 70px; width: min(100% - 48px, 1200px); padding: 54px 0 58px; margin: 0 auto; }
+.identity > span { color: var(--text); font: 600 19px var(--font-mono); letter-spacing: -.05em; }.identity > span span { color: var(--accent); }.identity p { margin: 13px 0 0; color: var(--text-muted); font: 11px var(--font-mono); }
+.columns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }.column { display: grid; align-content: start; gap: 10px; }.column h2 { margin: 0 0 5px; color: var(--text-muted); font: 10px var(--font-mono); font-weight: 400; letter-spacing: .08em; text-transform: uppercase; }.column a { color: var(--text-dim); font: 12px var(--font-mono); text-decoration: none; }.column a:hover { color: var(--text); }
+@media (max-width: 800px) { .frame { grid-template-columns: 1fr; gap: 38px; }.columns { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .frame { width: min(100% - 32px, 1200px); padding: 42px 0; }.columns { gap: 28px 18px; } }

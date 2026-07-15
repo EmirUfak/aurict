@@ -7,6 +7,7 @@ import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
 import { localizedMetadata } from "@/i18n/metadata"
 import type { AppLocale } from "@/i18n/routing"
+import styles from "./AboutPage.module.css"
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale() as AppLocale
@@ -72,7 +73,7 @@ export default async function AboutPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <Nav />
-      <main className="marketing-main" style={{ maxWidth: 1040 }}>
+      <main className={`marketing-main ${styles.about}`}>
         <Breadcrumb items={[{ label: tr ? "Ana sayfa" : "Home", href: "/" }, { label: tr ? "Hakkında" : "About", href: "/about" }]} />
 
         <section className="marketing-hero" style={{ marginTop: 24 }}>
@@ -87,8 +88,8 @@ export default async function AboutPage() {
           </div>
         </section>
 
-        <section className="resp-grid-2" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 280px", gap: 34, alignItems: "start", marginBottom: 64 }}>
-          <article className="marketing-card" style={{ padding: 30 }}>
+        <section className={`resp-grid-2 ${styles.opening}`} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 280px", gap: 34, alignItems: "start", marginBottom: 64 }}>
+          <article className={`${styles.statement} marketing-card`} style={{ padding: 30 }}>
             <p className="marketing-copy" style={{ fontSize: 18, color: "var(--text)" }}>
               {tr ? "Aurict, bu verimsizliğe mühendislik temelli bir yanıt ve radikal bir optimizasyon hareketi olarak doğdu." : "Aurict was born as an engineering answer to this inefficiency and as a radical optimization movement."}
             </p>
@@ -100,7 +101,7 @@ export default async function AboutPage() {
             </p>
           </article>
 
-          <aside className="marketing-card" style={{ padding: 22, position: "sticky", top: 92 }}>
+          <aside className={`${styles.signal} marketing-card`} style={{ padding: 22, position: "sticky", top: 92 }}>
             <p className="mono" style={{ color: "var(--accent)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 14 }}>{tr ? "mevcut sinyal" : "current signal"}</p>
             <div className="mono" style={{ color: "var(--text)", fontSize: 22, fontWeight: 600, marginBottom: 8 }}>aurict<span className="aur-cursor">█</span></div>
             <p style={{ color: "var(--text-dim)", fontSize: 14, lineHeight: 1.65 }}>
@@ -120,9 +121,9 @@ export default async function AboutPage() {
 
         <section style={{ marginBottom: 72 }}>
           <h2 className="marketing-section-title">{tr ? "Üç temel ilke" : "Three Core Principles"}</h2>
-          <div className="resp-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 }}>
+          <div className={`resp-grid-3 ${styles.principles}`} style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16 }}>
             {principles.map((item) => (
-              <article key={item.label} className="marketing-card" style={{ padding: 22 }}>
+              <article key={item.label} className={`${styles.principle} marketing-card`} style={{ padding: 22 }}>
                 <span className="marketing-tag">{item.label}</span>
                 <h3 style={{ color: "var(--text)", fontSize: 22, fontWeight: 600, lineHeight: 1.2, margin: "18px 0 12px" }}>{item.title}</h3>
                 <p style={{ color: "var(--text-dim)", fontSize: 15, lineHeight: 1.68 }}>{item.body}</p>
@@ -137,9 +138,9 @@ export default async function AboutPage() {
           </p>
         </ManifestoSection>
 
-        <section className="resp-grid-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 72 }}>
+        <section className={`resp-grid-3 ${styles.ecosystem}`} style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 72 }}>
           {ecosystem.map((item) => (
-            <article key={item.title} className="marketing-card" style={{ padding: 22 }}>
+            <article key={item.title} className={`${styles.ecosystemItem} marketing-card`} style={{ padding: 22 }}>
               <h3 style={{ color: "var(--text)", fontSize: 20, fontWeight: 600, lineHeight: 1.25, marginBottom: 12 }}>{item.title}</h3>
               <p style={{ color: "var(--text-dim)", fontSize: 15, lineHeight: 1.68 }}>{item.body}</p>
             </article>
@@ -158,7 +159,7 @@ export default async function AboutPage() {
           </p>
         </ManifestoSection>
 
-        <section className="marketing-card" style={{ padding: 28, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 22 }}>
+        <section className={`${styles.direction} marketing-card`} style={{ padding: 28, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 22 }}>
           <div>
             <p className="marketing-eyebrow" style={{ marginBottom: 10 }}>{tr ? "Yön" : "Direction"}</p>
             <h2 style={{ color: "var(--text)", fontSize: 30, fontWeight: 600, lineHeight: 1.18 }}>{tr ? "Manifesto burada. Rota yol haritasında." : "The manifesto lives here. The route lives in the roadmap."}</h2>

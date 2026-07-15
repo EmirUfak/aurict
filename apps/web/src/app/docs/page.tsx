@@ -283,7 +283,7 @@ export default async function DocsPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
       <Nav />
-      <main className="marketing-main" style={{ maxWidth: 1040 }}>
+      <main className="marketing-main docs-main">
         <div className="marketing-hero">
           <p className="marketing-eyebrow">{tr ? "Dokümantasyon" : "Documentation"}</p>
           <h1 className="marketing-title">{tr ? "Başlangıç" : "Getting started"}</h1>

@@ -1,0 +1,5 @@
+.roadmap { max-width: 1280px !important; }
+.signals { gap: 1px !important; border: 1px solid var(--border); background: var(--border); }.signal { min-height: 142px; border: 0; border-radius: 0; background: color-mix(in oklch, var(--bg-card) 94%, var(--bg)); }.signal:first-child { background: color-mix(in oklch, var(--success) 6%, var(--bg-card)); }.signal p:last-child { max-width: 310px; }
+.phaseTrack { position: relative; border-radius: 0 !important; }.phaseTrack::before { position: absolute; z-index: 2; top: 56px; right: 5%; left: 5%; height: 1px; background: color-mix(in oklch, var(--accent) 35%, transparent); content: ""; }.phase { background: color-mix(in oklch, var(--bg-card) 84%, var(--bg)); }.phase:nth-child(2) { background: color-mix(in oklch, var(--accent) 7%, var(--bg-card)); }.phase:nth-child(3) { background: color-mix(in oklch, var(--warning) 4%, var(--bg-card)); }.phase:nth-child(4) { background: color-mix(in oklch, oklch(0.76 0.12 290) 5%, var(--bg-card)); }
+.policy { border-radius: 0; }
+@media (max-width: 900px) { .phaseTrack::before { display: none; } }

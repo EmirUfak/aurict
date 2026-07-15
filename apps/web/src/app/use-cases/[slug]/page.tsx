@@ -195,7 +195,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
       <Nav />
-      <main style={{ maxWidth: 780, margin: "0 auto", padding: "100px 24px 80px" }}>
+      <main className="marketing-main marketing-main-narrow">
         <Breadcrumb
           items={[
             { label: tr ? "Ana sayfa" : "Home", href: "/" },
@@ -205,7 +205,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
         />
 
         {/* Hero */}
-        <div style={{ marginBottom: 56 }}>
+        <div className="marketing-hero">
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
             <span
               style={{

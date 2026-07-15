@@ -1,0 +1,9 @@
+.page {
+  min-height: 100vh;
+  color: var(--text);
+  background-color: var(--bg);
+  background-image: radial-gradient(oklch(1 0 0 / .035) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+.page main { overflow: hidden; }

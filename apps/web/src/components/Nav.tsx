@@ -1,13 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { BrandMark } from "@/components/BrandMark"
 import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
 import { LocaleSwitcher } from "@/components/LocaleSwitcher"
 import { Link } from "@/i18n/navigation"
+import styles from "./Nav.module.css"
 
-const LINKS = [
+const SITE_LINKS = [
   { href: "/roadmap", key: "roadmap" },
   { href: "/docs", key: "docs" },
   { href: "/changelog", key: "changelog" },
@@ -28,159 +29,156 @@ const ECOSYSTEM_LINKS = [
   { href: "https://mobile.aurict.com", label: "aurict mobile" },
 ]
 
+type MenuName = "product" | "ecosystem" | null
+
 export function Nav() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [activeMenu, setActiveMenu] = useState<MenuName>(null)
+  const navRef = useRef<HTMLElement>(null)
   const t = useTranslations("Nav")
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 16)
+    const onScroll = () => setScrolled(window.scrollY > 12)
     onScroll()
     window.addEventListener("scroll", onScroll, { passive: true })
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
   useEffect(() => {
-    const close = () => setMenuOpen(false)
+    const close = () => {
+      setMenuOpen(false)
+      setActiveMenu(null)
+    }
     window.addEventListener("resize", close)
     return () => window.removeEventListener("resize", close)
   }, [])
 
+  useEffect(() => {
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (navRef.current?.contains(event.target as Node)) return
+      setActiveMenu(null)
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setActiveMenu(null)
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick)
+    document.addEventListener("keydown", closeOnEscape)
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick)
+      document.removeEventListener("keydown", closeOnEscape)
+    }
+  }, [])
+
+  function closeMenus() {
+    setActiveMenu(null)
+    setMenuOpen(false)
+  }
+
   return (
     <>
       <nav
-        className="mono"
-        style={{
-          position:       "sticky",
-          top:            0,
-          zIndex:         50,
-          borderBottom:   scrolled || menuOpen ? "1px solid var(--border)" : "1px solid transparent",
-          background:     scrolled || menuOpen ? "color-mix(in oklch, var(--bg) 86%, transparent)" : "color-mix(in oklch, var(--bg) 62%, transparent)",
-          backdropFilter: "blur(14px)",
-        }}
+        aria-label="Primary navigation"
+        className={`${styles.nav} mono ${scrolled || menuOpen ? styles.navElevated : ""}`}
+        ref={navRef}
       >
-        <div
-          className="section-shell"
-          style={{
-            alignItems:     "center",
-            display:        "flex",
-            height:         64,
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ alignItems: "center", display: "flex", gap: 10 }}>
+        <div className={styles.frame}>
+          <div className={styles.identity}>
             <BrandMark compact />
-            <span
-              style={{
-                background: "oklch(1 0 0 / 0.06)",
-                border:     "1px solid var(--border)",
-                borderRadius: 6,
-                color:      "var(--text-muted)",
-                fontSize:   10.5,
-                padding:    "4px 7px",
-              }}
-            >
-              v1.2.5 · AGPLv3
-            </span>
+            <span className={styles.edition}>v1.2.5 · AGPLv3</span>
           </div>
 
-          <div className="nav-links">
-            <ProductDropdown links={PRODUCT_LINKS} />
-            <EcosystemDropdown />
-            {LINKS.map((link) => <NavLink key={link.href} href={link.href}>{t(link.key)}</NavLink>)}
+          <div className={styles.desktopNav}>
+            <NavMenu
+              active={activeMenu === "product"}
+              label={t("product")}
+              onToggle={() => setActiveMenu((menu) => menu === "product" ? null : "product")}
+            >
+              <div className={styles.productGrid}>
+                {PRODUCT_LINKS.map((link, index) => (
+                  <Link className={styles.menuItem} href={link.href} key={link.href} onClick={closeMenus}>
+                    <span className={styles.itemIndex}>{String(index + 1).padStart(2, "0")}</span>
+                    <span>{t(link.key)}</span>
+                  </Link>
+                ))}
+              </div>
+            </NavMenu>
+            <NavMenu
+              active={activeMenu === "ecosystem"}
+              label={t("ecosystem")}
+              onToggle={() => setActiveMenu((menu) => menu === "ecosystem" ? null : "ecosystem")}
+            >
+              <div className={styles.ecosystemPanel}>
+                <span className={styles.panelLabel}>connected surface</span>
+                {ECOSYSTEM_LINKS.map((link) => (
+                  <a className={styles.ecosystemLink} href={link.href} key={link.href} onClick={closeMenus}>
+                    <span>{link.label}</span>
+                    <span aria-hidden="true">↗</span>
+                  </a>
+                ))}
+              </div>
+            </NavMenu>
+            {SITE_LINKS.map((link) => (
+              <Link className={styles.siteLink} href={link.href} key={link.href}>{t(link.key)}</Link>
+            ))}
+          </div>
+
+          <div className={styles.controls}>
             <LocaleSwitcher />
             <AuthNavSlot />
           </div>
 
           <button
+            aria-expanded={menuOpen}
             aria-label={menuOpen ? t("closeMenu") : t("openMenu")}
-            className="nav-burger"
+            className={styles.burger}
             onClick={() => setMenuOpen((open) => !open)}
+            type="button"
           >
-            {menuOpen ? (
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8">
-                <line x1="5" y1="5" x2="17" y2="17" />
-                <line x1="17" y1="5" x2="5" y2="17" />
-              </svg>
-            ) : (
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8">
-                <line x1="4" y1="7" x2="18" y2="7" />
-                <line x1="4" y1="11" x2="18" y2="11" />
-                <line x1="4" y1="15" x2="18" y2="15" />
-              </svg>
-            )}
+            <span />
+            <span />
           </button>
         </div>
       </nav>
 
       {menuOpen && (
-        <div className="nav-drawer" onClick={() => setMenuOpen(false)}>
-          <span className="nav-drawer-label">{t("product")}</span>
-          {PRODUCT_LINKS.map((link) => (
-            <Link key={link.href} href={link.href}>{t(link.key)}</Link>
-          ))}
-          <span className="nav-drawer-label">{t("ecosystem")}</span>
-          {ECOSYSTEM_LINKS.map((link) => (
-            <a key={link.href} href={link.href}>{link.label}</a>
-          ))}
-          <span className="nav-drawer-label">{t("site")}</span>
-          {LINKS.map((link) => (
-            <Link key={link.href} href={link.href}>{t(link.key)}</Link>
-          ))}
-          <LocaleSwitcher />
-          <AuthNavSlot drawer />
+        <div className={`${styles.drawer} mono`}>
+          <DrawerGroup label={t("product")}>
+            {PRODUCT_LINKS.map((link) => <Link href={link.href} key={link.href} onClick={closeMenus}>{t(link.key)}</Link>)}
+          </DrawerGroup>
+          <DrawerGroup label={t("ecosystem")}>
+            {ECOSYSTEM_LINKS.map((link) => <a href={link.href} key={link.href} onClick={closeMenus}>{link.label}</a>)}
+          </DrawerGroup>
+          <DrawerGroup label={t("site")}>
+            {SITE_LINKS.map((link) => <Link href={link.href} key={link.href} onClick={closeMenus}>{t(link.key)}</Link>)}
+          </DrawerGroup>
+          <div className={styles.drawerControls}>
+            <LocaleSwitcher />
+            <AuthNavSlot drawer />
+          </div>
         </div>
       )}
     </>
   )
 }
 
-function EcosystemDropdown() {
-  const t = useTranslations("Nav")
-
+function NavMenu({ active, children, label, onToggle }: {
+  active: boolean
+  children: React.ReactNode
+  label: string
+  onToggle: () => void
+}) {
   return (
-    <div className="nav-dropdown">
-      <button className="nav-dropdown-trigger" type="button">
-        {t("ecosystem")}
-        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+    <div className={styles.menuWrap}>
+      <button aria-expanded={active} className={styles.menuTrigger} onClick={onToggle} type="button">
+        {label}
+        <span aria-hidden="true" className={styles.chevron}>⌄</span>
       </button>
-      <div className="nav-dropdown-menu">
-        {ECOSYSTEM_LINKS.map((link) => (
-          <a key={link.href} className="nav-dropdown-item" href={link.href}>{link.label}</a>
-        ))}
-      </div>
+      {active && <div className={styles.menuPanel}>{children}</div>}
     </div>
   )
 }
 
-function ProductDropdown({ links }: { links: Array<{ href: string; key: string }> }) {
-  const t = useTranslations("Nav")
-
-  return (
-    <div className="nav-dropdown">
-      <button className="nav-dropdown-trigger" type="button">
-        {t("product")}
-        <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      <div className="nav-dropdown-menu">
-        {links.map((link) => (
-          <Link key={link.href} className="nav-dropdown-item" href={link.href}>
-            {t(link.key)}
-          </Link>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link className="dim-link" href={href} style={{ fontSize: 13 }}>
-      {children}
-    </Link>
-  )
+function DrawerGroup({ children, label }: { children: React.ReactNode; label: string }) {
+  return <div className={styles.drawerGroup}><span>{label}</span>{children}</div>
 }
