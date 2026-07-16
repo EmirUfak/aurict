@@ -46,15 +46,16 @@ export async function callAurictApi<T>(
   const signal = typeof AbortSignal.any === "function"
     ? AbortSignal.any([ctx.signal, timeoutController.signal])
     : ctx.signal
+  const request: RequestInit = {
+    method: options.method ?? "GET",
+    headers: { authorization: `Bearer ${ctx.backendAccessToken}` },
+    signal,
+    ...(options.body === undefined ? {} : { body: options.body }),
+  }
 
   let response: Response
   try {
-    response = await fetch(new URL(path, baseUrlFor(target)), {
-      method: options.method ?? "GET",
-      headers: { authorization: `Bearer ${ctx.backendAccessToken}` },
-      body: options.body,
-      signal,
-    })
+    response = await fetch(new URL(path, baseUrlFor(target)), request)
   } catch (error) {
     return { kind: "unavailable", detail: error instanceof Error ? error.message : String(error) }
   } finally {

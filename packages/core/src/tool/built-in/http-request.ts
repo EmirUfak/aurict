@@ -66,13 +66,14 @@ RETURNS: status code, response headers, body (auto-parsed JSON), timing.`,
     const start = Date.now()
     let res: Response
     try {
-      res = await fetch(url, {
+      const request: RequestInit = {
         method,
         headers,
-        body:     bodyStr,
         signal:   controller.signal,
         redirect: (args["follow_redirects"] as boolean ?? true) ? "follow" : "manual",
-      })
+        ...(bodyStr === undefined ? {} : { body: bodyStr }),
+      }
+      res = await fetch(url, request)
     } catch (err: unknown) {
       clearTimeout(timer)
       const msg = err instanceof Error ? err.message : String(err)

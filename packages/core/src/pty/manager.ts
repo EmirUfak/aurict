@@ -82,12 +82,19 @@ class PtyManager {
       }
     }
 
-    const decoder = new TextDecoder()
-
     const readStream = async (stream: ReadableStream<Uint8Array> | null) => {
       if (!stream) return
-      for await (const chunk of stream) {
-        appendOutput(decoder.decode(chunk, { stream: true }))
+      const reader = stream.getReader()
+      const decoder = new TextDecoder()
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          appendOutput(decoder.decode(value, { stream: true }))
+        }
+        appendOutput(decoder.decode())
+      } finally {
+        reader.releaseLock()
       }
     }
 

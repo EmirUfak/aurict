@@ -41,13 +41,16 @@ export async function backendRequest<T>(path: string, options: BackendRequestOpt
   if (options.body !== undefined) headers["content-type"] = "application/json"
   if (options.accessToken) headers["authorization"] = `Bearer ${options.accessToken}`
 
+  const body = options.body === undefined ? undefined : JSON.stringify(options.body)
+  const request: RequestInit = {
+    method: options.method ?? "GET",
+    headers,
+    ...(body === undefined ? {} : { body }),
+  }
+
   let res: Response
   try {
-    res = await fetch(new URL(path, backendBaseUrl()), {
-      method: options.method ?? "GET",
-      headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    })
+    res = await fetch(new URL(path, backendBaseUrl()), request)
   } catch (error) {
     throw new RemoteApiError(
       "network_error",
