@@ -471,12 +471,18 @@ export async function runIpcServer(workdir: string): Promise<void> {
       }
       case "model:list": {
         modelListQueue = modelListQueue.then(async () => {
+          const provider = ProviderRegistry.get(cmd.providerId)
           try {
-            const models = await listAvailableModels(ProviderRegistry.get(cmd.providerId))
+            const models = await listAvailableModels(provider)
             send({ type: "model:list-result", models })
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
-            console.error(`[aurict] failed to load live models for ${cmd.providerId}`, error)
+            const fallbackModels = provider.listModels()
+            if (fallbackModels.length > 0) {
+              console.warn(`[aurict] live model refresh failed for ${cmd.providerId}; using bundled models: ${message}`)
+              send({ type: "model:list-result", models: fallbackModels })
+              return
+            }
             send({ type: "model:list-error", message })
           }
         })

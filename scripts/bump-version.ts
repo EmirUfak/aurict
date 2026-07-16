@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * Bump version across all packages and source files.
- * Usage: bun run scripts/bump-version.ts <version>
+ * Usage: bun run scripts/bump-version.ts <version> [--desktop]
  * Example: bun run scripts/bump-version.ts 1.0.2
  */
 
@@ -10,9 +10,10 @@ import { readFileSync, writeFileSync } from "node:fs"
 
 const ROOT = join(import.meta.dir, "..")
 const version = process.argv[2]
+const desktopOnly = process.argv.includes("--desktop")
 
 if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
-  console.error("Usage: bun run scripts/bump-version.ts <version>")
+  console.error("Usage: bun run scripts/bump-version.ts <version> [--desktop]")
   console.error("Example: bun run scripts/bump-version.ts 1.0.2")
   process.exit(1)
 }
@@ -31,6 +32,8 @@ const PACKAGES = [
   "packages/cli-win32-x64/package.json",
   "apps/desktop/package.json",
 ]
+
+const packagesToUpdate = desktopOnly ? ["apps/desktop/package.json"] : PACKAGES
 
 // Source files with hardcoded version strings
 const SOURCE_FILES: Array<{ path: string; pattern: RegExp; replace: string }> = [
@@ -63,7 +66,7 @@ const SOURCE_FILES: Array<{ path: string; pattern: RegExp; replace: string }> = 
 
 let changed = 0
 
-for (const rel of PACKAGES) {
+for (const rel of packagesToUpdate) {
   const file = join(ROOT, rel)
   const pkg = JSON.parse(readFileSync(file, "utf8"))
   const old = pkg.version
@@ -82,7 +85,7 @@ for (const rel of PACKAGES) {
   changed++
 }
 
-for (const { path: rel, pattern, replace } of SOURCE_FILES) {
+for (const { path: rel, pattern, replace } of desktopOnly ? [] : SOURCE_FILES) {
   const file = join(ROOT, rel)
   const src = readFileSync(file, "utf8")
   const next = src.replace(pattern, replace)
@@ -93,5 +96,7 @@ for (const { path: rel, pattern, replace } of SOURCE_FILES) {
   }
 }
 
-console.log(`\nDone — ${changed} file(s) updated to v${version}`)
-console.log(`Next: git add -A && git commit -m "chore: bump version to ${version}" && git tag v${version} && git push origin main v${version}`)
+console.log(`\nDone — ${changed} file(s) updated to v${version}${desktopOnly ? " (desktop only)" : ""}`)
+console.log(desktopOnly
+  ? `Next: git add apps/desktop/package.json && git commit -m "chore(desktop): bump version to ${version}"`
+  : `Next: git add -A && git commit -m "chore: bump version to ${version}" && git tag v${version} && git push origin main v${version}`)

@@ -13,7 +13,7 @@ const target = process.env.AURICT_SIDECAR_TARGET;
 mkdirSync(resourcesDir, { recursive: true });
 
 const command = [
-  'bun', 'build', join(root, 'packages', 'cli', 'src', 'index.ts'),
+  'bun', 'build', join(desktopRoot, 'src', 'sidecar-entry.ts'),
   '--compile', '--minify',
   '--external', 'fsevents',
   // Browser drivers are optional runtime integrations. Keep their dynamic imports
