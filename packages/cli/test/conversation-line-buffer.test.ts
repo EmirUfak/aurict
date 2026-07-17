@@ -128,6 +128,17 @@ describe("conversation line buffer", () => {
     ])
   })
 
+  it("renders live reasoning independently of live answer text", () => {
+    const lines = buildTranscriptLines([], 80, null, "Checking the test output", null)
+    expect(lines).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        text: "∴ thinking in progress…",
+        tone: "thinking",
+      }),
+      expect.objectContaining({ text: "Checking the test output", tone: "thinking" }),
+    ]))
+  })
+
   it("rebuilds a deterministic, bounded row list after a terminal resize", () => {
     const messages: DisplayMessage[] = [
       { id: "message", role: "assistant", content: "word ".repeat(70) },

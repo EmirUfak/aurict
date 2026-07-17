@@ -4,6 +4,7 @@ import type { TokenBreakdown } from "@aurict/core";
 import { Corners, HStack, Surface, StatusDot, VStack } from "./design-system/index.js";
 import { useTheme } from "../utils/theme.js";
 import { useTerminalSize } from "./TerminalSizeContext.js";
+import { activityLabel, type RunActivity } from "./run-status.js";
 
 interface Props {
   provider: string;
@@ -17,6 +18,7 @@ interface Props {
   activeAgentCount?: number | undefined;
   loading?: boolean | undefined;
   activeTool?: string | undefined;
+  activity?: RunActivity | undefined;
   taskSummary?: { pending: number; inProgress: number; done: number; error: number } | undefined;
   bgTaskCount?: number | undefined;
   localServer?: { enabled: boolean; port?: number; started: boolean; reused: boolean; reason?: string } | undefined;
@@ -53,6 +55,7 @@ export function CockpitHeader({
   activeAgentCount,
   loading,
   activeTool,
+  activity,
   taskSummary,
   cols,
 }: Props) {
@@ -67,7 +70,7 @@ export function CockpitHeader({
   const taskRunning = (taskSummary?.inProgress ?? 0) > 0;
   const status = activeTool
     ? shorten(activeTool, compact ? 14 : 28)
-    : loading ? "working" : "ready";
+    : loading ? activityLabel(activity) : "ready";
   const Sep = () => <Text color={theme.borderDim}>│</Text>;
 
   return (

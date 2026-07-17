@@ -69,6 +69,8 @@ export interface CommandContext {
   addWatch:          (path: string, prompt?: string) => void
   removeWatch:       (path?: string) => void
   contextWindow:     number
+  /** Latest core-produced prompt estimate, when the session has completed a turn. */
+  contextUsage?:     ContextUsage | undefined
   replayTo:          (idx: number) => void
   tokens?:           { input: number; output: number; cacheRead?: number; cacheWrite?: number; reasoning?: number }
   promptDiagnostics?: {
@@ -92,3 +94,4 @@ export interface CommandContext {
   stopRemoteSession:  () => void
   remoteConnected:    boolean
 }
+import type { ContextUsage } from "@aurict/core"

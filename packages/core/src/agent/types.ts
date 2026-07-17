@@ -17,6 +17,24 @@ export interface AgentContinuationOptions {
 
 export type AgentRunPhase = "preparing_context" | "resolving_model" | "waiting_for_provider"
 
+/** A conservative snapshot of the prompt that will be sent to the model. */
+export interface ContextUsage {
+  /** Tokens in persisted conversation messages only. */
+  historyTokens: number
+  /** History plus system prompt, tools, attachments, and safety margin. */
+  effectiveTokens: number
+  contextWindow: number
+  maxOutputTokens: number
+  /** Context pressure at which Aurict must compact before a request. */
+  compactionThreshold: number
+}
+
+export interface CompactionEvent {
+  reason: "history_limit" | "message_limit" | "effective_context_limit"
+  before: ContextUsage
+  after: ContextUsage
+}
+
 export interface AgentRunOptions {
   sessionId?:   string
   provider?:    string
@@ -48,7 +66,7 @@ export interface AgentRunOptions {
   /** Bash tool çalışırken gelen canlı stdout/stderr chunk'ları */
   onChunk?:       (chunk: string) => void
   onStepFinish?:  () => void
-  onCompaction?:  () => void
+  onCompaction?:  (event: CompactionEvent) => void
   /** Provider fallback zinciri farklı bir provider'a geçtiğinde bir kez tetiklenir. */
   onProviderFallback?: (fromProvider: string, toProvider: string) => void
   /** Bir retry/fallback denemesi başlıyor — UI önceki (başarısız) denemeden akmış
@@ -75,6 +93,8 @@ export interface AgentFinishResult {
   tokens:       TokenBreakdown
   sessionId?:   string
   newMessages:  CoreMessage[]
+  /** Context estimate for the next request, not billable request usage. */
+  contextUsage: ContextUsage
   finishReason?: string
   continuation?: ContinuationDecision
   completionGate?: CompletionGateDecision

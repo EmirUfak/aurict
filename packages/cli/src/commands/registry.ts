@@ -1992,6 +1992,10 @@ const commands: CommandDef[] = [
       )
       const cb  = getCircuitState()
       const pct = Math.round(breakdown.percentUsed * 100)
+      const liveUsage = ctx.contextUsage
+      const livePct = liveUsage
+        ? Math.round(Math.min(1, liveUsage.effectiveTokens / liveUsage.contextWindow) * 100)
+        : undefined
 
       const roleLines = Object.entries(breakdown.byRole)
         .sort((a, b) => b[1] - a[1])
@@ -2043,7 +2047,13 @@ const commands: CommandDef[] = [
         type:    "text",
         content: [
           `── Context Memory ──────────────────────────`,
-          `  Total:     ${fmtK(breakdown.total)} / ${fmtK(ctx.contextWindow)} tokens  (${pct}%)`,
+          liveUsage
+            ? `  Prompt:    ${fmtK(liveUsage.effectiveTokens)} / ${fmtK(liveUsage.contextWindow)} tokens  (${livePct}%)`
+            : `  Prompt:    unavailable until the first completed turn`,
+          liveUsage
+            ? `  Compact at: ${fmtK(liveUsage.compactionThreshold)} tokens  (reserve ${fmtK(liveUsage.maxOutputTokens)} output + 20k safety)`
+            : null,
+          `  Visible:   ${fmtK(breakdown.total)} / ${fmtK(ctx.contextWindow)} tokens  (${pct}%)`,
           `  Messages:  ${ctx.messages.length}`,
           ``,
           `  By Role:`,

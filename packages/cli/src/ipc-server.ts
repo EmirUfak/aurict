@@ -277,7 +277,17 @@ export async function runIpcServer(workdir: string): Promise<void> {
         onToolResult: (res) => { publishToolArtifact(res.id, payload.displayText?.trim() || payload.text); send({ type: "chat:event", event: { type: "tool-result", turnId: payload.turnId, id: res.id, result: res.result, durationMs: res.durationMs } }) },
         onChunk: (text) => send({ type: "chat:event", event: { type: "chunk", turnId: payload.turnId, text } }),
         onStepFinish: () => send({ type: "chat:event", event: { type: "step-finish", turnId: payload.turnId } }),
-        onCompaction: () => send({ type: "chat:event", event: { type: "compaction", turnId: payload.turnId } }),
+        onCompaction: (event) => send({
+          type: "chat:event",
+          event: {
+            type: "compaction",
+            turnId: payload.turnId,
+            beforeTokens: event.before.effectiveTokens,
+            afterTokens: event.after.effectiveTokens,
+            threshold: event.before.compactionThreshold,
+            reason: event.reason,
+          },
+        }),
         onProviderFallback: (from, to) => send({ type: "chat:event", event: { type: "provider-fallback", turnId: payload.turnId, from, to } }),
         onStreamRestart: () => send({ type: "chat:event", event: { type: "stream-restart", turnId: payload.turnId } }),
         onPhase: (phase) => send({ type: "chat:event", event: { type: "phase", turnId: payload.turnId, phase } }),

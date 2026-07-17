@@ -6,7 +6,7 @@ import { findCachedModelInfo, resolveModelInfo } from "../provider/models-fetch.
 import { ToolRegistry } from "../tool/registry.js"
 import { executeTool } from "../tool/executor.js"
 import { SessionManager } from "../session/manager.js"
-import { COMPACTION_BUFFER, estimateEffectiveContextTokens, estimateTokens, isOverflow, isOverflowByMessages, compact, DEFAULT_TAIL_TURNS, microCompactOldToolResults } from "../session/compaction.js"
+import { isOverflow, isOverflowByMessages, compact, DEFAULT_TAIL_TURNS, microCompactOldToolResults } from "../session/compaction.js"
 import { buildSystemPromptSections } from "../skill/injector.js"
 import { attachmentToAIContent } from "../util/attachments.js"
 import { createThinkTagFilter } from "../util/think-tag-filter.js"
@@ -23,6 +23,7 @@ import { loadRouterFromConfig } from "../provider/router.js"
 import { metrics } from "../util/metrics.js"
 import { extractText } from "../session/context-compactor.js"
 import type { AgentRunOptions, AgentFinishResult, TokenBreakdown } from "./types.js"
+import { measureContextUsage } from "./context-usage.js"
 import { analyzePromptSections } from "./prompt-diagnostics.js"
 import { recordPromptCacheHealth } from "./prompt-cache-health.js"
 import { getCachedToolSchema } from "../tool/schema-cache.js"
@@ -151,16 +152,6 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   const modelId      = opts.model ?? plugin.defaultModel()
   const workdir      = opts.workdir ?? process.cwd()
   const sessionId    = opts.sessionId
-  const finishWithoutResponse = (): AgentFinishResult => {
-    const result: AgentFinishResult = {
-      text: "",
-      tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
-      newMessages: [],
-      ...(sessionId !== undefined ? { sessionId } : {}),
-    }
-    opts.onFinish?.(result)
-    return result
-  }
   opts.onPhase?.("preparing_context")
   const resumedState = sessionId ? await readSessionResumeState(workdir, sessionId) : null
   if (sessionId && resumedState) {
@@ -240,15 +231,39 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(msgThreshold !== undefined ? { messageCountThreshold: msgThreshold } : {}),
   }
+  const baseContextUsageInput = {
+    modelId,
+    ...(tokenizerEncoding !== undefined ? { tokenizerEncoding } : {}),
+    contextWindow: modelInfo.contextWindow,
+    maxOutputTokens: modelInfo.maxOutput,
+  }
+  const reportCompaction = (
+    reason: "history_limit" | "message_limit" | "effective_context_limit",
+    before: ReturnType<typeof measureContextUsage>,
+    after: ReturnType<typeof measureContextUsage>,
+  ) => {
+    const event = { reason, before, after }
+    opts.onCompaction?.(event)
+    if (sessionId) {
+      recordRunTrace(workdir, sessionId, "context_compaction", {
+        reason,
+        beforeTokens: before.effectiveTokens,
+        afterTokens: after.effectiveTokens,
+        threshold: before.compactionThreshold,
+      }).catch(() => metrics.recordError("context_compaction_trace"))
+    }
+  }
   messages = microCompactOldToolResults(messages, compCfgFull)
 
-  if (isOverflow(messages, compCfgFull) || isOverflowByMessages(messages, compCfgFull)) {
+  const exceedsHistoryLimit = isOverflow(messages, compCfgFull)
+  const exceedsMessageLimit = isOverflowByMessages(messages, compCfgFull)
+  if (exceedsHistoryLimit || exceedsMessageLimit) {
     // Extract memories from messages about to be lost to compaction (fire-and-forget)
     extractAndStoreMemories(providerName, modelId, messages, workdir).catch(() => metrics.recordError("memory_extract"))
+    const before = measureContextUsage(messages, baseContextUsageInput)
     const compacted = await compact(messages, compCfgFull)
-    if (!compacted) return finishWithoutResponse()
     messages  = compacted
-    opts.onCompaction?.()
+    reportCompaction(exceedsHistoryLimit ? "history_limit" : "message_limit", before, measureContextUsage(messages, baseContextUsageInput))
   }
 
   // supportsTools: false olan modeller tool API'si desteklemez — boş geç
@@ -401,17 +416,16 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   // bir compaction yap; aksi hâlde ikinci turda görünmeyen context overflow olur.
   const toolSchemaReserveTokens = Object.keys(aiTools).length * 160
   const attachmentReserveTokens = (opts.attachments?.length ?? 0) * 1_200
-  const effectiveTokens = estimateEffectiveContextTokens(messages, {
-    modelId,
-    tokenizerEncoding,
+  const contextUsageInput = {
+    ...baseContextUsageInput,
     systemPrompt: [system, gitSection].filter(Boolean).join("\n\n"),
     toolSchemaReserveTokens,
     attachmentReserveTokens,
-  })
-  const usableContext = compCfgFull.contextLimit - compCfgFull.maxOutput - COMPACTION_BUFFER
-  if (effectiveTokens >= usableContext) {
-    const contextReserve = Math.max(0, effectiveTokens - estimateTokens(messages, modelId, tokenizerEncoding))
-    if (contextReserve >= usableContext) {
+  }
+  const effectiveContextUsage = measureContextUsage(messages, contextUsageInput)
+  if (effectiveContextUsage.effectiveTokens >= effectiveContextUsage.compactionThreshold) {
+    const contextReserve = Math.max(0, effectiveContextUsage.effectiveTokens - effectiveContextUsage.historyTokens)
+    if (contextReserve >= effectiveContextUsage.compactionThreshold) {
       throw new Error("The system prompt and enabled tools exceed this model's available context window. Choose a model with a larger context window or reduce active tools.")
     }
     const effectiveCompactionConfig = {
@@ -419,9 +433,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
       contextLimit: compCfgFull.contextLimit - contextReserve,
     }
     const compacted = await compact(messages, effectiveCompactionConfig)
-    if (!compacted) return finishWithoutResponse()
     messages = compacted
-    opts.onCompaction?.()
+    reportCompaction("effective_context_limit", effectiveContextUsage, measureContextUsage(messages, contextUsageInput))
   }
 
   interface AttemptResult {
@@ -762,10 +775,12 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     completionGate.shadowOnly = longTask.shadowOnly
   }
 
+  const contextUsage = measureContextUsage([...messages, ...newMessages], contextUsageInput)
   const finish: AgentFinishResult = {
     text:      fullText,
     tokens:    breakdown,
     newMessages,
+    contextUsage,
     continuation,
     completionGate,
     longTask,

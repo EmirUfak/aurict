@@ -5,6 +5,10 @@ import { summarizeToolArgs } from '../types.js';
 
 export type ChatActivity = { id: string; label: string; detail?: string; status: 'active' | 'complete' | 'notice' | 'failed' };
 
+function formatContextTokens(value: number): string {
+  return value >= 1_000 ? `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}k` : String(value);
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [pending, setPending] = useState(false);
@@ -137,10 +141,12 @@ export function useChat() {
           addActivity({ label: 'Task needs attention', detail: event.message, status: 'failed' });
           return;
         }
-        case 'compaction':
-          setStatusMessage('Aurict condensed earlier context to continue this task.');
-          addActivity({ label: 'Context condensed', detail: 'Earlier conversation was summarized to keep the task moving', status: 'notice' });
+        case 'compaction': {
+          const detail = `${formatContextTokens(event.beforeTokens)} → ${formatContextTokens(event.afterTokens)} tokens; compacted before ${formatContextTokens(event.threshold)}.`;
+          setStatusMessage(`Aurict condensed earlier context (${detail})`);
+          addActivity({ label: 'Context condensed', detail, status: 'notice' });
           return;
+        }
         case 'finance-research-audit':
           setContextSources(event.audit.sources);
           addActivity({ label: 'Sources recorded', detail: `${event.audit.sources.length} source${event.audit.sources.length === 1 ? '' : 's'} added to this task`, status: 'complete' });

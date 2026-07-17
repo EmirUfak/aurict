@@ -31,7 +31,7 @@ export type ChatTurnEvent = { turnId: string } & (
   | { type: 'chunk'; text: string }
   | { type: 'step-finish' }
   | { type: 'phase'; phase: 'accepted' | 'preparing_attachments' | 'preparing_context' | 'resolving_model' | 'waiting_for_provider' }
-  | { type: 'compaction' }
+  | { type: 'compaction'; beforeTokens: number; afterTokens: number; threshold: number; reason: 'history_limit' | 'message_limit' | 'effective_context_limit' }
   | { type: 'provider-fallback'; from: string; to: string }
   | { type: 'stream-restart' }
   | { type: 'finance-research-audit'; researchId: string; audit: FinanceResearchAudit }

@@ -218,6 +218,45 @@ export function wordDiff(a: string, b: string): {
   return { removed, added }
 }
 
+/**
+ * Finds paired remove/add lines and returns their word-level changes by line
+ * index. Full-line replacements intentionally skip word highlights: they are
+ * easier to scan as a complete red/green row.
+ */
+export function wordRangesByLine(lines: DiffLine[]): Map<number, Array<{ start: number; end: number }>> {
+  const rangesByLine = new Map<number, Array<{ start: number; end: number }>>()
+  let index = 0
+
+  while (index < lines.length) {
+    if (lines[index]!.type !== "remove") {
+      index++
+      continue
+    }
+
+    const removeStart = index
+    while (index < lines.length && lines[index]!.type === "remove") index++
+    const addStart = index
+    while (index < lines.length && lines[index]!.type === "add") index++
+    const pairCount = Math.min(addStart - removeStart, index - addStart)
+
+    for (let offset = 0; offset < pairCount; offset++) {
+      const removedLine = lines[removeStart + offset]!
+      const addedLine = lines[addStart + offset]!
+      const ranges = wordDiff(removedLine.content, addedLine.content)
+      const changed = [...ranges.removed, ...ranges.added]
+        .reduce((sum, range) => sum + range.end - range.start, 0)
+      const total = removedLine.content.length + addedLine.content.length
+
+      if (total > 0 && changed / total < 0.6) {
+        rangesByLine.set(removeStart + offset, ranges.removed)
+        rangesByLine.set(addStart + offset, ranges.added)
+      }
+    }
+  }
+
+  return rangesByLine
+}
+
 function wordRange(words: string[], idx: number): { start: number; end: number } {
   let start = 0
   for (let k = 0; k < idx; k++) start += words[k]!.length

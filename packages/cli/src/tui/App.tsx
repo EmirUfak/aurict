@@ -52,6 +52,7 @@ import type {
   TokenBreakdown,
   PromptDiagnostics,
   PromptCacheHealthResult,
+  ContextUsage,
 } from "@aurict/core";
 
 import {
@@ -130,6 +131,8 @@ import { useOverlayState } from "./hooks/useOverlayState.js";
 import { useBackgroundTasks } from "./hooks/useBackgroundTasks.js";
 import { HistorySearch } from "./HistorySearch.js";
 import { KeyboardShortcuts } from "./KeyboardShortcuts.js";
+import type { RunActivity } from "./run-status.js";
+import { visibleLiveStream } from "./conversation/live-stream.js";
 import { AUTO_CONTINUE_PROMPT } from "./auto-continue.js";
 import type { LocalServerStatus } from "../bootstrap.js";
 
@@ -260,6 +263,7 @@ export function App({
   const [streamingReason, setStreamingReason] = useState<string | null>(null);
 
   const [activeTool, setActiveTool] = useState<string | undefined>(undefined);
+  const [runActivity, setRunActivity] = useState<RunActivity | undefined>(undefined);
   const [themeName, setThemeName] = useState(DEFAULT_THEME);
   const [sessionTitle, setSessionTitle] = useState<string | undefined>(
     undefined,
@@ -271,7 +275,7 @@ export function App({
   const [queuedInput, setQueuedInput] = useState<string | undefined>(undefined);
   const [branch, setBranch] = useState<string | undefined>(undefined);
   const [wasCompacted, setWasCompacted] = useState(false);
-  const [contextTokens, setContextTokens] = useState(0);
+  const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>(undefined);
   const [promptDiagnostics, setPromptDiagnostics] = useState<
     PromptDiagnostics | undefined
   >(undefined);
@@ -1590,10 +1594,11 @@ export function App({
         addSystemMsg(`👁 Stopped watching: ${abs}`);
       },
       contextWindow:
-        ProviderRegistry.get(provider)
+        contextUsage?.contextWindow ?? ProviderRegistry.get(provider)
           .listModels()
           .find((m) => m.id === model)?.contextWindow ?? 200_000,
       tokens,
+      contextUsage,
       promptDiagnostics,
       promptCacheHealth,
       replayTo: async (idx: number) => {
@@ -1622,6 +1627,7 @@ export function App({
       messages,
       history,
       tokens,
+      contextUsage,
       promptDiagnostics,
       promptCacheHealth,
       checkpoints,
@@ -1693,7 +1699,7 @@ export function App({
           cacheWrite: 0,
           reasoning: 0,
         });
-        setContextTokens(0);
+        setContextUsage(undefined);
         setSessionTitle(undefined);
         isFirstMessage.current = true;
         extractedRef.current = false;
@@ -1856,6 +1862,7 @@ export function App({
 
       setStreamingError(null);
       setTurnSkillNames([]);
+      setRunActivity("preparing_context");
       const startTime = Date.now();
       const now = Date.now();
       const controller = new AbortController();
@@ -1912,13 +1919,13 @@ export function App({
               .catch(() => {});
           }
           if (scrollLockedRef.current) return;
-          // Streaming after a tool call: don't show it in StreamingView — avoids splitting a sentence.
-          // The text keeps accumulating in streamTextRef; onFinish will update the pre-tool
-          // message with the full text (pre+post tool) via stableAssistantId.
-          if (turnAssistantIdRef.current) return;
-          if (streamTextRef.current) setStreamingText(streamTextRef.current);
-          if (streamReasonRef.current)
-            setStreamingReason(streamReasonRef.current);
+          const visible = visibleLiveStream(
+            { text: streamTextRef.current, reasoning: streamReasonRef.current },
+          );
+          // Streaming output is transient; on the next tool call or on finish
+          // it is moved into the committed assistant transcript.
+          setStreamingText(visible.text);
+          setStreamingReason(visible.reasoning);
         };
 
         await runAgent({
@@ -1940,6 +1947,7 @@ export function App({
           signal: controller.signal,
           ...(attachments.length > 0 ? { attachments } : {}),
           onText: (delta, isReasoning) => {
+            setRunActivity(isReasoning ? "thinking" : "responding");
             const now = Date.now();
             const dt = now - lastTokenTimeRef.current;
             if (dt > 0 && dt < 3_000)
@@ -2012,6 +2020,7 @@ export function App({
             });
           },
           onToolCall: (tc) => {
+            setRunActivity("using_tool");
             remoteRuntimeRef.current
               ?.publish(RemoteEventTypes.toolCall, {
                 id: tc.id,
@@ -2105,6 +2114,7 @@ export function App({
             }
           },
           onStepFinish: () => {
+            setRunActivity("waiting_for_provider");
             const stableId = turnAssistantIdRef.current;
             setMessages((prev) => {
               if (stableId) {
@@ -2258,9 +2268,16 @@ export function App({
               return next;
             });
           },
-          onCompaction: () => {
+          onCompaction: (event) => {
             setWasCompacted(true);
             setTimeout(() => setWasCompacted(false), 8000);
+            setContextUsage(event.after);
+            const formatTokens = (value: number) => value >= 1_000
+              ? `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}k`
+              : String(value);
+            addSystemMsg(
+              `Context compacted: ${formatTokens(event.before.effectiveTokens)} → ${formatTokens(event.after.effectiveTokens)} tokens (${event.reason.replaceAll("_", " ")}).`,
+            );
             // Allow end-of-session extraction to run again after compaction
             extractedRef.current = false;
           },
@@ -2295,6 +2312,7 @@ export function App({
               continuationDefaults.maxTaskContinuations ?? 15,
           },
           onPromptCacheHealth: setPromptCacheHealth,
+          onPhase: (phase) => setRunActivity(phase),
           onFinish: ({
             tokens: t,
             text: finalText,
@@ -2302,6 +2320,7 @@ export function App({
             continuation,
             completionGate,
             longTask,
+            contextUsage: nextContextUsage,
           }) => {
             if (streamTimerRef.current) {
               clearTimeout(streamTimerRef.current);
@@ -2323,8 +2342,10 @@ export function App({
               cacheWrite: prev.cacheWrite + t.cacheWrite,
               reasoning: prev.reasoning + t.reasoning,
             }));
-            // context window usage = all input tokens (fresh + cache reads + cache writes)
-            setContextTokens(t.input + t.cacheRead + t.cacheWrite);
+            setContextUsage(nextContextUsage);
+            if (nextContextUsage.effectiveTokens >= nextContextUsage.compactionThreshold) {
+              addSystemMsg("Context limit reached — earlier context will be compacted before the next request.");
+            }
             const duration = Date.now() - startTime;
             if (duration > 15_000) notifyTaskDone(text, duration);
             if (!extractedRef.current) {
@@ -2497,6 +2518,7 @@ export function App({
         }
       } finally {
         setLoading(false);
+        setRunActivity(undefined);
         remoteRuntimeRef.current
           ?.publish(RemoteEventTypes.agentStatus, { state: "idle" })
           .catch(() => {});
@@ -2680,10 +2702,11 @@ export function App({
                         model={model}
                         workdir={workdirState}
                         tokens={tokens}
-                        contextTokens={contextTokens}
-                        contextWindow={currentContextWindow}
+                        contextTokens={contextUsage?.effectiveTokens ?? 0}
+                        contextWindow={contextUsage?.contextWindow ?? currentContextWindow}
                         loading={loading}
                         activeTool={activeTool}
+                        activity={runActivity}
                         taskSummary={tasks.length > 0 ? taskSummary : undefined}
                         bgTaskCount={
                           bgTasks.filter((t) => t.status === "running")
@@ -3084,7 +3107,7 @@ export function App({
                         provider={provider}
                         model={model}
                         tokens={tokens}
-                        contextTokens={contextTokens}
+                        contextTokens={contextUsage?.effectiveTokens}
                         workdir={workdirState}
                         skills={skillNames}
                         turnSkills={turnSkillNames}
@@ -3114,7 +3137,9 @@ export function App({
                         scrollLocked={scrollLocked}
                         remoteConnected={remoteConnected}
                         {...(branch !== undefined ? { branch } : {})}
-                        {...(currentContextWindow !== undefined
+                        {...(contextUsage?.contextWindow !== undefined
+                          ? { contextWindow: contextUsage.contextWindow }
+                          : currentContextWindow !== undefined
                           ? { contextWindow: currentContextWindow }
                           : {})}
                       />

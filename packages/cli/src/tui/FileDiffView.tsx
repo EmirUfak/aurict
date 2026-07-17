@@ -12,12 +12,7 @@ import { Box, Text } from "ink"
 import { useTheme } from "../utils/theme.js"
 import { parseRawDiff, wordDiff } from "./DiffRenderer/logic.js"
 import type { DiffLine } from "./DiffRenderer/logic.js"
-
-// Line background colors — the equivalent of OpenClaude's diffAdded/diffRemoved
-const BG_ADD = "#0d2b0d"
-const BG_REMOVE = "#2b0d0d"
-const BG_ADD_WORD = "#1a5c1a"
-const BG_REM_WORD = "#5c1a1a"
+import { getDiffPalette } from "./DiffRenderer/palette.js"
 
 const MAX_PREVIEW = 10
 
@@ -125,6 +120,7 @@ function renderWithWordHighlight(
 
 function DiffLineRow({ line, numWidth, width }: { line: Line; numWidth: number; width: number }) {
   const theme = useTheme()
+  const palette = getDiffPalette(theme)
   const numStr = String(line.lineNum).padStart(numWidth)
   const sigil = line.type === "add" ? "+" : line.type === "remove" ? "-" : " "
   // prefix width: numWidth + space + sigil + space = numWidth + 3
@@ -144,8 +140,8 @@ function DiffLineRow({ line, numWidth, width }: { line: Line; numWidth: number; 
     )
   }
 
-  const lineBg = line.type === "add" ? BG_ADD : BG_REMOVE
-  const wordBg = line.type === "add" ? BG_ADD_WORD : BG_REM_WORD
+  const lineBg = line.type === "add" ? palette.addBg : palette.removeBg
+  const wordBg = line.type === "add" ? palette.addWordBg : palette.removeWordBg
   const hasWord = (line.wordRanges?.length ?? 0) > 0
 
   return (

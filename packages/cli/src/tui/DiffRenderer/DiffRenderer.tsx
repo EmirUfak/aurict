@@ -21,7 +21,8 @@ import { HStack, VStack, Badge, KeyHint, Typo, Spacer } from "../design-system/i
 import { useBinding, useBindingHints } from "../../keybindings/index.js"
 import { useTerminalSize } from "../TerminalSizeContext.js"
 import { parseRawDiff, diffTexts, suggestDiffMode, wordDiff,
-         type ParsedDiff, type DiffLine, type Hunk, type DiffMode } from "./logic.js"
+         wordRangesByLine, type ParsedDiff, type DiffLine, type Hunk, type DiffMode } from "./logic.js"
+import { getDiffPalette } from "./palette.js"
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -176,6 +177,7 @@ export function DiffRenderer({
 
 function UnifiedView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHunk: number; width: number }) {
   const theme = useTheme()
+  const palette = getDiffPalette(theme)
 
   return (
     <VStack gap="none" width={width}>
@@ -183,23 +185,36 @@ function UnifiedView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHunk: 
         <VStack key={hi} gap="none" width={width}
           {...(activeHunk === hi ? { borderStyle: "single" as const, borderColor: theme.accent } : {})}
         >
-          <HStack width={width}>
+          <Text backgroundColor={palette.hunkBg}>
             <Text color={activeHunk === hi ? theme.accent : theme.borderBright}>{activeHunk === hi ? "●" : "·"}</Text>
-            <Text color={theme.borderBright} dimColor> {hunk.header}</Text>
-          </HStack>
-          {hunk.lines.map((line, li) => (
-            <DiffLineView key={li} line={line} width={width} />
-          ))}
+            <Text color={theme.borderBright} dimColor>{padLine(` ${hunk.header}`, width - 1)}</Text>
+          </Text>
+          <UnifiedLines lines={hunk.lines} width={width} />
         </VStack>
       ))}
     </VStack>
   )
 }
 
+function UnifiedLines({ lines, width }: { lines: DiffLine[]; width: number }) {
+  const wordRanges = useMemo(() => wordRangesByLine(lines), [lines])
+  return <>
+    {lines.map((line, index) => (
+      <DiffLineView
+        key={index}
+        line={line}
+        width={width}
+        {...(wordRanges.has(index) ? { wordRanges: wordRanges.get(index)! } : {})}
+      />
+    ))}
+  </>
+}
+
 // ── Side-by-side view ───────────────────────────────────────────────────────
 
 function SideBySideView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHunk: number; width: number }) {
   const theme = useTheme()
+  const palette = getDiffPalette(theme)
 
   return (
     <VStack gap="none" width={width}>
@@ -207,7 +222,9 @@ function SideBySideView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHun
         <VStack key={hi} gap="none" width={width}
           {...(activeHunk === hi ? { borderStyle: "single" as const, borderColor: theme.accent } : {})}
         >
-          <Text color={theme.borderBright} dimColor>{hunk.header}</Text>
+          <Text backgroundColor={palette.hunkBg} color={theme.borderBright} dimColor>
+            {padLine(hunk.header, width)}
+          </Text>
           {pairLines(hunk.lines).map((pair, pi) => (
             <SideBySideLine key={pi} left={pair[0]} right={pair[1]} width={width} />
           ))}
@@ -251,40 +268,44 @@ function pairLines(lines: DiffLine[]): Array<[DiffLine | null, DiffLine | null]>
 
 function SideBySideLine({ left, right, width }: { left: DiffLine | null; right: DiffLine | null; width: number }) {
   const theme = useTheme()
-  const halfW = Math.max(18, Math.floor((width - 3) / 2))
+  const halfW = Math.max(18, Math.floor((width - 1) / 2))
 
   return (
     <Box flexDirection="row">
       {/* Left — old */}
-      <Box width={halfW} flexShrink={0}>
-        <Text color={theme.textDim}>{left?.oldLineNum?.toString().padStart(4) ?? "    "}</Text>
-        <Text> </Text>
-        <SideLineContent line={left} align="left" counterpart={right} />
-      </Box>
+      <SideLineCell line={left} counterpart={right} width={halfW} />
       {/* Divider */}
       <Text color={theme.borderDim}>│</Text>
       {/* Right — new */}
-      <Box width={halfW} flexShrink={0}>
-        <Text color={theme.textDim}>{right?.newLineNum?.toString().padStart(4) ?? "    "}</Text>
-        <Text> </Text>
-        <SideLineContent line={right} align="right" counterpart={left} />
-      </Box>
+      <SideLineCell line={right} counterpart={left} width={halfW} />
     </Box>
   )
 }
 
-function SideLineContent({
-  line, align, counterpart,
-}: { line: DiffLine | null; align: "left" | "right"; counterpart: DiffLine | null }) {
+function SideLineCell({
+  line, counterpart, width,
+}: { line: DiffLine | null; counterpart: DiffLine | null; width: number }) {
   const theme = useTheme()
-  const contentWidth = 28
+  const palette = getDiffPalette(theme)
+  const contentWidth = Math.max(8, width - 7)
 
   if (!line) {
-    return <Text color={theme.borderDim} dimColor>{" ".repeat(contentWidth)}</Text>
+    return <Box width={width} flexShrink={0}>
+      <Text backgroundColor={palette.baseBg} color={theme.borderDim} dimColor>{" ".repeat(width)}</Text>
+    </Box>
   }
 
+  const lineNumber = (line.oldLineNum ?? line.newLineNum)?.toString().padStart(4) ?? "    "
+  const lineBg = line.type === "add" ? palette.addBg : palette.removeBg
+  const marker = line.type === "add" ? "+" : line.type === "remove" ? "-" : "│"
+  const markerColor = line.type === "add" ? theme.success : line.type === "remove" ? theme.error : theme.borderDim
+
   if (line.type === "context") {
-    return <Text color={theme.textDim} dimColor>  {truncate(line.content, contentWidth)}</Text>
+    return <Box width={width} flexShrink={0}>
+      <Text color={theme.textDim}>{lineNumber}</Text>
+      <Text color={markerColor}> {marker} </Text>
+      <Text color={theme.textDim} dimColor>{truncate(line.content, contentWidth)}</Text>
+    </Box>
   }
 
   // Add/Remove: show word-level inline diff
@@ -294,33 +315,44 @@ function SideLineContent({
     const b = line.type === "add"    ? line.content : counterpart.content
     const { removed, added } = wordDiff(a, b)
     const ranges = line.type === "remove" ? removed : added
-    const baseColor = line.type === "add" ? theme.success : theme.error
-    const highlightColor = line.type === "add" ? "#86efac" : "#fca5a5"
+    const wordBg = line.type === "add" ? palette.addWordBg : palette.removeWordBg
 
-    // Render: highlight the parts of content that fall within ranges
     return (
-      <Text color={baseColor}>
-        {line.type === "add" ? "+" : "-"}
-        {renderHighlighted(truncate(line.content, contentWidth), ranges, highlightColor)}
-      </Text>
+      <Box width={width} flexShrink={0}>
+        <Text backgroundColor={lineBg}>
+          <Text color={markerColor}>{lineNumber} {marker} </Text>
+          <Text color={theme.textPrimary}>
+            {renderHighlighted(truncate(line.content, contentWidth), ranges, wordBg)}
+          </Text>
+          {" ".repeat(Math.max(0, width - 7 - truncate(line.content, contentWidth).length))}
+        </Text>
+      </Box>
     )
   }
 
-  // Standalone add/remove
-  const baseColor = line.type === "add" ? theme.success : theme.error
-  return <Text color={baseColor}>{line.type === "add" ? "+" : "-"} {truncate(line.content, contentWidth)}</Text>
+  return (
+    <Box width={width} flexShrink={0}>
+      <Text backgroundColor={lineBg}>
+        <Text color={markerColor}>{lineNumber} {marker} </Text>
+        <Text color={theme.textPrimary}>{truncate(line.content, contentWidth)}</Text>
+        {" ".repeat(Math.max(0, width - 7 - truncate(line.content, contentWidth).length))}
+      </Text>
+    </Box>
+  )
 }
 
-function renderHighlighted(text: string, ranges: Array<{ start: number; end: number }>, color: string) {
+function renderHighlighted(text: string, ranges: Array<{ start: number; end: number }>, backgroundColor: string) {
   if (ranges.length === 0) return text
   const sorted = [...ranges].sort((a, b) => a.start - b.start)
   const parts: React.ReactNode[] = []
   let cursor = 0
   for (let i = 0; i < sorted.length; i++) {
     const r = sorted[i]!
-    if (r.start > cursor) parts.push(text.slice(cursor, r.start))
-    parts.push(<Text key={i} color={color} bold>{text.slice(r.start, r.end)}</Text>)
-    cursor = r.end
+    const start = Math.min(Math.max(r.start, cursor), text.length)
+    const end = Math.min(Math.max(r.end, start), text.length)
+    if (start > cursor) parts.push(text.slice(cursor, start))
+    if (end > start) parts.push(<Text key={i} backgroundColor={backgroundColor} bold>{text.slice(start, end)}</Text>)
+    cursor = end
   }
   if (cursor < text.length) parts.push(text.slice(cursor))
   return <>{parts}</>
@@ -330,28 +362,35 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s
 }
 
+function padLine(text: string, width: number): string {
+  const content = truncate(text, width)
+  return content + " ".repeat(Math.max(0, width - content.length))
+}
+
 // ── Raw view ─────────────────────────────────────────────────────────────────
 
 function RawView({ raw, width }: { raw: string; width: number }) {
   const theme = useTheme()
+  const palette = getDiffPalette(theme)
   if (!raw) return <Text color={theme.textDim} dimColor>(no raw diff)</Text>
   const lines = raw.split("\n")
   return (
-    <VStack gap="none" paddingX="xs">
+    <VStack gap="none" paddingX="xs" width={width}>
       {lines.map((line, i) => {
+        const lineWidth = Math.max(1, width - 2)
         if (line.startsWith("+++") || line.startsWith("---")) {
-          return <Text key={i} color={theme.accent} bold>{truncate(line, width - 2)}</Text>
+          return <Box key={i} width={lineWidth}><Text backgroundColor={palette.hunkBg} color={theme.accent} bold>{padLine(line, lineWidth)}</Text></Box>
         }
         if (line.startsWith("@@")) {
-          return <Text key={i} color={theme.warning}>{truncate(line, width - 2)}</Text>
+          return <Box key={i} width={lineWidth}><Text backgroundColor={palette.hunkBg} color={theme.warning}>{padLine(line, lineWidth)}</Text></Box>
         }
         if (line.startsWith("+")) {
-          return <Text key={i} color={theme.success}>{truncate(line, width - 2)}</Text>
+          return <Box key={i} width={lineWidth}><Text backgroundColor={palette.addBg} color={theme.textPrimary}>{padLine(line, lineWidth)}</Text></Box>
         }
         if (line.startsWith("-")) {
-          return <Text key={i} color={theme.error}>{truncate(line, width - 2)}</Text>
+          return <Box key={i} width={lineWidth}><Text backgroundColor={palette.removeBg} color={theme.textPrimary}>{padLine(line, lineWidth)}</Text></Box>
         }
-        return <Text key={i} color={theme.textDim}>{truncate(line, width - 2)}</Text>
+        return <Box key={i} width={lineWidth}><Text color={theme.textDim}>{truncate(line, lineWidth)}</Text></Box>
       })}
     </VStack>
   )
@@ -359,33 +398,44 @@ function RawView({ raw, width }: { raw: string; width: number }) {
 
 // ── Single-line display (for unified) ────────────────────────────────────
 
-function DiffLineView({ line, width }: { line: DiffLine; width: number }) {
+function DiffLineView({
+  line, width, wordRanges = [],
+}: { line: DiffLine; width: number; wordRanges?: Array<{ start: number; end: number }> }) {
   const theme = useTheme()
+  const palette = getDiffPalette(theme)
   const contentWidth = Math.max(10, width - 16)
   const oldNo = line.oldLineNum?.toString().padStart(4) ?? "    "
   const newNo = line.newLineNum?.toString().padStart(4) ?? "    "
+  const content = truncate(line.content, contentWidth)
+  const padding = " ".repeat(Math.max(0, width - 12 - content.length))
 
   if (line.type === "add") {
     return (
       <Box width={width}>
-        <Text color={theme.textDim}>{oldNo}</Text>
-        <Text color={theme.textDim}> </Text>
-        <Text color={theme.success}>{newNo}</Text>
-        <Text> </Text>
-        <Text color={theme.success} bold>+</Text>
-        <Text color={theme.success}> {truncate(line.content, contentWidth)}</Text>
+        <Text backgroundColor={palette.addBg}>
+          <Text color={theme.textDim}>{oldNo}</Text>
+          <Text color={theme.textDim}> </Text>
+          <Text color={theme.success}>{newNo}</Text>
+          <Text> </Text>
+          <Text color={theme.success} bold>+</Text>
+          <Text color={theme.textPrimary}> {renderHighlighted(content, wordRanges, palette.addWordBg)}</Text>
+          {padding}
+        </Text>
       </Box>
     )
   }
   if (line.type === "remove") {
     return (
       <Box width={width}>
-        <Text color={theme.error}>{oldNo}</Text>
-        <Text color={theme.textDim}> </Text>
-        <Text color={theme.textDim}>{newNo}</Text>
-        <Text> </Text>
-        <Text color={theme.error} bold>-</Text>
-        <Text color={theme.error}> {truncate(line.content, contentWidth)}</Text>
+        <Text backgroundColor={palette.removeBg}>
+          <Text color={theme.error}>{oldNo}</Text>
+          <Text color={theme.textDim}> </Text>
+          <Text color={theme.textDim}>{newNo}</Text>
+          <Text> </Text>
+          <Text color={theme.error} bold>-</Text>
+          <Text color={theme.textPrimary}> {renderHighlighted(content, wordRanges, palette.removeWordBg)}</Text>
+          {padding}
+        </Text>
       </Box>
     )
   }

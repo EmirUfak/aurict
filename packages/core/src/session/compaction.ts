@@ -104,6 +104,13 @@ export interface CompactionConfig {
   messageCountThreshold?: number
 }
 
+export class ContextCompactionError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause })
+    this.name = "ContextCompactionError"
+  }
+}
+
 // ─── Circuit Breaker ──────────────────────────────────────────────────────────
 const CB_MAX_FAILURES = 3
 const CB_RESET_MS     = 60_000
@@ -321,7 +328,7 @@ function microCompact(messages: CoreMessage[], targetBudget: number, modelId?: s
 async function snipCompact(
   messages: CoreMessage[],
   cfg:      CompactionConfig,
-): Promise<CoreMessage[] | null> {
+): Promise<CoreMessage[]> {
   const tailBonus  = (cfg.strategy === "conservative" ? 2 : cfg.strategy === "aggressive" ? -1 : 0)
   const tailTurns  = Math.max(1, (cfg.tailTurns ?? DEFAULT_TAIL_TURNS) + tailBonus)
   const tail       = messages.slice(-tailTurns * 2)
@@ -352,9 +359,9 @@ async function snipCompact(
       ],
     })
     snipSummary = text
-  } catch {
+  } catch (error) {
     cbRecordFailure()
-    return null
+    throw new ContextCompactionError("Context compaction could not summarize tool activity.", error)
   }
 
   // Araç mesajlarını özetle değiştir, konuşma mesajlarını koru
@@ -381,7 +388,7 @@ async function snipCompact(
 async function sessionCompact(
   messages: CoreMessage[],
   cfg:      CompactionConfig,
-): Promise<CoreMessage[] | null> {
+): Promise<CoreMessage[]> {
   const tailBonus = (cfg.strategy === "conservative" ? 2 : cfg.strategy === "aggressive" ? -1 : 0)
   const tailTurns = Math.max(1, (cfg.tailTurns ?? DEFAULT_TAIL_TURNS) + tailBonus)
 
@@ -430,9 +437,9 @@ async function sessionCompact(
       ],
     })
     summary = text
-  } catch {
+  } catch (error) {
     cbRecordFailure()
-    return null
+    throw new ContextCompactionError("Context compaction could not summarize the earlier conversation.", error)
   }
 
   // Post-compact file re-injection: summary'de geçen kaynak dosyaları ekle
@@ -485,8 +492,10 @@ async function sessionCompact(
 export async function compact(
   messages: CoreMessage[],
   cfg:      CompactionConfig,
-): Promise<CoreMessage[] | null> {
-  if (cbIsOpen()) return null
+): Promise<CoreMessage[]> {
+  if (cbIsOpen()) {
+    throw new ContextCompactionError("Context compaction is temporarily unavailable after repeated summary failures.")
+  }
 
   const usable   = cfg.contextLimit - cfg.maxOutput - COMPACTION_BUFFER
   const current  = estimateTokens(messages, cfg.model, cfg.tokenizerEncoding)
@@ -495,7 +504,7 @@ export async function compact(
 
   const tokensBefore = current
 
-  let result: CoreMessage[] | null = null
+  let result: CoreMessage[] | undefined
   // Küçük taşma (<8% of context): microCompact dene, yetersizse session'a geç
   if (overflow < cfg.contextLimit * 0.08) {
     const micro = microCompact(messages, usable, cfg.model, cfg.tokenizerEncoding)
@@ -506,16 +515,10 @@ export async function compact(
   }
 
   // Tool output ağırlıklı (>55%): snipCompact
-  if (!result && health.toolOutputPct > 0.55) {
-    result   = await snipCompact(messages, cfg)
-  }
+  if (!result && health.toolOutputPct > 0.55) result = await snipCompact(messages, cfg)
 
   // Varsayılan: tam session compaction
-  if (!result) {
-    result   = await sessionCompact(messages, cfg)
-  }
-
-  if (!result) return null
+  if (!result) result = await sessionCompact(messages, cfg)
 
   const tokensAfter = estimateTokens(result, cfg.model, cfg.tokenizerEncoding)
 
