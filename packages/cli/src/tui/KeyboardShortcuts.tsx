@@ -56,7 +56,8 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Output",
     shortcuts: [
-      { keys: "Ctrl+O",     description: "Expand last tool output" },
+      { keys: "Ctrl+O",     description: "Inspect latest tool, diff, or reasoning" },
+      { keys: "[ / ]",      description: "Browse transcript details while inspecting" },
       { keys: "Ctrl+S",     description: "Open settings" },
     ],
   },

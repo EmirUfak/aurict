@@ -24,6 +24,8 @@ export interface ToolContext {
   /** Aurict backend access token (varsa) — bkz. AgentRunOptions.backendAccessToken.
    *  Aynı süreçte çalışan subagent worker'larına yalnızca ToolContext üzerinden aktarılır. */
   backendAccessToken?: string
+  /** Backend erişimi gereken araçlar için gecikmeli token çözümü. */
+  backendAccessTokenResolver?: (signal: AbortSignal) => Promise<string | undefined>
   /** Araç çalışırken canlı çıktı chunk'larını iletir (bash streaming için) */
   onChunk?:     (chunk: string) => void
   // Agent worker'ları için — pool üzerinden başka worker'a mesaj yollar

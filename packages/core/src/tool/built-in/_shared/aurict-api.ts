@@ -39,7 +39,15 @@ export async function callAurictApi<T>(
   path: string,
   options: AurictApiRequestOptions = {},
 ): Promise<AurictApiResult<T>> {
-  if (!ctx.backendAccessToken) return { kind: "not_authenticated" }
+  let accessToken = ctx.backendAccessToken
+  if (!accessToken && ctx.backendAccessTokenResolver) {
+    try {
+      accessToken = await ctx.backendAccessTokenResolver(ctx.signal)
+    } catch (error) {
+      return { kind: "unavailable", detail: error instanceof Error ? error.message : String(error) }
+    }
+  }
+  if (!accessToken) return { kind: "not_authenticated" }
 
   const timeoutController = new AbortController()
   const timer = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
@@ -48,7 +56,7 @@ export async function callAurictApi<T>(
     : ctx.signal
   const request: RequestInit = {
     method: options.method ?? "GET",
-    headers: { authorization: `Bearer ${ctx.backendAccessToken}` },
+    headers: { authorization: `Bearer ${accessToken}` },
     signal,
     ...(options.body === undefined ? {} : { body: options.body }),
   }

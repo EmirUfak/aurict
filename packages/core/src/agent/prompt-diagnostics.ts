@@ -44,10 +44,10 @@ export interface PromptDiagnostics {
   byCache: Record<ResolvedPromptSection["cache"], { chars: number; tokens: number; sections: number }>
 }
 
-export function analyzePromptSections(sections: ResolvedPromptSection[]): PromptDiagnostics {
+export function analyzePromptSections(sections: ResolvedPromptSection[], modelId?: string, tokenizerEncoding?: string): PromptDiagnostics {
   const totalBudgetTokens = readPositiveIntEnv("AURICT_PROMPT_TOTAL_BUDGET_TOKENS") ?? DEFAULT_PROMPT_TOTAL_BUDGET_TOKENS
   const diagnostics = sections.map((section) => {
-    const tokens = countTokens(section.content)
+    const tokens = countTokens(section.content, modelId, tokenizerEncoding)
     const budgetTokens = sectionBudget(section.name)
     return {
       name: section.name,

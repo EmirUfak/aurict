@@ -14,6 +14,7 @@ export type ArtifactSource = 'workspace' | 'aurict-managed';
 export interface ArtifactInfo { id: string; title: string; kind: ArtifactKind; lifecycle: ArtifactLifecycle; source: ArtifactSource; workspace: string; mimeType?: string; createdAt: number; updatedAt: number; sessionId?: string; tool?: string; prompt?: string; error?: string; previousId?: string; }
 
 export interface ChatSubmitPayload {
+  turnId: string;
   text: string;
   attachments?: ChatAttachment[];
   agentId?: string;
@@ -23,19 +24,22 @@ export interface ChatSubmitPayload {
   financeResearchId?: string;
 }
 
-export type ChatEvent =
+export type ChatTurnEvent = { turnId: string } & (
   | { type: 'text-delta'; delta: string; isReasoning?: boolean }
   | { type: 'tool-call'; id: string; tool: string; args: unknown }
   | { type: 'tool-result'; id: string; result: string; durationMs: number }
   | { type: 'chunk'; text: string }
   | { type: 'step-finish' }
+  | { type: 'phase'; phase: 'accepted' | 'preparing_attachments' | 'preparing_context' | 'resolving_model' | 'waiting_for_provider' }
   | { type: 'compaction' }
   | { type: 'provider-fallback'; from: string; to: string }
   | { type: 'stream-restart' }
   | { type: 'finance-research-audit'; researchId: string; audit: FinanceResearchAudit }
-  | { type: 'artifact:updated'; artifact: ArtifactInfo }
   | { type: 'finish'; text: string; sessionId?: string; finishReason?: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+);
+
+export type ChatEvent = ChatTurnEvent | { type: 'artifact:updated'; artifact: ArtifactInfo };
 
 export interface PermissionRequestPayload {
   id: string;
@@ -288,7 +292,7 @@ export interface AurictWindowApi {
   };
   chat: {
     submit(payload: ChatSubmitPayload): void;
-    cancel(): void;
+    cancel(turnId: string): void;
     onEvent(cb: (event: ChatEvent) => void): () => void;
   };
   permission: {
@@ -395,7 +399,7 @@ export interface AurictWindowApi {
 
 export type SidecarCommand =
   | { type: 'chat:submit'; payload: ChatSubmitPayload }
-  | { type: 'chat:cancel' }
+  | { type: 'chat:cancel'; turnId: string }
   | { type: 'permission:respond'; id: string; decision: PermissionDecision }
   | { type: 'provider:list' }
   | { type: 'provider:set-key'; providerId: string; apiKey: string }

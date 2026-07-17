@@ -63,26 +63,24 @@ import { RemoteApiError } from './remote/backend-client.js'
 import { existsSync } from 'node:fs'
 import { extname, resolve } from 'node:path'
 
-/** bonds/rates/legal gibi backend-konuşan tool'lar için — kullanıcı giriş yapmamışsa
- *  veya refresh başarısız olursa turn'ü hiç engellemeden undefined döner; tool'lar
- *  eksik token'ı kendileri algılayıp nazikçe raporlar (bkz. _shared/aurict-api.ts). */
-async function resolveBackendAccessToken(): Promise<string | undefined> {
+/** Backend tokenı yalnızca ilgili araç çalışırken çözülür; normal chat başlangıcı
+ *  oturum yenilemesi yüzünden beklemez. */
+async function resolveBackendAccessToken(signal: AbortSignal): Promise<string | undefined> {
   try {
-    return await ensureAccessToken()
+    return await ensureAccessToken(signal)
   } catch (error) {
-    const reason = error instanceof RemoteApiError ? `${error.code} (${error.requestId})` : error instanceof Error ? error.message : String(error)
-    console.warn(`[aurict] Backend access token is unavailable: ${reason}`)
-    return undefined
+    if (error instanceof RemoteApiError && error.code === "not_signed_in") return undefined
+    throw error
   }
 }
 
 interface ChatAttachment { path: string; content?: string }
-interface ChatSubmitPayload { text: string; attachments?: ChatAttachment[]; agentId?: string; artifactId?: string; artifactIntent?: "create" | "iterate" | "promote"; displayText?: string; financeResearchId?: string }
+interface ChatSubmitPayload { turnId: string; text: string; attachments?: ChatAttachment[]; agentId?: string; artifactId?: string; artifactIntent?: "create" | "iterate" | "promote"; displayText?: string; financeResearchId?: string }
 interface CustomProviderDef { name: string; baseUrl: string; apiKey: string; defaultModel: string }
 
 type SidecarCommand =
   | { type: "chat:submit"; payload: ChatSubmitPayload }
-  | { type: "chat:cancel" }
+  | { type: "chat:cancel"; turnId: string }
   | { type: "permission:respond"; id: string; decision: PermissionDecision }
   | { type: "provider:list" }
   | { type: "provider:set-key"; providerId: string; apiKey: string }
@@ -157,6 +155,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
   const history: CoreMessage[] = []
   let sessionId: string = crypto.randomUUID()
   let activeController: AbortController | null = null
+  let activeTurnId: string | null = null
   let remoteRuntime: CliRemoteRuntime | null = null
   let currentProvider = ProviderRegistry.detectDefault()
   let currentModel = ProviderRegistry.get(currentProvider).defaultModel()
@@ -250,41 +249,38 @@ export async function runIpcServer(workdir: string): Promise<void> {
     const agentDef = getSessionAgent(payload.agentId ?? "omni", workdir)
 
     if (activeController) {
-      send({ type: "chat:event", event: { type: "error", message: "A chat turn is already running." } })
+      send({ type: "chat:event", event: { type: "error", turnId: payload.turnId, message: "A chat turn is already running." } })
       return
     }
-    let attachments
-    try {
-      attachments = payload.attachments?.length
-        ? await Promise.all(payload.attachments.map((attachment) => readAttachmentFromPath(attachment.path)))
-        : undefined
-    } catch (error) {
-      send({ type: "chat:event", event: { type: "error", message: error instanceof Error ? error.message : String(error) } })
-      return
-    }
-
     const controller = new AbortController()
     activeController = controller
+    activeTurnId = payload.turnId
     try {
-      const backendAccessToken = await resolveBackendAccessToken()
+      send({ type: "chat:event", event: { type: "phase", turnId: payload.turnId, phase: "accepted" } })
+      send({ type: "chat:event", event: { type: "phase", turnId: payload.turnId, phase: "preparing_attachments" } })
+      const attachments = payload.attachments?.length
+        ? await Promise.all(payload.attachments.map((attachment) => readAttachmentFromPath(attachment.path)))
+        : undefined
+      send({ type: "chat:event", event: { type: "phase", turnId: payload.turnId, phase: "preparing_context" } })
       await runAgent({
         provider: currentProvider,
         model: currentModel,
         workdir,
         sessionId,
-        ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
+        backendAccessTokenResolver: resolveBackendAccessToken,
         ...(agentDef.system ? { system: agentDef.system } : {}),
         messages: nextHistory,
         ...(attachments ? { attachments } : {}),
         signal: controller.signal,
-        onText: (delta, isReasoning) => send({ type: "chat:event", event: { type: "text-delta", delta, isReasoning } }),
-        onToolCall: (call) => { toolCalls.set(call.id, { tool: call.tool, args: call.args }); send({ type: "chat:event", event: { type: "tool-call", id: call.id, tool: call.tool, args: call.args } }) },
-        onToolResult: (res) => { publishToolArtifact(res.id, payload.displayText?.trim() || payload.text); send({ type: "chat:event", event: { type: "tool-result", id: res.id, result: res.result, durationMs: res.durationMs } }) },
-        onChunk: (text) => send({ type: "chat:event", event: { type: "chunk", text } }),
-        onStepFinish: () => send({ type: "chat:event", event: { type: "step-finish" } }),
-        onCompaction: () => send({ type: "chat:event", event: { type: "compaction" } }),
-        onProviderFallback: (from, to) => send({ type: "chat:event", event: { type: "provider-fallback", from, to } }),
-        onStreamRestart: () => send({ type: "chat:event", event: { type: "stream-restart" } }),
+        onText: (delta, isReasoning) => send({ type: "chat:event", event: { type: "text-delta", turnId: payload.turnId, delta, isReasoning } }),
+        onToolCall: (call) => { toolCalls.set(call.id, { tool: call.tool, args: call.args }); send({ type: "chat:event", event: { type: "tool-call", turnId: payload.turnId, id: call.id, tool: call.tool, args: call.args } }) },
+        onToolResult: (res) => { publishToolArtifact(res.id, payload.displayText?.trim() || payload.text); send({ type: "chat:event", event: { type: "tool-result", turnId: payload.turnId, id: res.id, result: res.result, durationMs: res.durationMs } }) },
+        onChunk: (text) => send({ type: "chat:event", event: { type: "chunk", turnId: payload.turnId, text } }),
+        onStepFinish: () => send({ type: "chat:event", event: { type: "step-finish", turnId: payload.turnId } }),
+        onCompaction: () => send({ type: "chat:event", event: { type: "compaction", turnId: payload.turnId } }),
+        onProviderFallback: (from, to) => send({ type: "chat:event", event: { type: "provider-fallback", turnId: payload.turnId, from, to } }),
+        onStreamRestart: () => send({ type: "chat:event", event: { type: "stream-restart", turnId: payload.turnId } }),
+        onPhase: (phase) => send({ type: "chat:event", event: { type: "phase", turnId: payload.turnId, phase } }),
         onFinish: (result) => {
           history.push(historyMessage, ...result.newMessages)
           if (payload.artifactId && payload.artifactIntent !== "promote") {
@@ -297,9 +293,13 @@ export async function runIpcServer(workdir: string): Promise<void> {
             }
           }
           if (payload.financeResearchId) {
-            send({ type: "chat:event", event: { type: "finance-research-audit", researchId: payload.financeResearchId, audit: parseFinanceResearchAudit(result.text) } })
+            send({ type: "chat:event", event: { type: "finance-research-audit", turnId: payload.turnId, researchId: payload.financeResearchId, audit: parseFinanceResearchAudit(result.text) } })
           }
-          send({ type: "chat:event", event: { type: "finish", text: result.text, sessionId: result.sessionId, finishReason: result.finishReason } })
+          if (activeController === controller) {
+            activeController = null
+            activeTurnId = null
+          }
+          send({ type: "chat:event", event: { type: "finish", turnId: payload.turnId, text: result.text, sessionId: result.sessionId, finishReason: result.finishReason } })
         },
       })
     } catch (err) {
@@ -311,9 +311,16 @@ export async function runIpcServer(workdir: string): Promise<void> {
           console.error("[aurict] failed to record design artifact failure", artifactError)
         }
       }
-      send({ type: "chat:event", event: { type: "error", message: err instanceof Error ? err.message : String(err) } })
+      if (activeController === controller) {
+        activeController = null
+        activeTurnId = null
+      }
+      send({ type: "chat:event", event: { type: "error", turnId: payload.turnId, message: err instanceof Error ? err.message : String(err) } })
     } finally {
-      if (activeController === controller) activeController = null
+      if (activeController === controller) {
+        activeController = null
+        activeTurnId = null
+      }
     }
   }
 
@@ -323,7 +330,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
         void handleChatSubmit(cmd.payload)
         return
       case "chat:cancel":
-        activeController?.abort()
+        if (activeTurnId === cmd.turnId) activeController?.abort()
         return
       case "remote:action": {
         void (async () => {
@@ -341,7 +348,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
                 remoteRuntime = new CliRemoteRuntime({ transport: new WebRtcCliTransport() })
                 remoteRuntime.onStatusChange((status) => { void publishRemoteStatus(status === 'connected' ? 'Phone connected. Remote control is active.' : `Remote status: ${status}`) })
                 remoteRuntime.onEvent((event) => {
-                  if (event.type === 'prompt.submit' && typeof event.payload.prompt === 'string') { void handleChatSubmit({ text: event.payload.prompt, displayText: 'Remote prompt' }); return }
+                  if (event.type === 'prompt.submit' && typeof event.payload.prompt === 'string') { void handleChatSubmit({ turnId: crypto.randomUUID(), text: event.payload.prompt, displayText: 'Remote prompt' }); return }
                   if (event.type === 'interrupt') { activeController?.abort(); return }
                   if (event.type === 'permission.response' && typeof event.payload.id === 'string' && (event.payload.decision === 'allow' || event.payload.decision === 'allow_once' || event.payload.decision === 'deny')) {
                     PermissionGate.respond(event.payload.id, event.payload.decision)

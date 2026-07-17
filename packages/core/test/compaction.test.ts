@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test"
 import {
   estimateTokens,
+  estimateEffectiveContextTokens,
   isOverflow,
   isOverflowByMessages,
   COMPACTION_BUFFER,
@@ -8,6 +9,7 @@ import {
   DEFAULT_TAIL_TURNS,
 } from "../src/session/compaction.js"
 import type { CoreMessage } from "ai"
+import { countTokens } from "../src/provider/tokenizer.js"
 
 function makeMessages(n: number, content = "hello world"): CoreMessage[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -38,6 +40,24 @@ describe("estimateTokens", () => {
     ]
     const n = estimateTokens(msgs)
     expect(n).toBeGreaterThan(0)
+  })
+
+  it("uses the selected model encoding instead of always falling back", () => {
+    const content = "Merhaba 👋 code: const result = await fetch('/api')"
+    const msgs: CoreMessage[] = [{ role: "user", content }]
+    expect(estimateTokens(msgs, "gpt-4o")).toBe(countTokens(content, "gpt-4o") + 4)
+  })
+
+  it("includes system, tool, attachment, and safety reserves in an effective context estimate", () => {
+    const msgs: CoreMessage[] = [{ role: "user", content: "hello" }]
+    const historyOnly = estimateTokens(msgs, "gpt-4o")
+    const effective = estimateEffectiveContextTokens(msgs, {
+      modelId: "gpt-4o",
+      systemPrompt: "Follow the project instructions.",
+      toolSchemaReserveTokens: 500,
+      attachmentReserveTokens: 1_200,
+    })
+    expect(effective).toBeGreaterThan(historyOnly + 1_700)
   })
 })
 

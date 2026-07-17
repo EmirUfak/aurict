@@ -46,6 +46,10 @@ export interface BtwState {
 export interface ExpandedContent {
   content: string
   toolName: string
+  kind?: "tool" | "reasoning" | "diff" | "write"
+  rawDiff?: string
+  filePath?: string
+  totalLines?: number
 }
 
 export interface OverlayState {

@@ -91,6 +91,10 @@ import { CockpitHeader } from "./CockpitHeader.js";
 import { McpStatusPanel } from "./McpStatusPanel.js";
 import { AgentStatus } from "./AgentStatus.js";
 import { ConversationViewport } from "./ConversationViewport.js";
+import {
+  collectTranscriptDetails,
+  type TranscriptDetail,
+} from "./conversation/transcript-details.js";
 import { FullscreenLayout } from "./FullscreenLayout.js";
 import { SubagentView } from "./SubagentView.js";
 import { FileMention, listFileMentionMatches } from "./FileMention.js";
@@ -150,16 +154,13 @@ function configuredSandboxBackend(): "none" | "policy" | "docker" {
 
 const PERM_FILE = join(homedir(), ".aurict", "permissions.json");
 
-/** bonds/rates/legal gibi backend-konuşan tool'lar için — kullanıcı giriş yapmamışsa
- *  veya refresh başarısız olursa turn'ü hiç engellemeden undefined döner; tool'lar
- *  eksik token'ı kendileri algılayıp nazikçe raporlar (bkz. _shared/aurict-api.ts). */
-async function resolveBackendAccessToken(): Promise<string | undefined> {
+/** Backend tokenını yalnızca onu gerektiren araç çağrısı sırasında çözer. */
+async function resolveBackendAccessToken(signal: AbortSignal): Promise<string | undefined> {
   try {
-    return await ensureAccessToken();
+    return await ensureAccessToken(signal);
   } catch (error) {
-    const reason = error instanceof RemoteApiError ? `${error.code} (${error.requestId})` : error instanceof Error ? error.message : String(error);
-    console.warn(`[aurict] Backend access token is unavailable: ${reason}`);
-    return undefined;
+    if (error instanceof RemoteApiError && error.code === 'not_signed_in') return undefined;
+    throw error;
   }
 }
 
@@ -218,6 +219,7 @@ export function App({
   const [termRows, setTermRows] = useState(() => process.stdout.rows ?? 24);
   const [terminalMeasured, setTerminalMeasured] = useState(false);
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [selectedTranscriptDetailId, setSelectedTranscriptDetailId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [permissionQueue, setPermissionQueue] = useState<PermissionRequest[]>(
@@ -462,6 +464,31 @@ export function App({
     tool: string;
     content: string;
   } | null>(null);
+  const transcriptDetails = useMemo(
+    () => collectTranscriptDetails(messages),
+    [messages],
+  );
+  const openTranscriptDetail = useCallback((detail: TranscriptDetail) => {
+    overlay.closePrimaryOverlays();
+    setSelectedTranscriptDetailId(detail.id);
+    setExpandedContent({
+      content: detail.content,
+      toolName: detail.title,
+      kind: detail.kind,
+      ...(detail.rawDiff ? { rawDiff: detail.rawDiff } : {}),
+      ...(detail.filePath ? { filePath: detail.filePath } : {}),
+      ...(detail.totalLines !== undefined ? { totalLines: detail.totalLines } : {}),
+    });
+  }, [overlay, setExpandedContent]);
+  const moveTranscriptDetail = useCallback((direction: -1 | 1) => {
+    if (transcriptDetails.length < 2) return;
+    const currentIndex = Math.max(
+      0,
+      transcriptDetails.findIndex((detail) => detail.id === selectedTranscriptDetailId),
+    );
+    const nextIndex = (currentIndex + direction + transcriptDetails.length) % transcriptDetails.length;
+    openTranscriptDetail(transcriptDetails[nextIndex]!);
+  }, [openTranscriptDetail, selectedTranscriptDetailId, transcriptDetails]);
   const btwFrameRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const skipSubmitRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -1162,16 +1189,20 @@ export function App({
       return;
     }
 
-    // ── Ctrl+O: expand the latest tool output ──────────────────────────────
+    // ── Ctrl+O: inspect the latest transcript detail ───────────────────────
     if (key.ctrl && input === "o") {
       if (!expandedContent && !btwState) {
-        const latest = latestToolCallRef.current;
-        if (latest) {
-          overlay.closePrimaryOverlays();
-          setExpandedContent({
-            content: latest.content,
-            toolName: latest.tool,
-          });
+        const selected = transcriptDetails.find(
+          (detail) => detail.id === selectedTranscriptDetailId,
+        );
+        const detail = selected ?? transcriptDetails.at(-1);
+        if (detail) openTranscriptDetail(detail);
+        else {
+          const latest = latestToolCallRef.current;
+          if (latest) {
+            overlay.closePrimaryOverlays();
+            setExpandedContent({ content: latest.content, toolName: latest.tool });
+          }
         }
       }
       return;
@@ -1253,7 +1284,7 @@ export function App({
         PermissionGate.respond(permission.id, "deny");
         setInput(permission.pattern);
         setPermissionQueue((q) => q.slice(1));
-        addSystemMsg("Command moved to input for editing.");
+        addSystemMsg(`Permission declined for ${permission.tool}; request moved to input for editing.`);
         return;
       }
       if (action === "deny_abort") {
@@ -1263,7 +1294,7 @@ export function App({
           abortControllerRef.current.abort();
           abortControllerRef.current = null;
         }
-        addSystemMsg("Agent stopped by user");
+        addSystemMsg(`Permission denied for ${permission.tool}; agent stopped by user.`);
         return;
       }
       PermissionGate.respond(
@@ -1279,6 +1310,14 @@ export function App({
         PermissionStore.savePersisted(PERM_FILE);
       }
       setPermissionQueue((q) => q.filter((item) => item.id !== permission.id));
+      const decisionLabel = action === "allow"
+        ? "allowed and remembered"
+        : action === "allow_directory"
+          ? "allowed for directory and remembered"
+          : action === "allow_partial"
+            ? "partially allowed"
+            : "allowed once";
+      addSystemMsg(`Permission ${decisionLabel}: ${permission.tool}.`);
     },
     [permission],
   );
@@ -1882,13 +1921,12 @@ export function App({
             setStreamingReason(streamReasonRef.current);
         };
 
-        const backendAccessToken = await resolveBackendAccessToken();
         await runAgent({
           provider,
           model,
           workdir: workdirState,
           sessionId: mainSessionId.current,
-          ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
+          backendAccessTokenResolver: resolveBackendAccessToken,
           ...(effectiveSystem ? { system: effectiveSystem } : {}),
           // If disabled via /coordinator (false), loop.ts never injects it; if true/undefined,
           // loop.ts makes its own complexity-gated decision (cfg.orchestration.mode).
@@ -2733,15 +2771,6 @@ export function App({
                         onAnchorShift={scrollConversation}
                         {...(unseenCount > 0 ? { unseenCount } : {})}
                         {...(activeTool !== undefined ? { activeTool } : {})}
-                        onExpandTool={(content, toolName) =>
-                          setExpandedContent({ content, toolName })
-                        }
-                        onExpandThinking={(content) =>
-                          setExpandedContent({
-                            content,
-                            toolName: "∴ thinking",
-                          })
-                        }
                       />
                     )}
                   </>
@@ -2958,6 +2987,16 @@ export function App({
                       <ExpandableOutput
                         content={expandedContent.content}
                         toolName={expandedContent.toolName}
+                        {...(expandedContent.kind !== undefined ? { kind: expandedContent.kind } : {})}
+                        {...(expandedContent.rawDiff ? { rawDiff: expandedContent.rawDiff } : {})}
+                        {...(expandedContent.filePath ? { filePath: expandedContent.filePath } : {})}
+                        {...(expandedContent.totalLines !== undefined ? { totalLines: expandedContent.totalLines } : {})}
+                        {...(transcriptDetails.length > 1
+                          ? {
+                              onPrevious: () => moveTranscriptDetail(-1),
+                              onNext: () => moveTranscriptDetail(1),
+                            }
+                          : {})}
                         onClose={() => setExpandedContent(null)}
                       />
                     )}

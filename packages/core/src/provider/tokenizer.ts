@@ -25,7 +25,12 @@ function getEncoder(encoding: TiktokenEncoding) {
   return cache.get(encoding)!
 }
 
-function resolveEncoding(modelId: string): TiktokenEncoding {
+function isTiktokenEncoding(value: string): value is TiktokenEncoding {
+  return value === "cl100k_base" || value === "o200k_base"
+}
+
+function resolveEncoding(modelId: string, preferredEncoding?: string): TiktokenEncoding {
+  if (preferredEncoding && isTiktokenEncoding(preferredEncoding)) return preferredEncoding
   if (MODEL_ENCODINGS[modelId]) return MODEL_ENCODINGS[modelId]!
   // OpenRouter format: "provider/model-name"
   if (modelId.includes("/")) {
@@ -36,14 +41,15 @@ function resolveEncoding(modelId: string): TiktokenEncoding {
   return "cl100k_base"
 }
 
-export function countTokens(text: string, modelId?: string): number {
-  const encoding = resolveEncoding(modelId ?? "")
+export function countTokens(text: string, modelId?: string, preferredEncoding?: string): number {
+  const encoding = resolveEncoding(modelId ?? "", preferredEncoding)
   return getEncoder(encoding).encode(text).length
 }
 
 export function estimateMessages(
   messages: Array<{ role: string; content: string }>,
   modelId?: string,
+  preferredEncoding?: string,
 ): number {
-  return messages.reduce((sum, m) => sum + countTokens(m.content, modelId) + 4, 0)
+  return messages.reduce((sum, m) => sum + countTokens(m.content, modelId, preferredEncoding) + 4, 0)
 }

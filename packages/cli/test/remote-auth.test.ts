@@ -150,6 +150,29 @@ describe("backend-client", () => {
       expect((err as RemoteApiError).code).toBe("invalid_response")
     } finally { globalThis.fetch = original }
   })
+
+  it("aborts a stalled request at the configured timeout", async () => {
+    const original = globalThis.fetch
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason ?? new Error("aborted")), { once: true })
+    })) as typeof fetch
+    try {
+      await expect(backendRequest("/ping", { timeoutMs: 20 })).rejects.toMatchObject({ code: "request_timeout" })
+    } finally { globalThis.fetch = original }
+  })
+
+  it("reports caller cancellation distinctly from a network failure", async () => {
+    const original = globalThis.fetch
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason ?? new Error("aborted")), { once: true })
+    })) as typeof fetch
+    const controller = new AbortController()
+    const pending = backendRequest("/ping", { signal: controller.signal, timeoutMs: 1_000 })
+    controller.abort()
+    try {
+      await expect(pending).rejects.toMatchObject({ code: "request_cancelled" })
+    } finally { globalThis.fetch = original }
+  })
 })
 
 describe("auth — device login orchestration", () => {
@@ -327,6 +350,21 @@ describe("auth — token refresh", () => {
       expect(readStoredTokens()).toBeNull()
     } finally { restore() }
   })
+
+  it("retains the local session when refresh is cancelled", async () => {
+    writeStoredTokens({ accessToken: "at", refreshToken: "rt", tokenType: "Bearer" })
+    const original = globalThis.fetch
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason ?? new Error("aborted")), { once: true })
+    })) as typeof fetch
+    try {
+      const controller = new AbortController()
+      const refresh = refreshAccessToken(controller.signal)
+      controller.abort()
+      await expect(refresh).rejects.toMatchObject({ code: "request_cancelled" })
+      expect(readStoredTokens()?.refreshToken).toBe("rt")
+    } finally { globalThis.fetch = original }
+  }, 10_000)
 })
 
 describe("auth — status and logout", () => {

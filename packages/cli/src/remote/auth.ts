@@ -136,31 +136,36 @@ export async function loginWithBrowser(onEvent?: (event: RemoteLoginEvent) => vo
   throw new RemoteApiError("device_login_timeout", "Device login timed out waiting for approval.", "client")
 }
 
-export async function refreshAccessToken(): Promise<RemoteSessionTokens> {
+export async function refreshAccessToken(signal?: AbortSignal): Promise<RemoteSessionTokens> {
   const current = readStoredTokens()
   if (!current) throw new RemoteApiError("not_signed_in", "No remote session found. Run /remote login.", "client")
   try {
     const result = await backendRequest<{ accessToken: string; refreshToken: string }>("/auth/refresh", {
       method: "POST",
       body:   { refreshToken: current.refreshToken },
+      ...(signal !== undefined ? { signal } : {}),
     })
     const next: RemoteSessionTokens = { ...current, accessToken: result.accessToken, refreshToken: result.refreshToken }
     writeStoredTokens(next)
     return next
   } catch (error) {
-    // Refresh invalid/reuse detected → the local session is dead, delete it
-    // to force a clean re-login.
-    clearStoredTokens()
+    // Sadece backend'in kesin olarak geçersiz/reuse olduğunu bildirdiği refresh
+    // tokenları sil. Ağ kesintisi veya zaman aşımı oturumu geçersiz kılmaz.
+    if (error instanceof RemoteApiError && isTerminalRefreshFailure(error.code)) clearStoredTokens()
     throw error
   }
 }
 
+function isTerminalRefreshFailure(code: string): boolean {
+  return code === "refresh_reuse_detected" || code === "invalid_refresh_token" || code === "refresh_token_expired"
+}
+
 /** Returns a valid (refreshed if needed) access token; throws if there's no session. */
-export async function ensureAccessToken(): Promise<string> {
+export async function ensureAccessToken(signal?: AbortSignal): Promise<string> {
   const current = readStoredTokens()
   if (!current) throw new RemoteApiError("not_signed_in", "No remote session found. Run /remote login.", "client")
   if (isAccessTokenExpiringSoon(current.accessToken)) {
-    const refreshed = await refreshAccessToken()
+    const refreshed = await refreshAccessToken(signal)
     return refreshed.accessToken
   }
   return current.accessToken

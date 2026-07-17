@@ -451,16 +451,18 @@ ipcMain.on('chat:submit', (_e, payload: ChatSubmitPayload) => {
   } catch (error) {
     _e.sender.send('chat:event', {
       type: 'error',
+      turnId: payload.turnId,
       message: error instanceof Error ? error.message : String(error),
     });
   }
 });
-ipcMain.on('chat:cancel', (_e) => {
+ipcMain.on('chat:cancel', (_e, turnId: string) => {
   try {
-    sendToSidecar({ type: 'chat:cancel' });
+    sendToSidecar({ type: 'chat:cancel', turnId });
   } catch (error) {
     _e.sender.send('chat:event', {
       type: 'error',
+      turnId,
       message: error instanceof Error ? error.message : String(error),
     });
   }

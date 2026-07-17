@@ -15,6 +15,8 @@ export interface AgentContinuationOptions {
   maxTaskContinuations?: number | undefined
 }
 
+export type AgentRunPhase = "preparing_context" | "resolving_model" | "waiting_for_provider"
+
 export interface AgentRunOptions {
   sessionId?:   string
   provider?:    string
@@ -23,6 +25,9 @@ export interface AgentRunOptions {
    *  tool'lara ToolContext üzerinden aktarılır. Yoksa bu tool'lar "giriş yapmamışsın"
    *  mesajı döner, agent turn'u hiç engellenmez. */
   backendAccessToken?: string
+  /** Backend erişimi gerektiren bir araç çağrıldığında tokenı çözer. Normal sohbet
+   *  başlangıcında çağrılmaz; böylece oturum yenilemesi stream'i bloke edemez. */
+  backendAccessTokenResolver?: (signal: AbortSignal) => Promise<string | undefined>
   system?:      string
   undercover?:  boolean
   /** false ise coordinator promptu bu turn'e hiç enjekte edilmez (kullanıcı /coordinator ile
@@ -52,6 +57,8 @@ export interface AgentRunOptions {
   onSkillsActivated?: (skills: ActivatedSkillInfo[]) => void
   onPromptDiagnostics?: (diagnostics: PromptDiagnostics) => void
   onPromptCacheHealth?: (result: PromptCacheHealthResult) => void
+  /** Stream başlamadan önceki aşamaları görünür kılar. */
+  onPhase?:       (phase: AgentRunPhase) => void
   onFinish?:      (result: AgentFinishResult) => void
 }
 

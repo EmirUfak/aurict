@@ -52,6 +52,28 @@ describe('callAurictApi', () => {
     expect(result.kind).toBe('not_authenticated')
   })
 
+  it('resolves a backend token only when an Aurict API tool actually runs', async () => {
+    let calls = 0
+    const result = await callAurictApi(fakeCtx({
+      backendAccessToken: undefined,
+      backendAccessTokenResolver: async () => {
+        calls++
+        return 'resolved-token'
+      },
+    }), 'modules', '/success')
+    expect(calls).toBe(1)
+    expect(result.kind).toBe('success')
+    if (result.kind === 'success') expect((result.data as { auth: string }).auth).toBe('Bearer resolved-token')
+  })
+
+  it('surfaces token refresh failures as unavailable instead of hanging the tool', async () => {
+    const result = await callAurictApi(fakeCtx({
+      backendAccessToken: undefined,
+      backendAccessTokenResolver: async () => { throw new Error('request_timeout') },
+    }), 'modules', '/success')
+    expect(result).toEqual({ kind: 'unavailable', detail: 'request_timeout' })
+  })
+
   it('distinguishes an HTTP 401 from a missing local session token', async () => {
     const result = await callAurictApi(fakeCtx(), 'modules', '/unauthorized')
     expect(result).toEqual({ kind: 'authorization_rejected', target: 'modules' })

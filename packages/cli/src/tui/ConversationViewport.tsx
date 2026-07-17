@@ -18,8 +18,6 @@ export interface ConversationViewportProps {
   unseenCount?: number;
   onScrollRange?: (maxOffset: number) => void;
   onAnchorShift?: (deltaRows: number) => void;
-  onExpandTool: (content: string, toolName: string) => void;
-  onExpandThinking: (content: string) => void;
 }
 
 export function ConversationViewport(props: ConversationViewportProps) {

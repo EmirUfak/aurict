@@ -97,6 +97,7 @@ export interface CompactionConfig {
   tailTurns:              number
   provider:               string
   model:                  string
+  tokenizerEncoding?:     string
   workdir?:               string
   sessionId?:             string
   strategy?:              CompactionStrategy
@@ -132,16 +133,43 @@ function cbIsOpen(): boolean {
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-export function estimateTokens(messages: CoreMessage[]): number {
+export function estimateTokens(messages: CoreMessage[], modelId?: string, tokenizerEncoding?: string): number {
   return messages.reduce((sum, m) => {
     const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content)
-    return sum + countTokens(text) + 4
+    return sum + countTokens(text, modelId, tokenizerEncoding) + 4
   }, 0)
+}
+
+export interface EffectiveContextOptions {
+  modelId: string
+  tokenizerEncoding?: string
+  systemPrompt?: string
+  toolSchemaReserveTokens?: number
+  attachmentReserveTokens?: number
+  safetyMargin?: number
+}
+
+/**
+ * Provider'a gönderilecek bağlamın korumacı tahmini. History dışında system/gitre
+ * blokları ve provider'a özgü tool/ek overhead'i de karar bütçesine girer.
+ */
+export function estimateEffectiveContextTokens(
+  messages: CoreMessage[],
+  options: EffectiveContextOptions,
+): number {
+  const systemTokens = options.systemPrompt
+    ? countTokens(options.systemPrompt, options.modelId, options.tokenizerEncoding)
+    : 0
+  const raw = estimateTokens(messages, options.modelId, options.tokenizerEncoding)
+    + systemTokens
+    + (options.toolSchemaReserveTokens ?? 0)
+    + (options.attachmentReserveTokens ?? 0)
+  return Math.ceil(raw * (options.safetyMargin ?? 1.15))
 }
 
 export function isOverflow(messages: CoreMessage[], cfg: CompactionConfig): boolean {
   const usable = cfg.contextLimit - cfg.maxOutput - COMPACTION_BUFFER
-  return estimateTokens(messages) >= usable
+  return estimateTokens(messages, cfg.model, cfg.tokenizerEncoding) >= usable
 }
 
 export function isOverflowByMessages(messages: CoreMessage[], cfg: CompactionConfig): boolean {
@@ -163,13 +191,13 @@ export interface ProtectedContextFacts {
   nextSteps: string[]
 }
 
-export function getContextBreakdown(messages: CoreMessage[], contextWindow: number): ContextBreakdown {
+export function getContextBreakdown(messages: CoreMessage[], contextWindow: number, modelId?: string, tokenizerEncoding?: string): ContextBreakdown {
   const byRole: Record<string, number> = {}
   const withTokens: Array<{ preview: string; tokens: number; role: string }> = []
 
   for (const msg of messages) {
     const text   = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
-    const tokens = countTokens(text) + 4
+    const tokens = countTokens(text, modelId, tokenizerEncoding) + 4
     byRole[msg.role] = (byRole[msg.role] ?? 0) + tokens
     withTokens.push({ preview: text.slice(0, 60).replace(/\n/g, " "), tokens, role: msg.role })
   }
@@ -185,12 +213,12 @@ export function getContextBreakdown(messages: CoreMessage[], contextWindow: numb
 
 export function microCompactOldToolResults(
   messages: CoreMessage[],
-  cfg: Pick<CompactionConfig, "contextLimit">,
+  cfg: Pick<CompactionConfig, "contextLimit"> & Partial<Pick<CompactionConfig, "model" | "tokenizerEncoding">>,
   options: { keepRecent?: number; triggerRatio?: number } = {},
 ): CoreMessage[] {
   const keepRecent = Math.max(1, options.keepRecent ?? 8)
   const triggerRatio = options.triggerRatio ?? 0.65
-  if (estimateTokens(messages) < cfg.contextLimit * triggerRatio) return messages
+  if (estimateTokens(messages, cfg.model, cfg.tokenizerEncoding) < cfg.contextLimit * triggerRatio) return messages
 
   const toolIndexes = messages
     .map((message, index) => ({ message, index }))
@@ -273,11 +301,11 @@ function collectMatchingLines(text: string, pattern: RegExp, target: string[], l
 
 // ─── Strategy 1: microCompact ─────────────────────────────────────────────────
 // Hiç LLM çağrısı yok. Küçük taşmalar için hızlı heuristik kırpma.
-function microCompact(messages: CoreMessage[], targetBudget: number): CoreMessage[] {
+function microCompact(messages: CoreMessage[], targetBudget: number, modelId?: string, tokenizerEncoding?: string): CoreMessage[] {
   const annotated = messages.map((msg, idx) => ({
     msg,
     score:  importanceScore(msg, messages, idx),
-    tokens: countTokens(extractText(msg)) + 4,
+    tokens: countTokens(extractText(msg), modelId, tokenizerEncoding) + 4,
   }))
 
   // Önce: skor < 20 olan mesajları sil (çok düşük önem)
@@ -359,7 +387,7 @@ async function sessionCompact(
 
   const tail  = messages.slice(-tailTurns * 2)
   const head  = messages.slice(0, -tailTurns * 2)
-  const budget = Math.max(0, estimateTokens(head) - PRUNE_MINIMUM)
+  const budget = Math.max(0, estimateTokens(head, cfg.model, cfg.tokenizerEncoding) - PRUNE_MINIMUM)
   const pruned = smartCompact(head, budget)
 
   const summaryPrompt = cfg.strategy === "aggressive"
@@ -461,7 +489,7 @@ export async function compact(
   if (cbIsOpen()) return null
 
   const usable   = cfg.contextLimit - cfg.maxOutput - COMPACTION_BUFFER
-  const current  = estimateTokens(messages)
+  const current  = estimateTokens(messages, cfg.model, cfg.tokenizerEncoding)
   const overflow = current - usable
   const health   = measureContextHealth(messages)
 
@@ -470,8 +498,8 @@ export async function compact(
   let result: CoreMessage[] | null = null
   // Küçük taşma (<8% of context): microCompact dene, yetersizse session'a geç
   if (overflow < cfg.contextLimit * 0.08) {
-    const micro = microCompact(messages, usable)
-    if (estimateTokens(micro) <= usable) {
+    const micro = microCompact(messages, usable, cfg.model, cfg.tokenizerEncoding)
+    if (estimateTokens(micro, cfg.model, cfg.tokenizerEncoding) <= usable) {
       result = micro
     } else {
     }
@@ -489,7 +517,7 @@ export async function compact(
 
   if (!result) return null
 
-  const tokensAfter = estimateTokens(result)
+  const tokensAfter = estimateTokens(result, cfg.model, cfg.tokenizerEncoding)
 
   const sid = cfg.sessionId ?? "unknown"
   await hooks.emit("v1.compact.before",  { sessionId: sid, tokenCount: tokensBefore })

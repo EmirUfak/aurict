@@ -5,11 +5,20 @@ import { useTerminalSize } from "./TerminalSizeContext.js"
 import { useBlinkFrame } from "./design-system/motion.js"
 import { DesignBox as Box2 } from "./design-system/types.js"
 import { wrapTranscriptText } from "./conversation/line-buffer.js"
+import { DiffRenderer } from "./DiffRenderer/index.js"
+import { FileWriteView } from "./FileDiffView.js"
+import { writePreview } from "./conversation/transcript-details.js"
 
 interface Props {
   content:  string
   toolName: string
   onClose:  () => void
+  kind?: "tool" | "reasoning" | "diff" | "write"
+  rawDiff?: string
+  filePath?: string
+  totalLines?: number
+  onPrevious?: () => void
+  onNext?: () => void
 }
 
 function stripAnsi(s: string): string {
@@ -33,7 +42,17 @@ function artifactKind(content: string): string {
   return "output";
 }
 
-export function ExpandableOutput({ content, toolName, onClose }: Props) {
+export function ExpandableOutput({
+  content,
+  toolName,
+  onClose,
+  kind,
+  rawDiff,
+  filePath,
+  totalLines: totalWriteLines,
+  onPrevious,
+  onNext,
+}: Props) {
   const theme    = useTheme()
   const { columns: termCols, rows: termRows } = useTerminalSize()
   const blink    = useBlinkFrame()
@@ -53,8 +72,8 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
     })),
   )
   const [offset, setOffset] = useState(0)
-  const totalLines = content.length === 0 ? 0 : lines.length
-  const maxOffset = Math.max(0, totalLines - pageSize)
+  const outputLineCount = content.length === 0 ? 0 : lines.length
+  const maxOffset = Math.max(0, outputLineCount - pageSize)
 
   useEffect(() => {
     setOffset((current) => Math.min(current, maxOffset))
@@ -62,6 +81,8 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
 
   useInput((input, key) => {
     if (key.escape || key.return) { onClose(); return }
+    if (input === "[") { onPrevious?.(); return }
+    if (input === "]") { onNext?.(); return }
     if (input === "g" && !key.shift) { setOffset(0); return }
     if (input === "G" || (input === "g" && key.shift)) { setOffset(maxOffset); return }
     if (key.upArrow)   setOffset((o) => Math.max(0, o - 1))
@@ -71,19 +92,68 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
   })
 
   const visible     = lines.slice(offset, offset + pageSize)
-  const pct         = totalLines <= pageSize ? 100 : Math.round(((offset + pageSize) / totalLines) * 100)
-  const kind = artifactKind(content)
+  const pct         = outputLineCount <= pageSize ? 100 : Math.round(((offset + pageSize) / outputLineCount) * 100)
+  const artifact = artifactKind(content)
+  const canBrowseDetails = onPrevious !== undefined || onNext !== undefined
+  const footerHint = `${canBrowseDetails ? "[ / ] details  " : ""}Esc close`
+
+  if (rawDiff) {
+    return (
+      <Box flexDirection="column" borderStyle="round" borderColor={theme.borderActive} width="100%">
+        <Box2 {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
+          <Box paddingX={1} justifyContent="space-between">
+            <Text color={theme.accent} bold>actual workspace diff</Text>
+            <Text color={theme.textSecondary}>{toolName}</Text>
+          </Box>
+        </Box2>
+        <Box paddingX={1} flexDirection="column">
+          <DiffRenderer
+            rawDiff={rawDiff}
+            width={Math.max(40, cols - 4)}
+            {...(filePath ? { fileName: filePath } : {})}
+          />
+        </Box>
+        <Box paddingX={1}>
+          <Text color={theme.textDim}>{footerHint}</Text>
+        </Box>
+      </Box>
+    )
+  }
+
+  if (kind === "write" && filePath && totalWriteLines !== undefined) {
+    return (
+      <Box flexDirection="column" borderStyle="round" borderColor={theme.borderActive} width="100%">
+        <Box2 {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
+          <Box paddingX={1} justifyContent="space-between">
+            <Text color={theme.accent} bold>created file</Text>
+            <Text color={theme.textSecondary}>{toolName}</Text>
+          </Box>
+        </Box2>
+        <Box paddingX={1} flexDirection="column">
+          <FileWriteView
+            filePath={filePath}
+            content={writePreview(content) ?? ""}
+            totalLines={totalWriteLines}
+            width={Math.max(20, cols - 4)}
+          />
+        </Box>
+        <Box paddingX={1}>
+          <Text color={theme.textDim}>{footerHint}</Text>
+        </Box>
+      </Box>
+    )
+  }
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={theme.borderActive} width="100%">
       <Box2 {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
         <Box paddingX={1} justifyContent="space-between">
           <Box gap={1}>
-            <Text color={theme.accent} bold>{kind} artifact</Text>
+            <Text color={theme.accent} bold>{artifact} artifact</Text>
             <Text color={theme.textSecondary}>/ {toolName}</Text>
             <Text color={theme.accent}>{blink ? "▊" : " "}</Text>
           </Box>
           <Text color={theme.textDim}>
-            {totalLines} lines · {sourceLineCount} source · {formatBytes(content)} · {pct}%
+            {outputLineCount} lines · {sourceLineCount} source · {formatBytes(content)} · {pct}%
           </Text>
         </Box>
       </Box2>
@@ -105,12 +175,12 @@ export function ExpandableOutput({ content, toolName, onClose }: Props) {
         })}
       </Box>
 
-      {totalLines > pageSize && (
+      {outputLineCount > pageSize && (
         <Box paddingX={1} borderStyle="single" borderColor={theme.borderDim}
              borderBottom={false} borderLeft={false} borderRight={false}>
           <Text color={theme.textDim}>
-            {offset + 1}-{Math.min(offset + pageSize, totalLines)} / {totalLines}
-            {"  "}↑↓ scan  Ctrl+U/D page  g/G ends  Esc close
+            {offset + 1}-{Math.min(offset + pageSize, outputLineCount)} / {outputLineCount}
+            {"  "}↑↓ scan  Ctrl+U/D page  g/G ends  {footerHint}
           </Text>
         </Box>
       )}

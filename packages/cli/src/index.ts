@@ -60,32 +60,29 @@ const workdir = process.cwd()
 profileCheckpoint("flags_parsed")
 
 /** Resolves the signed backend token only for runs that may call Aurict modules. */
-async function resolveBackendAccessToken(): Promise<string | undefined> {
+async function resolveBackendAccessToken(signal?: AbortSignal): Promise<string | undefined> {
   const [{ ensureAccessToken }, { RemoteApiError }] = await Promise.all([
     import("./remote/auth.js"),
     import("./remote/backend-client.js"),
   ])
   try {
-    return await ensureAccessToken()
+    return await ensureAccessToken(signal)
   } catch (error) {
-    const reason = error instanceof RemoteApiError
-      ? `${error.code} (${error.requestId})`
-      : error instanceof Error ? error.message : String(error)
-    console.warn(`[aurict] Backend access token is unavailable: ${reason}`)
-    return undefined
+    if (error instanceof RemoteApiError && error.code === "not_signed_in") return undefined
+    throw error
   }
 }
 
 // --version
 if (flags.version) {
-  console.log("Aurict v1.2.5")
+  console.log("Aurict v1.2.6")
   process.exit(0)
 }
 
 // --help
 if (flags.help) {
   console.log(`
-Aurict v1.2.5 — Terminal AI assistant
+Aurict v1.2.6 — Terminal AI assistant
 
 Usage:
   aurict [options]
@@ -370,10 +367,9 @@ if (process.stdin.isTTY) {
 
   process.stdout.write("\n")
   try {
-    const backendAccessToken = await resolveBackendAccessToken()
     await runAgent({
       provider, model, workdir,
-      ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
+      backendAccessTokenResolver: resolveBackendAccessToken,
       ...(cfg.system !== undefined ? { system: cfg.system } : {}),
       messages: [{ role: "user", content: input }],
       onText:   (d) => process.stdout.write(d),

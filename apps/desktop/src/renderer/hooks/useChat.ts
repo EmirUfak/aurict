@@ -14,8 +14,9 @@ export function useChat() {
   const [contextSources, setContextSources] = useState<FinanceResearchSource[]>([]);
   const streamTextRef = useRef('');
   const turnIdRef = useRef<string | null>(null);
+  const activeRequestIdRef = useRef<string | null>(null);
   const reasoningNotedRef = useRef(false);
-  const lastSubmissionRef = useRef<Omit<Parameters<typeof window.aurict.chat.submit>[0], 'text'> & { text: string } | null>(null);
+  const lastSubmissionRef = useRef<Omit<Parameters<typeof window.aurict.chat.submit>[0], 'text' | 'turnId'> & { text: string } | null>(null);
 
   const ensureTurnMessage = useCallback((): string => {
     if (turnIdRef.current) return turnIdRef.current;
@@ -40,7 +41,20 @@ export function useChat() {
 
   useEffect(() => {
     const unsubscribe = window.aurict.chat.onEvent((event: ChatEvent) => {
+      if ('turnId' in event && event.turnId !== activeRequestIdRef.current) return;
       switch (event.type) {
+        case 'phase': {
+          const statusByPhase = {
+            accepted: 'Aurict accepted the task.',
+            preparing_attachments: 'Reading the attached files…',
+            preparing_context: 'Preparing project context…',
+            resolving_model: 'Checking model capabilities…',
+            waiting_for_provider: 'Waiting for the model to respond…',
+          } as const;
+          setStatusMessage(statusByPhase[event.phase]);
+          addActivity({ label: statusByPhase[event.phase], status: 'active' });
+          return;
+        }
         case 'text-delta': {
           if (event.isReasoning) {
             if (!reasoningNotedRef.current) {
@@ -104,6 +118,7 @@ export function useChat() {
           streamTextRef.current = '';
           reasoningNotedRef.current = false;
           turnIdRef.current = null;
+          activeRequestIdRef.current = null;
           setPending(false);
           setStatusMessage(null);
           setActivities((current) => current.map((item) => item.status === 'active' ? { ...item, status: 'complete' } : item));
@@ -115,6 +130,7 @@ export function useChat() {
           streamTextRef.current = '';
           reasoningNotedRef.current = false;
           turnIdRef.current = null;
+          activeRequestIdRef.current = null;
           setPending(false);
           setStatusMessage(null);
           setActivities((current) => current.map((item) => item.status === 'active' ? { ...item, status: 'failed' } : item));
@@ -139,11 +155,22 @@ export function useChat() {
           return;
         case 'chunk':
         case 'step-finish':
+        case 'artifact:updated':
           return; // not surfaced in Faz 3's MVP UI
       }
     });
     return unsubscribe;
   }, [addActivity, ensureTurnMessage, resolveActivity, updateTurn]);
+
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setTimeout(() => {
+      if (!activeRequestIdRef.current) return;
+      setStatusMessage('This is taking longer than usual. You can cancel safely while Aurict waits for the model.');
+      addActivity({ label: 'Still waiting for the model', detail: 'No response has arrived yet', status: 'notice' });
+    }, 20_000);
+    return () => clearTimeout(timer);
+  }, [addActivity, pending]);
 
   const submit = useCallback((text: string, agentId?: string, artifactId?: string, displayText?: string, artifactIntent?: 'create' | 'iterate' | 'promote', attachments?: ChatAttachment[], financeResearchId?: string) => {
     const trimmed = text.trim();
@@ -151,14 +178,16 @@ export function useChat() {
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'user', content: displayText?.trim() || trimmed }]);
     streamTextRef.current = '';
     turnIdRef.current = null;
+    const requestId = crypto.randomUUID();
+    activeRequestIdRef.current = requestId;
     reasoningNotedRef.current = false;
     setPending(true);
     setStatusMessage('Aurict is preparing the task…');
     setActivities([{ id: crypto.randomUUID(), label: 'Preparing the task', detail: 'Setting up the requested work', status: 'active' }]);
     setContextAttachments(attachments ?? []);
     setContextSources([]);
-    const payload = { text: trimmed, ...(agentId ? { agentId } : {}), ...(artifactId ? { artifactId } : {}), ...(displayText ? { displayText } : {}), ...(artifactIntent ? { artifactIntent } : {}), ...(attachments?.length ? { attachments } : {}), ...(financeResearchId ? { financeResearchId } : {}) };
-    lastSubmissionRef.current = payload;
+    const payload = { turnId: requestId, text: trimmed, ...(agentId ? { agentId } : {}), ...(artifactId ? { artifactId } : {}), ...(displayText ? { displayText } : {}), ...(artifactIntent ? { artifactIntent } : {}), ...(attachments?.length ? { attachments } : {}), ...(financeResearchId ? { financeResearchId } : {}) };
+    lastSubmissionRef.current = { text: trimmed, ...(agentId ? { agentId } : {}), ...(artifactId ? { artifactId } : {}), ...(displayText ? { displayText } : {}), ...(artifactIntent ? { artifactIntent } : {}), ...(attachments?.length ? { attachments } : {}), ...(financeResearchId ? { financeResearchId } : {}) };
     window.aurict.chat.submit(payload);
   }, [pending]);
 
@@ -166,6 +195,7 @@ export function useChat() {
     setMessages([]);
     streamTextRef.current = '';
     turnIdRef.current = null;
+    activeRequestIdRef.current = null;
     reasoningNotedRef.current = false;
     setPending(false);
     setStatusMessage(null);
@@ -175,7 +205,8 @@ export function useChat() {
   }, []);
 
   const cancel = useCallback(() => {
-    if (pending) window.aurict.chat.cancel();
+    const requestId = activeRequestIdRef.current;
+    if (pending && requestId) window.aurict.chat.cancel(requestId);
   }, [pending]);
 
   const retryLast = useCallback(() => {
@@ -189,6 +220,7 @@ export function useChat() {
   const restoreHistory = useCallback((history: SessionMessage[]) => {
     streamTextRef.current = '';
     turnIdRef.current = null;
+    activeRequestIdRef.current = null;
     setPending(false);
     setStatusMessage(null);
     setActivities([]);

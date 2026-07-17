@@ -6,7 +6,7 @@ import { findCachedModelInfo, resolveModelInfo } from "../provider/models-fetch.
 import { ToolRegistry } from "../tool/registry.js"
 import { executeTool } from "../tool/executor.js"
 import { SessionManager } from "../session/manager.js"
-import { isOverflow, isOverflowByMessages, compact, DEFAULT_TAIL_TURNS, microCompactOldToolResults } from "../session/compaction.js"
+import { COMPACTION_BUFFER, estimateEffectiveContextTokens, estimateTokens, isOverflow, isOverflowByMessages, compact, DEFAULT_TAIL_TURNS, microCompactOldToolResults } from "../session/compaction.js"
 import { buildSystemPromptSections } from "../skill/injector.js"
 import { attachmentToAIContent } from "../util/attachments.js"
 import { createThinkTagFilter } from "../util/think-tag-filter.js"
@@ -46,6 +46,8 @@ import { assessComplexity, stepsForComplexity, deriveReasoningEffort } from "./c
 import { getCoordinatorSystemPrompt, getCoordinatorContext, shouldInjectCoordinatorPrompt } from "./coordinator.js"
 import { agentPool } from "./pool.js"
 
+const PROVIDER_FIRST_RESPONSE_TIMEOUT_MS = 45_000
+
 // AI SDK tool() fonksiyonunun dönüş tipiyle exactOptionalPropertyTypes çakışıyor
 // — ToolSet cast'i kullanıyoruz
 function buildAITools(
@@ -60,6 +62,7 @@ function buildAITools(
   recentReads?: Map<string, number>,
   toolCallIndexRef?: { current: number },
   backendAccessToken?: string,
+  backendAccessTokenResolver?: (signal: AbortSignal) => Promise<string | undefined>,
 ): ToolSet {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
@@ -114,6 +117,7 @@ function buildAITools(
           provider, model,
           ...(onChunk !== undefined ? { onChunk } : {}),
           ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
+          ...(backendAccessTokenResolver !== undefined ? { backendAccessTokenResolver } : {}),
         }
         const res = await executeTool(captured, args, ctx)
 
@@ -147,6 +151,17 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   const modelId      = opts.model ?? plugin.defaultModel()
   const workdir      = opts.workdir ?? process.cwd()
   const sessionId    = opts.sessionId
+  const finishWithoutResponse = (): AgentFinishResult => {
+    const result: AgentFinishResult = {
+      text: "",
+      tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 },
+      newMessages: [],
+      ...(sessionId !== undefined ? { sessionId } : {}),
+    }
+    opts.onFinish?.(result)
+    return result
+  }
+  opts.onPhase?.("preparing_context")
   const resumedState = sessionId ? await readSessionResumeState(workdir, sessionId) : null
   if (sessionId && resumedState) {
     restoreSkillLifecycle(sessionId, resumedState.activeSkills ?? [])
@@ -210,7 +225,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   // 3 katmanlı çözüm: statik liste → uzak /models cache'i → models.dev/heuristik.
   // Her zaman dolu döner — bilinmeyen (BYOK) modelde artık sessiz 200k/8k
   // varsayımı yerine gerçek ya da bilgiye dayalı bir context/output tahmini var.
+  opts.onPhase?.("resolving_model")
   const modelInfo = await resolveModelInfo(plugin, providerName, modelId)
+  const tokenizerEncoding = plugin.tokenizerEncoding(modelId)
   const compCfgFull = {
     contextLimit:          modelInfo.contextWindow,
     maxOutput:             modelInfo.maxOutput,
@@ -218,6 +235,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     strategy,
     provider:              providerName,
     model:                 modelId,
+    tokenizerEncoding,
     workdir,
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(msgThreshold !== undefined ? { messageCountThreshold: msgThreshold } : {}),
@@ -228,7 +246,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     // Extract memories from messages about to be lost to compaction (fire-and-forget)
     extractAndStoreMemories(providerName, modelId, messages, workdir).catch(() => metrics.recordError("memory_extract"))
     const compacted = await compact(messages, compCfgFull)
-    if (!compacted) return { text: "", tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, newMessages: [], ...(sessionId !== undefined ? { sessionId } : {}) }
+    if (!compacted) return finishWithoutResponse()
     messages  = compacted
     opts.onCompaction?.()
   }
@@ -239,7 +257,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   const recentReads      = new Map<string, number>()
   const toolCallIndexRef = { current: 0 }
   const rawTools = hasToolSupport
-    ? buildAITools(workdir, sessionId ?? "", providerName, modelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken)
+    ? buildAITools(workdir, sessionId ?? "", providerName, modelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken, opts.backendAccessTokenResolver)
     : ({} as ToolSet)
 
   // toolsOverride: session agent kısıtlaması — sadece izin verilen tool'lar
@@ -353,7 +371,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   }
 
   const system = joinPromptSections(runtimeSystemSections)
-  opts.onPromptDiagnostics?.(analyzePromptSections(runtimeSystemSections))
+  opts.onPromptDiagnostics?.(analyzePromptSections(runtimeSystemSections, modelId, tokenizerEncoding))
   const cacheHealth = recordPromptCacheHealth({
     key: `${workdir}:${providerName}`,
     model: modelId,
@@ -377,6 +395,34 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
 
   // Git context her turn'de fresh — Anthropic cache'e girmemeli
   const gitSection = buildGitSection(workdir)
+
+  // History tek başına yeterli bir bütçe değildir: system/git blokları, tool
+  // şemaları ve ekler de sağlayıcıya gider. Bu rezervi düşerek gerekirse ikinci
+  // bir compaction yap; aksi hâlde ikinci turda görünmeyen context overflow olur.
+  const toolSchemaReserveTokens = Object.keys(aiTools).length * 160
+  const attachmentReserveTokens = (opts.attachments?.length ?? 0) * 1_200
+  const effectiveTokens = estimateEffectiveContextTokens(messages, {
+    modelId,
+    tokenizerEncoding,
+    systemPrompt: [system, gitSection].filter(Boolean).join("\n\n"),
+    toolSchemaReserveTokens,
+    attachmentReserveTokens,
+  })
+  const usableContext = compCfgFull.contextLimit - compCfgFull.maxOutput - COMPACTION_BUFFER
+  if (effectiveTokens >= usableContext) {
+    const contextReserve = Math.max(0, effectiveTokens - estimateTokens(messages, modelId, tokenizerEncoding))
+    if (contextReserve >= usableContext) {
+      throw new Error("The system prompt and enabled tools exceed this model's available context window. Choose a model with a larger context window or reduce active tools.")
+    }
+    const effectiveCompactionConfig = {
+      ...compCfgFull,
+      contextLimit: compCfgFull.contextLimit - contextReserve,
+    }
+    const compacted = await compact(messages, effectiveCompactionConfig)
+    if (!compacted) return finishWithoutResponse()
+    messages = compacted
+    opts.onCompaction?.()
+  }
 
   interface AttemptResult {
     fullText:     string
@@ -414,7 +460,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
       ?? findCachedModelInfo(attemptProviderId, attemptModelId)
     const attemptHasToolSupport = attemptModelInfo?.supportsTools !== false
     const attemptRawTools = attemptHasToolSupport
-      ? buildAITools(workdir, sessionId ?? "", attemptProviderId, attemptModelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken)
+      ? buildAITools(workdir, sessionId ?? "", attemptProviderId, attemptModelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken, opts.backendAccessTokenResolver)
       : ({} as ToolSet)
     const attemptAiTools: ToolSet = toolsOverride
       ? Object.fromEntries(
@@ -478,6 +524,21 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
         : undefined
     )
 
+    const firstResponseController = new AbortController()
+    const firstResponseTimer = setTimeout(
+      () => firstResponseController.abort(new Error("Provider did not start responding in time.")),
+      PROVIDER_FIRST_RESPONSE_TIMEOUT_MS,
+    )
+    const attemptSignal = opts.signal
+      ? AbortSignal.any([opts.signal, firstResponseController.signal])
+      : firstResponseController.signal
+    let receivedProviderEvent = false
+    const noteProviderEvent = () => {
+      if (receivedProviderEvent) return
+      receivedProviderEvent = true
+      clearTimeout(firstResponseTimer)
+    }
+    opts.onPhase?.("waiting_for_provider")
     const attemptShared = {
       model:    attemptModel,
       messages: attemptMessages,
@@ -485,7 +546,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
       maxSteps,
       experimental_continueSteps: true,
       ...(attemptSystemParam ? { system: attemptSystemParam } : {}),
-      ...(opts.signal !== undefined ? { abortSignal: opts.signal } : {}),
+      abortSignal: attemptSignal,
       ...(effectiveEffort ? (() => {
         const thinkOpts = attemptPlugin.buildThinkingOptions(attemptModelId, effectiveEffort)
         return thinkOpts ? { providerOptions: thinkOpts } : {}
@@ -514,7 +575,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
       // bu attempt'i retry/fallback ile baştan tekrarlatmamalı.
       let toolCallHappened = false
 
-      for await (const part of result.fullStream) {
+      try {
+        for await (const part of result.fullStream) {
+          noteProviderEvent()
         if (part.type === "text-delta") {
           const raw = (part.textDelta as string) || ""
           if (!raw) continue
@@ -567,41 +630,49 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
           // Yalnızca step tamamlama sinyali — tool result emission yok (race condition önleme)
           opts.onStepFinish?.()
         }
+        }
+
+        // Stream bitti — buffer'da kalan fragmentleri boşalt
+        const tail = thinkFilter.flush()
+        if (tail.thinking) opts.onText?.(tail.thinking, true)
+        if (tail.text) { fullText += tail.text; opts.onText?.(tail.text, false) }
+
+        const u    = await result.usage as Record<string, unknown>
+        const meta = await (result as any).experimental_providerMetadata as Record<string, unknown> | undefined
+        breakdown  = extractTokenBreakdown(u, meta)
+        finishReason = String(await (result as any).finishReason ?? "")
+
+        const finalResponse = await result.response
+        newMessages = finalResponse.messages
+      } finally {
+        clearTimeout(firstResponseTimer)
       }
-
-      // Stream bitti — buffer'da kalan fragmentleri boşalt
-      const tail = thinkFilter.flush()
-      if (tail.thinking) opts.onText?.(tail.thinking, true)
-      if (tail.text) { fullText += tail.text; opts.onText?.(tail.text, false) }
-
-      const u    = await result.usage as Record<string, unknown>
-      const meta = await (result as any).experimental_providerMetadata as Record<string, unknown> | undefined
-      breakdown  = extractTokenBreakdown(u, meta)
-      finishReason = String(await (result as any).finishReason ?? "")
-
-      const finalResponse = await result.response
-      newMessages = finalResponse.messages
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = await generateText(attemptShared as any)
-      fullText      = result.text
-      opts.onText?.(fullText)
+      try {
+        const result = await generateText(attemptShared as any)
+        noteProviderEvent()
+        fullText      = result.text
+        opts.onText?.(fullText)
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const step of (result as any).steps ?? []) {
-        for (const tc of step.toolCalls ?? []) {
-          opts.onToolCall?.({ id: tc.toolCallId, tool: tc.toolName, args: tc.args })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const step of (result as any).steps ?? []) {
+          for (const tc of step.toolCalls ?? []) {
+            opts.onToolCall?.({ id: tc.toolCallId, tool: tc.toolName, args: tc.args })
+          }
+          for (const tr of step.toolResults ?? []) {
+            opts.onToolResult?.({ id: tr.toolCallId, result: String(tr.result), durationMs: 0 })
+          }
         }
-        for (const tr of step.toolResults ?? []) {
-          opts.onToolResult?.({ id: tr.toolCallId, result: String(tr.result), durationMs: 0 })
-        }
+
+        const u    = result.usage as Record<string, unknown>
+        const meta = (result as any).experimental_providerMetadata as Record<string, unknown> | undefined
+        breakdown  = extractTokenBreakdown(u, meta)
+        finishReason = String((result as any).finishReason ?? "")
+        newMessages = result.response.messages
+      } finally {
+        clearTimeout(firstResponseTimer)
       }
-
-      const u    = result.usage as Record<string, unknown>
-      const meta = (result as any).experimental_providerMetadata as Record<string, unknown> | undefined
-      breakdown  = extractTokenBreakdown(u, meta)
-      finishReason = String((result as any).finishReason ?? "")
-      newMessages = result.response.messages
     }
 
     return { fullText, breakdown, finishReason, newMessages, providerId: attemptProviderId, modelId: attemptModelId }

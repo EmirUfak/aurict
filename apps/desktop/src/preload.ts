@@ -45,7 +45,7 @@ const api: AurictWindowApi = {
   },
   chat: {
     submit: (payload: ChatSubmitPayload) => ipcRenderer.send('chat:submit', payload),
-    cancel: () => ipcRenderer.send('chat:cancel'),
+    cancel: (turnId: string) => ipcRenderer.send('chat:cancel', turnId),
     onEvent: (cb: (event: ChatEvent) => void) => {
       const listener = (_e: Electron.IpcRendererEvent, event: ChatEvent) => cb(event);
       ipcRenderer.on('chat:event', listener);

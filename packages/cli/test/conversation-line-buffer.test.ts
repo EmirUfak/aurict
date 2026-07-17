@@ -50,7 +50,7 @@ describe("conversation line buffer", () => {
       "╭─ ✦ write · complete",
       "│ create file · report.md",
       "│ saved report.md",
-      "╰─ 1 output lines · Ctrl+O review latest",
+      "╰─ 1 output lines · Ctrl+O inspect",
       "The report is ready.",
     ]))
     expect(lines.findIndex((line) => line.text === "I will prepare it."))
@@ -123,8 +123,8 @@ describe("conversation line buffer", () => {
     )
 
     expect(lines.filter((line) => line.tone === "thinking")).toEqual([
-      expect.objectContaining({ text: "∴ planning · 2 lines · Ctrl+O expand" }),
-      expect.objectContaining({ text: "∴ thinking · 1 line · Ctrl+O expand" }),
+      expect.objectContaining({ text: "∴ planning · 2 lines · Ctrl+O inspect", detailId: "reasoning:thinking" }),
+      expect.objectContaining({ text: "∴ thinking · 1 line · Ctrl+O inspect", detailId: "reasoning:text:0:thinking" }),
     ])
   })
 
@@ -138,5 +138,36 @@ describe("conversation line buffer", () => {
     expect(narrow.length).toBeGreaterThan(wide.length)
     expect(narrow.every((line) => line.id.length > 0)).toBe(true)
     expect(narrow.filter((line) => line.text !== "").every((line) => line.text.length > 0)).toBe(true)
+  })
+
+  it("summarizes emitted workspace diffs while retaining their detail identity", () => {
+    const lines = buildTranscriptLines([
+      {
+        id: "change",
+        role: "assistant",
+        content: "",
+        blocks: [{
+          type: "tool",
+          id: "edit-1",
+          tool: "edit",
+          args: JSON.stringify({ path: "src/file.ts" }),
+          pending: false,
+          resultContent: [
+            "Updated src/file.ts",
+            "__UNIFIED_DIFF__",
+            "--- a/src/file.ts",
+            "+++ b/src/file.ts",
+            "@@ -1 +1 @@",
+            "-old",
+            "+new",
+          ].join("\n"),
+        }],
+      },
+    ], 80, null, null, null)
+
+    expect(lines).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: "│ changed src/file.ts · +1 −1", detailId: "change:tool:0" }),
+      expect.objectContaining({ text: "╰─ actual workspace diff · Ctrl+O inspect", detailId: "change:tool:0" }),
+    ]))
   })
 })

@@ -1,6 +1,7 @@
 import type { DisplayMessage } from "../Message.js";
 import { wrapLine } from "../event-system/wrap-line.js";
 import { glyph } from "../terminal-glyphs.js";
+import { createToolDetail } from "./transcript-details.js";
 
 export type TranscriptTone =
   | "user"
@@ -19,6 +20,7 @@ export interface TranscriptLine {
   tone: TranscriptTone;
   bold?: boolean;
   italic?: boolean;
+  detailId?: string;
 }
 
 function timestampLabel(timestamp: number | undefined): string {
@@ -48,9 +50,10 @@ function add(
   text: string,
   tone: TranscriptTone,
   width: number,
+  detailId?: string,
 ): void {
   wrapTranscriptText(text, width).forEach((part, index) =>
-    lines.push({ id: `${id}:${index}`, text: part, tone }),
+    lines.push({ id: `${id}:${index}`, text: part, tone, ...(detailId ? { detailId } : {}) }),
   );
 }
 
@@ -146,9 +149,10 @@ function addThinkingSummary(
         : "thinking";
   lines.push({
     id,
-    text: `${glyph("thinking")} ${stage} · ${lineCount || 1} ${lineCount === 1 ? "line" : "lines"} · Ctrl+O expand`,
+    text: `${glyph("thinking")} ${stage} · ${lineCount || 1} ${lineCount === 1 ? "line" : "lines"} · Ctrl+O inspect`,
     tone: "thinking",
     italic: true,
+    detailId: id,
   });
 }
 
@@ -192,11 +196,13 @@ function addToolPreview(
   width: number,
 ): void {
   const presentation = toolPresentation(tool);
+  const detail = createToolDetail({ id, tool, args, ...(resultContent !== undefined ? { resultContent } : {}) });
   lines.push({
     id: `${id}:header`,
     text: `╭─ ${presentation.icon} ${presentation.label} · ${pending ? "working…" : "complete"}`,
     tone: "tool",
     bold: true,
+    detailId: id,
   });
   add(
     lines,
@@ -204,26 +210,60 @@ function addToolPreview(
     `│ ${presentation.intent} · ${summarizeToolArgs(args)}`,
     "muted",
     width,
+    id,
   );
+
+  if (detail.kind === "diff") {
+    lines.push({
+      id: `${id}:change`,
+      text: `│ changed ${detail.filePath ?? "file"} · +${detail.additions ?? 0} −${detail.deletions ?? 0}`,
+      tone: "muted",
+      detailId: id,
+    });
+    lines.push({
+      id: `${id}:footer`,
+      text: "╰─ actual workspace diff · Ctrl+O inspect",
+      tone: "tool",
+      detailId: id,
+    });
+    return;
+  }
+  if (detail.kind === "write") {
+    lines.push({
+      id: `${id}:create`,
+      text: `│ created ${detail.filePath ?? "file"} · ${detail.totalLines ?? 0} lines`,
+      tone: "muted",
+      detailId: id,
+    });
+    lines.push({
+      id: `${id}:footer`,
+      text: "╰─ file preview · Ctrl+O inspect",
+      tone: "tool",
+      detailId: id,
+    });
+    return;
+  }
 
   const source = resultContent ? clean(resultContent).split("\n") : [];
   const preview = source.length > 5
     ? [...source.slice(0, 4), source[source.length - 1]!]
     : source;
   for (const [index, output] of preview.entries())
-    add(lines, `${id}:result:${index}`, `│ ${output}`, "muted", width);
+    add(lines, `${id}:result:${index}`, `│ ${output}`, "muted", width, id);
   if (source.length > preview.length)
     lines.push({
       id: `${id}:hidden`,
-      text: `│ ⋯ ${source.length - preview.length} lines hidden · Ctrl+O expand latest`,
+      text: `│ ⋯ ${source.length - preview.length} lines hidden · Ctrl+O inspect`,
       tone: "muted",
+      detailId: id,
     });
   lines.push({
-    id: `${id}:footer`,
-    text: resultContent
-      ? `╰─ ${source.length} output lines · Ctrl+O review latest`
+      id: `${id}:footer`,
+      text: resultContent
+      ? `╰─ ${source.length} output lines · Ctrl+O inspect`
       : "╰─ awaiting output",
-    tone: "tool",
+      tone: "tool",
+      detailId: id,
   });
 }
 
