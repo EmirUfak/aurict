@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { glyph, prefersAsciiGlyphs } from "../src/tui/terminal-glyphs.js"
+import { glyph, prefersAsciiGlyphs, terminalText } from "../src/tui/terminal-glyphs.js"
 
 function withEnv(name: string, value: string | undefined, run: () => void): void {
   const previous = process.env[name]
@@ -28,6 +28,16 @@ describe("terminal glyph fallback", () => {
       expect(prefersAsciiGlyphs()).toBe(true)
       expect(glyph("assistant")).toBe("*")
       expect(glyph("write")).toBe("+")
+      expect(terminalText("⚠ ✗ failed · retry → now…")).toBe("! x failed . retry > now.")
+    })
+  })
+
+  it("falls back for dumb terminals and non-UTF locales", () => {
+    withEnv("AURICT_ASCII", undefined, () => {
+      withEnv("TERM", "dumb", () => expect(prefersAsciiGlyphs()).toBe(true))
+      withEnv("TERM", "xterm", () => {
+        withEnv("LC_ALL", "C", () => expect(prefersAsciiGlyphs()).toBe(true))
+      })
     })
   })
 })

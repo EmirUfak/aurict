@@ -7,6 +7,10 @@ Aurict is security-conscious, but it should not be described as formally certifi
 - Provider keys, local environment files, Firebase service files, Android keystores, and key properties are excluded from source control.
 - CLI tool execution uses typed tools, permission gates, protected paths, output limits, timeouts, checkpoints, and audit-oriented behavior.
 - Shell execution is classified before running.
+- File tools enforce workspace containment and reject symlink escapes; shell file readers require explicit approval.
+- Generic HTTP tools block local/private targets, revalidate redirects, bound response size, and require confirmation for mutating or authenticated requests.
+- MCP child processes receive a minimal environment plus only explicitly configured variables, rather than inheriting all provider credentials.
+- Runtime permissions, provider credentials, tool caches, snapshots, compaction breakers, and agent routing are scoped by session/workspace where applicable.
 - Android release builds restore signing and Firebase config from CI secrets.
 - Web and mobile surfaces include privacy, terms, and account deletion paths.
 - Mobile report feedback is scoped to explicit user reports.

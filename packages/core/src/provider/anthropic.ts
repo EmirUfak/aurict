@@ -2,6 +2,7 @@ import { createAnthropic } from "@ai-sdk/anthropic"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, type ModelInfo } from "./plugin.js"
 import { getCachedModels, type RemoteModelDescriptor } from "./models-fetch.js"
+import { providerEnv } from "./credentials.js"
 
 function parseAnthropicModels(payload: unknown): RemoteModelDescriptor[] {
   const data = (payload as { data?: unknown }).data
@@ -19,7 +20,7 @@ export class AnthropicPlugin extends ProviderPlugin {
   readonly sdkType = "anthropic" as const
 
   private get client() {
-    const key = process.env["ANTHROPIC_API_KEY"]
+    const key = providerEnv("ANTHROPIC_API_KEY")
     return createAnthropic({ ...(key !== undefined ? { apiKey: key } : {}) })
   }
 
@@ -40,7 +41,7 @@ export class AnthropicPlugin extends ProviderPlugin {
   }
 
   override async listModelsRemote(): Promise<ModelInfo[]> {
-    const apiKey = process.env["ANTHROPIC_API_KEY"] ?? ""
+    const apiKey = providerEnv("ANTHROPIC_API_KEY") ?? ""
     return getCachedModels("anthropic", "https://api.anthropic.com/v1/models?limit=1000", apiKey, {
       authentication: "none",
       headers: {

@@ -18,7 +18,10 @@ class SSEManager {
   async emit(sessionId: string, event: SSEEvent): Promise<void> {
     const subs = this.subscribers.get(sessionId)
     if (!subs || subs.size === 0) return
-    await Promise.all([...subs].map((h) => h(event)))
+    const results = await Promise.allSettled([...subs].map((handler) => handler(event)))
+    for (const result of results) {
+      if (result.status === "rejected") console.warn("[aurict] SSE subscriber failed", result.reason)
+    }
   }
 
   subscriberCount(sessionId: string): number {

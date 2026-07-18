@@ -1,6 +1,7 @@
 import { createAzure } from "@ai-sdk/azure"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, type ModelInfo } from "./plugin.js"
+import { providerEnv } from "./credentials.js"
 
 export class AzurePlugin extends ProviderPlugin {
   readonly id      = "azure"
@@ -9,8 +10,8 @@ export class AzurePlugin extends ProviderPlugin {
 
   private get client() {
     return createAzure({
-      apiKey:   process.env["AZURE_OPENAI_API_KEY"]  ?? "",
-      baseURL:  process.env["AZURE_OPENAI_ENDPOINT"] ?? "",
+      apiKey:   providerEnv("AZURE_OPENAI_API_KEY")  ?? "",
+      baseURL:  providerEnv("AZURE_OPENAI_ENDPOINT") ?? "",
     })
   }
 
@@ -20,7 +21,7 @@ export class AzurePlugin extends ProviderPlugin {
   }
 
   defaultModel(): string {
-    return process.env["AZURE_OPENAI_DEPLOYMENT"] ?? "gpt-4o"
+    return providerEnv("AZURE_OPENAI_DEPLOYMENT") ?? "gpt-4o"
   }
 
   listModels(): ModelInfo[] {

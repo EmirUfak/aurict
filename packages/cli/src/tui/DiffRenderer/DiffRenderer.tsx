@@ -23,6 +23,7 @@ import { useTerminalSize } from "../TerminalSizeContext.js"
 import { parseRawDiff, diffTexts, suggestDiffMode, wordDiff,
          wordRangesByLine, type ParsedDiff, type DiffLine, type Hunk, type DiffMode } from "./logic.js"
 import { getDiffPalette } from "./palette.js"
+import { glyph, prefersAsciiGlyphs } from "../terminal-glyphs.js"
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ export function DiffRenderer({
   const [activeHunk, setActiveHunk] = useState(0)
   const terminalWidth = useTerminalSize().columns
   const renderWidth = Math.max(40, Math.min(width ?? terminalWidth - 8, terminalWidth - 4))
+  const activeBorderStyle = prefersAsciiGlyphs() ? "classic" as const : "single" as const
 
   // Parse: use raw diff if present, otherwise compute from old/new
   const parsed = useMemo<ParsedDiff | null>(() => {
@@ -138,13 +140,15 @@ export function DiffRenderer({
 
   const shown = parsed.hunks.slice(0, maxHunks)
   const hidden = parsed.hunks.length - shown.length
-  const displayFile = fileName ?? parsed.fileName ?? "code changes"
+  const displayFile = fileName ?? (parsed.fileNames && parsed.fileNames.length > 1
+    ? `${parsed.fileNames.length} files`
+    : parsed.fileName) ?? "code changes"
 
   return (
     <VStack gap="none" width={renderWidth}>
       {/* Header */}
       <HStack gap="sm" paddingX="xs" width={renderWidth}>
-        <Text color={theme.borderBright}>╭─</Text>
+        <Text color={theme.borderBright}>{prefersAsciiGlyphs() ? "+-" : "╭─"}</Text>
         <Typo variant="label" tone="primary">{displayFile}</Typo>
         <Spacer />
         <Text color={theme.success} bold>{`+${parsed.additions}`}</Text>
@@ -157,10 +161,10 @@ export function DiffRenderer({
 
       {/* Body — renders differently based on mode */}
       {mode === "unified" && (
-        <UnifiedView hunks={shown} activeHunk={enableHunkNav ? activeHunk : -1} width={renderWidth} />
+        <UnifiedView hunks={shown} activeHunk={enableHunkNav ? activeHunk : -1} width={renderWidth} borderStyle={activeBorderStyle} />
       )}
       {mode === "side-by-side" && (
-        <SideBySideView hunks={shown} activeHunk={enableHunkNav ? activeHunk : -1} width={renderWidth} />
+        <SideBySideView hunks={shown} activeHunk={enableHunkNav ? activeHunk : -1} width={renderWidth} borderStyle={activeBorderStyle} />
       )}
       {mode === "raw" && (
         <RawView raw={rawDiff ?? ""} width={renderWidth} />
@@ -175,7 +179,7 @@ export function DiffRenderer({
 
 // ── Unified view ─────────────────────────────────────────────────────────────
 
-function UnifiedView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHunk: number; width: number }) {
+function UnifiedView({ hunks, activeHunk, width, borderStyle }: { hunks: Hunk[]; activeHunk: number; width: number; borderStyle: "classic" | "single" }) {
   const theme = useTheme()
   const palette = getDiffPalette(theme)
 
@@ -183,11 +187,11 @@ function UnifiedView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHunk: 
     <VStack gap="none" width={width}>
       {hunks.map((hunk, hi) => (
         <VStack key={hi} gap="none" width={width}
-          {...(activeHunk === hi ? { borderStyle: "single" as const, borderColor: theme.accent } : {})}
+          {...(activeHunk === hi ? { borderStyle, borderColor: theme.accent } : {})}
         >
           <Text backgroundColor={palette.hunkBg}>
             <Text color={activeHunk === hi ? theme.accent : theme.borderBright}>{activeHunk === hi ? "●" : "·"}</Text>
-            <Text color={theme.borderBright} dimColor>{padLine(` ${hunk.header}`, width - 1)}</Text>
+            <Text color={theme.borderBright} dimColor>{padLine(` ${hunkLabel(hunk)}`, width - 1)}</Text>
           </Text>
           <UnifiedLines lines={hunk.lines} width={width} />
         </VStack>
@@ -212,7 +216,7 @@ function UnifiedLines({ lines, width }: { lines: DiffLine[]; width: number }) {
 
 // ── Side-by-side view ───────────────────────────────────────────────────────
 
-function SideBySideView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHunk: number; width: number }) {
+function SideBySideView({ hunks, activeHunk, width, borderStyle }: { hunks: Hunk[]; activeHunk: number; width: number; borderStyle: "classic" | "single" }) {
   const theme = useTheme()
   const palette = getDiffPalette(theme)
 
@@ -220,10 +224,10 @@ function SideBySideView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHun
     <VStack gap="none" width={width}>
       {hunks.map((hunk, hi) => (
         <VStack key={hi} gap="none" width={width}
-          {...(activeHunk === hi ? { borderStyle: "single" as const, borderColor: theme.accent } : {})}
+          {...(activeHunk === hi ? { borderStyle, borderColor: theme.accent } : {})}
         >
           <Text backgroundColor={palette.hunkBg} color={theme.borderBright} dimColor>
-            {padLine(hunk.header, width)}
+            {padLine(hunkLabel(hunk), width)}
           </Text>
           {pairLines(hunk.lines).map((pair, pi) => (
             <SideBySideLine key={pi} left={pair[0]} right={pair[1]} width={width} />
@@ -232,6 +236,10 @@ function SideBySideView({ hunks, activeHunk, width }: { hunks: Hunk[]; activeHun
       ))}
     </VStack>
   )
+}
+
+function hunkLabel(hunk: Hunk): string {
+  return hunk.fileName ? `${hunk.fileName} · ${hunk.header}` : hunk.header
 }
 
 /**
@@ -275,7 +283,7 @@ function SideBySideLine({ left, right, width }: { left: DiffLine | null; right: 
       {/* Left — old */}
       <SideLineCell line={left} counterpart={right} width={halfW} />
       {/* Divider */}
-      <Text color={theme.borderDim}>│</Text>
+      <Text color={theme.borderDim}>{glyph("separator")}</Text>
       {/* Right — new */}
       <SideLineCell line={right} counterpart={left} width={halfW} />
     </Box>
@@ -297,7 +305,7 @@ function SideLineCell({
 
   const lineNumber = (line.oldLineNum ?? line.newLineNum)?.toString().padStart(4) ?? "    "
   const lineBg = line.type === "add" ? palette.addBg : palette.removeBg
-  const marker = line.type === "add" ? "+" : line.type === "remove" ? "-" : "│"
+  const marker = line.type === "add" ? "+" : line.type === "remove" ? "-" : glyph("separator")
   const markerColor = line.type === "add" ? theme.success : line.type === "remove" ? theme.error : theme.borderDim
 
   if (line.type === "context") {
@@ -444,7 +452,7 @@ function DiffLineView({
       <Text color={theme.textDim}>{oldNo}</Text>
       <Text color={theme.textDim}> </Text>
       <Text color={theme.textDim}>{newNo}</Text>
-      <Text color={theme.borderDim}> │</Text>
+      <Text color={theme.borderDim}> {glyph("separator")}</Text>
       <Text color={theme.textDim}> {truncate(line.content, contentWidth)}</Text>
     </Box>
   )

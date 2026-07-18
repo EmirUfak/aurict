@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, thinkingOptionsForSDK, type ModelInfo } from "./plugin.js"
 import { getCachedModels } from "./models-fetch.js"
+import { providerEnv } from "./credentials.js"
 
 // opencode.ai Zen/Go — OpenAI-uyumlu endpoint, Anthropic modelleri proxy'ler
 export class OpenCodePlugin extends ProviderPlugin {
@@ -10,7 +11,7 @@ export class OpenCodePlugin extends ProviderPlugin {
   readonly sdkType = "openai-compatible" as const
 
   private get client() {
-    const key = process.env["OPENCODE_API_KEY"]
+    const key = providerEnv("OPENCODE_API_KEY")
     return createOpenAI({
       ...(key !== undefined ? { apiKey: key } : {}),
       baseURL: "https://opencode.ai/zen/v1",
@@ -39,7 +40,7 @@ export class OpenCodePlugin extends ProviderPlugin {
   }
 
   async listModelsRemote(): Promise<ModelInfo[]> {
-    const apiKey = process.env["OPENCODE_API_KEY"] ?? ""
+    const apiKey = providerEnv("OPENCODE_API_KEY") ?? ""
     return getCachedModels("opencode", "https://opencode.ai/zen/v1/models", apiKey)
   }
 

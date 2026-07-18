@@ -24,6 +24,7 @@ export interface RegistryEntry {
   author:      string
   tags:        string[]
   version?:    string
+  sha256?:     string
 }
 
 export interface Registry {

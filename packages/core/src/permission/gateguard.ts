@@ -47,24 +47,37 @@ function matchPattern(pattern: string, filePath: string): boolean {
 }
 
 class GateGuard {
-  private customRules: GateRule[] = []
   private projectDir: string | null = null
+  private rulesByProject = new Map<string, GateRule[]>()
 
   setProjectDir(dir: string): void {
     this.projectDir = dir
-    this.loadProjectRules(dir)
+    this.rulesFor(dir)
   }
 
-  private loadProjectRules(dir: string): void {
+  private rulesFor(dir?: string | null): GateRule[] {
+    const key = dir ?? "__global__"
+    const cached = this.rulesByProject.get(key)
+    if (cached) return cached
+    if (!dir) {
+      const rules: GateRule[] = []
+      this.rulesByProject.set(key, rules)
+      return rules
+    }
     try {
       const configPath = join(dir, ".aurict", "protected.json")
       const rules = JSON.parse(readFileSync(configPath, "utf8")) as GateRule[]
-      this.customRules = [...rules]
-    } catch { /* no project config */ }
+      this.rulesByProject.set(key, [...rules])
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== "ENOENT") console.warn(`[aurict] invalid GateGuard config for ${dir}`, error)
+      this.rulesByProject.set(key, [])
+    }
+    return this.rulesByProject.get(key)!
   }
 
-  check(filePath: string): "allow" | "ask" | "deny" {
-    const allRules = [...DEFAULT_PROTECTED, ...this.customRules]
+  check(filePath: string, projectDir: string | null = this.projectDir): "allow" | "ask" | "deny" {
+    const allRules = [...DEFAULT_PROTECTED, ...this.rulesFor(projectDir)]
     let result: "allow" | "ask" | "deny" = "allow"
 
     for (const rule of allRules) {
@@ -77,29 +90,31 @@ class GateGuard {
   }
 
   addRule(rule: GateRule): void {
-    const idx = this.customRules.findIndex((r) => r.pattern === rule.pattern)
+    const customRules = this.rulesFor(this.projectDir)
+    const idx = customRules.findIndex((r) => r.pattern === rule.pattern)
     if (idx !== -1) {
-      this.customRules[idx] = rule
+      customRules[idx] = rule
     } else {
-      this.customRules.push(rule)
+      customRules.push(rule)
     }
   }
 
   removePattern(pattern: string): void {
-    this.customRules = this.customRules.filter((r) => r.pattern !== pattern)
+    const key = this.projectDir ?? "__global__"
+    this.rulesByProject.set(key, this.rulesFor(this.projectDir).filter((r) => r.pattern !== pattern))
   }
 
   clearCustomRules(): void {
-    this.customRules = []
+    this.rulesByProject.set(this.projectDir ?? "__global__", [])
   }
 
   listRules(): GateRule[] {
-    return [...DEFAULT_PROTECTED, ...this.customRules]
+    return [...DEFAULT_PROTECTED, ...this.rulesFor(this.projectDir)]
   }
 
-  audit(entry: AuditEntry): void {
-    const dir = this.projectDir
-      ? join(this.projectDir, ".aurict")
+  audit(entry: AuditEntry, projectDir: string | null = this.projectDir): void {
+    const dir = projectDir
+      ? join(projectDir, ".aurict")
       : join(process.cwd(), ".aurict")
     try {
       mkdirSync(dir, { recursive: true })

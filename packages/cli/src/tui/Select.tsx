@@ -16,6 +16,7 @@ interface Props<T extends string = string> {
   onSelect:      (option: SelectOption<T>, index: number) => void
   onCancel?:     () => void
   isActive?:     boolean
+  compact?:      boolean
 }
 
 export function Select<T extends string = string>({
@@ -25,6 +26,7 @@ export function Select<T extends string = string>({
   onSelect,
   onCancel,
   isActive = true,
+  compact = false,
 }: Props<T>) {
   const theme = useTheme()
 
@@ -34,8 +36,10 @@ export function Select<T extends string = string>({
   useEffect(() => { selRef.current = selectedIndex }, [selectedIndex])
 
   useInput((_, key) => {
-    if (key.upArrow)   { selRef.current = Math.max(0, selRef.current - 1); onChange(selRef.current); return }
-    if (key.downArrow) { selRef.current = Math.min(options.length - 1, selRef.current + 1); onChange(selRef.current); return }
+    const previous = compact ? key.leftArrow : key.upArrow
+    const next = compact ? key.rightArrow : key.downArrow
+    if (previous) { selRef.current = Math.max(0, selRef.current - 1); onChange(selRef.current); return }
+    if (next)     { selRef.current = Math.min(options.length - 1, selRef.current + 1); onChange(selRef.current); return }
     if (key.return) {
       const opt = options[selRef.current]
       if (opt) onSelect(opt, selRef.current)
@@ -43,6 +47,27 @@ export function Select<T extends string = string>({
     }
     if (key.escape && onCancel) { onCancel(); return }
   }, { isActive })
+
+  if (compact) {
+    const selected = options[selectedIndex]
+    return (
+      <Box flexDirection="column">
+        <Box flexDirection="row" flexWrap="wrap">
+          {options.map((opt, i) => {
+            const active = i === selectedIndex
+            const color = active ? (opt.color ?? theme.accent) : theme.textDim
+            return (
+              <Box key={opt.id} marginRight={2}>
+                <Text color={active ? color : theme.borderBright}>{active ? "❯ " : "  "}</Text>
+                <Text color={color} bold={active}>{opt.label}</Text>
+              </Box>
+            )
+          })}
+        </Box>
+        {selected?.hint && <Text color={theme.borderBright}>{selected.hint}</Text>}
+      </Box>
+    )
+  }
 
   return (
     <Box flexDirection="column">

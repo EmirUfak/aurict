@@ -1,8 +1,20 @@
 import { z } from "zod"
 import type { ToolDef, ExecuteResult } from "../types.js"
+import { fetchWithUrlPolicy, readResponseTextLimited } from "../../security/network-policy.js"
+
+const MAX_RESPONSE_BYTES = 2_000_000
 
 export const httpRequestTool: ToolDef = {
   id: "http_request",
+  spec: {
+    category: "network",
+    riskLevel: "medium",
+    permissionSummary: "Send an HTTP request",
+    requiresConfirmation: (args) => {
+      const method = String(args["method"] ?? "GET").toUpperCase()
+      return !["GET", "HEAD", "OPTIONS"].includes(method) || args["auth"] !== undefined
+    },
+  },
   description: `Make HTTP requests to any URL. Supports all methods, headers, auth, and body.
 
 USE FOR:
@@ -73,7 +85,9 @@ RETURNS: status code, response headers, body (auto-parsed JSON), timing.`,
         redirect: (args["follow_redirects"] as boolean ?? true) ? "follow" : "manual",
         ...(bodyStr === undefined ? {} : { body: bodyStr }),
       }
-      res = await fetch(url, request)
+      res = await fetchWithUrlPolicy(url, request, {
+        followRedirects: (args["follow_redirects"] as boolean | undefined) ?? true,
+      })
     } catch (err: unknown) {
       clearTimeout(timer)
       const msg = err instanceof Error ? err.message : String(err)
@@ -86,7 +100,7 @@ RETURNS: status code, response headers, body (auto-parsed JSON), timing.`,
     const resHeaders: Record<string, string> = {}
     res.headers.forEach((v, k) => { resHeaders[k] = v })
 
-    const raw = await res.text()
+    const { text: raw, truncated } = await readResponseTextLimited(res, MAX_RESPONSE_BYTES)
     let body: unknown = raw
     const ct = res.headers.get("content-type") ?? ""
     if (ct.includes("application/json") || (raw.trimStart().startsWith("{") || raw.trimStart().startsWith("["))) {
@@ -100,6 +114,7 @@ RETURNS: status code, response headers, body (auto-parsed JSON), timing.`,
       timing_ms:  elapsed,
       headers:    resHeaders,
       body,
+      ...(truncated ? { truncated: true } : {}),
     }
 
     return { output: JSON.stringify(out, null, 2) }

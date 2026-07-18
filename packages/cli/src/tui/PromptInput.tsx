@@ -61,7 +61,7 @@ export function PromptInput({ title, placeholder = "", secret = false, onSubmit,
         <Text color={theme.accent}>❯</Text>
         <Box flexDirection="row">
           <Text color={theme.textPrimary}>{beforeCursor}</Text>
-          <Text color="#000000" backgroundColor={theme.accent}>{atCursor}</Text>
+          <Text color={theme.accentInk ?? theme.bgHighlight} backgroundColor={theme.accent}>{atCursor}</Text>
           <Text color={theme.textPrimary}>{afterCursor}</Text>
         </Box>
       </Box>

@@ -4,7 +4,7 @@ import { hooks } from "../hook/emitter.js";
 import { PermissionEvaluator } from "../permission/evaluator.js";
 import { PermissionGate, PermissionStore } from "../permission/store.js";
 import { gateGuard } from "../permission/gateguard.js";
-import { addPart } from "../storage/queries.js";
+import { SessionManager } from "../session/manager.js";
 import { classifyCommand } from "../terminal/classifier.js";
 import { chooseSandboxBackend } from "../terminal/sandbox.js";
 import { diagnosticsStore } from "../diagnostics/store.js";
@@ -312,6 +312,7 @@ function isPermissionApproved(
   pattern: string,
   patchSummary: PatchSummary | undefined,
   workdir: string,
+  scope: string,
 ): boolean {
   if (patchSummary) {
     const paths = affectedPatchPaths(patchSummary);
@@ -321,6 +322,7 @@ function isPermissionApproved(
         PermissionStore.isApproved(
           defId,
           normalizePermissionPattern(defId, filePath, workdir),
+          scope,
         ),
       )
     );
@@ -328,6 +330,7 @@ function isPermissionApproved(
   return PermissionStore.isApproved(
     defId,
     normalizePermissionPattern(defId, pattern, workdir),
+    scope,
   );
 }
 
@@ -337,18 +340,19 @@ function approvePermission(
   patchSummary: PatchSummary | undefined,
   directory: boolean,
   workdir: string,
+  scope: string,
 ): void {
   if (patchSummary) {
     for (const filePath of affectedPatchPaths(patchSummary)) {
       const normalized = normalizePermissionPattern(defId, filePath, workdir);
-      if (directory) PermissionStore.approveDirectory(defId, normalized);
-      else PermissionStore.approve(defId, normalized);
+      if (directory) PermissionStore.approveDirectory(defId, normalized, scope);
+      else PermissionStore.approve(defId, normalized, scope);
     }
     return;
   }
   const normalized = normalizePermissionPattern(defId, pattern, workdir);
-  if (directory) PermissionStore.approveDirectory(defId, normalized);
-  else PermissionStore.approve(defId, normalized);
+  if (directory) PermissionStore.approveDirectory(defId, normalized, scope);
+  else PermissionStore.approve(defId, normalized, scope);
 }
 
 function waitForPermission(
@@ -384,6 +388,7 @@ export async function executeTool(
   rawArgs: Record<string, unknown>,
   ctx: ToolContext,
 ): Promise<ExecuteResult> {
+  const permissionScope = `${resolve(ctx.workdir)}\0${ctx.sessionId || "anonymous"}`;
   // --- v1.tool.before hook ---
   const before = await withTimeout(
     hooks.emit("v1.tool.before", { tool: def.id, args: rawArgs }),
@@ -426,7 +431,7 @@ export async function executeTool(
   if (def.id === "write" || def.id === "edit") {
     const filePath = String(args["path"] ?? "");
     if (filePath) {
-      const gateDecision = gateGuard.check(filePath);
+      const gateDecision = gateGuard.check(filePath, ctx.workdir);
       if (gateDecision === "deny") {
         gateGuard.audit({
           ts: Date.now(),
@@ -434,7 +439,7 @@ export async function executeTool(
           path: filePath,
           action: "deny",
           allowed: false,
-        });
+        }, ctx.workdir);
         return {
           output: "",
           error: `GateGuard: write to '${filePath}' is blocked by protection rules.`,
@@ -447,13 +452,13 @@ export async function executeTool(
       );
       if (
         gateDecision === "ask" &&
-        !PermissionStore.isApproved(def.id, permissionPath)
+        !PermissionStore.isApproved(def.id, permissionPath, permissionScope)
       ) {
         // Subagent context: PermissionGate is isolated per Bun Worker thread — TUI never sees it.
         // Auto-approve if the path is inside the project workdir; still block otherwise.
         if (ctx.isSubagent) {
           if (isInsideWorkdir(filePath, ctx.workdir)) {
-            PermissionStore.approve(def.id, permissionPath);
+            PermissionStore.approve(def.id, permissionPath, permissionScope);
           } else {
             gateGuard.audit({
               ts: Date.now(),
@@ -461,7 +466,7 @@ export async function executeTool(
               path: filePath,
               action: "deny",
               allowed: false,
-            });
+            }, ctx.workdir);
             return {
               output: "",
               error: `GateGuard: subagent write to '${filePath}' is outside project workdir and requires user approval.`,
@@ -488,7 +493,7 @@ export async function executeTool(
             path: filePath,
             action: gateDecision,
             allowed: userResponse.decision !== "deny",
-          });
+          }, ctx.workdir);
           if (userResponse.decision === "deny") {
             return {
               output: "",
@@ -496,9 +501,9 @@ export async function executeTool(
             };
           }
           if (userResponse.decision === "allow")
-            PermissionStore.approve(def.id, permissionPath);
+            PermissionStore.approve(def.id, permissionPath, permissionScope);
           if (userResponse.decision === "allow_directory")
-            PermissionStore.approveDirectory(def.id, permissionPath);
+            PermissionStore.approveDirectory(def.id, permissionPath, permissionScope);
         }
       }
     }
@@ -507,7 +512,7 @@ export async function executeTool(
   if (def.id === "apply_patch" && patchSummary) {
     const affectedPaths = affectedPatchPaths(patchSummary);
     const denied = affectedPaths.find(
-      (filePath) => gateGuard.check(filePath) === "deny",
+      (filePath) => gateGuard.check(filePath, ctx.workdir) === "deny",
     );
     if (denied) {
       gateGuard.audit({
@@ -516,7 +521,7 @@ export async function executeTool(
         path: denied,
         action: "deny",
         allowed: false,
-      });
+      }, ctx.workdir);
       return {
         output: "",
         error: `GateGuard: patch write to '${denied}' is blocked by protection rules.`,
@@ -525,10 +530,11 @@ export async function executeTool(
 
     const askPaths = affectedPaths.filter(
       (filePath) =>
-        gateGuard.check(filePath) === "ask" &&
+        gateGuard.check(filePath, ctx.workdir) === "ask" &&
         !PermissionStore.isApproved(
           def.id,
           normalizePermissionPattern(def.id, filePath, ctx.workdir),
+          permissionScope,
         ),
     );
     if (askPaths.length > 0) {
@@ -543,7 +549,7 @@ export async function executeTool(
             path: outside,
             action: "deny",
             allowed: false,
-          });
+          }, ctx.workdir);
           return {
             output: "",
             error: `GateGuard: subagent patch write to '${outside}' is outside project workdir and requires user approval.`,
@@ -553,6 +559,7 @@ export async function executeTool(
           PermissionStore.approve(
             def.id,
             normalizePermissionPattern(def.id, filePath, ctx.workdir),
+            permissionScope,
           );
         }
       } else {
@@ -582,7 +589,7 @@ export async function executeTool(
             path: filePath,
             action: "ask",
             allowed: userResponse.decision !== "deny",
-          });
+          }, ctx.workdir);
         }
         if (userResponse.decision === "deny") {
           return {
@@ -595,6 +602,7 @@ export async function executeTool(
             PermissionStore.approve(
               def.id,
               normalizePermissionPattern(def.id, filePath, ctx.workdir),
+              permissionScope,
             );
           }
         }
@@ -603,6 +611,7 @@ export async function executeTool(
             PermissionStore.approveDirectory(
               def.id,
               normalizePermissionPattern(def.id, filePath, ctx.workdir),
+              permissionScope,
             );
           }
         }
@@ -618,6 +627,7 @@ export async function executeTool(
   let decision = evalDecision;
   let level: "safe" | "warning" | "danger" = "warning";
   let reason = "";
+  let specRequiresConfirmation = false;
   let permissionMetadata: Partial<PermissionRequest> = patchSummary
     ? patchPermissionMetadata(
         patchSummary,
@@ -632,6 +642,7 @@ export async function executeTool(
       typeof def.spec.requiresConfirmation === "function"
         ? def.spec.requiresConfirmation(args)
         : def.spec.requiresConfirmation === true;
+    specRequiresConfirmation = specConfirm;
 
     if (def.spec.riskLevel === "critical" && evalDecision !== "deny") {
       decision = "ask";
@@ -673,8 +684,14 @@ export async function executeTool(
         readOnly: analysis.isReadOnly,
       },
     };
-    if (analysis.isReadOnly) {
-      // Read-only komutlar: evaluator deny yoksa auto-approve
+    if (analysis.isReadOnly && usesShellFileReader(command)) {
+      // Shell readers bypass the read tool's workspace/symlink boundary. Keep
+      // them behind explicit approval; subagents cannot auto-approve danger.
+      if (evalDecision !== "deny") decision = "ask";
+      level = "danger";
+      reason = "Shell file readers bypass workspace path protections; use the read/grep tool instead";
+    } else if (analysis.isReadOnly) {
+      // Other read-only commands: evaluator deny yoksa auto-approve
       if (evalDecision !== "deny") decision = "allow";
     } else if (analysis.level === "danger" && evalDecision !== "deny") {
       // Danger komutlar: evaluator deny varsa onu koru, yoksa ask
@@ -699,14 +716,14 @@ export async function executeTool(
 
   if (
     decision === "ask" &&
-    !isPermissionApproved(def.id, pattern, patchSummary, ctx.workdir)
+    !isPermissionApproved(def.id, pattern, patchSummary, ctx.workdir, permissionScope)
   ) {
     // Kategori bazlı toplu onay — "Bu session boyunca tüm write işlemlerine izin ver" gibi
-    if (PermissionStore.isCategoryApproved(def.id)) {
+    if (PermissionStore.isCategoryApproved(def.id, permissionScope)) {
       // Kategori onayı var — bireysel onay gerekmez
     } else if (ctx.isSubagent) {
       // Subagent: PermissionGate.wait() would hang forever — auto-approve non-critical asks
-      if (level === "danger") {
+      if (level === "danger" || (def.spec?.category === "network" && specRequiresConfirmation)) {
         return {
           output: "",
           error: `Permission denied: [${def.id}] is too risky to auto-approve in subagent context. Level: danger.`,
@@ -715,6 +732,7 @@ export async function executeTool(
       PermissionStore.approve(
         def.id,
         normalizePermissionPattern(def.id, pattern, ctx.workdir),
+        permissionScope,
       );
     } else {
       const id = crypto.randomUUID();
@@ -762,10 +780,10 @@ export async function executeTool(
       // allow      → session boyunca hatırla
       // allow_directory → aynı klasör altında session boyunca hatırla
       if (userResponse.decision === "allow") {
-        approvePermission(def.id, pattern, patchSummary, false, ctx.workdir);
+        approvePermission(def.id, pattern, patchSummary, false, ctx.workdir, permissionScope);
       }
       if (userResponse.decision === "allow_directory") {
-        approvePermission(def.id, pattern, patchSummary, true, ctx.workdir);
+        approvePermission(def.id, pattern, patchSummary, true, ctx.workdir, permissionScope);
       }
     }
   }
@@ -797,7 +815,8 @@ export async function executeTool(
 
   // --- Tool Result Cache check (pre-execute) ---
   // Cacheable tool'lar için cache'den sonuç al, varsa execute etme
-  const cachedResult = toolResultCache.get(def.id, args);
+  const cacheScope = `${resolve(ctx.workdir)}\0${ctx.sessionId || "anonymous"}`;
+  const cachedResult = toolResultCache.get(def.id, args, cacheScope);
   if (cachedResult) {
     // Cache hit — execute etmeden dön
     const durationMs = 0;
@@ -916,7 +935,7 @@ export async function executeTool(
   // --- Tool Result Cache write (post-execute) ---
   // Cache miss ise sonucu cache'e yaz (sadece başarılı sonuçlar)
   if (!cachedResult && !result.error) {
-    toolResultCache.set(def.id, args, result.output);
+    toolResultCache.set(def.id, args, result.output, result.error, cacheScope);
   }
   metrics.record(def.id, durationMs, false);
 
@@ -941,7 +960,7 @@ export async function executeTool(
   if (result.error) {
     result = { ...result, error: analyzeToolError(def.id, result.error) };
   } else if (result.output) {
-    const truncCfg = resolveTruncationConfig(def.id);
+    const truncCfg = resolveTruncationConfig(def.id, ctx.truncation);
     if (result.output.length > truncCfg.maxChars) {
       result = {
         ...result,
@@ -1232,19 +1251,16 @@ export async function executeTool(
   }
 
   // --- SQLite kayıt ---
-  if (ctx.sessionId) {
-    const partId = crypto.randomUUID();
+  if (ctx.sessionId && SessionManager.get(ctx.sessionId)) {
     try {
-      addPart({
-        id: partId,
+      SessionManager.addPart({
         sessionId: ctx.sessionId,
-        sequence: -1, // manager sıralamayı halleder
         role: "tool",
         type: "tool_result",
         content: JSON.stringify({ tool: def.id, args, result: after.result }),
       });
-    } catch (e) {
-      // veritabanı loglama hatası execute sürecini durdurmasın
+    } catch (error) {
+      console.error(`[aurict] failed to persist tool result for ${ctx.sessionId}`, error);
     }
   }
 
@@ -1281,6 +1297,10 @@ function isDestructiveOutsideWorkdir(
     if (p.startsWith(norm) || p === workdir) return false;
     return !SAFE_ROOTS.some((r) => p.startsWith(r));
   });
+}
+
+function usesShellFileReader(command: string): boolean {
+  return /(?:^|[;&|]\s*)(?:(?:command|env|time)\s+)*(?:cat|head|tail|less|more|grep|rg)\b/.test(command)
 }
 
 function extractPattern(

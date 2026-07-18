@@ -95,7 +95,9 @@ export { fetchRegistry, searchRegistry, findInRegistry, REGISTRY_URL } from "./p
 export type { Registry, RegistryEntry }                  from "./plugin/registry.js"
 
 export { runAgent, parseProviderError }                  from "./agent/loop.js"
-export type { AgentRunOptions, AgentFinishResult, AgentStatus, TokenBreakdown, AgentContinuationOptions, ContextUsage, CompactionEvent } from "./agent/types.js"
+export type { AgentRunOptions, AgentFinishResult, AgentStatus, TokenBreakdown, AgentContinuationOptions, ContextUsage, CompactionEvent, AgentToolResultEvent } from "./agent/types.js"
+export { classifyToolResult } from "./agent/tool-result-artifact.js"
+export type { ToolResultArtifact, ToolResultArtifactKind } from "./agent/tool-result-artifact.js"
 export { measureContextUsage } from "./agent/context-usage.js"
 export type { ContextUsageInput } from "./agent/context-usage.js"
 export { buildAttentionAnchor }                          from "./agent/attention-anchor.js"

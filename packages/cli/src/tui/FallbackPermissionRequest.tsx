@@ -6,8 +6,8 @@ import { Select, type SelectOption } from "./Select.js";
 import type { PermissionPromptDecision } from "./PermissionPrompt.js";
 import type { PermissionDecision } from "@aurict/core";
 import { PermissionScaffold } from "./PermissionScaffold.js";
-import { StatusDot } from "./design-system/StatusDot.js";
 import { PermissionCommandPreview } from "./PermissionCommandPreview.js";
+import { glyph } from "./terminal-glyphs.js";
 
 type Decision = PermissionDecision | "deny_abort" | "edit";
 
@@ -30,16 +30,6 @@ function toolLabel(tool: string): string {
     todo: "Task update",
   };
   return map[tool] ?? `Tool use: ${tool}`;
-}
-
-function blastGauge(
-  level: string,
-  supportsDir: boolean,
-): { tone: "safe" | "warning" | "danger"; bars: number } {
-  if (level === "danger") return { tone: "danger", bars: 5 };
-  if (level === "warning") return { tone: "warning", bars: 3 };
-  if (supportsDir) return { tone: "safe", bars: 2 };
-  return { tone: "safe", bars: 1 };
 }
 
 export function FallbackPermissionRequest({ request, onDecide }: Props) {
@@ -128,61 +118,24 @@ export function FallbackPermissionRequest({ request, onDecide }: Props) {
       : supportsDir
         ? "scoped"
         : "low";
-  const gauge = blastGauge(
-    isDanger ? "danger" : isWarning ? "warning" : "safe",
-    supportsDir,
-  );
-
+  const explanation = request.reason ?? request.permissionSummary ?? request.summary;
   const header = (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box gap={2} marginBottom={1}>
-        <Box gap={1}>
-          <Text color={theme.textDim}>blast</Text>
-          <StatusDot tone={gauge.tone} active />
-          <Text
-            color={accentColor}
-            bold
-          >{`[${"▮".repeat(gauge.bars)}${"▯".repeat(5 - gauge.bars)}] ${blast}`}</Text>
-        </Box>
-      </Box>
+    <Box flexDirection="column">
+      <Text color={theme.textDim}>
+        scope <Text color={accentColor} bold>{blast}</Text>
+        {request.diff
+          ? ` ${glyph("statusTiny")} +${request.diff.added} -${request.diff.removed} ${glyph("statusTiny")} ${request.diff.fileCount} file${request.diff.fileCount === 1 ? "" : "s"}`
+          : ""}
+      </Text>
       <PermissionCommandPreview
         command={request.pattern}
         open={showPattern}
         onOpenChange={setShowPattern}
       />
-      {request.summary && (
-        <Text color={theme.textDim} dimColor>
-          {request.summary}
+      {explanation && (
+        <Text color={isDanger || isWarning ? accentColor : theme.textDim} wrap="truncate-end">
+          {glyph("statusTiny")} {explanation}
         </Text>
-      )}
-      {request.diff && (
-        <Box gap={2}>
-          <Text color={theme.success}>+{request.diff.added}</Text>
-          <Text color={theme.error}>-{request.diff.removed}</Text>
-          <Text color={theme.textDim} dimColor>
-            {request.diff.fileCount} file
-            {request.diff.fileCount === 1 ? "" : "s"}
-          </Text>
-        </Box>
-      )}
-      {(request.reason || request.permissionSummary) && (
-        <Box
-          borderStyle="single"
-          borderColor={accentColor}
-          borderTop={false}
-          borderLeft={true}
-          borderRight={false}
-          borderBottom={false}
-          paddingLeft={1}
-          marginTop={1}
-        >
-          <Text
-            color={isDanger || isWarning ? accentColor : theme.accent}
-            wrap="wrap"
-          >
-            {request.reason ?? request.permissionSummary}
-          </Text>
-        </Box>
       )}
     </Box>
   );
@@ -201,12 +154,13 @@ export function FallbackPermissionRequest({ request, onDecide }: Props) {
         onSelect={handleSelect}
         onCancel={() => onDecide("deny")}
         isActive={!showPattern}
+        compact
       />
-      <Box marginTop={1}>
+      <Box>
         <Text color={theme.textDim} dimColor>
           {showPattern
             ? "d/Esc details  ↑↓ scroll"
-            : "↑↓ select  Enter confirm  d inspect details  Esc deny"}
+            : "y allow once  n deny  ←→ select  Enter confirm  d inspect"}
         </Text>
       </Box>
     </PermissionScaffold>

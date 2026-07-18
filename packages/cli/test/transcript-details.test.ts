@@ -4,7 +4,7 @@ import {
   createToolDetail,
   writePreview,
 } from "../src/tui/conversation/transcript-details.js";
-import type { DisplayMessage } from "../src/tui/Message.js";
+import type { DisplayMessage } from "../src/tui/conversation/types.js";
 
 describe("transcript details", () => {
   it("uses the tool's emitted unified diff rather than assistant text", () => {

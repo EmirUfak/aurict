@@ -78,14 +78,12 @@ function GranularPatchRequest({ request, onDecide }: Props) {
 
   const subtitle = `${selectedCount} of ${files.length} file${files.length === 1 ? "" : "s"} selected`
 
+  const firstVisibleFile = Math.max(0, Math.min(fileIdx - 1, files.length - 3))
   const header = (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box flexDirection="column" marginBottom={1}>
-        <Box gap={2} marginBottom={1}>
-          <Text color={theme.textDim} dimColor>←/→ navigate  Space toggle</Text>
-        </Box>
-        {files.slice(Math.max(0, fileIdx - 2), Math.min(files.length, fileIdx + 3)).map((file, offset) => {
-          const actualIdx = Math.max(0, fileIdx - 2) + offset
+    <Box flexDirection="column">
+      <Box flexDirection="column">
+        {files.slice(firstVisibleFile, firstVisibleFile + 3).map((file, offset) => {
+          const actualIdx = firstVisibleFile + offset
           const fileSel   = patchFileKeys(file).some(p => selectedFiles.has(p))
           const focused   = actualIdx === fileIdx
           return (
@@ -118,9 +116,9 @@ function GranularPatchRequest({ request, onDecide }: Props) {
         onSelect={handleSelect}
         onCancel={() => onDecide("deny")}
       />
-      <Box marginTop={1}>
+      <Box>
         <Text color={theme.textDim} dimColor>
-          ↑↓ select  Enter confirm  Esc deny  ←/→ file  Space toggle
+          y apply all  n deny  ↑↓ action  Enter confirm  ←/→ file  Space toggle
           {patchText ? "  d diff" : ""}
         </Text>
       </Box>
@@ -131,6 +129,14 @@ function GranularPatchRequest({ request, onDecide }: Props) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export function PermissionPrompt({ request, onDecide }: Props) {
+  useInput((char, key) => {
+    if (key.ctrl || key.meta) return
+    const shortcut = char.toLowerCase()
+    if (shortcut === "y") onDecide("allow_once")
+    else if (shortcut === "n") onDecide("deny")
+    else if (shortcut === "e" && (request.tool === "bash" || request.tool === "shell")) onDecide("edit")
+  })
+
   const isGranularPatch = request.tool === "apply_patch"
     && request.patch?.granular === true
     && (request.files ?? []).length > 0

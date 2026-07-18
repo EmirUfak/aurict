@@ -9,7 +9,7 @@
  *  - motionEnabled() under NO_COLOR / TERM=dumb / AURICT_NO_MOTION
  *  - StatusBar density breakpoints (tiny / compact / normal / wide) preserve key strings
  *  - ExpandableOutput renders terminal header bar with tool name
- *  - PermissionDialog corner signature + awaiting permission banner
+ *  - PermissionDialog responsive action-required banner
  */
 import { test, expect, describe } from "bun:test"
 import React from "react"
@@ -21,6 +21,7 @@ import {
 } from "../src/utils/theme.js"
 import { motionEnabled } from "../src/tui/design-system/motion.js"
 import { StatusBar } from "../src/tui/StatusBar.js"
+import { CockpitHeader } from "../src/tui/CockpitHeader.js"
 import { ExpandableOutput } from "../src/tui/ExpandableOutput.js"
 import { PermissionDialog } from "../src/tui/PermissionDialog.js"
 import { SettingsPanel } from "../src/tui/SettingsPanel.js"
@@ -170,11 +171,11 @@ describe("/palette slash command", () => {
   })
 })
 
-describe("StatusBar density breakpoints", () => {
+describe("Session chrome density breakpoints", () => {
   function renderAt(cols: number) {
     return render(
       <TerminalSizeContext.Provider value={{ columns: cols, rows: 24 }}>
-        <StatusBar {...PROPS} cols={cols} />
+        <CockpitHeader {...PROPS} contextTokens={0} cols={cols} />
       </TerminalSizeContext.Provider>,
     )
   }
@@ -182,18 +183,26 @@ describe("StatusBar density breakpoints", () => {
     const frame = renderAt(40).lastFrame() ?? ""
     expect(frame).toContain("opus-4")
   })
-  test("compact (60-89) shows workdir truncation + model", () => {
+  test("compact (60-89) keeps model", () => {
     const frame = renderAt(70).lastFrame() ?? ""
     expect(frame).toContain("opus-4")
   })
-  test("normal (90-119) shows model + sandbox label", () => {
+  test("normal (90-119) keeps model and context", () => {
     const frame = renderAt(100).lastFrame() ?? ""
     expect(frame).toContain("opus-4")
+    expect(frame).toContain("ctx")
   })
   test("wide (≥120) shows provider/model slash form", () => {
     const frame = renderAt(140).lastFrame() ?? ""
     expect(frame).toContain("anthropic")
     expect(frame).toContain("opus-4")
+  })
+
+  test("footer owns directory and sandbox without duplicating the model", () => {
+    const frame = render(<StatusBar {...PROPS} cols={140} sandboxBackend="policy" />).lastFrame() ?? ""
+    expect(frame).toContain("/home/user/project")
+    expect(frame).toContain("policy")
+    expect(frame).not.toContain("opus-4")
   })
 })
 
@@ -231,18 +240,29 @@ describe("SettingsPanel responsive theme surface", () => {
   })
 })
 
-describe("PermissionDialog corner signature", () => {
-  test("renders awaiting permission banner + corner chars", () => {
+describe("PermissionDialog", () => {
+  test("renders a compact action-required banner", () => {
     const { lastFrame } = render(
-      <PermissionDialog title="Bash command" subtitle="destructive operation" color="#ff0000">
+      <PermissionDialog title="Bash command" subtitle="destructive operation" color="#ff0000" tone="danger">
         <Text>body</Text>
       </PermissionDialog>,
     )
     const frame = lastFrame() ?? ""
-    expect(frame).toContain("awaiting permission")
+    expect(frame).toContain("Permission required")
     expect(frame).toContain("Bash command")
     expect(frame).toContain("destructive operation")
-    expect(frame).toContain("┌")
-    expect(frame).toContain("└")
+    expect(frame).toContain("DANGER")
+  })
+
+  test("stays bounded on a narrow terminal", () => {
+    const { lastFrame } = render(
+      <TerminalSizeContext.Provider value={{ columns: 24, rows: 14 }}>
+        <PermissionDialog title="Bash command" subtitle="destructive operation" color="#ff0000">
+          <Text>body</Text>
+        </PermissionDialog>
+      </TerminalSizeContext.Provider>,
+    )
+    const plain = (lastFrame() ?? "").replace(/\x1b\[[0-9;]*m/g, "")
+    expect(plain.split("\n").every((line) => line.length <= 24)).toBe(true)
   })
 })

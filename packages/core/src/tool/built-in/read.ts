@@ -3,6 +3,7 @@ import { readFile } from "fs/promises"
 import { resolve, dirname } from "path"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 import { semanticCache } from "../semantic-cache.js"
+import { resolveWithinWorkspace } from "../../security/path-boundary.js"
 
 const MAX_CHARS = 100_000
 
@@ -52,7 +53,12 @@ export const readTool: ToolDef = {
     limit:  z.number().optional().describe("Maximum number of lines to read"),
   }),
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
-    const filePath = resolve(ctx.workdir, String(args["path"] ?? ""))
+    let filePath: string
+    try {
+      filePath = await resolveWithinWorkspace(ctx.workdir, String(args["path"] ?? ""))
+    } catch (error) {
+      return { output: "", error: `Security: ${error instanceof Error ? error.message : String(error)}` }
+    }
     const sensitiveErr = checkSensitivePath(filePath, ctx.workdir)
     if (sensitiveErr) return { output: "", error: sensitiveErr }
     let content: string | null = await semanticCache.get<string>(filePath)

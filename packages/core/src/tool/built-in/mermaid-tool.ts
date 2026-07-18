@@ -122,14 +122,13 @@ async function renderMermaidSvg(
   const executablePath = await findChromium()
 
   let chromium: unknown
+  const importOptional = (specifier: string): Promise<unknown> => import(specifier)
   try {
-    // @ts-ignore — optional peer dependency
-    const pw = await import("playwright-core")
+    const pw = await importOptional("playwright-core") as { chromium?: unknown }
     chromium = pw.chromium
   } catch {
     try {
-      // @ts-ignore — optional peer dependency
-      const pp = await import("puppeteer-core")
+      const pp = await importOptional("puppeteer-core") as { default?: unknown }
       chromium = pp.default
     } catch {
       if (!executablePath) {

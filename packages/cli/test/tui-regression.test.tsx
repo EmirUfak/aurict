@@ -2,11 +2,13 @@ import { describe, it, expect, afterEach } from "bun:test"
 import React from "react"
 import { render, cleanup } from "ink-testing-library"
 import { StatusBar } from "../src/tui/StatusBar.js"
+import { CockpitHeader } from "../src/tui/CockpitHeader.js"
 import { TaskFloatingPanel } from "../src/tui/TaskFloatingPanel.js"
 import { ExpandableOutput } from "../src/tui/ExpandableOutput.js"
 import { Markdown } from "../src/tui/Markdown.js"
 import { Message } from "../src/tui/Message.js"
 import { StartupBanner } from "../src/tui/StartupBanner.js"
+import { CockpitSignal } from "../src/tui/CockpitSignal.js"
 import type { Task } from "@aurict/core"
 
 afterEach(() => { cleanup() })
@@ -37,7 +39,7 @@ function withTerminalSize<T>(cols: number, rows: number, fn: () => T): T {
 }
 
 describe("TUI responsive regression", () => {
-  it("lets startup banner continue expanding on wide terminals", () => {
+  it("keeps startup density stable on wide terminals", () => {
     const medium = render(
       <StartupBanner
         version="v1.1.5"
@@ -46,6 +48,7 @@ describe("TUI responsive regression", () => {
         workdir="/home/user/projects/aurict"
         cols={120}
         rows={40}
+        quip="Reality compiled. Warnings remain."
       />,
     ).lastFrame() ?? ""
     cleanup()
@@ -58,12 +61,13 @@ describe("TUI responsive regression", () => {
         workdir="/home/user/projects/aurict"
         cols={180}
         rows={40}
+        quip="Reality compiled. Warnings remain."
       />,
     ).lastFrame() ?? ""
 
-    const longestMedium = Math.max(...stripAnsi(medium).split("\n").map((line) => line.length))
-    const longestWide = Math.max(...stripAnsi(wide).split("\n").map((line) => line.length))
-    expect(longestWide).toBeGreaterThan(longestMedium + 30)
+    expect(stripAnsi(medium)).toContain("Reality compiled. Warnings remain.")
+    expect(stripAnsi(medium).split("\n").length).toBe(11)
+    expect(stripAnsi(wide).split("\n").length).toBe(11)
   })
 
   it("uses height-aware startup banner density", () => {
@@ -77,10 +81,11 @@ describe("TUI responsive regression", () => {
         rows={24}
       />,
     ).lastFrame() ?? ""
-    expect(shortWide).toContain("AURICT v1.1.5")
+    expect(shortWide).toContain("AURICT")
+    expect(shortWide).toContain("v1.1.5")
     expect(shortWide).toContain("/help")
     expect(shortWide).not.toContain("SYSTEMS ONLINE")
-    expect(shortWide.split("\n").length).toBeLessThanOrEqual(8)
+    expect(shortWide.split("\n").length).toBeLessThanOrEqual(11)
     cleanup()
 
     const tiny = render(
@@ -97,32 +102,105 @@ describe("TUI responsive regression", () => {
     expect(tiny.split("\n").length).toBeLessThanOrEqual(4)
   })
 
-  it("renders status bar across terminal breakpoints", () => {
-    // tiny: only the short model name is shown
-    const tiny = render(<StatusBar {...DEFAULT_STATUS_PROPS} cols={50} />).lastFrame() ?? ""
+  it("renders unified session chrome across terminal breakpoints", () => {
+    const tiny = stripAnsi(render(<CockpitHeader {...DEFAULT_STATUS_PROPS} contextTokens={0} cols={50} />).lastFrame() ?? "")
     expect(tiny).toContain("opus-4-5")
+    expect(tiny.split("\n")).toHaveLength(3)
+    expect(tiny.split("\n").every((line) => line.length <= 50)).toBe(true)
     cleanup()
 
-    // compact: the ctx percentage is shown (e.g. "25%")
     const compact = render(
-      <StatusBar {...DEFAULT_STATUS_PROPS} cols={75} contextTokens={50_000} />,
+      <CockpitHeader {...DEFAULT_STATUS_PROPS} cols={75} contextTokens={50_000} />,
     ).lastFrame() ?? ""
     expect(compact).toContain("25%")
     cleanup()
 
-    // normal: "ctx XX%" and the token count
     const normal = render(
-      <StatusBar {...DEFAULT_STATUS_PROPS} cols={100} contextTokens={50_000} contextWindow={200_000} />,
+      <CockpitHeader {...DEFAULT_STATUS_PROPS} cols={100} contextTokens={50_000} contextWindow={200_000} />,
     ).lastFrame() ?? ""
     expect(normal).toContain("ctx")
-    expect(normal).toContain("15k")
     cleanup()
 
-    // wide: dir and model are visible
     const wide = render(
       <StatusBar {...DEFAULT_STATUS_PROPS} cols={140} />,
     ).lastFrame() ?? ""
-    expect(wide).toContain("opus-4-5")
+    expect(wide).toContain("projects/aurict")
+    expect(wide).not.toContain("opus-4-5")
+  })
+
+  it("keeps the micro-cockpit compact and exposes wide telemetry", () => {
+    const compact = stripAnsi(render(
+      <CockpitHeader
+        {...DEFAULT_STATUS_PROPS}
+        cols={75}
+        contextTokens={50_000}
+        loading
+        activeAgent="omni"
+        activeAgentCount={2}
+        bgTaskCount={1}
+        taskSummary={{ pending: 2, inProgress: 1, done: 1, error: 0 }}
+      />,
+    ).lastFrame() ?? "")
+    expect(compact).not.toContain("tasks 1/4")
+    expect(compact).not.toContain("agents 2")
+    expect(compact.split("\n").every((line) => line.length <= 75)).toBe(true)
+    cleanup()
+
+    const wide = stripAnsi(render(
+      <CockpitHeader
+        {...DEFAULT_STATUS_PROPS}
+        cols={140}
+        contextTokens={50_000}
+        loading
+        activity="responding"
+        branch="feature/cockpit"
+        activeAgent="omni"
+        activeAgentCount={2}
+        bgTaskCount={1}
+        taskSummary={{ pending: 2, inProgress: 1, done: 1, error: 0 }}
+      />,
+    ).lastFrame() ?? "")
+    expect(wide).toContain("tasks 1/4")
+    expect(wide).toContain("agents 2")
+    expect(wide).toContain("bg 1")
+    expect(wide).toContain("feature/coc…")
+    expect(wide).toContain("tasks 1/4 · agents 2 · bg 1 · anthropic")
+    expect(wide.split("\n")).toHaveLength(3)
+    expect(wide.split("\n").every((line) => line.length <= 140)).toBe(true)
+    cleanup()
+
+    const minimumWide = stripAnsi(render(
+      <CockpitHeader
+        {...DEFAULT_STATUS_PROPS}
+        cols={120}
+        contextTokens={50_000}
+        loading
+        activity="responding"
+        branch="feature/cockpit"
+        activeAgent="omni"
+        activeAgentCount={2}
+        bgTaskCount={1}
+        taskSummary={{ pending: 2, inProgress: 1, done: 1, error: 0 }}
+      />,
+    ).lastFrame() ?? "")
+    expect(minimumWide.split("\n")).toHaveLength(3)
+    expect(minimumWide.split("\n").every((line) => line.length <= 120)).toBe(true)
+  })
+
+  it("renders a stable ASCII cockpit signal when motion is disabled", () => {
+    const previousAscii = process.env["AURICT_ASCII"]
+    const previousMotion = process.env["AURICT_NO_MOTION"]
+    process.env["AURICT_ASCII"] = "1"
+    process.env["AURICT_NO_MOTION"] = "1"
+    try {
+      const frame = stripAnsi(render(<CockpitSignal active />).lastFrame() ?? "")
+      expect(frame).toBe("---")
+    } finally {
+      if (previousAscii === undefined) delete process.env["AURICT_ASCII"]
+      else process.env["AURICT_ASCII"] = previousAscii
+      if (previousMotion === undefined) delete process.env["AURICT_NO_MOTION"]
+      else process.env["AURICT_NO_MOTION"] = previousMotion
+    }
   })
 
   it("keeps markdown tables bounded in narrow terminals", () => {
@@ -156,10 +234,10 @@ describe("TUI stress regression", () => {
       />,
     ).lastFrame() ?? ""
 
-    expect(frame).toContain("120 lines")
+    expect(frame).toContain("of 120 lines hidden")
     expect(frame).toContain("line 001")
     expect(frame).toContain("line 120")
-    expect(frame).toContain("113 hidden lines")
+    expect(frame).toContain("116 of 120 lines hidden")
   })
 
   it("handles small terminal expanded-output paging", () => {

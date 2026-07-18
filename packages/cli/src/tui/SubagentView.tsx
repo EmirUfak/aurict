@@ -4,35 +4,22 @@ import { SessionManager, agentPool } from "@aurict/core"
 import type { Part } from "@aurict/core"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
+import { agentTone } from "./theme/agent-tone.js"
+import { useSemanticTheme, type SemanticTheme } from "./theme/semantic-theme.js"
 
 // Max parts loaded into memory for display — bounds RAM regardless of agent activity
 const MAX_PARTS = 300
 // Max chars of content we'll process per part — prevents split("\n") on megabyte strings
 const MAX_CONTENT_CHARS = 1500
 
-const TYPE_COLOR: Record<string, string> = {
-  explore:     "#0ea5e9",
-  code:        "#10b981",
-  review:      "#f59e0b",
-  test:        "#a78bfa",
-  docs:        "#64748b",
-  performance: "#f97316",
-  security:    "#ef4444",
-  debug:       "#ec4899",
-  refactor:    "#06b6d4",
-  devops:      "#8b5cf6",
-  design:      "#e879f9",
-  data:        "#14b8a6",
-}
-
-function partToLines(part: Part): Array<{ text: string; color: string; dim?: boolean }> {
+function partToLines(part: Part, theme: SemanticTheme): Array<{ text: string; color: string; dim?: boolean }> {
   if (part.type === "tool_call") {
     try {
       const tc   = JSON.parse(part.content) as { tool: string; args: unknown }
       const args = typeof tc.args === "object" ? JSON.stringify(tc.args).slice(0, 60) : String(tc.args)
-      return [{ text: `⊕ ${tc.tool}  ${args}`, color: "#64748b" }]
+      return [{ text: `⊕ ${tc.tool}  ${args}`, color: theme.tool.default }]
     } catch {
-      return [{ text: `⊕ ${part.content.slice(0, 80)}`, color: "#64748b" }]
+      return [{ text: `⊕ ${part.content.slice(0, 80)}`, color: theme.tool.default }]
     }
   }
   if (part.type === "tool_result") {
@@ -41,7 +28,7 @@ function partToLines(part: Part): Array<{ text: string; color: string; dim?: boo
       ? part.content.slice(0, MAX_CONTENT_CHARS) + "…"
       : part.content
     const lines = safe.split("\n").slice(0, 3)
-    return lines.map((l) => ({ text: `  ${l}`, color: "#475569", dim: true }))
+    return lines.map((l) => ({ text: `  ${l}`, color: theme.foreground.muted, dim: true }))
   }
   // text — cap per-part lines so one giant assistant message can't explode allLines
   const safe = part.content.length > MAX_CONTENT_CHARS
@@ -50,7 +37,7 @@ function partToLines(part: Part): Array<{ text: string; color: string; dim?: boo
   return safe.split("\n")
     .filter((l) => l.trim())
     .slice(0, 30)
-    .map((l) => ({ text: l, color: "#cbd5e1" }))
+    .map((l) => ({ text: l, color: theme.foreground.secondary }))
 }
 
 interface Props {
@@ -65,6 +52,7 @@ interface Props {
 
 export function SubagentView({ sessionId, parentSessionId, onClose, onPrev, onNext, siblingIndex, siblingCount }: Props) {
   const theme = useTheme()
+  const semantic = useSemanticTheme()
   const [parts, setParts] = useState<Part[]>(() => SessionManager.getPartsTail(sessionId, MAX_PARTS))
   const [totalCount, setTotalCount] = useState(() => SessionManager.getPartsCount(sessionId))
   // Live streaming text — LLM output between tool calls, not yet written to the DB
@@ -101,12 +89,12 @@ export function SubagentView({ sessionId, parentSessionId, onClose, onPrev, onNe
   const title     = session?.title ?? sessionId.slice(0, 8)
   const agentType = title.match(/^\[(\w+)\]/)?.[1] ?? "subagent"
   const desc      = title.replace(/^\[\w+\]\s*/, "")
-  const color     = TYPE_COLOR[agentType] ?? theme.accent
+  const color     = agentTone(agentType, semantic)
   const isRunning = agentPool.active.some((a) => a.sessionId === sessionId)
   const status    = isRunning ? "running" : session?.status === "complete" ? "done" : session?.status ?? "?"
 
   // Memoized: not recomputed unless the parts array reference changes
-  const allLines = useMemo(() => parts.flatMap(partToLines), [parts])
+  const allLines = useMemo(() => parts.flatMap((part) => partToLines(part, semantic)), [parts, semantic])
   const total    = allLines.length
 
   // offset=-1 → tail mode (show the last PAGE lines)

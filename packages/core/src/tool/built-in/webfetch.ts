@@ -1,5 +1,6 @@
 import { z } from "zod"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
+import { fetchWithUrlPolicy, readResponseTextLimited } from "../../security/network-policy.js"
 
 const MAX_CHARS = 50_000
 const TIMEOUT_MS = 30_000
@@ -38,15 +39,15 @@ export const webfetchTool: ToolDef = {
     ctx.signal?.addEventListener("abort", () => controller.abort())
 
     try {
-      const res = await fetch(url, {
+      const res = await fetchWithUrlPolicy(url, {
         headers: { "User-Agent": "Aurict/0.0.1" },
         signal:  controller.signal,
       })
       if (!res.ok) return { output: "", error: `HTTP ${res.status} ${res.statusText}` }
 
-      const raw  = await res.text()
+      const { text: raw, truncated } = await readResponseTextLimited(res, MAX_CHARS * 4)
       const body = format === "markdown" ? stripHtml(raw) : raw
-      return { output: body.slice(0, MAX_CHARS) + (body.length > MAX_CHARS ? "\n\n[truncated]" : "") }
+      return { output: body.slice(0, MAX_CHARS) + (truncated || body.length > MAX_CHARS ? "\n\n[truncated]" : "") }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       return { output: "", error: `Fetch failed: ${msg}` }

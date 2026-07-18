@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, type ModelInfo } from "./plugin.js"
 import { getCachedModels } from "./models-fetch.js"
+import { providerEnv } from "./credentials.js"
 
 export class OpenAIPlugin extends ProviderPlugin {
   readonly id      = "openai"
@@ -9,7 +10,7 @@ export class OpenAIPlugin extends ProviderPlugin {
   readonly sdkType = "openai" as const
 
   private get client() {
-    const key = process.env["OPENAI_API_KEY"]
+    const key = providerEnv("OPENAI_API_KEY")
     return createOpenAI({ ...(key !== undefined ? { apiKey: key } : {}) })
   }
 
@@ -33,7 +34,7 @@ export class OpenAIPlugin extends ProviderPlugin {
   }
 
   override async listModelsRemote(): Promise<ModelInfo[]> {
-    return getCachedModels("openai", "https://api.openai.com/v1/models", process.env["OPENAI_API_KEY"] ?? "")
+    return getCachedModels("openai", "https://api.openai.com/v1/models", providerEnv("OPENAI_API_KEY") ?? "")
   }
 
   tokenizerEncoding(modelId: string): string {

@@ -155,7 +155,7 @@ export function SettingsPanel({ provider, model, currentTheme, workdir, onTheme,
             )
           })}
           <HStack gap="sm" marginTop={1} marginBottom="xs">
-            <Eyebrow tone="muted">legacy themes</Eyebrow>
+            <Eyebrow tone="muted">additional themes</Eyebrow>
           </HStack>
           {legacyNames.map((name, i) => {
             const cursorIdx = BRAND_PALETTE_IDS.length + i

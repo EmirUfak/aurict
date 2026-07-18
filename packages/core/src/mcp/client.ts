@@ -4,6 +4,17 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import type { MCPServerConfig, MCPToolInfo, MCPResourceInfo, MCPResourceContent } from "./types.js"
 
+const SAFE_CHILD_ENV = ["PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP"] as const
+
+function childEnvironment(explicit: Record<string, string> | undefined): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const key of SAFE_CHILD_ENV) {
+    const value = process.env[key]
+    if (value !== undefined) env[key] = value
+  }
+  return { ...env, ...(explicit ?? {}) }
+}
+
 export class MCPClient {
   private client:    Client
   private connected: boolean = false
@@ -40,7 +51,7 @@ export class MCPClient {
       transport = new StdioClientTransport({
         command: this.config.command,
         args:    this.config.args ?? [],
-        env:     { ...process.env, ...(this.config.env ?? {}) } as Record<string, string>,
+        env:     childEnvironment(this.config.env),
         stderr:  "ignore",  // Prevent Python traceback on SIGINT
       })
     }
@@ -51,29 +62,25 @@ export class MCPClient {
 
   async listTools(): Promise<MCPToolInfo[]> {
     if (!this.connected) return []
-    try {
-      const { tools } = await this.client.listTools()
-      return tools.map((t) => ({
-        server:      this.serverName,
-        name:        t.name,
-        description: t.description ?? "",
-        inputSchema: t.inputSchema as Record<string, unknown>,
-      }))
-    } catch { return [] }
+    const { tools } = await this.client.listTools()
+    return tools.map((t) => ({
+      server:      this.serverName,
+      name:        t.name,
+      description: t.description ?? "",
+      inputSchema: t.inputSchema as Record<string, unknown>,
+    }))
   }
 
   async listResources(): Promise<MCPResourceInfo[]> {
     if (!this.connected) return []
-    try {
-      const { resources } = await this.client.listResources()
-      return resources.map((r) => ({
-        server:      this.serverName,
-        uri:         r.uri,
-        name:        r.name,
-        ...(r.description !== undefined ? { description: r.description } : {}),
-        ...(r.mimeType    !== undefined ? { mimeType:    r.mimeType    } : {}),
-      }))
-    } catch { return [] }
+    const { resources } = await this.client.listResources()
+    return resources.map((r) => ({
+      server:      this.serverName,
+      uri:         r.uri,
+      name:        r.name,
+      ...(r.description !== undefined ? { description: r.description } : {}),
+      ...(r.mimeType    !== undefined ? { mimeType:    r.mimeType    } : {}),
+    }))
   }
 
   async readResource(uri: string): Promise<MCPResourceContent[]> {

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core"
+import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core"
 
 export const sessions = sqliteTable("sessions", {
   id:                  text("id").primaryKey(),
@@ -26,7 +26,9 @@ export const parts = sqliteTable("parts", {
   content: text("content").notNull(),
   tokens: integer("tokens"),
   createdAt: integer("created_at").notNull(),
-})
+}, (table) => [
+  uniqueIndex("parts_session_sequence_idx").on(table.sessionId, table.sequence),
+])
 
 export const toolCalls = sqliteTable("tool_calls", {
   id: text("id").primaryKey(),

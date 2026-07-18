@@ -2,6 +2,7 @@ import React from "react"
 import { Text } from "ink"
 import { useTheme } from "../../utils/theme.js"
 import { motionEnabled, usePulseFrame } from "./motion.js"
+import { glyph as terminalGlyph } from "../terminal-glyphs.js"
 
 export type StatusTone = "safe" | "warning" | "danger" | "accent" | "muted"
 
@@ -22,24 +23,18 @@ function toneColor(tone: StatusTone, theme: ReturnType<typeof useTheme>): string
   }
 }
 
-const GLYPHS = {
-  tiny: "·",
-  sm: "●",
-  md: "●",
-}
-
 export function StatusDot({ tone = "muted", active = false, size = "sm" }: StatusDotProps) {
   const theme = useTheme()
   const base = toneColor(tone, theme)
-  const pulse = usePulseFrame()
-  let glyph = GLYPHS[size]
+  const pulse = usePulseFrame(active)
+  let glyph = terminalGlyph(size === "tiny" ? "statusTiny" : "statusOn")
   let color = base
   if (active && motionEnabled()) {
     const phase = pulse % 2 === 0
     color = phase ? base : theme.textDim
   }
   if (!active && tone === "muted") {
-    glyph = "○"
+    glyph = terminalGlyph("statusOff")
   }
   return <Text color={color}>{glyph}</Text>
 }

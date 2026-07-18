@@ -1,12 +1,13 @@
 import { createOpenAICompatiblePlugin } from "./openai-compatible-factory.js"
 import type { ProviderPlugin } from "./plugin.js"
+import { providerEnv } from "./credentials.js"
 
 export function createZaiPlugin(): ProviderPlugin {
   return createOpenAICompatiblePlugin({
     id:           "zai",
     name:         "Z.AI (GLM)",
     baseURL:      "https://api.z.ai/api/openai/v1",
-    getApiKey:    () => process.env["ZAI_API_KEY"],
+    getApiKey:    () => providerEnv("ZAI_API_KEY"),
     defaultModel: "glm-5.2",
     modelsEndpoint: "https://api.z.ai/api/openai/v1/models",
     models: [

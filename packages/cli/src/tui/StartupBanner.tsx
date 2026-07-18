@@ -1,359 +1,62 @@
-/**
- * StartupBanner — Aurict's startup banner (Cockpit v2)
- *
- * Responsive terminal cockpit:
- *  - Wide terminals show a command-panel with a "SYSTEMS ONLINE" instrument grid.
- *  - Narrow terminals keep the same info in a single readable column.
- *  - The copy has an original sci-fi engineering tone; no external slogans.
- */
-
-import React from "react"
-import { Text } from "ink"
-import { HStack, VStack, Center } from "./design-system/index.js"
-import { Eyebrow, motionEnabled } from "./design-system/index.js"
-import { useTheme } from "../utils/theme.js"
-
-// Wordmark lines are defined without color; the color is applied at render
-// time via a gradient generated from the active brand theme (default: oxblood).
-const ASCII_LOGO = [
-  "  █████╗  ██╗   ██╗  ██████╗  ██╗  ██████╗  ████████╗",
-  " ██╔══██╗ ██║   ██║  ██╔══██╗ ██║ ██╔════╝  ╚══██╔══╝",
-  " ███████║ ██║   ██║  ██████╔╝ ██║ ██║          ██║   ",
-  " ██╔══██║ ██║   ██║  ██╔══██╗ ██║ ██║          ██║   ",
-  " ██║  ██║ ╚██████╔╝  ██║  ██║ ██║ ╚██████╗     ██║   ",
-  " ╚═╝  ╚═╝  ╚═════╝   ╚═╝  ╚═╝ ╚═╝  ╚═════╝     ╚═╝   ",
-]
-
-// A dedicated compact AURICT ASCII logo for narrow terminals.
-const COMPACT_ASCII_LOGO = [
-  "  █   █ ███  ███ ███ ███ ███",
-  " █ █  █ █  █  █  █   █    █ ",
-  " ███  █ ███   █  █   █    █ ",
-  " █ █  █ █ █   █  █   █    █ ",
-  " █ █  █ █  █ ███ ███ ███  █ ",
-]
-
-// Linear color interpolation between two hex values — for the brand gradient.
-function hexGradient(from: string, to: string, steps: number): string[] {
-  const parse = (h: string): [number, number, number] => {
-    const s = h.replace("#", "")
-    return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)]
-  }
-  const [r1, g1, b1] = parse(from)
-  const [r2, g2, b2] = parse(to)
-  const hex = (n: number) => Math.round(n).toString(16).padStart(2, "0")
-  if (steps <= 1) return [from]
-  return Array.from({ length: steps }, (_, i) => {
-    const t = i / (steps - 1)
-    return `#${hex(r1 + (r2 - r1) * t)}${hex(g1 + (g2 - g1) * t)}${hex(b1 + (b2 - b1) * t)}`
-  })
-}
-
-const SIGNAL_POOL = [
-  "Command deck online. Keep the blast radius visible.",
-  "Portal anomaly contained; patch route is stable.",
-  "Compiler mood: skeptical, but negotiable.",
-  "Run the smallest safe check before the dramatic rewrite.",
-  "If the diff looks haunted, ask the review agent first.",
-  "Telemetry is quiet. That usually means the logs are waiting.",
-  "Sandbox field armed. Destructive commands need a real reason.",
-  "Context loaded. Try a precise task and let the swarm split it.",
-  "A clean commit is not a personality trait, but it helps.",
-  "The fastest path is still the one with verification.",
-]
-
-const BOOT_PHASES = [
-  "syncing workspace",
-  "calibrating agents",
-  "arming sandbox",
-  "warming tool bus",
-  "cockpit ready",
-]
-
-const PORTAL_FRAMES = [
-  "◜══════◝",
-  "═◜════◝═",
-  "══◜══◝══",
-  "══◟══◞══",
-  "═◟════◞═",
-  "◟══════◞",
-]
-
-interface Tip {
-  label: string
-  hint:  string
-  tone:  "info" | "accent" | "warning" | "success" | "muted"
-}
-
-const TIP_POOL: Tip[] = [
-  { label: "⌃X",        hint: "subagent view",       tone: "accent"  },
-  { label: "⌃T",        hint: "task panel",          tone: "accent"  },
-  { label: "⌃P",        hint: "command palette",     tone: "accent"  },
-  { label: "⌃R",        hint: "history search",      tone: "muted"   },
-  { label: "/design",   hint: "UI wizard",           tone: "info"    },
-  { label: "/sessions", hint: "restore history",     tone: "info"    },
-  { label: "/compact",  hint: "manage context",      tone: "warning" },
-  { label: "/export",   hint: "save as markdown",    tone: "info"    },
-  { label: "/btw",      hint: "background note",     tone: "info"    },
-  { label: "/agents",   hint: "view subagents",      tone: "accent"  },
-  { label: "/skills",   hint: "project skills",      tone: "info"    },
-  { label: "/ctx",      hint: "token breakdown",     tone: "muted"   },
-  { label: "autopilot", hint: "/config autopilot",   tone: "warning" },
-]
-
-// Deterministic tip picker based on a 30-minute seed
-function seededPick(pool: Tip[], count: number): Tip[] {
-  const seed  = Math.floor(Date.now() / (1000 * 60 * 30))
-  const arr   = [...pool]
-  let s = seed
-  for (let i = arr.length - 1; i > 0; i--) {
-    s = (s * 1664525 + 1013904223) & 0x7fffffff
-    const j = s % (i + 1)
-    ;[arr[i], arr[j]] = [arr[j]!, arr[i]!]
-  }
-  return arr.slice(0, count)
-}
+import React, { useState } from "react";
+import { Box, Text } from "ink";
+import { useTheme } from "../utils/theme.js";
+import { glyph } from "./terminal-glyphs.js";
+import { AurictWordmark } from "./AurictWordmark.js";
+import { useSemanticTheme } from "./theme/semantic-theme.js";
+import { selectStartupQuip } from "./startup-quips.js";
 
 interface Props {
-  version:  string
-  provider: string
-  model:    string
-  workdir:  string
-  cols?:    number
-  rows?:    number
+  version: string;
+  provider: string;
+  model: string;
+  workdir: string;
+  cols?: number;
+  rows?: number;
+  quip?: string;
 }
 
-// A single cell for the two-column instrument grid
-function Cell({ label, value, valueColor, labelColor, width }: {
-  label: string; value: string; valueColor: string; labelColor: string; width: number
-}) {
-  const labelMax = 10
-  const valueMax = Math.max(8, width - labelMax - 2)
+function shortenMiddle(value: string, max: number): string {
+  if (value.length <= max) return value;
+  const separator = glyph("ellipsis");
+  const side = Math.max(3, Math.floor((max - separator.length) / 2));
+  return `${value.slice(0, side)}${separator}${value.slice(-side)}`;
+}
+
+export function StartupBanner({ version, provider, model, workdir, cols = 120, rows = 30, quip }: Props) {
+  const theme = useTheme();
+  const semantic = useSemanticTheme();
+  const tinyHeight = rows < 18;
+  const spacious = cols >= 76 && rows >= 24;
+  const cwd = workdir.replace(process.env["HOME"] ?? "", "~");
+  const [startupQuip] = useState(() => quip ?? selectStartupQuip());
+
+  if (tinyHeight) {
+    return (
+      <Box flexDirection="column" alignItems="center" width="100%">
+        <Text color={theme.accent} bold>AURICT {version}</Text>
+        <Text color={theme.textDim}>{provider}/{shortenMiddle(model, Math.max(16, cols - provider.length - 5))} {glyph("statusTiny")} /help</Text>
+      </Box>
+    );
+  }
+
+  if (!spacious) {
+    return (
+      <Box flexDirection="column" alignItems="center" width="100%" paddingTop={1}>
+        <Text color={theme.accent} bold>A U R I C T</Text>
+        <Text color={theme.textDim}>agentic coding terminal</Text>
+        <Text color={theme.textSecondary}>{provider}/{shortenMiddle(model, 28)} {glyph("statusTiny")} {shortenMiddle(cwd, 28)}</Text>
+      </Box>
+    );
+  }
+
   return (
-    <HStack width={width} justify="space-between">
-      <Text color={labelColor}>{truncate(label, labelMax)}</Text>
-      <Text color={valueColor}>{truncate(value, valueMax)}</Text>
-    </HStack>
-  )
-}
-
-function SafeDivider({ color, width, label }: { color: string; width: number; label?: string | undefined }) {
-  const safeWidth = Math.max(12, width)
-  if (label) {
-    const prefix = `── ${label} `
-    return <Text color={color}>{prefix}{String("─").repeat(Math.max(0, safeWidth - prefix.length))}</Text>
-  }
-  return <Text color={color}>{String("─").repeat(safeWidth)}</Text>
-}
-
-function truncate(text: string, max: number): string {
-  if (text.length <= max) return text
-  return `${text.slice(0, Math.max(1, max - 1))}…`
-}
-
-export function StartupBanner({ version, provider, model, workdir, cols, rows }: Props) {
-  const theme = useTheme()
-  const user  = process.env["USER"] || process.env["USERNAME"] || "user"
-  const dir   = workdir.replace(process.env["HOME"] ?? "", "~")
-
-  const tips = seededPick(TIP_POOL, 3)
-  const isNarrow = cols !== undefined && cols < 85
-  const isTiny = rows !== undefined && rows < 20
-  const isShort = rows !== undefined && rows < 30
-  const showFullLogo = (cols === undefined || cols >= 85) && !isShort
-  const signal = React.useMemo(() => SIGNAL_POOL[Math.floor(Math.random() * SIGNAL_POOL.length)]!, [])
-  const [bootFrame, setBootFrame] = React.useState(0)
-
-  React.useEffect(() => {
-    const maxFrame = BOOT_PHASES.length * 2 - 1
-    if (!motionEnabled()) { setBootFrame(maxFrame); return }
-    const t = setInterval(() => setBootFrame((n) => n >= maxFrame ? n : n + 1), 220)
-    return () => clearInterval(t)
-  }, [])
-
-  const bootPhase = BOOT_PHASES[Math.min(BOOT_PHASES.length - 1, Math.floor(bootFrame / 2) % BOOT_PHASES.length)]!
-  const portalFrame = PORTAL_FRAMES[bootFrame % PORTAL_FRAMES.length]!
-  // The banner spans the full terminal width — the same edge as the top bar and input.
-  const bannerWidth = Math.max(24, cols ?? 80)
-  const outerContentWidth = Math.max(18, bannerWidth - 4)
-  // Brand gradient: accentAlt (light) at the top, accent (dark) at the bottom — oxblood tones.
-  const logoColors = hexGradient(theme.accentAlt, theme.accent, ASCII_LOGO.length)
-  const compactLogoColors = hexGradient(theme.accentAlt, theme.accent, COMPACT_ASCII_LOGO.length)
-  const panelWidth = outerContentWidth
-  const panelContentWidth = Math.max(18, panelWidth - 6)
-  const dividerWidth = outerContentWidth
-  const panelDividerWidth = panelContentWidth
-  const shortDir = truncate(dir, Math.max(18, bannerWidth - 26))
-  const narrowCellWidth = Math.max(30, outerContentWidth - 4)
-  const wideCellWidth = Math.max(30, Math.floor((panelContentWidth - 3) / 2))
-
-  if (isTiny) {
-    return (
-      <VStack width={bannerWidth} paddingX="md" paddingY="none" gap="none" borderStyle="round" borderColor={theme.borderDim}>
-        <HStack justify="space-between">
-          <Text color={theme.accentAlt} bold>AURICT {version}</Text>
-          <Text color={theme.success}>● ready</Text>
-        </HStack>
-        <HStack justify="space-between">
-          <Text color={theme.textDim}>{shortDir}</Text>
-          <Text color={theme.textSecondary}>{truncate(model, 18)}</Text>
-        </HStack>
-      </VStack>
-    )
-  }
-
-  if (isShort) {
-    return (
-      <VStack width={bannerWidth} paddingX="md" paddingY="xs" gap="none" borderStyle="round" borderColor={theme.borderDim}>
-        <HStack justify="space-between">
-          <Text color={theme.accentAlt} bold>AURICT {version}</Text>
-          <Text color={theme.success}>● ready</Text>
-        </HStack>
-        <HStack justify="space-between">
-          <Text color={theme.textDim}>{truncate(provider, 18)}</Text>
-          <Text color={theme.textSecondary}>{truncate(model, Math.max(16, bannerWidth - 34))}</Text>
-        </HStack>
-        <Text color={theme.textDim}>{shortDir}</Text>
-        <HStack justify="space-between">
-          <Text color={theme.accent}>{portalFrame}</Text>
-          <Text color={theme.textDim}>{bootPhase}</Text>
-        </HStack>
-        <Text color={theme.textDim}>/help · ⌃P palette · @ file</Text>
-      </VStack>
-    )
-  }
-
-  // ── Narrow Screen Layout (Single Column) ──────────────────────────────────────────
-  if (isNarrow) {
-    return (
-      <VStack width={bannerWidth} paddingX="md" paddingY="sm" gap="sm" borderStyle="round" borderColor={theme.borderDim}>
-        <Center>
-          <VStack gap="none">
-            {COMPACT_ASCII_LOGO.map((row, i) => (
-              <Text key={i} color={compactLogoColors[i] ?? theme.accent} bold>{row}</Text>
-            ))}
-          </VStack>
-        </Center>
-        <HStack justify="center" marginBottom="xs">
-          <Text color={theme.accentAlt}>✦ AURICT {version}</Text>
-        </HStack>
-
-        <SafeDivider color={theme.borderDim} width={dividerWidth} label="systems online" />
-
-        <VStack paddingX="sm" gap="none">
-          <Cell label="provider" value={provider} valueColor={theme.textPrimary} labelColor={theme.textDim} width={narrowCellWidth} />
-          <Cell label="model"    value={model}    valueColor={theme.textPrimary} labelColor={theme.textDim} width={narrowCellWidth} />
-          <Cell label="project"  value={dir}      valueColor={theme.textPrimary} labelColor={theme.textDim} width={narrowCellWidth} />
-        </VStack>
-
-        <HStack justify="center" gap="sm">
-          <Text color={theme.accent}>{portalFrame}</Text>
-          <Text color={theme.textDim}>{bootPhase}</Text>
-        </HStack>
-
-        <SafeDivider color={theme.borderDim} width={dividerWidth} />
-
-        <VStack paddingX="sm" gap="none">
-          <Text color={theme.accentAlt}>◆ {signal}</Text>
-          <Text color={theme.textDim} dimColor>engineering signal</Text>
-        </VStack>
-
-        <SafeDivider color={theme.borderDim} width={dividerWidth} />
-
-        <VStack gap="none" paddingX="sm">
-          <Text color={theme.textSecondary} bold>Welcome back, {user}</Text>
-          <Text color={theme.textDim}>
-            • <Text color={theme.accent} bold>/help</Text> — all commands & shortcuts
-          </Text>
-          {tips.slice(0, 2).map((tip, i) => (
-            <Text key={i} color={theme.textDim}>
-              • <Text color={theme.warning} bold>{tip.label}</Text> {tip.hint}
-            </Text>
-          ))}
-        </VStack>
-      </VStack>
-    )
-  }
-
-  // ── Wide Screen Layout (command panel) ──────────────────────────────────────
-  return (
-    <VStack width={bannerWidth} paddingX="md" paddingY="sm" gap="sm">
-      {showFullLogo && (
-        <Center>
-          <VStack gap="none">
-            {ASCII_LOGO.map((row, i) => (
-              <Text key={i} color={logoColors[i] ?? theme.accent} bold>{row}</Text>
-            ))}
-          </VStack>
-        </Center>
-      )}
-
-      <HStack justify="center" gap="sm">
-        <Text color={theme.accentAlt}>✦</Text>
-        <Text color={theme.textPrimary} bold>AURICT</Text>
-        <Text color={theme.textDim}>· multi-agent cockpit</Text>
-        <Text color={theme.accent}>✦</Text>
-      </HStack>
-
-      <HStack width={panelWidth} gap="none">
-        <Text color={theme.borderActive}>┌</Text>
-        <Text color={theme.textDim}> systems online </Text>
-        <Text color={theme.borderActive}>{"─".repeat(Math.max(0, panelWidth - 18))}</Text>
-      </HStack>
-      <VStack width={panelWidth} borderStyle="round" borderColor={theme.borderActive} borderTop={false} paddingX="md" paddingY="sm" gap="xs">
-        <HStack justify="space-between">
-          <Eyebrow tone="muted">cockpit</Eyebrow>
-          <Text color={theme.success}>◉ ready · {version}</Text>
-        </HStack>
-        <SafeDivider color={theme.borderDim} width={panelDividerWidth} />
-        <HStack gap="lg">
-          <Cell label="provider" value={provider}        valueColor={theme.textPrimary} labelColor={theme.textDim} width={wideCellWidth} />
-          <Cell label="sandbox"  value="policy"          valueColor={theme.warning}     labelColor={theme.textDim} width={wideCellWidth} />
-        </HStack>
-        <HStack gap="lg">
-          <Cell label="model"    value={model}           valueColor={theme.textPrimary} labelColor={theme.textDim} width={wideCellWidth} />
-          <Cell label="agents"   value="swarm · 0 active" valueColor={theme.accentAlt}  labelColor={theme.textDim} width={wideCellWidth} />
-        </HStack>
-        <HStack gap="lg">
-          <Cell label="project"  value={dir}             valueColor={theme.textPrimary} labelColor={theme.textDim} width={wideCellWidth} />
-          <Cell label="status"   value="● online"        valueColor={theme.success}     labelColor={theme.textDim} width={wideCellWidth} />
-        </HStack>
-        <SafeDivider color={theme.borderDim} width={panelDividerWidth} />
-        <HStack justify="space-between">
-          <HStack gap="sm">
-            <Text color={theme.accentAlt}>●</Text>
-            <Text color={theme.textDim}>Ready — type </Text>
-            <Text color={theme.accent} bold>/help</Text>
-            <Text color={theme.textDim}> to begin</Text>
-          </HStack>
-          <HStack gap="sm">
-            <Text color={theme.accent}>{portalFrame}</Text>
-            <Text color={theme.textDim}>{bootPhase}</Text>
-          </HStack>
-        </HStack>
-      </VStack>
-
-      <HStack paddingX="sm" gap="sm">
-        <Text color={theme.accentAlt}>◆</Text>
-        <Text color={theme.textSecondary}>{signal}</Text>
-        <Text color={theme.textDim} dimColor>· mission signal</Text>
-      </HStack>
-
-      <HStack justify="space-between" paddingX="sm">
-        <Text color={theme.textDim}>Welcome back, {user}</Text>
-        <HStack gap="md">
-          {tips.map((tip, i) => (
-            <Text key={i} color={theme.textDim}>
-              <Text color={theme.warning} bold>{tip.label}</Text> {tip.hint}
-            </Text>
-          ))}
-        </HStack>
-      </HStack>
-
-      <HStack width={panelWidth} gap="none">
-        <Text color={theme.borderActive}>└</Text>
-        <Text color={theme.borderActive}>{"─".repeat(Math.max(0, panelWidth - 2))}</Text>
-      </HStack>
-    </VStack>
-  )
+    <Box flexDirection="column" alignItems="center" width="100%" paddingTop={rows >= 32 ? 1 : 0}>
+      <AurictWordmark />
+      <Text color={theme.textDim}>AURICT {glyph("statusTiny")} AGENTIC ENGINEERING SYSTEM {glyph("statusTiny")} {version}</Text>
+      <Text color={theme.textSecondary} italic>{glyph("quote")} {shortenMiddle(startupQuip, Math.max(28, cols - 12))}</Text>
+      <Text color={theme.textSecondary}>{provider}/<Text color={theme.accentAlt}>{shortenMiddle(model, 36)}</Text><Text color={theme.borderDim}> {glyph("statusTiny")} </Text>{shortenMiddle(cwd, Math.max(28, Math.min(52, cols - 28)))}</Text>
+      <Text color={theme.textDim}><Text color={semantic.status.info}>/help</Text> commands {glyph("statusTiny")} <Text color={semantic.status.info}>@</Text> files {glyph("statusTiny")} Enter to begin</Text>
+    </Box>
+  );
 }

@@ -66,18 +66,14 @@ import { CliRemoteRuntime, type CliRemoteStatus } from "../remote/runtime.js";
 import { RemoteEventTypes, type RemoteEvent } from "../remote/event-codec.js";
 import { ensureAccessToken } from "../remote/auth.js";
 import { RemoteApiError } from "../remote/backend-client.js";
-import { ThemeContext, THEMES, DEFAULT_THEME } from "../utils/theme.js";
-import { TerminalSizeContext } from "./TerminalSizeContext.js";
-import { KeybindingsProvider } from "../keybindings/index.js";
+import { THEMES, DEFAULT_THEME } from "../utils/theme.js";
 import type { Context as KeybindingContext } from "../keybindings/index.js";
 
 import {
   type DisplayMessage,
   type AssistantContentBlock,
-} from "./Message.js";
+} from "./conversation/types.js";
 import { TaskFloatingPanel } from "./TaskFloatingPanel.js";
-import { ChatInput } from "./ChatInput.js";
-import { AlternateScreen } from "./AlternateScreen.js";
 import {
   PermissionPrompt,
   type PermissionPromptDecision,
@@ -89,14 +85,11 @@ import { StatusBar } from "./StatusBar.js";
 import { CommandSuggest, getCommandMatches } from "./CommandSuggest.js";
 import { StartupBanner } from "./StartupBanner.js";
 import { CockpitHeader } from "./CockpitHeader.js";
-import { McpStatusPanel } from "./McpStatusPanel.js";
 import { AgentStatus } from "./AgentStatus.js";
-import { ConversationViewport } from "./ConversationViewport.js";
 import {
   collectTranscriptDetails,
   type TranscriptDetail,
 } from "./conversation/transcript-details.js";
-import { FullscreenLayout } from "./FullscreenLayout.js";
 import { SubagentView } from "./SubagentView.js";
 import { FileMention, listFileMentionMatches } from "./FileMention.js";
 import { ExpandableOutput } from "./ExpandableOutput.js";
@@ -113,6 +106,12 @@ import { CURRENT_VERSION } from "../util/update-check.js";
 import { readClipboard } from "../util/clipboard.js";
 import { useMouseEvents, injectInput } from "./mouse.js";
 import { registerTerminalMode } from "./event-system/terminal-modes.js";
+import { addComposerItem, takeComposerItem, type ComposerQueueItem } from "./composer-queue.js";
+import { TerminalAppShell } from "./app-shell/TerminalAppShell.js";
+import { TranscriptPane } from "./app-shell/TranscriptPane.js";
+import { ComposerPane } from "./app-shell/ComposerPane.js";
+import { permissionTranscriptFeedback } from "./permission-feedback.js";
+import { OverlayStack } from "./app-shell/OverlayStack.js";
 import { installStdinResumeGuard } from "./event-system/stdin-resume.js";
 import {
   buildDesignPrompt,
@@ -133,6 +132,7 @@ import { HistorySearch } from "./HistorySearch.js";
 import { KeyboardShortcuts } from "./KeyboardShortcuts.js";
 import type { RunActivity } from "./run-status.js";
 import { visibleLiveStream } from "./conversation/live-stream.js";
+import { presentTranscriptError } from "./conversation/error-presentation.js";
 import { AUTO_CONTINUE_PROMPT } from "./auto-continue.js";
 import type { LocalServerStatus } from "../bootstrap.js";
 
@@ -255,8 +255,6 @@ export function App({
   const [tasks, setTasks] = useState<Task[]>([]);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [startupBannerVisible, setStartupBannerVisible] = useState(true);
-  // A counter that increments on MCP log events — refreshes McpStatusPanel.
-  const [mcpRefresh, setMcpRefresh] = useState(0);
 
   // Streaming display — kept separate from the messages array (prevents a render storm)
   const [streamingText, setStreamingText] = useState<string | null>(null);
@@ -272,7 +270,8 @@ export function App({
   const [coordinatorMode, setCoordinatorMode] = useState(true);
   const [activeAgent, setActiveAgent] = useState("omni");
   const [workdirState, setWorkdirState] = useState(workdir);
-  const [queuedInput, setQueuedInput] = useState<string | undefined>(undefined);
+  const [composerQueue, setComposerQueue] = useState<ComposerQueueItem[]>([]);
+  const submitRef = useRef<(value: string) => void>(() => {});
   const [branch, setBranch] = useState<string | undefined>(undefined);
   const [wasCompacted, setWasCompacted] = useState(false);
   const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>(undefined);
@@ -720,17 +719,29 @@ export function App({
   useEffect(() => PlanGate.onRequest((req) => setPlanRequest(req)), []);
 
   const inputRef = useRef(input);
+  const mcpFailuresRef = useRef(new Set<string>());
   useEffect(() => {
     inputRef.current = input;
   }, [input]);
 
-  // MCP log handler — `[mcp]` connection events don't clutter the
-  // transcript; instead they refresh McpStatusPanel (a consolidated view).
-  // Other messages are added to the stream as system messages.
+  // Successful MCP connection chatter stays out of the transcript. Failures
+  // remain visible as actionable notices after the compact startup summary.
   useEffect(() => {
     setMCPLogHandler((message: string, isError: boolean) => {
       if (message.startsWith("[mcp]")) {
-        setMcpRefresh((n) => n + 1);
+        if (isError) {
+          const server = message.match(/^\[mcp\]\s+([^:]+):/)?.[1] ?? "server";
+          mcpFailuresRef.current.add(server);
+          const failed = [...mcpFailuresRef.current].sort();
+          setMessages((previous) => [
+            ...previous.filter((entry) => entry.id !== "startup:mcp-errors"),
+            {
+              id: "startup:mcp-errors",
+              role: "system",
+              content: `⚠ MCP unavailable: ${failed.join(", ")} · /mcp for details`,
+            },
+          ]);
+        }
         return;
       }
       addSystemMsg(isError ? `⚠ ${message}` : message);
@@ -1059,7 +1070,7 @@ export function App({
     if (key.ctrl && input === "l") {
       setScrollLocked((locked) => {
         const next = !locked;
-        if (!next && !turnAssistantIdRef.current) {
+        if (!next) {
           setStreamingText(streamTextRef.current || null);
           setStreamingReason(streamReasonRef.current || null);
         }
@@ -1282,13 +1293,14 @@ export function App({
       if (!permission) return;
       const response: PermissionResponse | null =
         typeof decision === "string" ? null : decision;
-      const action = response?.decision ?? decision;
+      const action = typeof decision === "string" ? decision : decision.decision;
 
       if (action === "edit") {
         PermissionGate.respond(permission.id, "deny");
         setInput(permission.pattern);
         setPermissionQueue((q) => q.slice(1));
-        addSystemMsg(`Permission declined for ${permission.tool}; request moved to input for editing.`);
+        const feedback = permissionTranscriptFeedback(action, permission.tool);
+        if (feedback) addSystemMsg(feedback);
         return;
       }
       if (action === "deny_abort") {
@@ -1298,7 +1310,8 @@ export function App({
           abortControllerRef.current.abort();
           abortControllerRef.current = null;
         }
-        addSystemMsg(`Permission denied for ${permission.tool}; agent stopped by user.`);
+        const feedback = permissionTranscriptFeedback(action, permission.tool);
+        if (feedback) addSystemMsg(feedback);
         return;
       }
       PermissionGate.respond(
@@ -1314,14 +1327,8 @@ export function App({
         PermissionStore.savePersisted(PERM_FILE);
       }
       setPermissionQueue((q) => q.filter((item) => item.id !== permission.id));
-      const decisionLabel = action === "allow"
-        ? "allowed and remembered"
-        : action === "allow_directory"
-          ? "allowed for directory and remembered"
-          : action === "allow_partial"
-            ? "partially allowed"
-            : "allowed once";
-      addSystemMsg(`Permission ${decisionLabel}: ${permission.tool}.`);
+      const feedback = permissionTranscriptFeedback(action, permission.tool);
+      if (feedback) addSystemMsg(feedback);
     },
     [permission],
   );
@@ -1842,7 +1849,11 @@ export function App({
       setInput("");
       clearDraft();
       if (loading) {
-        setQueuedInput(text);
+        setComposerQueue((items) => addComposerItem(items, {
+          id: crypto.randomUUID(),
+          kind: "steer",
+          text,
+        }));
         return;
       }
       if (executeCommand(text)) return;
@@ -1964,11 +1975,11 @@ export function App({
             const ms = scrollLockedRef.current
               ? 2000
               : rate > 40
-                ? 16
+                ? 80
                 : rate > 15
-                  ? 32
+                  ? 100
                   : rate > 5
-                    ? 80
+                    ? 120
                     : 200;
             if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
             streamTimerRef.current = setTimeout(flushStream, ms);
@@ -2227,6 +2238,7 @@ export function App({
                           pending: false,
                           resultContent: displayResult,
                           durationMs: tr.durationMs,
+                          artifact: tr.artifact,
                         };
                         next[idx] = { ...msg, blocks: newBlocks };
                         return next;
@@ -2470,7 +2482,7 @@ export function App({
         streamTextRef.current = "";
         streamReasonRef.current = "";
         const errMsg = parseProviderError(err);
-        setStreamingError(errMsg);
+        setStreamingError(null);
         setStreamingText(null);
         setStreamingReason(null);
         setMessages((prev) => {
@@ -2503,6 +2515,7 @@ export function App({
             id: crypto.randomUUID(),
             role: "error",
             content: errMsg,
+            errorPresentation: presentTranscriptError(errMsg),
           });
           return next;
         });
@@ -2527,24 +2540,41 @@ export function App({
         setTurnSkillNames([]);
         abortControllerRef.current = null;
         setAttachments([]);
-        setQueuedInput((q) => {
+        setComposerQueue((items) => {
+          const { item, remaining } = takeComposerItem(items);
           const autoMsg =
-            q === undefined && autoContinueRef.current.needed
+            item === undefined && autoContinueRef.current.needed
               ? (autoContinueRef.current.prompt ?? AUTO_CONTINUE_PROMPT)
               : undefined;
           autoContinueRef.current.needed = false;
           delete autoContinueRef.current.prompt;
-          const toSend = q ?? autoMsg;
+          const toSend = item?.text ?? autoMsg;
           if (toSend) {
             if (autoMsg) autoContinueSubmittingRef.current = true;
-            setTimeout(() => handleSubmit(toSend), 80);
+            setTimeout(() => submitRef.current(toSend), 80);
           }
-          return undefined;
+          return remaining;
         });
       }
     },
     [loading, history, provider, model, workdir, system, executeCommand],
   );
+
+  useEffect(() => {
+    submitRef.current = (value) => { void handleSubmit(value); };
+  }, [handleSubmit]);
+
+  const handleQueue = useCallback((value: string) => {
+    const text = value.trim();
+    if (!text || !loading) return;
+    setInput("");
+    clearDraft();
+    setComposerQueue((items) => addComposerItem(items, {
+      id: crypto.randomUUID(),
+      kind: "queued",
+      text,
+    }));
+  }, [loading]);
 
   // ── Remote control (WebRTC) ─────────────────────────────────────────────────
   // werift is lazy-imported only here, when an actual session is being started —
@@ -2657,21 +2687,13 @@ export function App({
   // When any overlay/modal is open, ChatInput's useInput must stay disabled;
   // otherwise keys (especially Enter and typed text) would go both to the modal
   return (
-    <AlternateScreen>
-      <TerminalSizeContext.Provider
-        value={{ columns: termCols, rows: termRows }}
-      >
-        <ThemeContext.Provider value={activeTheme}>
-          <KeybindingsProvider initialContext={keybindingContext}>
-            <Box flexDirection="row" width="100%" height={termRows}>
-              {/* ── Left: main content ─────────────────────────────────────────────── */}
-              <FullscreenLayout
-                rows={termRows}
-                onScrollableHeight={(rows) =>
-                  setMeasuredViewportRows(Math.max(6, rows))
-                }
-
-                header={
+    <TerminalAppShell
+      rows={termRows}
+      columns={termCols}
+      theme={activeTheme}
+      keybindingContext={keybindingContext}
+      onTranscriptHeight={(rows) => setMeasuredViewportRows(Math.max(6, rows))}
+      header={
                   <>
                     {/* Subagent view */}
                     {viewingSubagentId && (
@@ -2735,10 +2757,6 @@ export function App({
                         rows={termRows}
                       />
                     )}
-                    {/* MCP server panel — startup only, consolidated */}
-                    {showStartupBanner && (
-                      <McpStatusPanel refresh={mcpRefresh} width={termCols} />
-                    )}
                     {/* Update notification */}
                     {updateInfo && !updateDismissed && (
                       <Box paddingX={2} marginBottom={1}>
@@ -2776,31 +2794,28 @@ export function App({
                   </>
                 }
 
-                scrollable={
-                  <>
-                    {/* Conversation viewport */}
-                    {!viewingSubagentId && (
-                      <ConversationViewport
-                        height={measuredViewportRows}
-                        width={Math.max(20, termCols - 9)}
-                        messages={messages}
-                        loading={loading}
-                        streamingText={streamingText}
-                        streamingReason={streamingReason}
-                        streamingError={streamingError}
-                        scrollLocked={scrollLocked}
-                        offsetRowsFromBottom={conversationOffsetRows}
-                        onScrollRange={handleScrollRange}
-                        onAnchorShift={scrollConversation}
-                        {...(unseenCount > 0 ? { unseenCount } : {})}
-                        {...(activeTool !== undefined ? { activeTool } : {})}
-                      />
-                    )}
-                  </>
-                }
+      transcript={
+        <TranscriptPane
+          visible={!viewingSubagentId}
+          height={measuredViewportRows}
+          width={Math.max(20, termCols - 9)}
+          messages={messages}
+          loading={loading}
+          streamingText={streamingText}
+          streamingReason={streamingReason}
+          streamingError={streamingError}
+          scrollLocked={scrollLocked}
+          offsetRowsFromBottom={conversationOffsetRows}
+          onScrollRange={handleScrollRange}
+          onAnchorShift={scrollConversation}
+          {...(unseenCount > 0 ? { unseenCount } : {})}
+          {...(activeTool !== undefined ? { activeTool } : {})}
+          {...(runActivity !== undefined ? { activity: runActivity } : {})}
+        />
+      }
 
-                overlay={
-                  <>
+      overlay={
+        <OverlayStack>
                     {keyboardShortcutsOpen && (
                       <KeyboardShortcuts
                         onClose={() => setKeyboardShortcutsOpen(false)}
@@ -2988,18 +3003,18 @@ export function App({
                     {attachInput && (
                       <Box
                         borderStyle="round"
-                        borderColor="yellow"
+                        borderColor={activeTheme.warning}
                         paddingX={1}
                       >
-                        <Text color="yellow">📎 File path: </Text>
+                        <Text color={activeTheme.warning}>📎 File path: </Text>
                         <Text>{attachPath}</Text>
-                        <Text color="gray"> (Enter: attach Esc: cancel)</Text>
+                        <Text color={activeTheme.textDim}> (Enter: attach Esc: cancel)</Text>
                       </Box>
                     )}
 
                     {attachments.length > 0 && !attachInput && (
                       <Box>
-                        <Text color="cyan">
+                        <Text color={activeTheme.accentAlt}>
                           📎 {attachments.length} dosya:{" "}
                           {attachments.map((a) => a.name).join(", ")}
                         </Text>
@@ -3039,10 +3054,10 @@ export function App({
                         }}
                       />
                     )}
-                  </>
-                }
+        </OverlayStack>
+      }
 
-                bottom={
+      bottom={
                   <>
                     {/* Active subagent rows — if placed at the bottom, FullscreenLayout measures the scrollable area correctly */}
                     <AgentStatus
@@ -3070,37 +3085,23 @@ export function App({
                       />
                     )}
 
-                    {/* Input area */}
-                    <Box flexDirection="row" alignItems="flex-end">
-                      {!permission &&
-                        !picker &&
-                        !question &&
-                        !attachInput &&
-                        !expandedContent &&
-                        !overlayOpen && (
-                          <ChatInput
-                            value={input}
-                            onChange={setInput}
-                            onSubmit={handleSubmit}
-                            disabled={loading}
-                            history={commandHistory}
-                            inlineSuggestionActive={inlineSuggestionActive}
-                            onInputTruncated={(orig, trunc) =>
-                              addSystemMsg(
-                                `Input truncated: ${orig.toLocaleString()} → ${trunc.toLocaleString()} chars`,
-                              )
-                            }
-                            onCopied={(n) =>
-                              addSystemMsg(
-                                `📋 Copied (${n.toLocaleString()} chars)`,
-                              )
-                            }
-                            {...(queuedInput !== undefined
-                              ? { queued: queuedInput }
-                              : {})}
-                          />
-                        )}
-                    </Box>
+                    <ComposerPane
+                      visible={!permission && !picker && !question && !attachInput && !expandedContent && !overlayOpen}
+                      value={input}
+                      onChange={setInput}
+                      onSubmit={handleSubmit}
+                      onQueue={handleQueue}
+                      working={loading}
+                      history={commandHistory}
+                      queue={composerQueue}
+                      inlineSuggestionActive={inlineSuggestionActive}
+                      onInputTruncated={(original, truncated) => addSystemMsg(
+                        `Input truncated: ${original.toLocaleString()} → ${truncated.toLocaleString()} chars`,
+                      )}
+                      onCopied={(characters) => addSystemMsg(
+                        `📋 Copied (${characters.toLocaleString()} chars)`,
+                      )}
+                    />
 
                     {terminalMeasured && (
                       <StatusBar
@@ -3145,20 +3146,10 @@ export function App({
                       />
                     )}
                   </>
-                }
-              />
-
-              {/* ── Right: Floating Task Panel (opened with Ctrl+T) ────────────────── */}
-              {taskPanelOpen && tasks.length > 0 && !viewingSubagentId && (
-                <TaskFloatingPanel
-                  tasks={tasks}
-                  onClose={() => setTaskPanelOpen(false)}
-                />
-              )}
-            </Box>
-          </KeybindingsProvider>
-        </ThemeContext.Provider>
-      </TerminalSizeContext.Provider>
-    </AlternateScreen>
+      }
+      sidePanel={taskPanelOpen && tasks.length > 0 && !viewingSubagentId ? (
+        <TaskFloatingPanel tasks={tasks} onClose={() => setTaskPanelOpen(false)} />
+      ) : undefined}
+    />
   );
 }

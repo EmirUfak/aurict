@@ -85,7 +85,7 @@ export function Nav() {
         <div className={styles.frame}>
           <div className={styles.identity}>
             <BrandMark compact />
-            <span className={styles.edition}>v1.2.5 · AGPLv3</span>
+            <span className={styles.edition}>v1.2.8 · AGPLv3</span>
           </div>
 
           <div className={styles.desktopNav}>

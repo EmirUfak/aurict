@@ -31,6 +31,8 @@ export interface Hunk {
   oldStart:  number
   newStart:  number
   lines:     DiffLine[]
+  /** File owning this hunk when a unified patch contains multiple files. */
+  fileName?: string
   /** If this is a word-level diff, the positions of added/removed words */
   inline?:   Array<{
     lineIdx:  number
@@ -41,6 +43,7 @@ export interface Hunk {
 
 export interface ParsedDiff {
   fileName?:  string
+  fileNames?: string[]
   hunks:      Hunk[]
   additions:  number
   deletions:  number
@@ -61,17 +64,27 @@ export interface ParsedDiff {
 export function parseRawDiff(text: string): ParsedDiff {
   const allLines = text.split("\n")
   const hunks: Hunk[] = []
-  const fileName = extractFileName(allLines)
+  const fileNames: string[] = []
   let additions = 0
   let deletions = 0
 
   let currentHunk: Hunk | null = null
+  let currentFile: string | undefined
+  let oldFile: string | undefined
   let oldLineNum = 0
   let newLineNum = 0
 
   for (const line of allLines) {
     // File headers
-    if (line.startsWith("---") || line.startsWith("+++")) continue
+    if (line.startsWith("---")) {
+      oldFile = extractHeaderPath(line)
+      continue
+    }
+    if (line.startsWith("+++")) {
+      currentFile = extractHeaderPath(line) ?? oldFile
+      if (currentFile && !fileNames.includes(currentFile)) fileNames.push(currentFile)
+      continue
+    }
 
     // Hunk header
     const hunkMatch = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/)
@@ -82,6 +95,7 @@ export function parseRawDiff(text: string): ParsedDiff {
         oldStart: parseInt(hunkMatch[1]!, 10),
         newStart: parseInt(hunkMatch[3]!, 10),
         lines:    [],
+        ...(currentFile ? { fileName: currentFile } : {}),
       }
       oldLineNum = currentHunk.oldStart
       newLineNum = currentHunk.newStart
@@ -120,17 +134,19 @@ export function parseRawDiff(text: string): ParsedDiff {
 
   if (currentHunk) hunks.push(currentHunk)
 
-  return { ...(fileName ? { fileName } : {}), hunks, additions, deletions }
+  return {
+    ...(fileNames[0] ? { fileName: fileNames[0] } : {}),
+    ...(fileNames.length > 0 ? { fileNames } : {}),
+    hunks,
+    additions,
+    deletions,
+  }
 }
 
-function extractFileName(lines: string[]): string | undefined {
-  for (const l of lines) {
-    if (l.startsWith("+++") || l.startsWith("---")) {
-      const m = l.match(/^[\+\-]{3}\s+[ab]\/(.+?)(?:\s+\d.*)?$/)
-      if (m && m[1] && m[1] !== "/dev/null") return m[1]
-    }
-  }
-  return undefined
+function extractHeaderPath(line: string): string | undefined {
+  const raw = line.replace(/^[+\-]{3}\s+/, "").split("\t", 1)[0]?.trim()
+  if (!raw || raw === "/dev/null") return undefined
+  return raw.replace(/^[ab]\//, "")
 }
 
 // ── Old/new text → hunks ─────────────────────────────────────────────────

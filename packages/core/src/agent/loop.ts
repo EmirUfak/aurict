@@ -2,7 +2,7 @@ import { streamText, generateText, tool } from "ai"
 import type { CoreMessage, ToolSet } from "ai"
 import { resolve } from "path"
 import { ProviderRegistry } from "../provider/registry.js"
-import { findCachedModelInfo, resolveModelInfo } from "../provider/models-fetch.js"
+import { resolveModelInfo } from "../provider/models-fetch.js"
 import { ToolRegistry } from "../tool/registry.js"
 import { executeTool } from "../tool/executor.js"
 import { SessionManager } from "../session/manager.js"
@@ -12,14 +12,13 @@ import { attachmentToAIContent } from "../util/attachments.js"
 import { createThinkTagFilter } from "../util/think-tag-filter.js"
 import { getUndercoverInstructions } from "./undercover.js"
 import { loadConfig, resolveLongTaskRuntimeConfig } from "../config/config.js"
-import { setTruncationConfig } from "../tool/truncation.js"
 import { calculateCostUsd } from "../provider/costs.js"
 import { extractAndStoreMemories, extractPerTurnMemories } from "../memory/extractor.js"
 import { buildGitSection, buildProactiveFileSection, buildIntentSkillSection, getSkillsForProject, matchIntentSkills } from "../skill/injector.js"
 import { joinPromptSections, splitPromptSectionsByCache, type ResolvedPromptSection } from "./prompt-sections.js"
 import { skillScoreStore } from "../skill/score-store.js"
-import { loadFallbackFromConfig, NonRetryableStreamError } from "../provider/fallback.js"
-import { loadRouterFromConfig } from "../provider/router.js"
+import { ProviderFallback, NonRetryableStreamError } from "../provider/fallback.js"
+import { ModelRouter } from "../provider/router.js"
 import { metrics } from "../util/metrics.js"
 import { extractText } from "../session/context-compactor.js"
 import type { AgentRunOptions, AgentFinishResult, TokenBreakdown } from "./types.js"
@@ -46,6 +45,8 @@ import { isTaskContinuationTurn } from "./turn-intent.js"
 import { assessComplexity, stepsForComplexity, deriveReasoningEffort } from "./complexity.js"
 import { getCoordinatorSystemPrompt, getCoordinatorContext, shouldInjectCoordinatorPrompt } from "./coordinator.js"
 import { agentPool } from "./pool.js"
+import { classifyToolResult } from "./tool-result-artifact.js"
+import { providerEnvironmentFromConfig, withProviderEnvironment } from "../provider/credentials.js"
 
 const PROVIDER_FIRST_RESPONSE_TIMEOUT_MS = 45_000
 
@@ -64,6 +65,7 @@ function buildAITools(
   toolCallIndexRef?: { current: number },
   backendAccessToken?: string,
   backendAccessTokenResolver?: (signal: AbortSignal) => Promise<string | undefined>,
+  onToolExecution?: () => void,
 ): ToolSet {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: Record<string, any> = {}
@@ -80,6 +82,7 @@ function buildAITools(
       description: schema.description,
       parameters:  schema.parameters as never,
       execute: async (args: Record<string, unknown>) => {
+        onToolExecution?.()
         if (toolCallIndexRef) toolCallIndexRef.current++
         const currentIdx = toolCallIndexRef?.current ?? 0
 
@@ -116,6 +119,7 @@ function buildAITools(
           sessionId, workdir,
           signal: signal ?? new AbortController().signal,
           provider, model,
+          truncation: cfg.truncation ?? {},
           ...(onChunk !== undefined ? { onChunk } : {}),
           ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
           ...(backendAccessTokenResolver !== undefined ? { backendAccessTokenResolver } : {}),
@@ -147,11 +151,18 @@ function buildAITools(
 }
 
 export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult> {
-  const providerName = opts.provider ?? "anthropic"
-  const plugin       = ProviderRegistry.get(providerName)
-  const modelId      = opts.model ?? plugin.defaultModel()
+  const workdir = opts.workdir ?? process.cwd()
+  const cfg = loadConfig(workdir)
+  return withProviderEnvironment(providerEnvironmentFromConfig(cfg), () => runAgentScoped(opts, cfg))
+}
+
+async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<AgentFinishResult> {
+  let providerName = opts.provider ?? "anthropic"
+  let plugin       = ProviderRegistry.get(providerName)
+  let modelId      = opts.model ?? plugin.defaultModel()
   const workdir      = opts.workdir ?? process.cwd()
   const sessionId    = opts.sessionId
+  const stateSessionId = sessionId ?? `anonymous:${crypto.randomUUID()}`
   opts.onPhase?.("preparing_context")
   const resumedState = sessionId ? await readSessionResumeState(workdir, sessionId) : null
   if (sessionId && resumedState) {
@@ -159,9 +170,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     restoreWorkingSet(sessionId, resumedState.workingSet)
     restoreFailureCooldown(sessionId, resumedState.failureCooldown)
   } else {
-    clearActiveSkillPolicy(sessionId ?? "")
-    restoreWorkingSet(sessionId ?? "", null)
-    restoreFailureCooldown(sessionId ?? "", null)
+    clearActiveSkillPolicy(stateSessionId)
+    restoreWorkingSet(stateSessionId, null)
+    restoreFailureCooldown(stateSessionId, null)
   }
 
   let messages: CoreMessage[] = [...opts.messages]
@@ -182,31 +193,39 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   }
 
   // --- Config yükle + truncation init ---
-  const cfg              = loadConfig(workdir)
   const longTaskConfig   = resolveLongTaskRuntimeConfig(cfg)
-  setTruncationConfig(cfg.truncation ?? {})
 
-  // --- Provider fallback init ---
-  if (cfg.fallback) {
-    loadFallbackFromConfig({
-      enabled: cfg.fallback.enabled ?? false,
-      providers: cfg.fallback.providers ?? [],
-      triggerOn: cfg.fallback.triggerOn ?? ["429", "503", "timeout"],
-      maxRetries: cfg.fallback.maxRetries ?? 2,
-      retryDelayMs: cfg.fallback.retryDelayMs ?? 15_000,
-      circuitBreakerThreshold: cfg.fallback.circuitBreakerThreshold ?? 3,
-      circuitBreakerResetMs: cfg.fallback.circuitBreakerResetMs ?? 60_000,
+  // Explicit provider/model choices always win. Automatic routing only applies
+  // when the caller delegated both decisions to core.
+  if (cfg.routing?.enabled && opts.provider === undefined && opts.model === undefined) {
+    const routingMessage = [...messages].reverse().find((message) => message.role === "user")
+    const routingComplexity = assessComplexity({
+      text: routingMessage ? extractText(routingMessage) : "",
+      hasAttachments: !!opts.attachments?.length,
     })
-  }
-
-  // --- Model router init ---
-  if (cfg.routing) {
-    loadRouterFromConfig({
-      enabled: cfg.routing.enabled ?? false,
+    const router = new ModelRouter({
+      enabled: true,
       budgetThresholdUsd: cfg.routing.budgetThresholdUsd ?? 1.0,
       maxSessionCostUsd: cfg.routing.maxSessionCostUsd ?? 10.0,
     })
+    const sessionCost = sessionId ? SessionManager.getStats(sessionId)?.accumulatedCostUsd ?? 0 : 0
+    const decision = router.route(routingComplexity.level, sessionCost)
+    if (decision) {
+      providerName = decision.provider
+      plugin = ProviderRegistry.get(providerName)
+      modelId = decision.model
+    }
   }
+
+  const fallbackRuntime = new ProviderFallback({
+    enabled: cfg.fallback?.enabled ?? false,
+    providers: cfg.fallback?.providers ?? [],
+    triggerOn: cfg.fallback?.triggerOn ?? ["429", "503", "timeout"],
+    maxRetries: cfg.fallback?.maxRetries ?? 2,
+    retryDelayMs: cfg.fallback?.retryDelayMs ?? 15_000,
+    circuitBreakerThreshold: cfg.fallback?.circuitBreakerThreshold ?? 3,
+    circuitBreakerResetMs: cfg.fallback?.circuitBreakerResetMs ?? 60_000,
+  })
 
   // --- Compaction kontrolü ---
   const compCfg          = cfg.compaction
@@ -272,7 +291,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   const recentReads      = new Map<string, number>()
   const toolCallIndexRef = { current: 0 }
   const rawTools = hasToolSupport
-    ? buildAITools(workdir, sessionId ?? "", providerName, modelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken, opts.backendAccessTokenResolver)
+    ? buildAITools(workdir, stateSessionId, providerName, modelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken, opts.backendAccessTokenResolver)
     : ({} as ToolSet)
 
   // toolsOverride: session agent kısıtlaması — sadece izin verilen tool'lar
@@ -315,8 +334,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     runtimeSystemSections.push({ name: "undercover", cache: "dynamic", content: `---\n\n${getUndercoverInstructions()}` })
   }
 
-  const workingSet = getWorkingSetSnapshot(sessionId ?? "")
-  const failureCooldown = getFailureCooldownSnapshot(sessionId ?? "")
+  const workingSet = getWorkingSetSnapshot(stateSessionId)
+  const failureCooldown = getFailureCooldownSnapshot(stateSessionId)
 
   // ─── Faz 2: Karmaşıklık değerlendirmesi — adaptif step limit + reasoning effort
   // aynı skordan türetilir (tek kaynak: agent/complexity.ts). Coordinator injection
@@ -336,7 +355,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
 
   const attentionAnchor = buildAttentionAnchor({
     objective: lastUserText,
-    activeSkill: getSkillLifecycleSnapshot(sessionId ?? "").active,
+    activeSkill: getSkillLifecycleSnapshot(stateSessionId).active,
     workingSet,
     verification: resumedState?.lastVerification,
     cooldown: failureCooldown,
@@ -376,7 +395,9 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   if (coordinatorActive) {
     runtimeSystemSections.push({ name: "coordinator", cache: "dynamic", content: getCoordinatorSystemPrompt() })
     // agentPool.active best-effort — asla turu çökertmemeli (ör. testlerde/edge-case'lerde mock/eksik olabilir)
-    const activeWorkers = agentPool.active ?? []
+    const activeWorkers = typeof agentPool.activeFor === "function"
+      ? agentPool.activeFor(stateSessionId)
+      : (agentPool.active ?? []).filter((agent) => agent.parentSessionId === stateSessionId)
     if (activeWorkers.length > 0) {
       const coordinatorContext = getCoordinatorContext(activeWorkers)
       if (coordinatorContext) {
@@ -469,11 +490,13 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     const attemptModelId = attemptProviderId === providerName ? modelId : attemptPlugin.defaultModel()
     const attemptModel   = attemptPlugin.getModel(attemptModelId)
 
-    const attemptModelInfo = attemptPlugin.listModels().find((m) => m.id === attemptModelId)
-      ?? findCachedModelInfo(attemptProviderId, attemptModelId)
+    const attemptModelInfo = attemptProviderId === providerName
+      ? modelInfo
+      : await resolveModelInfo(attemptPlugin, attemptProviderId, attemptModelId)
     const attemptHasToolSupport = attemptModelInfo?.supportsTools !== false
+    let attemptToolCallHappened = false
     const attemptRawTools = attemptHasToolSupport
-      ? buildAITools(workdir, sessionId ?? "", attemptProviderId, attemptModelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken, opts.backendAccessTokenResolver)
+      ? buildAITools(workdir, stateSessionId, attemptProviderId, attemptModelId, cfg, opts.signal, opts.onChunk, failureTracker, recentReads, toolCallIndexRef, opts.backendAccessToken, opts.backendAccessTokenResolver, () => { attemptToolCallHappened = true })
       : ({} as ToolSet)
     const attemptAiTools: ToolSet = toolsOverride
       ? Object.fromEntries(
@@ -484,7 +507,38 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     // Anthropic prompt caching: static/session sections cache'lenir, dynamic/git
     // cache dışı kalır. Dış kapsamdaki `messages` hiç mutasyona uğramaz — her
     // attempt kendi system-wrap'li mesaj kopyasını kurar.
-    let attemptMessages: CoreMessage[] = messages
+    let attemptConversationMessages: CoreMessage[] = messages
+    if (attemptProviderId !== providerName) {
+      const fallbackUsageInput = {
+        modelId: attemptModelId,
+        ...(attemptPlugin.tokenizerEncoding(attemptModelId) !== undefined
+          ? { tokenizerEncoding: attemptPlugin.tokenizerEncoding(attemptModelId) }
+          : {}),
+        contextWindow: attemptModelInfo.contextWindow,
+        maxOutputTokens: attemptModelInfo.maxOutput,
+        systemPrompt: [system, gitSection].filter(Boolean).join("\n\n"),
+        toolSchemaReserveTokens: Object.keys(attemptAiTools).length * 160,
+        attachmentReserveTokens: (opts.attachments?.length ?? 0) * 1_200,
+      }
+      const fallbackUsage = measureContextUsage(attemptConversationMessages, fallbackUsageInput)
+      if (fallbackUsage.effectiveTokens >= fallbackUsage.compactionThreshold) {
+        const reserve = Math.max(0, fallbackUsage.effectiveTokens - fallbackUsage.historyTokens)
+        if (reserve >= fallbackUsage.compactionThreshold) {
+          throw new Error(`Fallback model '${attemptModelId}' cannot fit the active system prompt and tool schemas.`)
+        }
+        attemptConversationMessages = await compact(attemptConversationMessages, {
+          contextLimit: attemptModelInfo.contextWindow - reserve,
+          maxOutput: attemptModelInfo.maxOutput,
+          tailTurns,
+          strategy,
+          provider: attemptProviderId,
+          model: attemptModelId,
+          workdir,
+          ...(sessionId !== undefined ? { sessionId } : {}),
+        })
+      }
+    }
+    let attemptMessages: CoreMessage[] = attemptConversationMessages
     let attemptSystemParam: string | undefined = system || undefined
     if (attemptPlugin.sdkType === "anthropic") {
       // @ai-sdk/anthropic's convertToAnthropicMessagesPrompt groups CONSECUTIVE
@@ -518,7 +572,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
         systemMessages.push({ role: "system", content: gitSection })
       }
       if (systemMessages.length > 0) {
-        attemptMessages = [...systemMessages, ...messages]
+        attemptMessages = [...systemMessages, ...attemptConversationMessages]
         attemptSystemParam = undefined
       }
     } else if (system || gitSection) {
@@ -580,6 +634,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
       const result = streamText(attemptShared as any) as any
       const seenToolResults  = new Set<string>()
       const toolCallTimes    = new Map<string, number>()
+      const toolCallNames    = new Map<string, string>()
       // Embedded <think>...</think> tag'lerini text stream'den ayıran filter
       // (DeepSeek-R1, Qwen, Ollama modeller)
       const thinkFilter = createThinkTagFilter()
@@ -629,6 +684,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
         } else if (part.type === "tool-call") {
           toolCallHappened = true
           toolCallTimes.set(part.toolCallId, Date.now())
+          toolCallNames.set(part.toolCallId, part.toolName)
           opts.onToolCall?.({ id: part.toolCallId, tool: part.toolName, args: part.args })
         } else if (part.type === "tool-result") {
           // tool-result tek kaynak — step-finish'te tekrar emit edilmez
@@ -636,8 +692,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
             seenToolResults.add(part.toolCallId)
             const durationMs = Date.now() - (toolCallTimes.get(part.toolCallId) ?? Date.now())
             toolCallTimes.delete(part.toolCallId)
+            const toolName = toolCallNames.get(part.toolCallId) ?? "tool"
+            toolCallNames.delete(part.toolCallId)
             // @ts-ignore: part.result
-            opts.onToolResult?.({ id: part.toolCallId, result: String(part.result), durationMs })
+            const output = String(part.result)
+            opts.onToolResult?.({ id: part.toolCallId, tool: toolName, result: output, durationMs, artifact: classifyToolResult(toolName, output) })
           }
         } else if (part.type === "step-finish") {
           // Yalnızca step tamamlama sinyali — tool result emission yok (race condition önleme)
@@ -657,6 +716,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
 
         const finalResponse = await result.response
         newMessages = finalResponse.messages
+      } catch (error) {
+        if ((toolCallHappened || attemptToolCallHappened) && !(error instanceof NonRetryableStreamError)) {
+          throw new NonRetryableStreamError(`${error instanceof Error ? error.message : String(error)}\n\n[Tool calls already ran this turn — not auto-retried to avoid duplicate side effects.]`)
+        }
+        throw error
       } finally {
         clearTimeout(firstResponseTimer)
       }
@@ -670,11 +734,15 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const step of (result as any).steps ?? []) {
+          const toolNames = new Map<string, string>()
           for (const tc of step.toolCalls ?? []) {
+            toolNames.set(tc.toolCallId, tc.toolName)
             opts.onToolCall?.({ id: tc.toolCallId, tool: tc.toolName, args: tc.args })
           }
           for (const tr of step.toolResults ?? []) {
-            opts.onToolResult?.({ id: tr.toolCallId, result: String(tr.result), durationMs: 0 })
+            const toolName = toolNames.get(tr.toolCallId) ?? tr.toolName ?? "tool"
+            const output = String(tr.result)
+            opts.onToolResult?.({ id: tr.toolCallId, tool: toolName, result: output, durationMs: 0, artifact: classifyToolResult(toolName, output) })
           }
         }
 
@@ -683,6 +751,11 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
         breakdown  = extractTokenBreakdown(u, meta)
         finishReason = String((result as any).finishReason ?? "")
         newMessages = result.response.messages
+      } catch (error) {
+        if (attemptToolCallHappened && !(error instanceof NonRetryableStreamError)) {
+          throw new NonRetryableStreamError(`${error instanceof Error ? error.message : String(error)}\n\n[Tool calls already ran this turn — not auto-retried to avoid duplicate side effects.]`)
+        }
+        throw error
       } finally {
         clearTimeout(firstResponseTimer)
       }
@@ -698,7 +771,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   let attemptResult: AttemptResult
   if (fallbackEnabled) {
     const { result, provider: resolvedProvider, switchedFrom } =
-      await withFallback(providerName, (attemptProviderId) => runOneAttempt(attemptProviderId))
+      await fallbackRuntime.execute(providerName, (attemptPlugin) => runOneAttempt(attemptPlugin.id))
     attemptResult = result
     if (switchedFrom) opts.onProviderFallback?.(switchedFrom, resolvedProvider)
   } else {
@@ -733,7 +806,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
     maxTaskContinuations: opts.continuation?.maxTaskContinuations,
   })
   const lastVerification = extractVerificationSnapshot(fullText) ?? resumedState?.lastVerification
-  const finalWorkingSet = getWorkingSetSnapshot(sessionId ?? "")
+  const finalWorkingSet = getWorkingSetSnapshot(stateSessionId)
   const completionGate = evaluateCompletionGate({
     text: fullText,
     continuation,
@@ -751,7 +824,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<AgentFinishResult
   })
   // Faz 2.4: bu turdaki tool çalışmaları failure-cooldown'u güncellemiş olabilir —
   // turn başında alınan `failureCooldown` snapshot'ı bayattır, taze bir tane çek.
-  const finalFailureCooldown = getFailureCooldownSnapshot(sessionId ?? "")
+  const finalFailureCooldown = getFailureCooldownSnapshot(stateSessionId)
   const shouldEscalateNudge = cfg.escalation?.enabled === true
     && cfg.escalation?.escalateOnRepeatedFailure === true
     && finalFailureCooldown.active.length > 0

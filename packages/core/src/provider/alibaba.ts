@@ -1,12 +1,13 @@
 import { createOpenAICompatiblePlugin } from "./openai-compatible-factory.js"
 import type { ProviderPlugin } from "./plugin.js"
+import { providerEnv } from "./credentials.js"
 
 export function createAlibabaPlugin(): ProviderPlugin {
   return createOpenAICompatiblePlugin({
     id:           "alibaba",
     name:         "Alibaba (Qwen)",
     baseURL:      "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-    getApiKey:    () => process.env["DASHSCOPE_API_KEY"],
+    getApiKey:    () => providerEnv("DASHSCOPE_API_KEY"),
     defaultModel: "qwen-plus",
     modelsEndpoint: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
     models: [

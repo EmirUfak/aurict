@@ -194,13 +194,13 @@ export interface OmniConfig {
   securitySandbox?: SecuritySandboxConfig
   /** Core long-task guardrails. Soft mode reports/continues through existing completion gate; strict can block finalization. */
   longTaskRuntime?: LongTaskRuntimeConfig
-  /** Multi-agent orkestrasyon (Faz 3). Opt-in — henüz hiçbir runtime yolu tüketmiyor. */
+  /** Multi-agent orchestration and coordinator prompt policy. */
   orchestration?: OrchestrationConfig
-  /** Adaptif reasoning eskalasyonu (Faz 2). Opt-in — henüz hiçbir runtime yolu tüketmiyor. */
+  /** Adaptive reasoning effort derived from live task complexity. */
   escalation?: EscalationConfig
-  /** Dile-agnostik post-edit doğrulama (Faz 4). Opt-in — henüz hiçbir runtime yolu tüketmiyor. */
+  /** Language-agnostic post-edit verification policy. */
   verification?: VerificationRuntimeConfig
-  /** Zorunlu adversarial critique (Faz 4). Opt-in — henüz hiçbir runtime yolu tüketmiyor. */
+  /** Adversarial critique policy for changed code. */
   critique?: CritiqueConfig
 }
 
@@ -288,11 +288,6 @@ export function loadConfig(projectDir?: string): OmniConfig {
     if (envKey) {
       providers[provider] = { ...(providers[provider] ?? {}), apiKey: envKey }
     }
-  }
-
-  for (const [provider, envVar] of Object.entries(PROVIDER_ENV_VARS)) {
-    const configuredKey = providers[provider]?.apiKey?.trim()
-    if (configuredKey && !process.env[envVar]) process.env[envVar] = configuredKey
   }
 
   return { ...merged, providers }

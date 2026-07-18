@@ -3,6 +3,7 @@ import { registerMCPTools } from "./bridge.js"
 import { loadMCPConfig, enabledServers } from "./config.js"
 import { hooks } from "../hook/emitter.js"
 import type { MCPServerConfig, MCPResourceInfo, MCPResourceContent } from "./types.js"
+import { ToolRegistry } from "../tool/registry.js"
 
 interface ServerEntry {
   client:     MCPClient
@@ -49,18 +50,23 @@ class MCPManager {
   }
 
   async connect(name: string, config: MCPServerConfig): Promise<void> {
+    if (this.servers.has(name)) await this.disconnect(name)
     const client = new MCPClient(name, config)
+    let registeredToolIds: string[] = []
     this.servers.set(name, { client, toolIds: [], status: "connecting" })
 
     try {
       await client.connect()
       const toolIds = await registerMCPTools(client)
+      registeredToolIds = toolIds
       this.servers.set(name, { client, toolIds, status: "connected" })
 
       await hooks.emit("v1.mcp.connected", { serverName: name, tools: toolIds })
       emitMCPLog(`[mcp] ${name}: ${toolIds.length} tool(s) connected`)
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err)
+      for (const toolId of registeredToolIds) ToolRegistry.unregister(toolId)
+      await client.disconnect()
       this.servers.set(name, { client, toolIds: [], status: "error", error })
       emitMCPLog(`[mcp] ${name}: connection error — ${error}`, true)
     }
@@ -77,6 +83,7 @@ class MCPManager {
     })
 
     await Promise.race([disconnectPromise, timeoutPromise])
+    for (const toolId of entry.toolIds) ToolRegistry.unregister(toolId)
     this.servers.delete(name)
     await hooks.emit("v1.mcp.disconnected", { serverName: name })
   }

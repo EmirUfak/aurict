@@ -2,6 +2,7 @@ import { createXai } from "@ai-sdk/xai"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, type ModelInfo } from "./plugin.js"
 import { getCachedModels } from "./models-fetch.js"
+import { providerEnv } from "./credentials.js"
 
 export class XAIPlugin extends ProviderPlugin {
   readonly id      = "xai"
@@ -9,7 +10,7 @@ export class XAIPlugin extends ProviderPlugin {
   readonly sdkType = "openai-compatible" as const
 
   private get client() {
-    const key = process.env["XAI_API_KEY"]
+    const key = providerEnv("XAI_API_KEY")
     return createXai({ ...(key !== undefined ? { apiKey: key } : {}) })
   }
 
@@ -32,7 +33,7 @@ export class XAIPlugin extends ProviderPlugin {
   }
 
   override async listModelsRemote(): Promise<ModelInfo[]> {
-    return getCachedModels("xai", "https://api.x.ai/v1/models", process.env["XAI_API_KEY"] ?? "")
+    return getCachedModels("xai", "https://api.x.ai/v1/models", providerEnv("XAI_API_KEY") ?? "")
   }
 
   // xAI'nın reasoning API'si OpenAI o-series ile aynı format değil

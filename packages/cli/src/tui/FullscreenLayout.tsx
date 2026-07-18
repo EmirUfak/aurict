@@ -25,10 +25,9 @@ export function FullscreenLayout({
   useLayoutEffect(() => {
     if (!scrollableRef.current || !onScrollableHeight) return
     const { height } = measureElement(scrollableRef.current)
-    // Hysteresis: only notify on a ≥2-row change. Prevents 1-row oscillations
-    // during header/bottom transitions (banner→chat, permission prompt) from
-    // triggering the measure→setState→re-render loop and corrupting the frame.
-    if (height > 0 && Math.abs(height - lastHeightRef.current) >= 2) {
+    // Report the exact slot. A one-row composer/header change also changes the
+    // transcript scroll boundary, so suppressing it creates a visible dead row.
+    if (height > 0 && height !== lastHeightRef.current) {
       lastHeightRef.current = height
       onScrollableHeight(height)
     }

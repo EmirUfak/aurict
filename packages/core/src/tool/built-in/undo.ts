@@ -6,8 +6,8 @@ export const undoTool: ToolDef = {
   id:          "undo",
   description: "Undo the last file modification (edit, write, patch).",
   parameters:  z.object({}),
-  async execute(_args: Record<string, unknown>, _ctx: ToolContext): Promise<ExecuteResult> {
-    const restoredPath = await snapshotManager.undoLast()
+  async execute(_args: Record<string, unknown>, ctx: ToolContext): Promise<ExecuteResult> {
+    const restoredPath = await snapshotManager.undoLast(`${ctx.workdir}\0${ctx.sessionId}`)
 
     if (restoredPath) {
       return { output: `Success: Restored ${restoredPath}` }

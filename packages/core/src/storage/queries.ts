@@ -132,10 +132,9 @@ function isSqliteBusy(err: unknown): boolean {
   )
 }
 
-export function addPart(data: {
+export function appendPart(data: {
   id: string
   sessionId: string
-  sequence: number
   role: string
   type: string
   content: string
@@ -145,7 +144,19 @@ export function addPart(data: {
   let attempt = 0
   while (true) {
     try {
-      db.insert(parts).values({ ...data, createdAt: Date.now() }).run()
+      db.run(sql`
+        INSERT INTO parts (id, session_id, sequence, role, type, content, tokens, created_at)
+        VALUES (
+          ${data.id},
+          ${data.sessionId},
+          COALESCE((SELECT MAX(sequence) + 1 FROM parts WHERE session_id = ${data.sessionId}), 0),
+          ${data.role},
+          ${data.type},
+          ${data.content},
+          ${data.tokens ?? null},
+          ${Date.now()}
+        )
+      `)
       return
     } catch (err) {
       if (isSqliteBusy(err) && attempt < MAX_RETRIES) {

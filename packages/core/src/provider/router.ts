@@ -85,11 +85,9 @@ export class ModelRouter {
   /**
    * Task complexity'yi tespit et.
    *
-   * Not (Faz 2): `agent/complexity.ts:assessComplexity` artık asıl canlı yoldaki
-   * (loop.ts) tek karmaşıklık kaynağı — orası ham metin alıp actionable-regex de
-   * çalıştırabiliyor. Bu metod sadece `lastMessageLength` (sayı) aldığı için
-   * bire bir delege edilemiyor; ModelRouter hâlâ hiçbir yerden çağrılmadığından
-   * (dead code) burada eski, bağımsız haliyle bırakıldı.
+   * The live agent path uses `agent/complexity.ts:assessComplexity` as its
+   * richer source. This compatibility helper remains available to SDK callers
+   * that only have aggregate message statistics.
    *
    * @param messageCount Mesaj sayısı
    * @param toolCallCount Tool çağrı sayısı
@@ -192,13 +190,14 @@ export class ModelRouter {
   ): RoutingDecision | null {
     if (!this.config.enabled) return null
 
-    // Bütçe aşımı kontrolü — economy'ye zorla
-    if (currentSessionCostUsd >= this.config.budgetThresholdUsd) {
+    // Bütçe aşımı kontrolü — economy'ye zorla. maxSessionCostUsd hard-stop
+    // değildir; agent'ın yarım kalmaması için en ucuz uygun modele yönlendirir.
+    if (currentSessionCostUsd >= this.config.maxSessionCostUsd || currentSessionCostUsd >= this.config.budgetThresholdUsd) {
       const economy = this.selectModel("economy")
       if (economy) {
         return {
           ...economy,
-          reason: `Budget threshold reached ($${currentSessionCostUsd.toFixed(2)}) — using economy tier`,
+          reason: `${currentSessionCostUsd >= this.config.maxSessionCostUsd ? "Session cost limit" : "Budget threshold"} reached ($${currentSessionCostUsd.toFixed(2)}) — using economy tier`,
         }
       }
     }

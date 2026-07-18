@@ -5,6 +5,7 @@ import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 import { snapshotManager } from "../../snapshot/snapshot.js"
 import { computeDiff } from "../../util/diff.js"
 import type { DiffHunk } from "../../util/diff.js"
+import { resolveWithinWorkspace } from "../../security/path-boundary.js"
 
 function hunksToUnifiedDiff(hunks: DiffHunk[], relPath: string): string {
   const out: string[] = [`--- a/${relPath}`, `+++ b/${relPath}`]
@@ -33,10 +34,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   })
 }
 
-async function takeSnapshotBestEffort(filePath: string): Promise<void> {
+async function takeSnapshotBestEffort(filePath: string, scope: string): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined
   await Promise.race([
-    snapshotManager.takeSnapshot(filePath),
+    snapshotManager.takeSnapshot(filePath, scope),
     new Promise<void>((resolve) => {
       timer = setTimeout(resolve, 5_000)
     }),
@@ -55,7 +56,12 @@ export const editTool: ToolDef = {
     new_string: z.string().describe("The replacement string"),
   }),
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
-    const filePath  = resolve(ctx.workdir, String(args["path"] ?? ""))
+    let filePath: string
+    try {
+      filePath = await resolveWithinWorkspace(ctx.workdir, String(args["path"] ?? ""))
+    } catch (error) {
+      return { output: "", error: `Security: ${error instanceof Error ? error.message : String(error)}` }
+    }
     const oldString = String(args["old_string"] ?? "")
     const newString = String(args["new_string"] ?? "")
 
@@ -71,7 +77,7 @@ export const editTool: ToolDef = {
       return { output: "", error: `Cannot stat file before edit: ${err}` }
     }
 
-    await takeSnapshotBestEffort(filePath)
+    await takeSnapshotBestEffort(filePath, `${ctx.workdir}\0${ctx.sessionId}`)
 
     let content: string
     try {

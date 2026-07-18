@@ -6,6 +6,8 @@ import { HStack } from "./design-system/index.js"
 import { motionEnabled } from "./design-system/motion.js"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalFocus } from "./event-system/use-terminal-focus.js"
+import { agentTone } from "./theme/agent-tone.js"
+import { resolveSemanticTheme } from "./theme/semantic-theme.js"
 
 const WAVE = ["▁▂▃▄▅▆▇", "▂▃▄▅▆▇█", "▃▄▅▆▇█▇", "▄▅▆▇█▇▆", "▅▆▇█▇▆▅", "▆▇█▇▆▅▄", "▇█▇▆▅▄▃", "█▇▆▅▄▃▂"]
 const RADAR = ["◜", "◠", "◝", "◞", "◡", "◟"]
@@ -63,15 +65,7 @@ export function ToolFlux({ active, label }: { active: boolean; label?: string | 
 function agentColor(info: AgentInfo, theme: ReturnType<typeof useTheme>): string {
   if (info.status === "error") return theme.error
   if (info.status === "done") return theme.success
-  switch (info.type) {
-    case "code": return theme.accentAlt
-    case "review": return theme.warning
-    case "design": return "#e879f9"
-    case "security":
-    case "pentest": return theme.error
-    case "test": return theme.accent
-    default: return theme.accent
-  }
+  return agentTone(info.type, resolveSemanticTheme(theme))
 }
 
 export function AgentRadar({ compact = false, activeAgent }: { compact?: boolean; activeAgent?: string | undefined }) {

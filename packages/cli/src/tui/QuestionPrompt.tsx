@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react"
 import { Box, Text, useInput } from "ink"
 import type { QuestionRequest, QuestionAnswer } from "@aurict/core"
+import { useSemanticTheme } from "./theme/semantic-theme.js"
 
 interface Props {
   request:  QuestionRequest
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
+  const theme = useSemanticTheme()
   const [questionIdx, setQuestionIdx]   = useState(0)
   const [optionIdx,   setOptionIdx]     = useState(0)
   // Selected labels per question
@@ -97,22 +99,22 @@ export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor="cyan"
+      borderColor={theme.border.focus}
       paddingX={1}
       paddingY={0}
       marginBottom={1}
     >
       {/* Title */}
       <Box marginBottom={1}>
-        <Text bold color="cyan">
+        <Text bold color={theme.status.info}>
           🤔 {currentQuestion.header}
         </Text>
-        <Text color="gray"> ({questionIdx + 1}/{request.questions.length})</Text>
+        <Text color={theme.foreground.muted}> ({questionIdx + 1}/{request.questions.length})</Text>
       </Box>
 
       {/* Question text */}
       <Box marginBottom={1}>
-        <Text wrap="wrap">{currentQuestion.question}</Text>
+        <Text color={theme.foreground.primary} wrap="wrap">{currentQuestion.question}</Text>
       </Box>
 
       {/* Options */}
@@ -126,13 +128,13 @@ export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
         return (
           <Box key={i} marginLeft={1}>
             <Text
-              color={isActive ? "yellow" : isSelected ? "green" : "white"}
+              color={isActive ? theme.activity.running : isSelected ? theme.status.success : theme.foreground.primary}
               bold={isActive}
             >
               {prefix}
               <Text bold={isActive}>{opt.label}</Text>
               {opt.description ? (
-                <Text color="gray"> — {opt.description}</Text>
+                <Text color={theme.foreground.muted}> — {opt.description}</Text>
               ) : null}
             </Text>
           </Box>
@@ -141,7 +143,7 @@ export function QuestionPrompt({ request, onAnswer, onReject }: Props) {
 
       {/* Key hints */}
       <Box marginTop={1}>
-        <Text color="gray" dimColor>
+        <Text color={theme.foreground.muted}>
           {isMultiple
             ? "↑↓ navigate  Space toggle  Enter confirm  Esc dismiss"
             : "↑↓ navigate  Enter select  Esc dismiss"}

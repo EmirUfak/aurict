@@ -2,6 +2,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, type ModelInfo } from "./plugin.js"
 import { getCachedModels, type RemoteModelDescriptor } from "./models-fetch.js"
+import { providerEnv } from "./credentials.js"
 
 function parseGoogleModels(payload: unknown): RemoteModelDescriptor[] {
   const models = (payload as { models?: unknown }).models
@@ -28,7 +29,7 @@ export class GooglePlugin extends ProviderPlugin {
   readonly sdkType = "google" as const
 
   private get client() {
-    const key = process.env["GOOGLE_GENERATIVE_AI_API_KEY"] ?? process.env["GOOGLE_API_KEY"]
+    const key = providerEnv("GOOGLE_GENERATIVE_AI_API_KEY") ?? providerEnv("GOOGLE_API_KEY")
     return createGoogleGenerativeAI({ ...(key !== undefined ? { apiKey: key } : {}) })
   }
 
@@ -52,7 +53,7 @@ export class GooglePlugin extends ProviderPlugin {
   }
 
   override async listModelsRemote(): Promise<ModelInfo[]> {
-    const apiKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"] ?? process.env["GOOGLE_API_KEY"] ?? ""
+    const apiKey = providerEnv("GOOGLE_GENERATIVE_AI_API_KEY") ?? providerEnv("GOOGLE_API_KEY") ?? ""
     return getCachedModels("google", "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", apiKey, {
       authentication: "none",
       headers: { "x-goog-api-key": apiKey },

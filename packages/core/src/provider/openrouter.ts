@@ -3,6 +3,7 @@ import type { LanguageModel } from "ai"
 import { ProviderPlugin, thinkingOptionsForSDK, type ModelInfo, type SDKType } from "./plugin.js"
 import { enrichWithReasoning } from "./models-dev.js"
 import { getCachedModels } from "./models-fetch.js"
+import { providerEnv } from "./credentials.js"
 
 // OpenRouter model ID prefix → underlying SDK type
 const PREFIX_SDK: Record<string, SDKType> = {
@@ -18,7 +19,7 @@ export class OpenRouterPlugin extends ProviderPlugin {
   readonly sdkType = "openai-compatible" as const
 
   private get client() {
-    const key = process.env["OPENROUTER_API_KEY"]
+    const key = providerEnv("OPENROUTER_API_KEY")
     return createOpenAI({
       ...(key !== undefined ? { apiKey: key } : {}),
       baseURL: "https://openrouter.ai/api/v1",
@@ -57,7 +58,7 @@ export class OpenRouterPlugin extends ProviderPlugin {
     const models = await getCachedModels(
       "openrouter",
       "https://openrouter.ai/api/v1/models",
-      process.env["OPENROUTER_API_KEY"] ?? "",
+      providerEnv("OPENROUTER_API_KEY") ?? "",
     )
     return enrichWithReasoning(models)
   }

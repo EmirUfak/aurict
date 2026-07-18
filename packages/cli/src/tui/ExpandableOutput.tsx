@@ -8,6 +8,7 @@ import { wrapTranscriptText } from "./conversation/line-buffer.js"
 import { DiffRenderer } from "./DiffRenderer/index.js"
 import { FileWriteView } from "./FileDiffView.js"
 import { writePreview } from "./conversation/transcript-details.js"
+import { prefersAsciiGlyphs } from "./terminal-glyphs.js"
 
 interface Props {
   content:  string
@@ -96,10 +97,12 @@ export function ExpandableOutput({
   const artifact = artifactKind(content)
   const canBrowseDetails = onPrevious !== undefined || onNext !== undefined
   const footerHint = `${canBrowseDetails ? "[ / ] details  " : ""}Esc close`
+  const frameStyle = prefersAsciiGlyphs() ? "classic" : "round"
+  const dividerStyle = prefersAsciiGlyphs() ? "classic" : "single"
 
   if (rawDiff) {
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor={theme.borderActive} width="100%">
+      <Box flexDirection="column" borderStyle={frameStyle} borderColor={theme.borderActive} width="100%">
         <Box2 {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
           <Box paddingX={1} justifyContent="space-between">
             <Text color={theme.accent} bold>actual workspace diff</Text>
@@ -122,7 +125,7 @@ export function ExpandableOutput({
 
   if (kind === "write" && filePath && totalWriteLines !== undefined) {
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor={theme.borderActive} width="100%">
+      <Box flexDirection="column" borderStyle={frameStyle} borderColor={theme.borderActive} width="100%">
         <Box2 {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
           <Box paddingX={1} justifyContent="space-between">
             <Text color={theme.accent} bold>created file</Text>
@@ -144,7 +147,7 @@ export function ExpandableOutput({
     )
   }
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={theme.borderActive} width="100%">
+    <Box flexDirection="column" borderStyle={frameStyle} borderColor={theme.borderActive} width="100%">
       <Box2 {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}>
         <Box paddingX={1} justifyContent="space-between">
           <Box gap={1}>
@@ -176,7 +179,7 @@ export function ExpandableOutput({
       </Box>
 
       {outputLineCount > pageSize && (
-        <Box paddingX={1} borderStyle="single" borderColor={theme.borderDim}
+        <Box paddingX={1} borderStyle={dividerStyle} borderColor={theme.borderDim}
              borderBottom={false} borderLeft={false} borderRight={false}>
           <Text color={theme.textDim}>
             {offset + 1}-{Math.min(offset + pageSize, outputLineCount)} / {outputLineCount}

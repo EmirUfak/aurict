@@ -1,0 +1,141 @@
+# Terminal design baseline (Phases 0–6)
+
+Date: 2026-07-17
+
+This document is the acceptance contract for Aurict's terminal UI. It records the baseline scenarios, the information hierarchy introduced in Phases 1–2, and the checks that prevent the interface from drifting back toward a dashboard-heavy layout.
+
+## Product principles
+
+- The transcript is the primary surface. Chrome must not compete with the work.
+- One compact header answers: “what is Aurict doing, with which model, and how full is context?”
+- One compact footer answers: “where am I, and are there exceptional session states?”
+- The composer remains writable while Aurict works. Enter adds a priority steering message; Tab adds a normal queued message.
+- Tool calls are summaries first. Raw output, reasoning, and actual diffs stay available through `Ctrl+O`.
+- Color communicates semantics: identity tones distinguish people and Aurict, the activity tone marks current work, green is reserved for meaningful success, red for errors, warning for risk/attention, and neutral tones for routine tool history and metadata.
+- Text labels, glyphs, and order carry meaning independently of color. Every status remains understandable under `NO_COLOR`, ANSI-only terminals, and color-vision deficiency.
+
+## Reference terminal sizes
+
+| Size | Density | Contract |
+| --- | --- | --- |
+| 60×18 | tiny | Two-line startup, one-line chrome, no optional metadata |
+| 80×24 | compact | Centered welcome wordmark before the first turn; compact model/context header afterward |
+| 100×30 | normal | Agent/branch and exceptional state labels may appear |
+| 140×40 | wide | Additional session metadata may appear without adding rows |
+
+The automated contract renders every scenario below at all four sizes and verifies bounded, uniquely keyed rows.
+
+## Baseline scenarios
+
+1. Normal conversation: user prompt, structured assistant Markdown, lists, inline emphasis.
+2. Long streaming response: commentary owns the live area while text arrives; a compact activity line appears only between text/reasoning/tool bursts.
+3. Shell output: command summary, bounded head/tail preview, hidden-line count, `Ctrl+O` affordance.
+4. Multi-file diff: one summary per file with additions/deletions and direct diff inspection.
+5. Permission/error: an actionable system notice followed by a visually distinct error.
+
+Fixtures live in `packages/cli/test/fixtures/terminal-scenarios.ts`; the cross-size checks live in `packages/cli/test/terminal-layout-contract.test.ts`.
+
+## Phase 1 architecture
+
+Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBlock`. `projectTranscript` is the only presentation projector and emits styled `TranscriptSegment` rows. `ConversationViewport` and the compatibility `Message` surface both use `TranscriptRows`; the former standalone streaming renderer and tool loader were removed. Tool strings are parsed once at the UI boundary into `ToolArtifact`, which is shared by transcript summaries and detail overlays. The root view now has stable `TerminalAppShell`, `TranscriptPane`, `ComposerPane`, and `OverlayStack` boundaries, leaving session orchestration in the controller instead of mixing it into the leaf renderers.
+
+## Phase 2 interaction model
+
+- Startup preflight text is printed only for non-interactive output. The full-screen TUI shows a centered AURICT wordmark on terminals at least 76×24 and a compact two/three-line identity on smaller terminals. The wordmark disappears after the first turn; MCP success chatter stays suppressed and failures remain visible.
+- Header and footer use the same 60/90/120-column breakpoints.
+- During a run, the composer switches to `STEER` mode without becoming disabled.
+- Enter stores a priority steering item. With the installed AI SDK, safe mid-provider injection is unavailable, so it executes at the next turn boundary before normal queued items; the UI does not pretend the current tool call was interrupted.
+- Tab stores a normal FIFO queue item. The queue preview shows its kind and remaining count.
+- Streaming projection is capped at roughly 5–12 redraws per second, reducing flicker and CPU use on fast providers.
+
+## Phase 3 live-run model
+
+- A deterministic live-state resolver gives the live area one owner: paused state, commentary, a stable pending tool, reasoning, or generic activity. Commentary never competes with a spinner, and a pending tool is never repeated by a second “using tool” row.
+- Preparation, provider wait, reasoning, response, and tool activity participate in viewport height and scroll anchoring instead of floating above the line buffer.
+- `Ctrl+L` pauses visual stream updates without stopping the run. The transcript says that output is paused and restores every buffered text/reasoning fragment when resumed, including fragments produced after a tool call.
+- Raw reasoning remains available for inspection but is represented during the run by a low-motion semantic status.
+
+## Phase 4 tool and diff model
+
+- Core classifies every tool result into a typed `ToolResultArtifact` (`diff`, `write`, `patch`, `shell`, `error`, or `output`) before it reaches CLI presentation. Persisted legacy events are the only values classified at the TUI boundary.
+- Tool calls use concise action-first rows (`Read`, `Ran`, `Patched`, `Explored`) with command/path, meaningful durations, bounded shell previews, and a `Ctrl+O` detail affordance. Read/search result counts stay hidden because they duplicate the action row.
+- Directly adjacent low-level calls are progressively disclosed: repeated reads, searches, web research, and file changes collapse into one action-first summary. Prose is always a grouping boundary; every underlying detail remains reachable through `Ctrl+O` navigation.
+- Unified diff parsing preserves file identity per hunk. Multi-file summaries show file count and names; the detail view labels every hunk with its owning file and keeps additions/deletions visible.
+
+## Phase 5 recovery and permission model
+
+- Provider/runtime failures render once as a short diagnosis, original first-line detail, and concrete recovery action. Authentication, rate limit, context, connection, and cancellation failures have specific guidance.
+- Permission requests use one compact, responsive decision surface. Risk and execution scope are textual rather than decorative gauges; dangerous actions still default to deny.
+- Direct permission keys are `y` (allow once), `n` (deny), and for shell requests `e` (edit). Arrow/Enter selection and Escape denial remain available.
+- The permission dialog reduces padding on short or narrow terminals and is contract-tested at 24×14.
+
+## Phase 6 production hardening
+
+- Stable conversation rows and live stream rows are projected independently. Streaming ticks only rebuild the changing live section; historical Markdown and tool artifacts are reprojected only when messages or terminal width change.
+- `projectTranscript` remains the compatibility boundary and composes the same stable/live rows, so commands and tests do not need parallel rendering paths.
+- `AURICT_ASCII=1`, `TERM=dumb`, and explicitly non-UTF locales select an ASCII-safe glyph vocabulary. Transcript decorations, activity/error markers, startup chrome, status dots, branch/separator symbols, and composer affordances use that vocabulary without relying on color alone.
+- Phase 6 tests lock the split-projection contract and ASCII decoration fallback, complementing the cross-size layout and real-PTY checks.
+
+## Semantic themes and accessibility
+
+All user-facing components consume semantic roles from `theme/semantic-theme.ts` rather than choosing literal colors. The contract covers foreground hierarchy, identity, activity, status, tools, surfaces, borders, Markdown, and diffs. Brand and accessibility palettes are checked against WCAG-style contrast thresholds in automated tests.
+
+Built-in accessibility options are available through `/theme`:
+
+- `system-ansi` uses the terminal's standard ANSI palette.
+- `high-contrast` raises text, border, focus, and status contrast on dark terminals.
+- `colorblind-dark` uses a blue/magenta/yellow/green set while retaining text and glyph distinctions.
+
+Aurict loads custom themes from the user and project scopes in this order:
+
+1. `$XDG_CONFIG_HOME/aurict/themes.json` (or `~/.config/aurict/themes.json`)
+2. `<project>/.aurict/themes.json`
+
+Project definitions may override an identically named user custom theme, but cannot replace a built-in palette. Unknown base themes, color roles, malformed values, and invalid IDs fail visibly during startup.
+
+```json
+{
+  "themes": {
+    "studio-night": {
+      "name": "Studio Night",
+      "extends": "ink-sapphire",
+      "colors": {
+        "accent": "#73b7ff",
+        "borderActive": "#73b7ff",
+        "bgCard": "#0b1420"
+      }
+    }
+  }
+}
+```
+
+## Acceptance checks
+
+- TypeScript CLI compilation succeeds.
+- TUI unit/regression tests and the terminal layout contract pass.
+- Phase 3–5 contracts cover live/paused status, grouped tool calls, multi-file hunk ownership, actionable errors, direct permission keys, and narrow permission rendering.
+- Phase 6 contracts cover stable/live projection separation and degraded-terminal glyph behavior.
+- Theme contracts cover all semantic roles, brand/accessibility contrast, custom-theme validation, ANSI/no-color capability detection, and theme-responsive component rendering.
+- `App.tsx`, `Message.tsx`, and `MultilineInput.tsx` presentation responsibilities are moved toward modular files; new and rewritten code files remain below the repository's 500-line ceiling.
+- The interactive path is exercised in a real PTY at 80×24 before release.
+
+## Final polish contract
+
+- Short transcripts are bottom-anchored so the latest answer rests one natural gap above the composer. Scrolled history remains top-aligned, and every one-row header/composer resize updates the scroll boundary.
+- The composer uses one rounded focus surface, one restrained shortcut row, and no persistent `INSERT`/dashboard labels. Working state changes the placeholder and exposes Enter steering plus Tab queue semantics.
+- Tool-only assistant turns omit redundant assistant headers. Tool actions are semantic text first and decoration second, matching the scan rhythm of modern coding terminals.
+- Markdown list bullets use the active theme's secondary accent while the list text keeps its normal reading color.
+- Markdown headings and short bold-only section labels receive exactly one blank transcript row above and below. Inline bold emphasis, list-item emphasis, and complete bold sentences retain normal line flow so compact terminals do not become vertically sparse.
+- Prose remains fluid on compact terminals and is capped at 110 columns with a two-column left inset on wide terminals. Code, diffs, and tool artifacts retain the available width.
+- Lists receive one surrounding blank row while their items remain contiguous. Repeated tool activity follows the same outside-space/inside-density rhythm.
+- Heading levels step down deliberately: levels 1–2 use primary bold hierarchy, level 3 uses secondary bold hierarchy, and deeper headings use secondary regular weight.
+- Semantic muted text uses the theme's contrast-checked muted token without an additional ANSI dim modifier; metadata therefore remains readable across terminal palettes.
+- When a provider starts a tool call mid-sentence, only the unfinished trailing paragraph is deferred and rejoined with post-tool prose. Completed commentary and tool chronology remain in place, avoiding split phrases such as `...var mı / tool / diye...`.
+- The startup wordmark is centered and brand-led without remaining in the working transcript after the first prompt.
+- Spacious startup banners select one original, developer-focused science-fiction quip per launch. The selection stays fixed for that mounted banner, uses no borrowed character dialogue, and disappears with the wordmark after the first prompt.
+- The working header is a one-row micro-cockpit rather than a second dashboard. Its fixed-width signal animates at low frequency only while Aurict is active; idle, `AURICT_NO_MOTION`, `NO_COLOR`, and `TERM=dumb` modes remain still.
+- Wide terminals may add branch, completed/total tasks, active-agent count, and running-background-task count to the cockpit. Compact terminals remove this optional telemetry before it can compete with provider/model and context state.
+- The working cockpit uses the same responsive horizontal inset, rounded frame width, card background, and border language as the composer. Its three-row outer frame makes session continuity distinct from transcript content without becoming a dashboard.
+- Successful permission approvals are transient interaction state and never create transcript rows. Denials, aborts, and edit handoffs remain visible because they change or interrupt execution.
+- Permission prompts use a compact action strip: risk, sandbox, executable, and command preview are summary-first; only the selected action exposes its hint. Long commands and patches retain a scrollable `d` detail view.
+- Horizontal permission action strips use `←/→`; vertical granular-patch actions use `↑/↓`, leaving `←/→` exclusively for patch-file navigation in that specialized view.

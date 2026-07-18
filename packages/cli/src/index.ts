@@ -9,6 +9,7 @@ profileCheckpoint("entry_module_loaded")
 
 import { loadConfig, parseFlags, applyFlags } from "./config/loader.js"
 import { migrateLegacyCoreState } from "./util/state-migration.js"
+import { registerCustomThemes } from "./tui/theme/custom-themes.js"
 
 let mcpManagerRef: { disconnectAll(): Promise<void> } | null = null
 
@@ -75,14 +76,14 @@ async function resolveBackendAccessToken(signal?: AbortSignal): Promise<string |
 
 // --version
 if (flags.version) {
-  console.log("Aurict v1.2.7")
+  console.log("Aurict v1.2.8")
   process.exit(0)
 }
 
 // --help
 if (flags.help) {
   console.log(`
-Aurict v1.2.7 — Terminal AI assistant
+Aurict v1.2.8 — Terminal AI assistant
 
 Usage:
   aurict [options]
@@ -282,6 +283,7 @@ profileCheckpoint("plugins_loaded")
 
 // Load config: global < project < CLI flags
 const cfg      = applyFlags(loadConfig(workdir), flags)
+registerCustomThemes(workdir)
 const { defaultProvider, localServer } = await bootstrap(cfg)
 profileCheckpoint("bootstrap_done")
 

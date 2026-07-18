@@ -31,12 +31,12 @@ export function setTruncationConfig(cfg: GlobalTruncationConfig): void {
 }
 
 /** Tool adına göre efektif konfigürasyonu çözer */
-export function resolveTruncationConfig(toolName: string): TruncationConfig {
-  const override = _global.perTool?.[toolName] ?? {}
+export function resolveTruncationConfig(toolName: string, config: GlobalTruncationConfig = _global): TruncationConfig {
+  const override = config.perTool?.[toolName] ?? {}
   return {
     ...DEFAULTS,
-    maxChars: override.maxChars ?? _global.maxChars ?? DEFAULTS.maxChars,
-    strategy: override.strategy ?? _global.strategy ?? DEFAULTS.strategy,
+    maxChars: override.maxChars ?? config.maxChars ?? DEFAULTS.maxChars,
+    strategy: override.strategy ?? config.strategy ?? DEFAULTS.strategy,
   }
 }
 

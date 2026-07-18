@@ -232,7 +232,11 @@ export async function bootstrap(cfg: AurictConfig = {}): Promise<{ defaultProvid
     if (!started) localServer.reason = "port-in-use"
   }
 
-  printStartupStatus({ ready, missing, defaultProvider, localServer })
+  // The full-screen TUI owns startup presentation. Preserve the preflight box
+  // only for redirected/non-interactive output so startup is never duplicated.
+  if (!process.stdin.isTTY) {
+    printStartupStatus({ ready, missing, defaultProvider, localServer })
+  }
 
   // Load user-defined hooks from ~/.aurict/hooks.json + .aurict/hooks.json
   loadUserHooks(process.cwd())

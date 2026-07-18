@@ -115,13 +115,13 @@ describe("loadConfig", () => {
     expect(cfg.providers?.["anthropic"]?.apiKey).toBe("sk-ant-injected")
   })
 
-  it("applies configured provider api keys to process env for the current process", () => {
+  it("returns configured provider keys without mutating process env", () => {
     writeFileSync(GLOBAL_PATH, JSON.stringify({
       providers: { opencode: { apiKey: "sk-opencode-from-file" } },
     }), "utf8")
     const cfg = loadConfig()
     expect(cfg.providers?.["opencode"]?.apiKey).toBe("sk-opencode-from-file")
-    expect(process.env["OPENCODE_API_KEY"]).toBe("sk-opencode-from-file")
+    expect(process.env["OPENCODE_API_KEY"]).toBeUndefined()
   })
 
   it("loadConfig without any env vars returns no provider keys", () => {

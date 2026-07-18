@@ -5,10 +5,14 @@
  */
 
 import { join } from "path"
-import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync, existsSync } from "fs"
+import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync, existsSync, renameSync } from "fs"
+import { createHash } from "node:crypto"
 import { PLUGIN_DIR } from "./loader.js"
+import { fetchWithUrlPolicy, readResponseTextLimited } from "../security/network-policy.js"
 
 const META_SUFFIX = ".meta.json"
+const MAX_PLUGIN_BYTES = 2_000_000
+const DOWNLOAD_TIMEOUT_MS = 30_000
 
 export interface RemotePluginMeta {
   id:          string
@@ -17,6 +21,7 @@ export interface RemotePluginMeta {
   source:      string
   filePath:    string
   installedAt: string
+  sha256?:     string
 }
 
 function ensureDir(): void {
@@ -32,23 +37,45 @@ function idFromUrl(url: string): string {
   return slugify(filename.replace(/\.(m?js)$/, ""))
 }
 
-export async function installRemotePlugin(url: string, nameHint?: string): Promise<RemotePluginMeta> {
+export async function installRemotePlugin(url: string, nameHint?: string, expectedSha256?: string): Promise<RemotePluginMeta> {
   const rawUrl = url
     .replace("github.com", "raw.githubusercontent.com")
     .replace("/blob/", "/")
 
-  const resp = await fetch(rawUrl)
-  if (!resp.ok) throw new Error(`Failed to download plugin from ${rawUrl}: HTTP ${resp.status}`)
-
-  const content = await resp.text()
+  const parsedUrl = new URL(rawUrl)
+  if (!/\.(?:mjs|js)$/.test(parsedUrl.pathname)) throw new Error("Remote plugins must use a .js or .mjs URL")
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS)
+  let content: string
+  try {
+    const resp = await fetchWithUrlPolicy(rawUrl, { signal: controller.signal })
+    if (!resp.ok) throw new Error(`Failed to download plugin from ${rawUrl}: HTTP ${resp.status}`)
+    const downloaded = await readResponseTextLimited(resp, MAX_PLUGIN_BYTES)
+    if (downloaded.truncated) throw new Error(`Plugin exceeds the ${MAX_PLUGIN_BYTES} byte download limit`)
+    content = downloaded.text
+  } finally {
+    clearTimeout(timer)
+  }
   if (!content.trim()) throw new Error("Downloaded content is empty")
+  const sha256 = createHash("sha256").update(content).digest("hex")
+  if (expectedSha256 && sha256.toLowerCase() !== expectedSha256.toLowerCase()) {
+    throw new Error(`Plugin integrity check failed: expected ${expectedSha256}, received ${sha256}`)
+  }
 
   const id       = nameHint ? slugify(nameHint) : idFromUrl(url)
+  if (!id) throw new Error("Plugin URL or name does not produce a valid plugin id")
   const ext      = url.endsWith(".mjs") ? ".mjs" : ".js"
   const filePath = join(PLUGIN_DIR, `${id}${ext}`)
 
   ensureDir()
-  writeFileSync(filePath, content, "utf8")
+  const tempPath = `${filePath}.${crypto.randomUUID()}.tmp`
+  try {
+    writeFileSync(tempPath, content, { encoding: "utf8", mode: 0o600 })
+    renameSync(tempPath, filePath)
+  } catch (error) {
+    if (existsSync(tempPath)) unlinkSync(tempPath)
+    throw error
+  }
 
   const meta: RemotePluginMeta = {
     id,
@@ -57,6 +84,7 @@ export async function installRemotePlugin(url: string, nameHint?: string): Promi
     source:      url,
     filePath,
     installedAt: new Date().toISOString(),
+    sha256,
   }
   writeFileSync(join(PLUGIN_DIR, `${id}${META_SUFFIX}`), JSON.stringify(meta, null, 2), "utf8")
 

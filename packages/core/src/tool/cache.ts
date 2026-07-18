@@ -38,10 +38,10 @@ class ToolResultCacheImpl {
    * Tool sonucunu cache'den al.
    * Cacheable değilse veya cache miss ise null döner.
    */
-  get(toolId: string, args: Record<string, unknown>): { result: string; error?: string } | null {
+  get(toolId: string, args: Record<string, unknown>, scope = "global"): { result: string; error?: string } | null {
     if (!CACHEABLE_TOOLS.has(toolId)) return null
 
-    const key = this.makeKey(toolId, args)
+    const key = this.makeKey(toolId, args, scope)
     const entry = this.cache.get(key)
 
     if (entry) {
@@ -57,10 +57,10 @@ class ToolResultCacheImpl {
    * Tool sonucunu cache'e yaz.
    * Cacheable değilse hiçbir şey yapmaz.
    */
-  set(toolId: string, args: Record<string, unknown>, result: string, error?: string): void {
+  set(toolId: string, args: Record<string, unknown>, result: string, error?: string, scope = "global"): void {
     if (!CACHEABLE_TOOLS.has(toolId)) return
 
-    const key = this.makeKey(toolId, args)
+    const key = this.makeKey(toolId, args, scope)
     const entry: CacheEntry = {
       result,
       ...(error !== undefined ? { error } : {}),
@@ -123,8 +123,8 @@ class ToolResultCacheImpl {
 
   // ─── Internal ──────────────────────────────────────────────────────────────
 
-  private makeKey(toolId: string, args: Record<string, unknown>): string {
-    return `${toolId}:${hashArgs(args)}`
+  private makeKey(toolId: string, args: Record<string, unknown>, scope: string): string {
+    return `${toolId}:${hashArgs({ scope, args })}`
   }
 }
 

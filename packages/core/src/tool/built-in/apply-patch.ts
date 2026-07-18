@@ -3,11 +3,12 @@ import { readFile, writeFile, mkdir, unlink } from "node:fs/promises"
 import path from "node:path"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 import { snapshotManager } from "../../snapshot/snapshot.js"
+import { resolveWithinWorkspace } from "../../security/path-boundary.js"
 
-async function takeSnapshotBestEffort(filePath: string): Promise<void> {
+async function takeSnapshotBestEffort(filePath: string, scope: string): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined
   await Promise.race([
-    snapshotManager.takeSnapshot(filePath),
+    snapshotManager.takeSnapshot(filePath, scope),
     new Promise<void>((resolve) => {
       timer = setTimeout(resolve, 5_000)
     }),
@@ -422,17 +423,11 @@ async function stagePatch(workdir: string, hunks: Hunk[]): Promise<{ staged: Sta
   const applied: string[] = []
   const root = path.resolve(workdir)
 
-  const resolveInsideWorkdir = (relPath: string): string => {
-    const absPath = path.resolve(root, relPath)
-    const relative = path.relative(root, absPath)
-    if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
-      throw new Error(`Patch path escapes working directory: ${relPath}`)
-    }
-    return absPath
-  }
+  const resolveInsideWorkdir = (relPath: string): Promise<string> =>
+    resolveWithinWorkspace(root, relPath, { allowMissing: true })
 
   const getStaged = async (relPath: string): Promise<StagedFile> => {
-    const absPath = resolveInsideWorkdir(relPath)
+    const absPath = await resolveInsideWorkdir(relPath)
     const existing = staged.get(absPath)
     if (existing) return existing
 
@@ -578,16 +573,17 @@ export const applyPatchTool: ToolDef = {
       return { output: "", error: `Patch validation failed: ${msg}` }
     }
 
-    const mark = snapshotManager.mark()
+    const snapshotScope = `${ctx.workdir}\0${ctx.sessionId}`
+    const mark = snapshotManager.mark(snapshotScope)
     try {
       for (const file of plan.staged) {
-        await takeSnapshotBestEffort(file.absPath)
+        await takeSnapshotBestEffort(file.absPath, snapshotScope)
       }
       for (const file of plan.staged) {
         await writeStagedFile(file)
       }
     } catch (err) {
-      await snapshotManager.restoreToMark(mark)
+      await snapshotManager.restoreToMark(mark, snapshotScope)
       const msg = err instanceof Error ? err.message : String(err)
       return { output: "", error: `Patch write failed; restored checkpoint: ${msg}` }
     }

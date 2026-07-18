@@ -1,4 +1,5 @@
-import type { DisplayMessage } from "../Message.js";
+import type { TranscriptMessage } from "./types.js";
+import { parseToolArtifact } from "./tool-artifact.js";
 
 export type TranscriptDetailKind = "tool" | "reasoning" | "diff" | "write";
 
@@ -20,79 +21,36 @@ interface ToolDetailInput {
   tool: string;
   args: string;
   resultContent?: string;
+  artifact?: import("@aurict/core").ToolResultArtifact;
 }
 
-function pathFromArgs(args: string): string | undefined {
-  try {
-    const parsed = JSON.parse(args) as Record<string, unknown>;
-    for (const key of ["path", "filePath", "file"]) {
-      const value = parsed[key];
-      if (typeof value === "string" && value) return value;
-    }
-  } catch {
-    return undefined;
-  }
-  return undefined;
-}
-
-function pathFromOutput(output: string): string | undefined {
-  const match = output.match(/^(?:Updated|Created)\s+(.+?)(?:\s+\(no changes\))?$/m);
-  return match?.[1]?.trim();
-}
-
-function diffStats(rawDiff: string): { additions: number; deletions: number } {
-  let additions = 0;
-  let deletions = 0;
-  for (const line of rawDiff.split("\n")) {
-    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
-    if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
-  }
-  return { additions, deletions };
-}
-
-function parseWriteCreate(output: string): { totalLines: number; preview: string } | null {
-  const marker = "__WRITE_CREATE__\n";
-  const markerIndex = output.indexOf(marker);
-  if (markerIndex === -1) return null;
-  const lines = output.slice(markerIndex + marker.length).split("\n");
-  const totalLines = Number(lines.shift());
-  if (!Number.isInteger(totalLines) || totalLines < 0) return null;
-  return { totalLines, preview: lines.join("\n") };
-}
-
-export function createToolDetail({ id, tool, args, resultContent }: ToolDetailInput): TranscriptDetail {
+export function createToolDetail({ id, tool, args, resultContent, artifact: normalized }: ToolDetailInput): TranscriptDetail {
+  const artifact = parseToolArtifact(tool, args, resultContent, normalized);
   const content = resultContent ?? args;
-  const outputPath = resultContent ? pathFromOutput(resultContent) : undefined;
-  const filePath = outputPath ?? pathFromArgs(args);
-  const writeCreate = resultContent ? parseWriteCreate(resultContent) : null;
-  const diffMarker = "__UNIFIED_DIFF__\n";
-  const diffIndex = resultContent?.indexOf(diffMarker) ?? -1;
-
-  if (diffIndex >= 0 && resultContent) {
-    const rawDiff = resultContent.slice(diffIndex + diffMarker.length);
-    const { additions, deletions } = diffStats(rawDiff);
+  if (artifact.kind === "diff" && artifact.rawDiff) {
+    const multiFile = (artifact.files?.length ?? 0) > 1;
     return {
       id,
       kind: "diff",
-      title: `changed ${filePath ?? "file"}`,
-      content: resultContent,
+      title: multiFile ? `changed ${artifact.files!.length} files` : `changed ${artifact.filePath ?? "file"}`,
+      content,
       toolName: tool,
-      rawDiff,
-      ...(filePath ? { filePath } : {}),
-      additions,
-      deletions,
+      rawDiff: artifact.rawDiff,
+      ...(!multiFile && artifact.filePath ? { filePath: artifact.filePath } : {}),
+      additions: artifact.additions ?? 0,
+      deletions: artifact.deletions ?? 0,
     };
   }
 
-  if (writeCreate && resultContent) {
+  if (artifact.kind === "write" && resultContent) {
     return {
       id,
       kind: "write",
-      title: `created ${filePath ?? "file"}`,
+      title: `created ${artifact.filePath ?? "file"}`,
       content: resultContent,
       toolName: tool,
-      ...(filePath ? { filePath } : {}),
-      totalLines: writeCreate.totalLines,
+      ...(artifact.filePath ? { filePath: artifact.filePath } : {}),
+      totalLines: artifact.totalLines ?? 0,
     };
   }
 
@@ -102,7 +60,7 @@ export function createToolDetail({ id, tool, args, resultContent }: ToolDetailIn
     title: tool,
     content,
     toolName: tool,
-    ...(filePath ? { filePath } : {}),
+    ...(artifact.filePath ? { filePath: artifact.filePath } : {}),
   };
 }
 
@@ -115,7 +73,7 @@ function addReasoningDetail(
   details.push({ id, kind: "reasoning", title: "thinking", content });
 }
 
-export function collectTranscriptDetails(messages: DisplayMessage[]): TranscriptDetail[] {
+export function collectTranscriptDetails(messages: TranscriptMessage[]): TranscriptDetail[] {
   const details: TranscriptDetail[] = [];
   for (const [messageIndex, message] of messages.entries()) {
     const messageId = message.id ?? `message-${messageIndex}`;
@@ -139,6 +97,7 @@ export function collectTranscriptDetails(messages: DisplayMessage[]): Transcript
             tool: block.tool,
             args: block.args,
             ...(block.resultContent !== undefined ? { resultContent: block.resultContent } : {}),
+            ...(block.artifact !== undefined ? { artifact: block.artifact } : {}),
           }),
         );
       }
@@ -160,5 +119,5 @@ export function collectTranscriptDetails(messages: DisplayMessage[]): Transcript
 }
 
 export function writePreview(content: string): string | undefined {
-  return parseWriteCreate(content)?.preview;
+  return parseToolArtifact("write", "{}", content).preview;
 }

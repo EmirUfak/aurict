@@ -14,6 +14,7 @@ import { render, cleanup } from "ink-testing-library";
 import { Spinner } from "../src/tui/Spinner.js";
 import { Markdown } from "../src/tui/Markdown.js";
 import { StatusBar } from "../src/tui/StatusBar.js";
+import { CockpitHeader } from "../src/tui/CockpitHeader.js";
 import { StartupBanner } from "../src/tui/StartupBanner.js";
 import { PermissionPrompt } from "../src/tui/PermissionPrompt.js";
 import { wrapPermissionText } from "../src/tui/PermissionCommandPreview.js";
@@ -230,10 +231,11 @@ const DEFAULT_STATUS_PROPS = {
   workdir: "/home/user/project",
 };
 
-describe("StatusBar", () => {
-  it("renders model name (short form without claude- prefix)", () => {
-    const { lastFrame } = render(<StatusBar {...DEFAULT_STATUS_PROPS} />);
+describe("Session chrome", () => {
+  it("keeps model and context in the header", () => {
+    const { lastFrame } = render(<CockpitHeader {...DEFAULT_STATUS_PROPS} contextTokens={10_000} />);
     expect(lastFrame()).toContain("opus-4");
+    expect(lastFrame()).toContain("ctx");
   });
 
   it("renders workdir (~/project shorthand)", () => {
@@ -247,32 +249,22 @@ describe("StatusBar", () => {
 
   it("renders branch when provided", () => {
     const { lastFrame } = render(
-      <StatusBar {...DEFAULT_STATUS_PROPS} branch="main" />,
+      <StatusBar {...DEFAULT_STATUS_PROPS} branch="main" cols={120} />,
     );
     expect(lastFrame()).toContain("main");
   });
 
-  it("shows compacted badge when wasCompacted and contextTokens set", () => {
+  it("shows exceptional footer state without duplicating model metadata", () => {
     const { lastFrame } = render(
       <StatusBar
         {...DEFAULT_STATUS_PROPS}
-        wasCompacted
-        contextTokens={50000}
+        scrollLocked
+        sandboxBackend="none"
       />,
     );
-    expect(lastFrame()).toContain("cmpct");
-  });
-
-  it("shows context percentage bar when contextTokens set", () => {
-    const { lastFrame } = render(
-      <StatusBar
-        {...DEFAULT_STATUS_PROPS}
-        contextTokens={10000}
-        contextWindow={200000}
-      />,
-    );
-    const frame = lastFrame() ?? "";
-    expect(frame).toContain("ctx");
+    expect(lastFrame()).toContain("paused");
+    expect(lastFrame()).toContain("no sandbox");
+    expect(lastFrame()).not.toContain("opus-4");
   });
 
   it("renders without optional props", () => {
@@ -308,13 +300,7 @@ describe("StartupBanner", () => {
       />,
     );
     const frame = lastFrame() ?? "";
-    // Each letter is rendered as a separate Text — check the AURICT letters
-    expect(frame).toContain("A");
-    expect(frame).toContain("U");
-    expect(frame).toContain("R");
-    expect(frame).toContain("I");
-    expect(frame).toContain("C");
-    expect(frame).toContain("T");
+    expect(frame).toContain("AURICT");
   });
 
   it("renders provider name", () => {
@@ -406,6 +392,7 @@ describe("PermissionPrompt", () => {
     expect(frame).toContain("destructive operation");
     expect(frame).toContain("$ rm -rf dist");
     expect(frame).toContain("Edit command");
+    expect(stripAnsi(frame).split("\n").length).toBeLessThanOrEqual(9);
   });
 
   it("offers directory approval for write requests", () => {
@@ -424,7 +411,8 @@ describe("PermissionPrompt", () => {
 
     const frame = lastFrame() ?? "";
     expect(frame).toContain("Allow directory");
-    expect(frame).toContain("remember folder");
+    expect(frame).toContain("just this time");
+    expect(stripAnsi(frame).split("\n").length).toBeLessThanOrEqual(9);
   });
 });
 
@@ -471,11 +459,11 @@ describe("Tool output rendering", () => {
     );
 
     const frame = lastFrame() ?? "";
-    expect(frame).toContain("12 lines");
+    expect(frame).toContain("of 12 lines hidden");
     expect(frame).toContain("line-1");
     expect(frame).toContain("line-12");
-    expect(frame).toContain("5 hidden lines");
-    expect(frame).toContain("Ctrl+O expand latest");
+    expect(frame).toContain("8 of 12 lines hidden");
+    expect(frame).toContain("Ctrl+O inspect");
   });
 
   it("renders empty expanded output explicitly", () => {

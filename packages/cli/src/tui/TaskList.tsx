@@ -1,12 +1,14 @@
 import React from "react"
 import { Box, Text } from "ink"
 import type { Task } from "@aurict/core"
+import { useSemanticTheme } from "./theme/semantic-theme.js"
 
 interface Props {
   tasks: Task[]
 }
 
 export function TaskList({ tasks }: Props) {
+  const semantic = useSemanticTheme()
   if (tasks.length === 0) return null
 
   const doneCount    = tasks.filter(t => t.status === "done").length
@@ -14,15 +16,15 @@ export function TaskList({ tasks }: Props) {
   const errorCount   = tasks.filter(t => t.status === "error").length
 
   return (
-    <Box flexDirection="column" width={35} paddingLeft={2} borderStyle="single" borderColor="#52525b" borderTop={false} borderBottom={false} borderRight={false}>
+    <Box flexDirection="column" width={35} paddingLeft={2} borderStyle="single" borderColor={semantic.border.subtle} borderTop={false} borderBottom={false} borderRight={false}>
       <Box width="100%" marginBottom={1}>
-        <Text color="#a1a1aa">
-          <Text bold color="white">{tasks.length}</Text>
+        <Text color={semantic.foreground.muted}>
+          <Text bold color={semantic.foreground.primary}>{tasks.length}</Text>
           {" tasks ("}
-          <Text bold color="white">{doneCount}</Text>
+          <Text bold color={semantic.foreground.primary}>{doneCount}</Text>
           {" done, "}
-          {runningCount > 0 && <><Text bold color="white">{runningCount}</Text>{" in progress, "}</>}
-          <Text bold color="white">{errorCount}</Text>
+          {runningCount > 0 && <><Text bold color={semantic.foreground.primary}>{runningCount}</Text>{" in progress, "}</>}
+          <Text bold color={semantic.foreground.primary}>{errorCount}</Text>
           {" error)"}
         </Text>
       </Box>
@@ -33,7 +35,13 @@ export function TaskList({ tasks }: Props) {
         const isPending    = task.status === "pending"
 
         const icon  = isCompleted ? "✔" : isError ? "✗" : isPending ? "▫" : "▪"
-        const color = isCompleted ? "#4eba65" : isError ? "#ff4d4d" : isPending ? "#a1a1aa" : "#d77757"
+        const color = isCompleted
+          ? semantic.status.success
+          : isError
+            ? semantic.status.error
+            : isPending
+              ? semantic.activity.idle
+              : semantic.activity.running
 
         const desc = task.subject.length > 20 ? task.subject.slice(0, 20) + "..." : task.subject
 
@@ -41,11 +49,11 @@ export function TaskList({ tasks }: Props) {
           <Box key={task.id} flexDirection="column" marginBottom={1}>
             <Box flexDirection="row" width="100%">
               <Text color={color}>{icon} </Text>
-              <Text bold={isInProgress} strikethrough={isCompleted} color={isCompleted ? "#a1a1aa" : "white"}>
+              <Text bold={isInProgress} strikethrough={isCompleted} color={isCompleted ? semantic.foreground.muted : semantic.foreground.primary}>
                 {desc}
               </Text>
               {task.owner && (
-                <Text color="#a1a1aa">
+                <Text color={semantic.foreground.muted}>
                   {" (@"}<Text color={color}>{task.owner}</Text>{")"}
                 </Text>
               )}
@@ -54,21 +62,21 @@ export function TaskList({ tasks }: Props) {
             {/* Blockers (tasks being waited on) */}
             {task.blockedBy && task.blockedBy.length > 0 && (
                <Box paddingLeft={2}>
-                 <Text color="#52525b">blocked by: {task.blockedBy.join(", ")}</Text>
+                 <Text color={semantic.foreground.muted}>blocked by: {task.blockedBy.join(", ")}</Text>
                </Box>
             )}
 
             {/* Status text */}
             {isInProgress && (
               <Box paddingLeft={2}>
-                <Text color="#a1a1aa">Working...</Text>
+                <Text color={semantic.activity.running}>Working...</Text>
               </Box>
             )}
             
             {/* Error text */}
             {isError && task.error && (
                <Box paddingLeft={2}>
-                 <Text color="#ff4d4d">{task.error.slice(0, 25)}</Text>
+                 <Text color={semantic.status.error}>{task.error.slice(0, 25)}</Text>
                </Box>
             )}
           </Box>

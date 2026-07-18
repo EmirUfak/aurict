@@ -61,6 +61,29 @@ describe("permission request metadata", () => {
     expect(asked).toBe(false)
   })
 
+  it("requires explicit approval for shell file readers", async () => {
+    let seen: PermissionRequest | null = null
+    const off = ExecutorEvents.on((event) => {
+      seen = event.request
+      PermissionGate.respond(event.request.id, "deny")
+    })
+
+    const result = await executeTool(
+      bashTool,
+      { action: "run", command: "cat package.json" },
+      {
+        workdir: process.cwd(),
+        sessionId: "test",
+        signal: new AbortController().signal,
+      },
+    )
+    off()
+
+    expect(result.error).toContain("Permission denied by user")
+    expect(seen?.level).toBe("danger")
+    expect(seen?.reason).toContain("workspace path protections")
+  })
+
   it("marks low-risk Aurict Modules requests safe for desktop auto-approval", async () => {
     let seen: PermissionRequest | null = null
     const off = ExecutorEvents.on((event) => {

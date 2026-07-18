@@ -1,4 +1,4 @@
-import { createSession, getSession, listSessions, updateSession, deleteSession as dbDeleteSession, addPart, getSessionParts, getSessionPartsCount, getSessionPartsTail, recordTurn as dbRecordTurn, listSessionsWithStats, getSessionStats, searchSessions as dbSearchSessions } from "../storage/queries.js"
+import { createSession, getSession, listSessions, updateSession, deleteSession as dbDeleteSession, appendPart, getSessionParts, getSessionPartsCount, getSessionPartsTail, recordTurn as dbRecordTurn, listSessionsWithStats, getSessionStats, searchSessions as dbSearchSessions } from "../storage/queries.js"
 import type { Session, Part, SessionConfig } from "./types.js"
 import type { SessionStats, SessionSearchResult } from "../storage/queries.js"
 import { hooks } from "../hook/emitter.js"
@@ -16,7 +16,9 @@ export const SessionManager = {
       ...(opts.title !== undefined ? { title: opts.title } : {}),
       ...(opts.parentId !== undefined ? { parentId: opts.parentId } : {}),
     })
-    hooks.emit("v1.session.start", { sessionId: id })
+    void hooks.emit("v1.session.start", { sessionId: id }).catch((error) => {
+      console.error(`[aurict] session start hook failed for ${id}`, error)
+    })
     return id
   },
 
@@ -70,10 +72,8 @@ export const SessionManager = {
     content: string
     tokens?: number
   }): string {
-    // COUNT(*) instead of fetching all rows just to get the length
-    const sequence = getSessionPartsCount(data.sessionId)
     const id = newId()
-    addPart({ id, sequence, ...data })
+    appendPart({ id, ...data })
     return id
   },
 

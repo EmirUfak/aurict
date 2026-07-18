@@ -16,6 +16,7 @@
 Detailed product references:
 
 - [Product Overview](product-overview.md) — Aurict surfaces, architecture boundaries, and product direction
+- [Terminal Design Baseline](terminal-design-baseline.md) — responsive layout, transcript, tool, streaming, and composer contracts
 - [Mobile App](mobile.md) — BYOK mobile assistant behavior, release path, privacy, and reporting
 - [Roadmap](roadmap.md) — current phases, near-term hardening, ecosystem expansion, and research track
 - [Security & Compliance](security-and-compliance.md) — current safeguards, limits, and next controls

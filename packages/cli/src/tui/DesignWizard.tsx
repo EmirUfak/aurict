@@ -89,7 +89,7 @@ function BriefStep({ initialBrief, onNext, onClose }: { initialBrief?: string; o
       <Box borderStyle="single" borderColor={theme.accent} paddingX={1} width={68}>
         <Text>
           {before}
-          <Text backgroundColor={theme.accent} color="black">{at}</Text>
+          <Text backgroundColor={theme.accent} color={theme.accentInk ?? theme.bgHighlight}>{at}</Text>
           {after}
         </Text>
       </Box>

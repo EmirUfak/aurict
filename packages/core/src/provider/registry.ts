@@ -11,6 +11,7 @@ import { BedrockPlugin }  from "./bedrock.js"
 import { createNvidiaPlugin }  from "./nvidia.js"
 import { createZaiPlugin }     from "./zai.js"
 import { createAlibabaPlugin } from "./alibaba.js"
+import { providerEnv } from "./credentials.js"
 
 const plugins = new Map<string, ProviderPlugin>()
 
@@ -61,20 +62,20 @@ export const ProviderRegistry = {
 
   // Hangi API key'in set edildiğine göre varsayılan provider
   detectDefault(): string {
-    const override = process.env["AURICT_PROVIDER"]
+    const override = providerEnv("AURICT_PROVIDER")
     if (override && plugins.has(override)) return override
 
-    if (process.env["ANTHROPIC_API_KEY"])                                                              return "anthropic"
-    if (process.env["OPENCODE_API_KEY"])                                                               return "opencode"
-    if (process.env["OPENAI_API_KEY"])                                                                 return "openai"
-    if (process.env["OPENROUTER_API_KEY"])                                                             return "openrouter"
-    if (process.env["GOOGLE_GENERATIVE_AI_API_KEY"] ?? process.env["GOOGLE_API_KEY"])                 return "google"
-    if (process.env["XAI_API_KEY"])                                                                    return "xai"
-    if (process.env["AZURE_OPENAI_API_KEY"] && process.env["AZURE_OPENAI_ENDPOINT"])                  return "azure"
-    if (process.env["AWS_ACCESS_KEY_ID"] && process.env["AWS_SECRET_ACCESS_KEY"])                     return "bedrock"
-    if (process.env["NVIDIA_API_KEY"])                                                                 return "nvidia"
-    if (process.env["ZAI_API_KEY"])                                                                    return "zai"
-    if (process.env["DASHSCOPE_API_KEY"])                                                              return "alibaba"
+    if (providerEnv("ANTHROPIC_API_KEY"))                                                              return "anthropic"
+    if (providerEnv("OPENCODE_API_KEY"))                                                               return "opencode"
+    if (providerEnv("OPENAI_API_KEY"))                                                                 return "openai"
+    if (providerEnv("OPENROUTER_API_KEY"))                                                             return "openrouter"
+    if (providerEnv("GOOGLE_GENERATIVE_AI_API_KEY") ?? providerEnv("GOOGLE_API_KEY"))                 return "google"
+    if (providerEnv("XAI_API_KEY"))                                                                    return "xai"
+    if (providerEnv("AZURE_OPENAI_API_KEY") && providerEnv("AZURE_OPENAI_ENDPOINT"))                  return "azure"
+    if (providerEnv("AWS_ACCESS_KEY_ID") && providerEnv("AWS_SECRET_ACCESS_KEY"))                     return "bedrock"
+    if (providerEnv("NVIDIA_API_KEY"))                                                                 return "nvidia"
+    if (providerEnv("ZAI_API_KEY"))                                                                    return "zai"
+    if (providerEnv("DASHSCOPE_API_KEY"))                                                              return "alibaba"
 
     return "anthropic"
   },
@@ -82,18 +83,18 @@ export const ProviderRegistry = {
   // Hangi provider'ların API key'i mevcut
   available(): Array<{ id: string; name: string; hasKey: boolean }> {
     const builtIn: Array<{ id: string; name: string; hasKey: boolean }> = [
-      { id: "anthropic",  name: "Anthropic",        hasKey: !!process.env["ANTHROPIC_API_KEY"] },
-      { id: "openai",     name: "OpenAI",            hasKey: !!process.env["OPENAI_API_KEY"] },
-      { id: "openrouter", name: "OpenRouter",        hasKey: !!process.env["OPENROUTER_API_KEY"] },
-      { id: "google",     name: "Google",            hasKey: !!(process.env["GOOGLE_GENERATIVE_AI_API_KEY"] ?? process.env["GOOGLE_API_KEY"]) },
-      { id: "xai",        name: "xAI (Grok)",        hasKey: !!process.env["XAI_API_KEY"] },
-      { id: "azure",      name: "Azure OpenAI",      hasKey: !!(process.env["AZURE_OPENAI_API_KEY"] && process.env["AZURE_OPENAI_ENDPOINT"]) },
-      { id: "bedrock",    name: "AWS Bedrock",       hasKey: !!(process.env["AWS_ACCESS_KEY_ID"] && process.env["AWS_SECRET_ACCESS_KEY"]) },
-      { id: "opencode",   name: "OpenCode (Zen)",    hasKey: !!process.env["OPENCODE_API_KEY"] },
+      { id: "anthropic",  name: "Anthropic",        hasKey: !!providerEnv("ANTHROPIC_API_KEY") },
+      { id: "openai",     name: "OpenAI",            hasKey: !!providerEnv("OPENAI_API_KEY") },
+      { id: "openrouter", name: "OpenRouter",        hasKey: !!providerEnv("OPENROUTER_API_KEY") },
+      { id: "google",     name: "Google",            hasKey: !!(providerEnv("GOOGLE_GENERATIVE_AI_API_KEY") ?? providerEnv("GOOGLE_API_KEY")) },
+      { id: "xai",        name: "xAI (Grok)",        hasKey: !!providerEnv("XAI_API_KEY") },
+      { id: "azure",      name: "Azure OpenAI",      hasKey: !!(providerEnv("AZURE_OPENAI_API_KEY") && providerEnv("AZURE_OPENAI_ENDPOINT")) },
+      { id: "bedrock",    name: "AWS Bedrock",       hasKey: !!(providerEnv("AWS_ACCESS_KEY_ID") && providerEnv("AWS_SECRET_ACCESS_KEY")) },
+      { id: "opencode",   name: "OpenCode (Zen)",    hasKey: !!providerEnv("OPENCODE_API_KEY") },
       { id: "ollama",     name: "Ollama (Local)",    hasKey: true },
-      { id: "nvidia",     name: "NVIDIA NIM",        hasKey: !!process.env["NVIDIA_API_KEY"] },
-      { id: "zai",        name: "Z.AI (GLM)",        hasKey: !!process.env["ZAI_API_KEY"] },
-      { id: "alibaba",    name: "Alibaba (Qwen)",    hasKey: !!process.env["DASHSCOPE_API_KEY"] },
+      { id: "nvidia",     name: "NVIDIA NIM",        hasKey: !!providerEnv("NVIDIA_API_KEY") },
+      { id: "zai",        name: "Z.AI (GLM)",        hasKey: !!providerEnv("ZAI_API_KEY") },
+      { id: "alibaba",    name: "Alibaba (Qwen)",    hasKey: !!providerEnv("DASHSCOPE_API_KEY") },
     ]
     // Anything registered at runtime (JS plugin loader, user-added custom
     // providers) but not in the static list above — it was only ever

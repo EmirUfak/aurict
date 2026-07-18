@@ -1,6 +1,5 @@
 import { generateText } from "ai"
 import { readFile }     from "fs/promises"
-import { resolve }      from "path"
 import type { CoreMessage } from "ai"
 import { ProviderRegistry }   from "../provider/registry.js"
 import { countTokens }        from "../provider/tokenizer.js"
@@ -12,6 +11,7 @@ import {
   extractText,
   extractFilePaths,
 } from "./context-compactor.js"
+import { resolveWithinWorkspace } from "../security/path-boundary.js"
 
 // ─── Faz 3: Error Chain Detection ─────────────────────────────────────────────
 export interface ErrorChain {
@@ -118,25 +118,64 @@ const CB_RESET_MS     = 60_000
 export type CBStatus = "closed" | "open" | "half-open"
 export interface CBState { status: CBStatus; failures: number; lastFailAt: number }
 
-const cb: CBState = { status: "closed", failures: 0, lastFailAt: 0 }
+const circuitStates = new Map<string, CBState>()
 
-export function getCircuitState(): Readonly<CBState> { return { ...cb } }
+function circuitKey(cfg: Pick<CompactionConfig, "provider" | "model" | "sessionId">): string {
+  return `${cfg.provider}\0${cfg.model}\0${cfg.sessionId ?? "anonymous"}`
+}
 
-function cbRecordSuccess(): void { cb.failures = 0; cb.status = "closed" }
+function circuitState(cfg: Pick<CompactionConfig, "provider" | "model" | "sessionId">): CBState {
+  const key = circuitKey(cfg)
+  const existing = circuitStates.get(key)
+  if (existing) return existing
+  const created: CBState = { status: "closed", failures: 0, lastFailAt: 0 }
+  circuitStates.set(key, created)
+  return created
+}
 
-function cbRecordFailure(): void {
+export function getCircuitState(
+  cfg: Pick<CompactionConfig, "provider" | "model" | "sessionId"> = { provider: "unknown", model: "unknown" },
+): Readonly<CBState> {
+  return { ...circuitState(cfg) }
+}
+
+function cbRecordSuccess(cfg: CompactionConfig): void {
+  const cb = circuitState(cfg)
+  cb.failures = 0
+  cb.status = "closed"
+}
+
+function cbRecordFailure(cfg: CompactionConfig): void {
+  const cb = circuitState(cfg)
   cb.failures++
   cb.lastFailAt = Date.now()
   if (cb.failures >= CB_MAX_FAILURES) cb.status = "open"
 }
 
-function cbIsOpen(): boolean {
+function cbIsOpen(cfg: CompactionConfig): boolean {
+  const cb = circuitState(cfg)
   if (cb.status === "closed") return false
   if (cb.status === "open" && Date.now() - cb.lastFailAt >= CB_RESET_MS) {
     cb.status = "half-open"
     return false
   }
   return cb.status === "open"
+}
+
+export function splitTailTurns(messages: CoreMessage[], turns: number): { head: CoreMessage[]; tail: CoreMessage[] } {
+  if (turns <= 0 || messages.length === 0) return { head: messages, tail: [] }
+  let userTurns = 0
+  let splitAt = 0
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index]?.role !== "user") continue
+    userTurns++
+    if (userTurns === turns) {
+      splitAt = index
+      break
+    }
+  }
+  if (userTurns < turns) splitAt = 0
+  return { head: messages.slice(0, splitAt), tail: messages.slice(splitAt) }
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -331,8 +370,7 @@ async function snipCompact(
 ): Promise<CoreMessage[]> {
   const tailBonus  = (cfg.strategy === "conservative" ? 2 : cfg.strategy === "aggressive" ? -1 : 0)
   const tailTurns  = Math.max(1, (cfg.tailTurns ?? DEFAULT_TAIL_TURNS) + tailBonus)
-  const tail       = messages.slice(-tailTurns * 2)
-  const head       = messages.slice(0, -tailTurns * 2)
+  const { head, tail } = splitTailTurns(messages, tailTurns)
 
   // Araç mesajlarını toplu özetle
   const toolMessages = head.filter((m) => m.role === "tool" || (m.role === "assistant" && (
@@ -360,7 +398,7 @@ async function snipCompact(
     })
     snipSummary = text
   } catch (error) {
-    cbRecordFailure()
+    cbRecordFailure(cfg)
     throw new ContextCompactionError("Context compaction could not summarize tool activity.", error)
   }
 
@@ -379,7 +417,7 @@ async function snipCompact(
     ...tail,
   ]
 
-  cbRecordSuccess()
+  cbRecordSuccess(cfg)
   return compacted
 }
 
@@ -392,8 +430,7 @@ async function sessionCompact(
   const tailBonus = (cfg.strategy === "conservative" ? 2 : cfg.strategy === "aggressive" ? -1 : 0)
   const tailTurns = Math.max(1, (cfg.tailTurns ?? DEFAULT_TAIL_TURNS) + tailBonus)
 
-  const tail  = messages.slice(-tailTurns * 2)
-  const head  = messages.slice(0, -tailTurns * 2)
+  const { head, tail } = splitTailTurns(messages, tailTurns)
   const budget = Math.max(0, estimateTokens(head, cfg.model, cfg.tokenizerEncoding) - PRUNE_MINIMUM)
   const pruned = smartCompact(head, budget)
 
@@ -438,7 +475,7 @@ async function sessionCompact(
     })
     summary = text
   } catch (error) {
-    cbRecordFailure()
+    cbRecordFailure(cfg)
     throw new ContextCompactionError("Context compaction could not summarize the earlier conversation.", error)
   }
 
@@ -449,11 +486,11 @@ async function sessionCompact(
   for (const filePath of filePaths.slice(0, 3)) {
     try {
       const base    = cfg.workdir ?? process.cwd()
-      const abs     = filePath.startsWith("/") ? filePath : resolve(base, filePath)
+      const abs     = await resolveWithinWorkspace(base, filePath)
       const content = await readFile(abs, "utf8")
       fileBlocks.push(`\n[Re-injected: ${filePath}]\n\`\`\`\n${content.slice(0, 4_000)}\n\`\`\``)
-    } catch {
-      // Dosya okunamazsa atla
+    } catch (error) {
+      console.warn(`[aurict] compaction skipped unsafe or unreadable path '${filePath}'`, error)
     }
   }
 
@@ -464,7 +501,9 @@ async function sessionCompact(
       const { scratchpadStore } = await import("../scratchpad/store.js")
       const state = scratchpadStore.read(cfg.sessionId, cfg.workdir)
       if (state) scratchpadSection = scratchpadStore.toPromptSection(state)
-    } catch { /* scratchpad hatası compaction'ı durdurmasın */ }
+    } catch (error) {
+      console.warn(`[aurict] compaction could not restore scratchpad for ${cfg.sessionId}`, error)
+    }
   }
 
   // ─── Faz 3: Error chain preservation ────────────────────────────────────────
@@ -483,7 +522,7 @@ async function sessionCompact(
     ...tail,
   ]
 
-  cbRecordSuccess()
+  cbRecordSuccess(cfg)
   return compacted
 }
 
@@ -493,7 +532,7 @@ export async function compact(
   messages: CoreMessage[],
   cfg:      CompactionConfig,
 ): Promise<CoreMessage[]> {
-  if (cbIsOpen()) {
+  if (cbIsOpen(cfg)) {
     throw new ContextCompactionError("Context compaction is temporarily unavailable after repeated summary failures.")
   }
 
@@ -503,6 +542,8 @@ export async function compact(
   const health   = measureContextHealth(messages)
 
   const tokensBefore = current
+  const sid = cfg.sessionId ?? "unknown"
+  await hooks.emit("v1.compact.before", { sessionId: sid, tokenCount: tokensBefore })
 
   let result: CoreMessage[] | undefined
   // Küçük taşma (<8% of context): microCompact dene, yetersizse session'a geç
@@ -522,8 +563,6 @@ export async function compact(
 
   const tokensAfter = estimateTokens(result, cfg.model, cfg.tokenizerEncoding)
 
-  const sid = cfg.sessionId ?? "unknown"
-  await hooks.emit("v1.compact.before",  { sessionId: sid, tokenCount: tokensBefore })
   await hooks.emit("v1.session.compact", { sessionId: sid, tokensBefore, tokensAfter })
   await hooks.emit("v1.compact.after",   { sessionId: sid, tokensBefore, tokensAfter })
 

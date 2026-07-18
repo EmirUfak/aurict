@@ -140,7 +140,7 @@ curl "$BASE/v1/mcp" \
 
 ### `POST /v1/mcp`
 
-Connects an MCP server.
+Connects an MCP server. Supply exactly one of `command` (stdio) or `url` (Streamable HTTP/SSE).
 
 ```bash
 curl -X POST "$BASE/v1/mcp" \
@@ -151,6 +151,15 @@ curl -X POST "$BASE/v1/mcp" \
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
   }'
+```
+
+Remote MCP example:
+
+```bash
+curl -X POST "$BASE/v1/mcp" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"remote-tools","url":"https://mcp.example.com/v1"}'
 ```
 
 ### `DELETE /v1/mcp/:name`

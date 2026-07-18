@@ -1,8 +1,9 @@
 import React from "react"
 import { Box, Text } from "ink"
-import { PermissionRequestTitle } from "./PermissionRequestTitle.js"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
+import { glyph, prefersAsciiGlyphs } from "./terminal-glyphs.js"
+import { shellHorizontalInset } from "./app-shell/layout-metrics.js"
 
 export type PermissionTone = "safe" | "warning" | "danger" | "accent"
 
@@ -24,45 +25,35 @@ function toneForColor(color: string, theme: ReturnType<typeof useTheme>): Permis
 
 export function PermissionDialog({ title, subtitle, color, tone, innerPaddingX = 2, children }: Props) {
   const theme = useTheme()
-  const { columns } = useTerminalSize()
+  const { columns, rows } = useTerminalSize()
   const resolvedTone = tone ?? toneForColor(color, theme)
   const borderColor = color
-  const width = Math.max(28, Math.min(columns - 2, 104))
-
-  const cornerTop = <Text color={borderColor}>┌</Text>
-  const cornerBot = <Text color={borderColor}>└</Text>
+  const horizontalInset = shellHorizontalInset(columns)
+  const width = Math.max(1, Math.min(columns - horizontalInset * 2, 104))
+  const contentPadding = columns < 36 ? 1 : innerPaddingX
 
   return (
-    <Box flexDirection="column" marginY={1} width={width} {...(theme.bgCard !== undefined ? { backgroundColor: theme.bgCard } : {})}>
-      <Box flexDirection="row">
-        {cornerTop}
-        <Text color={borderColor}>{"─".repeat(2)}</Text>
-        <Text color={theme.textDim}> awaiting permission · action required </Text>
-        <Text color={borderColor}>{"─".repeat(2)}</Text>
-      </Box>
+    <Box flexDirection="row" width={columns} justifyContent="center">
       <Box
         flexDirection="column"
-        borderStyle="round"
+        marginY={rows < 28 ? 0 : 1}
+        width={width}
+        borderStyle={prefersAsciiGlyphs() ? "classic" : "round"}
         borderColor={borderColor}
-        borderTop={false}
-        borderLeft={true}
-        borderRight={true}
-        borderBottom={true}
+        {...(theme.bgCard !== undefined ? { backgroundColor: theme.bgCard } : {})}
       >
-        <Box paddingX={2} paddingTop={1} flexDirection="column" marginBottom={1}>
+        <Box paddingX={contentPadding} flexDirection="column">
           <Box flexDirection="row" justifyContent="space-between">
-            <PermissionRequestTitle title={title} subtitle={subtitle} color={color} />
-            <Text color={borderColor} bold>{resolvedTone.toUpperCase()}</Text>
+            <Text color={borderColor} bold wrap="truncate-end">
+              {glyph("headingMajor")} Permission required {glyph("statusTiny")} {title}
+              {subtitle ? ` ${glyph("statusTiny")} ${subtitle}` : ""}
+            </Text>
+            <Text color={borderColor}>{resolvedTone.toUpperCase()}</Text>
           </Box>
         </Box>
-        <Box flexDirection="column" paddingX={innerPaddingX} paddingBottom={1}>
+        <Box flexDirection="column" paddingX={contentPadding}>
           {children}
         </Box>
-      </Box>
-      <Box flexDirection="row">
-        {cornerBot}
-        <Text color={borderColor}>{"─".repeat(2)}</Text>
-        <Text color={theme.textDim}> {resolvedTone} </Text>
       </Box>
     </Box>
   )

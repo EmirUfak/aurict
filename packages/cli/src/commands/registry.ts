@@ -1518,7 +1518,7 @@ const commands: CommandDef[] = [
             const meta = await installRemoteSkill(entry.url)
             return { type: "text", content: `Skill installed: ${meta.id} (${meta.name})\nRestart Aurict to activate.` }
           } else {
-            const meta = await installRemotePlugin(entry.url, entry.name)
+            const meta = await installRemotePlugin(entry.url, entry.name, entry.sha256)
             return { type: "text", content: `Plugin installed: ${meta.id} (${meta.name})\nRestart Aurict to activate.\nDir: ${PLUGIN_DIR}` }
           }
         } catch (e) {

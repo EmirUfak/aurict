@@ -93,6 +93,8 @@ aurict /mcp restart filesystem
 
 When Aurict starts, it connects to all configured MCP servers and registers their tools in the tool registry. MCP tools appear alongside built-in tools and are subject to the same permission system.
 
+For stdio servers, Aurict passes only a minimal process environment (`PATH`, home/temp and locale values) plus variables explicitly listed in that server's `env` configuration. Disconnecting or replacing a server unregisters its tools from the runtime registry.
+
 MCP tool IDs are prefixed with the server name to avoid collisions:
 
 ```

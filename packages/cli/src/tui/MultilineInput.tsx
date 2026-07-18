@@ -12,55 +12,24 @@ import {
   sanitizeInput,
   sanitizePaste,
 } from "./input-limits.js"
+import { extractRange, splitLines, wordLeft, wordRight, type LocalPoint } from "./multiline-input-model.js"
+
+export { extractRange, type LocalPoint } from "./multiline-input-model.js"
 
 interface Props {
   value:              string
   onChange:           (v: string) => void
   onSubmit:           (v: string) => void
+  onQueue?:           ((v: string) => void) | undefined
   disabled:           boolean
   history:            string[]
   inlineSuggestionActive?: boolean
   onInputTruncated?:  (originalLen: number, truncatedLen: number) => void
   onCopied?:          (charCount: number) => void
+  placeholder?:       string | undefined
 }
 
-export interface LocalPoint { row: number; col: number }
-
-/** Extracts the text within the (row, col) range between two points from `lines`. */
-export function extractRange(lines: string[], a: LocalPoint, b: LocalPoint): string {
-  const [start, end] = a.row < b.row || (a.row === b.row && a.col <= b.col) ? [a, b] : [b, a]
-  if (start.row === end.row) {
-    const line = lines[start.row] ?? ""
-    return line.slice(Math.min(start.col, end.col), Math.max(start.col, end.col))
-  }
-  const parts: string[] = []
-  parts.push((lines[start.row] ?? "").slice(start.col))
-  for (let r = start.row + 1; r < end.row; r++) parts.push(lines[r] ?? "")
-  parts.push((lines[end.row] ?? "").slice(0, end.col))
-  return parts.join("\n")
-}
-
-function splitLines(v: string): string[] {
-  const ls = v.split("\n")
-  return ls.length > 0 ? ls : [""]
-}
-
-function wordLeft(line: string, col: number): number {
-  let i = col
-  while (i > 0 && /\s/.test(line[i - 1]!)) i--
-  while (i > 0 && /\S/.test(line[i - 1]!)) i--
-  return i
-}
-
-function wordRight(line: string, col: number): number {
-  const len = line.length
-  let i = col
-  while (i < len && /\S/.test(line[i]!)) i++
-  while (i < len && /\s/.test(line[i]!)) i++
-  return i
-}
-
-export function MultilineInput({ value, onChange, onSubmit, disabled, history, inlineSuggestionActive = false, onInputTruncated, onCopied }: Props) {
+export function MultilineInput({ value, onChange, onSubmit, onQueue, disabled, history, inlineSuggestionActive = false, onInputTruncated, onCopied, placeholder }: Props) {
   const theme = useTheme()
 
   const [lines, setLines]   = useState<string[]>(() => splitLines(sanitizePaste(value)))
@@ -194,7 +163,6 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
   useInput((input, key) => {
     if (disabled) return
 
-    // ── Mouse escape sequence filter ────────────────────────────────────
     // Catch sequences here that slip past the emit-level filter.
     // When Ink consumes \x1b as an ESC keypress, the remaining "[<65;206;45M"
     // part arrives as a separate useInput event and gets written into the text.
@@ -202,7 +170,6 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
     if (/^\x1b\[<\d+;\d+;\d+[Mm]/.test(input)) return  // SGR full
     if (/^\[M[\s\S]/.test(input)) return  // X10 remainder
 
-    // ── SSH/tmux DEL character (\x7f) ─────────────────────────────────────
     // Some terminal emulators produce \x7f instead of backspace
     if (!key.backspace && !key.delete && input.includes("\x7f")) {
       const count = (input.match(/\x7f/g) ?? []).length
@@ -225,7 +192,6 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
       return
     }
 
-    // ── Bracketed paste ────────────────────────────────────────────────
     // A full paste event's marker + content can arrive together; marker-only
     // fragments are ignored, and events with content are applied as a paste.
     if (
@@ -240,6 +206,17 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
     }
 
     if (inlineSuggestionActive && (key.upArrow || key.downArrow || key.tab || key.return)) {
+      return
+    }
+
+    if (key.tab && onQueue) {
+      const text = lines.join("\n").trim()
+      if (!text) return
+      setLines([""])
+      setCursor({ row: 0, col: 0 })
+      setHIdx(-1)
+      draftRef.current = [""]
+      onQueue(text)
       return
     }
 
@@ -513,8 +490,8 @@ export function MultilineInput({ value, onChange, onSubmit, disabled, history, i
               <Text color={theme.accent} dimColor>{lineNum} │ </Text>
             )}
             <Text>{before}</Text>
-            <Text backgroundColor={theme.accent} color="black">{at}</Text>
-            <Text>{after}</Text>
+            <Text backgroundColor={theme.accent} color={theme.accentInk ?? theme.bgHighlight}>{at}</Text>
+            {after ? <Text>{after}</Text> : !line && placeholder ? <Text color={theme.textDim} dimColor>{placeholder}</Text> : null}
           </Box>
         )
       })}

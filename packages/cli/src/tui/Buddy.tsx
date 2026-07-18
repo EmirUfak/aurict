@@ -103,10 +103,10 @@ export function Buddy({ state = "idle", activeTool, workdir = "" }: Props) {
     return () => { if (quipTimer.current) clearTimeout(quipTimer.current) }
   }, [])
 
-  const color = mood === "error"    ? (theme.error   ?? "#ff6b6b")
-              : mood === "working"  ? (theme.warning ?? "#f0a500")
-              : mood === "thinking" ? (theme.accent  ?? "#7ab4e8")
-              : (theme.buddyMain   ?? "#d77757")
+  const color = mood === "error"    ? theme.error
+              : mood === "working"  ? theme.warning
+              : mood === "thinking" ? theme.accent
+              : theme.buddyMain
 
   return (
     <Box flexDirection="row" alignItems="flex-end">
@@ -117,7 +117,7 @@ export function Buddy({ state = "idle", activeTool, workdir = "" }: Props) {
           {...(companion.hatId !== undefined ? { hatId: companion.hatId } : {})}
           mood={mood}
         />
-        <Text color={theme.textDim ?? "#71717a"} dimColor>{displayName}</Text>
+        <Text color={theme.textDim} dimColor>{displayName}</Text>
       </Box>
     </Box>
   )

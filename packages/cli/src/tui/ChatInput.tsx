@@ -14,62 +14,57 @@ import { MultilineInput } from "./MultilineInput.js"
 import { useTheme } from "../utils/theme.js"
 import { HStack, VStack, Surface, Typo } from "./design-system/index.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
+import type { ComposerQueueItem } from "./composer-queue.js"
+import { glyph, terminalText } from "./terminal-glyphs.js"
+import { useSemanticTheme } from "./theme/semantic-theme.js"
 
 interface Props {
   value:              string
   onChange:           (v: string) => void
   onSubmit:           (v: string) => void
+  onQueue?:           ((v: string) => void) | undefined
   disabled:           boolean
+  working?:           boolean | undefined
   history?:           string[]
-  queued?:            string | undefined
+  queued?:            ComposerQueueItem[] | undefined
   inlineSuggestionActive?: boolean
   onInputTruncated?:  (originalLen: number, truncatedLen: number) => void
   onCopied?:          (charCount: number) => void
 }
 
 // Bottom hint-bar cells — chosen based on terminal width
-const HINTS_WIDE: { key: string; label: string }[] = [
-  { key: "/",   label: "cmd" },
-  { key: "⌃P",  label: "palette" },
-  { key: "⌃T",  label: "tasks" },
-  { key: "⌃X",  label: "agents" },
-  { key: "⌃R",  label: "history" },
-  { key: "@",   label: "file" },
-]
-const HINTS_SHORT: { key: string; label: string }[] = [
-  { key: "/",  label: "cmd" },
-  { key: "⌃P", label: "palette" },
-  { key: "@",  label: "file" },
+const HINTS: { key: string; label: string }[] = [
+  { key: "/", label: "commands" },
+  { key: "@", label: "files" },
+  { key: "⌃P", label: "more" },
 ]
 
-export function ChatInput({ value, onChange, onSubmit, disabled, history = [], queued, inlineSuggestionActive = false, onInputTruncated, onCopied }: Props) {
+export function ChatInput({ value, onChange, onSubmit, onQueue, disabled, working = false, history = [], queued, inlineSuggestionActive = false, onInputTruncated, onCopied }: Props) {
   const theme = useTheme()
-  const promptChar = "❯"
+  const semantic = useSemanticTheme()
+  const promptChar = glyph("headingMinor")
   const borderColor = disabled ? theme.borderDim : theme.borderActive
-
-  // Mod etiketi: paste / working / INSERT
-  const modeLabel = disabled ? "BUSY" : "INSERT"
-  const modeColor = disabled ? theme.textDim : theme.accent
 
   const termCols  = useTerminalSize().columns
   const isNarrow  = termCols < 80
-  const hints     = termCols >= 100 ? HINTS_WIDE : HINTS_SHORT
-  const showHints = !isNarrow
+  const hints     = termCols >= 100 ? HINTS : HINTS.slice(0, 2)
+  const showHints = termCols >= 60
   const charCount = value.length
 
-  const Sep = () => <Text color={theme.borderDim}> · </Text>
+  const Sep = () => <Text color={theme.borderDim}> {glyph("statusTiny")} </Text>
 
   return (
     <VStack flexGrow={1} flexShrink={1}>
-      {queued && (
+      {queued && queued.length > 0 && (
         <HStack paddingX="md" gap="xs">
-          <Typo variant="body" tone="warning" dimColor>queued</Typo>
-          <Typo variant="body" tone="muted" dimColor>"{queued.slice(0, 50)}{queued.length > 50 ? "…" : ""}"</Typo>
+          <Typo variant="body" tone="warning">{queued[0]!.kind}</Typo>
+          <Typo variant="body" tone="muted" dimColor>"{queued[0]!.text.slice(0, 42)}{queued[0]!.text.length > 42 ? glyph("ellipsis") : ""}"</Typo>
+          {queued.length > 1 && <Typo variant="body" tone="muted" dimColor>+{queued.length - 1}</Typo>}
         </HStack>
       )}
 
       <Surface
-        variant="flat"
+        variant="raised"
         tone="default"
         accentColor={borderColor}
         {...(theme.bgCard !== undefined ? { backgroundColor: theme.bgCard } : {})}
@@ -77,25 +72,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
         paddingY="none"
         flexGrow={1}
         flexShrink={1}
-        header={!isNarrow ? (
-          <HStack justify="space-between" paddingX="xs">
-            <Text color={modeColor} bold>{modeLabel}</Text>
-            <Text color={theme.textDim} dimColor>
-              {disabled ? "Aurict is working" : charCount > 0 ? `${charCount.toLocaleString()} chars` : "Ask, plan, or build"}
-            </Text>
-          </HStack>
-        ) : undefined}
       >
-        {!disabled && !value && !isNarrow && (
-          <HStack paddingX="xs" gap="sm">
-            <Text color={theme.textDim} dimColor>Try</Text>
-            <Text color={theme.textSecondary}>describe a task</Text>
-            <Text color={theme.borderDim}>·</Text>
-            <Text color={theme.accent}>/plan</Text>
-            <Text color={theme.borderDim}>·</Text>
-            <Text color={theme.accentAlt}>@file</Text>
-          </HStack>
-        )}
         <HStack flexGrow={1} flexShrink={1} gap="xs">
           <Typo
             variant="bodyEmphasis"
@@ -109,36 +86,33 @@ export function ChatInput({ value, onChange, onSubmit, disabled, history = [], q
               value={value}
               onChange={onChange}
               onSubmit={onSubmit}
+              {...(working && onQueue ? { onQueue } : {})}
               disabled={disabled}
               history={history}
               inlineSuggestionActive={inlineSuggestionActive}
+              placeholder={working ? "Steer the next step…" : "Ask Aurict to plan, explain, or build…"}
               {...(onInputTruncated !== undefined ? { onInputTruncated } : {})}
               {...(onCopied !== undefined ? { onCopied } : {})}
             />
           </Box>
-          {disabled && !isNarrow && <Typo variant="body" tone="muted" dimColor>working…</Typo>}
-          {!disabled && !isNarrow && value.trim() && (
-            <Typo variant="caption" tone="accent" dimColor>Enter send</Typo>
-          )}
+          {!isNarrow && charCount > 0 && <Typo variant="caption" tone="muted" dimColor>{charCount.toLocaleString()}</Typo>}
         </HStack>
       </Surface>
 
-      {/* ── Segmented hint bar ── */}
       {showHints && (
-        <HStack paddingLeft="md" gap="none">
-          {hints.map((h, i) => (
-            <React.Fragment key={h.key}>
-              {i > 0 && <Sep />}
-              <Text color={theme.warning} bold>{h.key}</Text>
-              <Text color={theme.textDim} dimColor> {h.label}</Text>
-            </React.Fragment>
-          ))}
-          {termCols >= 100 && (
-            <>
-              <Sep />
-              <Text color={theme.textDim} dimColor>⇧⏎ newline</Text>
-            </>
-          )}
+        <HStack paddingX="md" justify="space-between">
+          <HStack gap="none">
+            {hints.map((h, i) => (
+              <React.Fragment key={h.key}>
+                {i > 0 && <Sep />}
+                <Text color={semantic.status.info} bold>{terminalText(h.key)}</Text>
+                <Text color={theme.textDim}> {h.label}</Text>
+              </React.Fragment>
+            ))}
+          </HStack>
+          <Text color={theme.textDim}>
+            {working ? `Enter steer ${glyph("statusTiny")} Tab queue` : `${terminalText("⇧⏎")} newline ${glyph("statusTiny")} Enter send`}
+          </Text>
         </HStack>
       )}
     </VStack>

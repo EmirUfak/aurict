@@ -1,6 +1,7 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock"
 import type { LanguageModel } from "ai"
 import { ProviderPlugin, type ModelInfo } from "./plugin.js"
+import { providerEnv } from "./credentials.js"
 
 export class BedrockPlugin extends ProviderPlugin {
   readonly id      = "bedrock"
@@ -10,10 +11,10 @@ export class BedrockPlugin extends ProviderPlugin {
 
   private get client() {
     return createAmazonBedrock({
-      region:          process.env["AWS_REGION"]             ?? "us-east-1",
-      accessKeyId:     process.env["AWS_ACCESS_KEY_ID"]      ?? "",
-      secretAccessKey: process.env["AWS_SECRET_ACCESS_KEY"]  ?? "",
-      ...(process.env["AWS_SESSION_TOKEN"] ? { sessionToken: process.env["AWS_SESSION_TOKEN"] } : {}),
+      region:          providerEnv("AWS_REGION")             ?? "us-east-1",
+      accessKeyId:     providerEnv("AWS_ACCESS_KEY_ID")      ?? "",
+      secretAccessKey: providerEnv("AWS_SECRET_ACCESS_KEY")  ?? "",
+      ...(providerEnv("AWS_SESSION_TOKEN") ? { sessionToken: providerEnv("AWS_SESSION_TOKEN")! } : {}),
     })
   }
 

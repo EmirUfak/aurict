@@ -27,12 +27,12 @@ User request
 |------|----------------|----------|
 | `code` | read, write, edit, bash, glob, grep, lsp | Implementation, refactoring |
 | `review` | read, glob, grep, lsp | Code review, auditing |
-| `test` | read, write, edit, bash | Writing and running tests |
+| `test` | read, glob, grep, bash, verify | Running and evaluating tests |
 | `docs` | read, write, glob | Documentation generation |
 | `debug` | read, bash, grep, glob, lsp | Debugging, tracing errors |
-| `security` | read, grep, glob | Security audits |
+| `security` | read, grep, glob, security tools | Security audits and controlled scans |
 | `performance` | read, bash, grep, glob | Performance analysis |
-| `analytics` | read, bash, grep | Data analysis, metrics |
+| `analytics` | read, grep, webfetch | Data analysis, metrics |
 | `explore` | read, glob, grep | Codebase exploration |
 
 ---
@@ -74,7 +74,7 @@ The subagent runs with restricted tools (based on type), executes in its own thr
 
 ## Agent pool
 
-The pool manages up to 8 concurrent workers. Workers are reused across tasks within a session.
+The pool manages up to 8 concurrent workers per parent session. Worker names and broadcasts are scoped to that parent session, and each worker is terminated when its task completes.
 
 ```bash
 # View pool status

@@ -5,10 +5,25 @@ import type { ToolCategory } from "../tool/types.js"
 import { getToolCategory } from "./categories.js"
 
 // Session boyunca onaylanan/reddedilen izinleri tutar
-const approved = new Set<string>()
-const approvedDirs = new Set<string>()
-// Kategori bazlı session izinleri ("write" → "allow_session")
-const categoryApprovals = new Map<ToolCategory, CategoryPermission>()
+interface PermissionState {
+  approved: Set<string>
+  approvedDirs: Set<string>
+  categoryApprovals: Map<ToolCategory, CategoryPermission>
+}
+
+const states = new Map<string, PermissionState>()
+
+function state(scope = "global"): PermissionState {
+  const existing = states.get(scope)
+  if (existing) return existing
+  const created: PermissionState = {
+    approved: new Set(),
+    approvedDirs: new Set(),
+    categoryApprovals: new Map(),
+  }
+  states.set(scope, created)
+  return created
+}
 
 interface PersistedData {
   version: 1
@@ -39,24 +54,26 @@ function isInsideDir(path: string, dir: string): boolean {
 }
 
 export const PermissionStore = {
-  isApproved(tool: string, pattern: string): boolean {
-    if (approved.has(key(tool, pattern))) return true
-    for (const dir of approvedDirs) {
-      const [dirTool, dirPath] = dir.split(":", 2)
-      if (dirTool === tool && dirPath && isInsideDir(pattern, dirPath)) return true
+  isApproved(tool: string, pattern: string, scope = "global"): boolean {
+    const candidates = scope === "global" ? [state()] : [state(scope), state()]
+    for (const candidate of candidates) {
+      if (candidate.approved.has(key(tool, pattern))) return true
+      for (const dir of candidate.approvedDirs) {
+        const [dirTool, dirPath] = dir.split(":", 2)
+        if (dirTool === tool && dirPath && isInsideDir(pattern, dirPath)) return true
+      }
     }
     return false
   },
-  approve(tool: string, pattern: string): void {
-    approved.add(key(tool, pattern))
+  approve(tool: string, pattern: string, scope = "global"): void {
+    state(scope).approved.add(key(tool, pattern))
   },
-  approveDirectory(tool: string, pattern: string): void {
-    approvedDirs.add(key(tool, dirname(pattern)))
+  approveDirectory(tool: string, pattern: string, scope = "global"): void {
+    state(scope).approvedDirs.add(key(tool, dirname(pattern)))
   },
-  clear(): void {
-    approved.clear()
-    approvedDirs.clear()
-    categoryApprovals.clear()
+  clear(scope?: string): void {
+    if (scope !== undefined) states.delete(scope)
+    else states.clear()
   },
 
   loadPersisted(path: string): void {
@@ -64,8 +81,8 @@ export const PermissionStore = {
       const raw  = readFileSync(path, "utf8")
       const data = JSON.parse(raw) as PersistedData
       if (data.version !== 1) return
-      for (const entry of data.approved)     approved.add(entry)
-      for (const entry of data.approvedDirs) approvedDirs.add(entry)
+      for (const entry of data.approved)     state().approved.add(entry)
+      for (const entry of data.approvedDirs) state().approvedDirs.add(entry)
     } catch { /* file absent or malformed — silent skip */ }
   },
 
@@ -74,8 +91,8 @@ export const PermissionStore = {
       mkdirSync(pathDirname(path), { recursive: true })
       const data: PersistedData = {
         version:      1,
-        approved:     [...approved],
-        approvedDirs: [...approvedDirs],
+        approved:     [...state().approved],
+        approvedDirs: [...state().approvedDirs],
       }
       writeFileSync(path, JSON.stringify(data, null, 2), "utf8")
     } catch { /* non-fatal */ }
@@ -83,23 +100,24 @@ export const PermissionStore = {
 
   // ── Kategori bazlı onay ────────────────────────────────────────────────────
   /** "Bu session boyunca tüm write işlemlerine izin ver" gibi toplu onay */
-  approveCategory(category: ToolCategory, perm: CategoryPermission = "allow_session"): void {
-    categoryApprovals.set(category, perm)
+  approveCategory(category: ToolCategory, perm: CategoryPermission = "allow_session", scope = "global"): void {
+    state(scope).categoryApprovals.set(category, perm)
   },
   /** Tool adından kategorisini bulup session izni var mı kontrol et */
-  isCategoryApproved(toolName: string): boolean {
+  isCategoryApproved(toolName: string, scope = "global"): boolean {
     const cat = getToolCategory(toolName)
-    return categoryApprovals.get(cat) === "allow_session"
+    return state(scope).categoryApprovals.get(cat) === "allow_session"
+      || (scope !== "global" && state().categoryApprovals.get(cat) === "allow_session")
   },
-  getCategoryPermission(toolName: string): CategoryPermission | undefined {
+  getCategoryPermission(toolName: string, scope = "global"): CategoryPermission | undefined {
     const cat = getToolCategory(toolName)
-    return categoryApprovals.get(cat)
+    return state(scope).categoryApprovals.get(cat) ?? (scope !== "global" ? state().categoryApprovals.get(cat) : undefined)
   },
-  listCategoryApprovals(): Array<{ category: ToolCategory; perm: CategoryPermission }> {
-    return [...categoryApprovals.entries()].map(([category, perm]) => ({ category, perm }))
+  listCategoryApprovals(scope = "global"): Array<{ category: ToolCategory; perm: CategoryPermission }> {
+    return [...state(scope).categoryApprovals.entries()].map(([category, perm]) => ({ category, perm }))
   },
-  listDirectoryApprovals(): Array<{ tool: string; dir: string }> {
-    return [...approvedDirs].map((entry) => {
+  listDirectoryApprovals(scope = "global"): Array<{ tool: string; dir: string }> {
+    return [...state(scope).approvedDirs].map((entry) => {
       const idx = entry.indexOf(":")
       return { tool: entry.slice(0, idx), dir: entry.slice(idx + 1) }
     })

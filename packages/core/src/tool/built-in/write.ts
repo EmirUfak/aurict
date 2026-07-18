@@ -5,6 +5,7 @@ import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 import { snapshotManager } from "../../snapshot/snapshot.js"
 import { computeDiff } from "../../util/diff.js"
 import type { DiffHunk } from "../../util/diff.js"
+import { resolveWithinWorkspace } from "../../security/path-boundary.js"
 
 const MAX_DIFF_BYTES = 500_000
 const MAX_PREVIEW_LINES = 50
@@ -23,10 +24,10 @@ function hunksToUnifiedDiff(hunks: DiffHunk[], relPath: string): string {
   return out.join("\n")
 }
 
-async function takeSnapshotBestEffort(filePath: string): Promise<void> {
+async function takeSnapshotBestEffort(filePath: string, scope: string): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined
   await Promise.race([
-    snapshotManager.takeSnapshot(filePath),
+    snapshotManager.takeSnapshot(filePath, scope),
     new Promise<void>((resolve) => {
       timer = setTimeout(resolve, 5_000)
     }),
@@ -43,9 +44,14 @@ export const writeTool: ToolDef = {
     content: z.string().describe("Full content to write"),
   }),
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
-    const filePath = resolve(ctx.workdir, String(args["path"] ?? ""))
+    let filePath: string
+    try {
+      filePath = await resolveWithinWorkspace(ctx.workdir, String(args["path"] ?? ""), { allowMissing: true })
+    } catch (error) {
+      return { output: "", error: `Security: ${error instanceof Error ? error.message : String(error)}` }
+    }
     const content  = String(args["content"] ?? "")
-    await takeSnapshotBestEffort(filePath)
+    await takeSnapshotBestEffort(filePath, `${ctx.workdir}\0${ctx.sessionId}`)
     // Eski içeriği oku (diff için) — sadece dosya varsa ve küçükse
     let oldContent: string | null = null
     try {

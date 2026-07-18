@@ -10,35 +10,51 @@ export type { Snapshot } from "./types.js"
 const MAX_SNAPSHOT_BYTES = 1_000_000
 
 class SnapshotManager {
-  private history: Snapshot[] = []
+  private histories = new Map<string, Snapshot[]>()
+  private persistQueue: Promise<void> = Promise.resolve()
   private storageDir: string | null =
     process.env["AURICT_SNAPSHOT_DIR"] ?? path.join(homedir(), ".aurict", "snapshots")
 
   setStorageDir(dir: string | null): void {
     this.storageDir = dir
-    this.history = []
+    this.histories.clear()
   }
 
   getStorageDir(): string | null {
     return this.storageDir
   }
 
-  private async persist(): Promise<void> {
-    const result = await persistHistory(this.storageDir, this.history)
-    this.history = result.history
-    if (result.disableStorage) this.storageDir = null
+  private history(scope = "default"): Snapshot[] {
+    const existing = this.histories.get(scope)
+    if (existing) return existing
+    const created: Snapshot[] = []
+    this.histories.set(scope, created)
+    return created
+  }
+
+  private persist(): Promise<void> {
+    this.persistQueue = this.persistQueue.then(async () => {
+      const combined = [...this.histories.values()].flat()
+      const result = await persistHistory(this.storageDir, combined)
+      this.histories.clear()
+      for (const snapshot of result.history) this.history(snapshot.scope ?? "default").push(snapshot)
+      if (result.disableStorage) this.storageDir = null
+    })
+    return this.persistQueue
   }
 
   async loadPersisted(): Promise<number> {
-    this.history = await loadPersistedHistory(this.storageDir)
-    return this.history.length
+    const loaded = await loadPersistedHistory(this.storageDir)
+    this.histories.clear()
+    for (const snapshot of loaded) this.history(snapshot.scope ?? "default").push(snapshot)
+    return loaded.length
   }
 
   /**
    * Dosyanın mevcut halini belleğe kopyalar (yedekler).
    * @param filePath Yedeklenecek dosya yolu
    */
-  async takeSnapshot(filePath: string): Promise<void> {
+  async takeSnapshot(filePath: string, scope = "default"): Promise<void> {
     const absolutePath = path.resolve(filePath)
     try {
       const stat = await fs.stat(absolutePath)
@@ -48,23 +64,25 @@ class SnapshotManager {
       }
       const content = await fs.readFile(absolutePath, "utf-8")
 
-      this.history.push({
+      this.history(scope).push({
         id: crypto.randomUUID(),
         filePath: absolutePath,
         originalContent: content,
         existed: true,
         timestamp: Date.now(),
+        ...(scope === "default" ? {} : { scope }),
       })
       await this.persist()
     } catch (err) {
       // Dosya henüz yoksa (yeni oluşturuluyorsa) yedeklenecek bir şey yok
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        this.history.push({
+        this.history(scope).push({
           id: crypto.randomUUID(),
           filePath: absolutePath,
           originalContent: "",
           existed: false,
           timestamp: Date.now(),
+          ...(scope === "default" ? {} : { scope }),
         })
         await this.persist()
       } else {
@@ -77,8 +95,19 @@ class SnapshotManager {
    * En son yedeği geri yükler.
    * @returns Geri yüklenen dosyanın yolu veya yapılamadıysa null
    */
-  async undoLast(): Promise<string | null> {
-    const last = this.history.pop()
+  async undoLast(scope?: string): Promise<string | null> {
+    let selectedScope = scope ?? "default"
+    if (scope === undefined && this.history(selectedScope).length === 0) {
+      let newest = -1
+      for (const [candidateScope, snapshots] of this.histories) {
+        const timestamp = snapshots.at(-1)?.timestamp ?? -1
+        if (timestamp > newest) {
+          newest = timestamp
+          selectedScope = candidateScope
+        }
+      }
+    }
+    const last = this.history(selectedScope).pop()
     if (!last) {
       return null
     }
@@ -94,20 +123,20 @@ class SnapshotManager {
   }
 
   /** Mevcut history uzunluğunu döner — checkpoint referansı olarak kullanılır */
-  mark(): number {
-    return this.history.length
+  mark(scope = "default"): number {
+    return this.history(scope).length
   }
 
-  getHistoryLength(): number {
-    return this.history.length
+  getHistoryLength(scope = "default"): number {
+    return this.history(scope).length
   }
 
   /**
    * mark'tan sonra eklenen tüm snapshot'ları geri yükler.
    * @returns Geri yüklenen dosya yolları
    */
-  async restoreToMark(mark: number): Promise<string[]> {
-    const toRestore = this.history.splice(mark)
+  async restoreToMark(mark: number, scope = "default"): Promise<string[]> {
+    const toRestore = this.history(scope).splice(mark)
     const restored: string[] = []
     // Tersine çevir: en son alınan snapshot önce geri yüklenir
     for (const snap of toRestore.reverse()) {
@@ -125,8 +154,13 @@ class SnapshotManager {
   /**
    * Geçmişi temizler.
    */
-  clear(): void {
-    this.history = []
+  clear(scope?: string): void {
+    if (scope !== undefined) {
+      this.histories.delete(scope)
+      void this.persist()
+      return
+    }
+    this.histories.clear()
     clearHistoryFile(this.storageDir)
   }
 }

@@ -1,12 +1,13 @@
 import { createOpenAICompatiblePlugin } from "./openai-compatible-factory.js"
 import type { ProviderPlugin } from "./plugin.js"
+import { providerEnv } from "./credentials.js"
 
 export function createNvidiaPlugin(): ProviderPlugin {
   return createOpenAICompatiblePlugin({
     id:           "nvidia",
     name:         "NVIDIA NIM",
     baseURL:      "https://integrate.api.nvidia.com/v1",
-    getApiKey:    () => process.env["NVIDIA_API_KEY"],
+    getApiKey:    () => providerEnv("NVIDIA_API_KEY"),
     defaultModel: "meta/llama-3.3-70b-instruct",
     modelsEndpoint: "https://integrate.api.nvidia.com/v1/models",
     models: [

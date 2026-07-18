@@ -17,28 +17,10 @@ import { motionEnabled } from "./design-system/motion.js"
 import type { AgentInfo } from "@aurict/core"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
+import { agentTone } from "./theme/agent-tone.js"
+import { useSemanticTheme } from "./theme/semantic-theme.js"
 
 const EVICT_AFTER_MS = 6_000
-
-const TYPE_COLOR: Record<string, string> = {
-  explore:     "#0ea5e9",
-  code:        "#38bdf8",
-  review:      "#f59e0b",
-  test:        "#a78bfa",
-  docs:        "#64748b",
-  performance: "#f97316",
-  analytics:   "#fb923c",
-  security:    "#ef4444",
-  pentest:     "#dc2626",
-  adviser:     "#8b5cf6",
-  reporter:    "#64748b",
-  debug:       "#ec4899",
-  refactor:    "#06b6d4",
-  devops:      "#8b5cf6",
-  design:      "#e879f9",
-  data:        "#14b8a6",
-  critic:      "#94a3b8",
-}
 
 const RADAR_FRAMES = ["◜", "◠", "◝", "◞", "◡", "◟"]
 const SCAN_FRAMES = ["▰▱▱▱", "▱▰▱▱", "▱▱▰▱", "▱▱▱▰"]
@@ -64,6 +46,7 @@ interface Props {
 
 export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, onSelectAgent }: Props) {
   const theme = useTheme()
+  const semantic = useSemanticTheme()
   const [visible, setVisible] = useState<VisibleAgent[]>([])
   const [now, setNow]         = useState(() => Date.now())
   const [frame, setFrame]     = useState(0)
@@ -154,7 +137,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
         const isRunning   = info.status === "running"
         const isDone      = info.status === "done"
         const isError     = info.status === "error"
-        const color       = TYPE_COLOR[info.type] ?? theme.accent
+        const color       = agentTone(info.type, semantic)
         const prefix      = isSelected ? "▶ " : "  "
         const bullet      = isViewed ? "●" : "○"
         const statusIcon  = isRunning ? (frame + i) % 2 === 0 ? "◆" : "◇" : isDone ? "✓" : "!"

@@ -3,6 +3,7 @@ import { Box, Text } from "ink"
 import { tokenizeLine, detectLang, C, type Lang } from "../utils/highlight.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
 import { useTheme } from "../utils/theme.js"
+import { useSemanticTheme, type SemanticTheme } from "./theme/semantic-theme.js"
 
 interface Props {
   content: string
@@ -166,7 +167,7 @@ function parseBlocks(content: string): Block[] {
 
 // ── Inline renderer ───────────────────────────────────────────────────────────
 
-function renderInline(text: string, key: number, width?: number): React.ReactNode {
+function renderInline(text: string, key: number, width: number | undefined, theme: SemanticTheme): React.ReactNode {
   const parts: React.ReactNode[] = []
   // Bold, italic, strikethrough, inline code, link — includes __ and _ variants
   const re = /(\[([^\]]+)\]\(([^)]+)\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|_[^_\n]+_|\*[^*\n]+\*|~~[^~\n]+~~)/g
@@ -183,8 +184,8 @@ function renderInline(text: string, key: number, width?: number): React.ReactNod
       const short = url.length > 40 ? url.slice(0, 37) + "…" : url
       parts.push(
         <Text key={k++}>
-          <Text color="#7ab4e8" underline>{label}</Text>
-          <Text color="#52525b" dimColor>{" ("}{short}{")"}</Text>
+          <Text color={theme.markdown.link} underline>{label}</Text>
+          <Text color={theme.foreground.muted}>{" ("}{short}{")"}</Text>
         </Text>
       )
     } else if (tok.startsWith("**") || tok.startsWith("__")) {
@@ -195,7 +196,7 @@ function renderInline(text: string, key: number, width?: number): React.ReactNod
       parts.push(<Text key={k++} italic>{tok.slice(1, -1)}</Text>)
     } else {
       // inline code
-      parts.push(<Text key={k++} color={C.string}>{tok.slice(1, -1)}</Text>)
+      parts.push(<Text key={k++} color={theme.markdown.code}>{tok.slice(1, -1)}</Text>)
     }
     cur = m.index + tok.length
   }
@@ -282,6 +283,7 @@ function TableView({
 
 export function Markdown({ content, width }: Props) {
   const theme     = useTheme()
+  const semantic  = useSemanticTheme()
   const blocks    = parseBlocks(content)
   const terminalCols = useTerminalSize().columns
   const termWidth = Math.max(20, width ?? terminalCols)
@@ -295,7 +297,7 @@ export function Markdown({ content, width }: Props) {
             return (
               <Box key={bi} flexDirection="column" marginTop={1} marginBottom={0}>
                 <Box gap={1}>
-                  <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth)}</Text>
+                  <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth, semantic)}</Text>
                 </Box>
                 <Text color={theme.borderDim}>{"─".repeat(Math.min(b.text.length + 2, termWidth - 4))}</Text>
               </Box>
@@ -305,7 +307,7 @@ export function Markdown({ content, width }: Props) {
             return (
               <Box key={bi} marginTop={1} marginBottom={0} gap={1}>
                 <Text bold color={theme.accent}>◆</Text>
-                <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth - 4)}</Text>
+                <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth - 4, semantic)}</Text>
               </Box>
             )
 
@@ -313,7 +315,7 @@ export function Markdown({ content, width }: Props) {
             return (
               <Box key={bi} marginTop={1} marginBottom={0} gap={1}>
                 <Text color={theme.accentAlt}>▸</Text>
-                <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth - 4)}</Text>
+                <Text bold color={theme.textPrimary}>{renderInline(b.text, 0, termWidth - 4, semantic)}</Text>
               </Box>
             )
 
@@ -355,15 +357,15 @@ export function Markdown({ content, width }: Props) {
                     return (
                       <Box key={ii} gap={1} paddingLeft={indent}>
                         <Text color={theme.textDim}>○</Text>
-                        {renderInline(item.text, ii, Math.max(10, termWidth - indent - 4))}
+                        {renderInline(item.text, ii, Math.max(10, termWidth - indent - 4), semantic)}
                       </Box>
                     )
                   }
                   // Normal liste maddesi
                   return (
                     <Box key={ii} gap={1} paddingLeft={indent}>
-                      <Text color={theme.accent}>{b.ordered ? `${ii + 1}.` : "•"}</Text>
-                      {renderInline(item.text, ii, Math.max(10, termWidth - indent - 4))}
+                      <Text color={semantic.markdown.bullet}>{b.ordered ? `${ii + 1}.` : "•"}</Text>
+                      {renderInline(item.text, ii, Math.max(10, termWidth - indent - 4), semantic)}
                     </Box>
                   )
                 })}
@@ -401,7 +403,7 @@ export function Markdown({ content, width }: Props) {
             return (
               <Box key={bi} flexDirection="column" marginTop={bi > 0 ? 1 : 0}>
                 {(b as { kind: "text"; lines: string[] }).lines.map((line, li) =>
-                  renderInline(line, li, termWidth)
+                  renderInline(line, li, termWidth, semantic)
                 )}
               </Box>
             )

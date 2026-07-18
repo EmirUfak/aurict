@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS parts (
   tokens     INTEGER,
   created_at INTEGER NOT NULL
 );
+CREATE UNIQUE INDEX IF NOT EXISTS parts_session_sequence_idx
+  ON parts(session_id, sequence);
 CREATE TABLE IF NOT EXISTS tool_calls (
   id          TEXT    PRIMARY KEY NOT NULL,
   part_id     TEXT    NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
@@ -63,6 +65,34 @@ function ensureLegacySessionColumns(sqlite: Database): void {
   }
 }
 
+function ensurePartSequenceIntegrity(sqlite: Database): void {
+  const needsRepair = sqlite.query(`
+    SELECT 1
+    FROM parts
+    WHERE sequence < 0
+    UNION ALL
+    SELECT 1
+    FROM parts
+    GROUP BY session_id, sequence
+    HAVING COUNT(*) > 1
+    LIMIT 1
+  `).get()
+  if (needsRepair) {
+    sqlite.run(`
+      WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY session_id
+          ORDER BY created_at, id
+        ) - 1 AS next_sequence
+        FROM parts
+      )
+      UPDATE parts
+      SET sequence = (SELECT next_sequence FROM ranked WHERE ranked.id = parts.id)
+    `)
+  }
+  sqlite.run(`CREATE UNIQUE INDEX IF NOT EXISTS parts_session_sequence_idx ON parts(session_id, sequence)`)
+}
+
 function createDb() {
   ensureCoreStateDir()
   const sqlite = new Database(coreStatePath("aurict.db"), { create: true })
@@ -73,10 +103,11 @@ function createDb() {
 
   // Each statement is independently idempotent. Legacy columns are handled by
   // an explicit schema inspection below; unexpected SQLite failures propagate.
-  for (const stmt of INIT_SQL.split(";").map(s => s.trim()).filter(s => s.length > 0)) {
+  for (const stmt of INIT_SQL.split(";").map(s => s.trim()).filter(s => s.length > 0 && !s.startsWith("CREATE UNIQUE INDEX"))) {
     sqlite.run(stmt)
   }
   ensureLegacySessionColumns(sqlite)
+  ensurePartSequenceIntegrity(sqlite)
 
   return drizzle(sqlite, { schema })
 }

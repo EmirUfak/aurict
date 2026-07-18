@@ -7,6 +7,7 @@ import type { ContinuationDecision, ContinuationTaskState } from "./continuation
 import type { CompletionGateDecision } from "./completion-gate.js"
 import type { LongTaskContinuationDecision } from "./continuation-controller.js"
 import type { TaskLedger } from "./task-ledger.js"
+import type { ToolResultArtifact } from "./tool-result-artifact.js"
 
 export interface AgentContinuationOptions {
   getTasks?: (() => ContinuationTaskState[]) | undefined
@@ -62,7 +63,7 @@ export interface AgentRunOptions {
   continuation?:   AgentContinuationOptions
   onText?:        (delta: string, isReasoning?: boolean) => void
   onToolCall?:    (call: { id: string; tool: string; args: unknown }) => void
-  onToolResult?:  (res:  { id: string; result: string; durationMs: number }) => void
+  onToolResult?:  (res: AgentToolResultEvent) => void
   /** Bash tool çalışırken gelen canlı stdout/stderr chunk'ları */
   onChunk?:       (chunk: string) => void
   onStepFinish?:  () => void
@@ -78,6 +79,14 @@ export interface AgentRunOptions {
   /** Stream başlamadan önceki aşamaları görünür kılar. */
   onPhase?:       (phase: AgentRunPhase) => void
   onFinish?:      (result: AgentFinishResult) => void
+}
+
+export interface AgentToolResultEvent {
+  id: string
+  tool: string
+  result: string
+  durationMs: number
+  artifact: ToolResultArtifact
 }
 
 export interface TokenBreakdown {

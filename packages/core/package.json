@@ -1,6 +1,6 @@
 {
   "name": "@aurict/core",
-  "version": "1.2.5",
+  "version": "1.2.8",
   "private": false,
   "type": "module",
   "description": "Aurict core engine — agent loop, tools, sessions, providers",
@@ -46,5 +46,17 @@
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5.8.0"
+  },
+  "peerDependencies": {
+    "playwright-core": "*",
+    "puppeteer-core": "*"
+  },
+  "peerDependenciesMeta": {
+    "playwright-core": {
+      "optional": true
+    },
+    "puppeteer-core": {
+      "optional": true
+    }
   }
 }

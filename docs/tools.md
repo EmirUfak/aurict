@@ -72,9 +72,11 @@ Execute a shell command.
 **Permission:** safe commands auto-allow; warning requires approval; danger always asks
 
 The command is classified by a bash analyzer before execution:
-- **safe** — read-only (`ls`, `cat`, `grep`, `find`, `git status`, …)
+- **safe** — read-only commands that do not bypass file-content boundaries (`ls`, `find`, `git status`, …)
 - **warning** — writes or network (`npm install`, `git commit`, file writes)
 - **danger** — destructive (`rm -rf`, `git reset --hard`, `dd`, format commands)
+
+Shell file readers such as `cat`, `head`, `tail`, `grep`, and `rg` require explicit approval because they bypass the dedicated `read`/`grep` tools' workspace and symlink checks. Subagents must use the dedicated tools.
 
 `run` waits up to 3 seconds. Longer commands are moved to the background and return a session ID.
 

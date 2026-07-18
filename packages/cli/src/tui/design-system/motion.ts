@@ -29,15 +29,15 @@ export function useBlinkFrame(): boolean {
   return on
 }
 
-export function usePulseFrame(): number {
+export function usePulseFrame(active = true): number {
   const [frame, setFrame] = useState(0)
   useEffect(() => {
-    if (!motionEnabled()) {
+    if (!active || !motionEnabled()) {
       setFrame(0)
       return
     }
     const t = setInterval(() => setFrame((n) => (n + 1) % Number.MAX_SAFE_INTEGER), PULSE_INTERVAL_MS)
     return () => clearInterval(t)
-  }, [])
+  }, [active])
   return frame
 }

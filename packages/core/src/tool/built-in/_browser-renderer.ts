@@ -38,6 +38,10 @@ export type ImageOptions = {
 
 let _executablePath: string | null | undefined = undefined
 
+function importOptional(specifier: string): Promise<unknown> {
+  return import(specifier)
+}
+
 export async function findChromium(): Promise<string | null> {
   if (_executablePath !== undefined) return _executablePath
 
@@ -84,13 +88,11 @@ export async function renderHtmlToPdf(
   let chromium: unknown
   let usePuppeteer = false
   try {
-    // @ts-ignore — optional peer dependency
-    const pw = await import("playwright-core")
+    const pw = await importOptional("playwright-core") as { chromium?: unknown }
     chromium = pw.chromium
   } catch {
     try {
-      // @ts-ignore — optional peer dependency
-      const pp = await import("puppeteer-core")
+      const pp = await importOptional("puppeteer-core") as { default?: unknown }
       chromium = pp.default
       usePuppeteer = true
     } catch {
@@ -141,13 +143,11 @@ export async function renderHtmlToImage(
   let chromium: unknown
   let usePuppeteer = false
   try {
-    // @ts-ignore — optional peer dependency
-    const pw = await import("playwright-core")
+    const pw = await importOptional("playwright-core") as { chromium?: unknown }
     chromium = pw.chromium
   } catch {
     try {
-      // @ts-ignore — optional peer dependency
-      const pp = await import("puppeteer-core")
+      const pp = await importOptional("puppeteer-core") as { default?: unknown }
       chromium = pp.default
       usePuppeteer = true
     } catch {

@@ -97,6 +97,7 @@ for (const t of [
 
 export const ToolRegistry = {
   register(tool: ToolDef): void { tools.set(tool.id, tool) },
+  unregister(id: string): boolean { return tools.delete(id) },
   get(id: string): ToolDef | undefined { return tools.get(id) },
   list(): ToolDef[] { return [...tools.values()] },
   has(id: string): boolean { return tools.has(id) },

@@ -4,7 +4,9 @@ import {
   wrapTranscriptText,
 } from "../src/tui/conversation/line-buffer.js"
 import { wrapLine } from "../src/tui/event-system/wrap-line.js"
-import type { DisplayMessage } from "../src/tui/Message.js"
+import type { DisplayMessage } from "../src/tui/conversation/types.js"
+import { coalesceInterruptedAssistantBlocks } from "../src/tui/conversation/block-flow.js"
+import { proseLayout } from "../src/tui/conversation/readability.js"
 
 describe("conversation line buffer", () => {
   it("uses Ink's exact hard-wrap algorithm for every transcript line", () => {
@@ -43,18 +45,65 @@ describe("conversation line buffer", () => {
 
     const lines = buildTranscriptLines(messages, 48, null, null, null)
     expect(lines.map((line) => line.text)).toEqual(expect.arrayContaining([
-      "◆ you",
+      "▸ You",
       "write a report",
-      "◇ aurict",
+      "◇ Aurict",
       "I will prepare it.",
-      "╭─ ✦ write · complete",
-      "│ create file · report.md",
-      "│ saved report.md",
-      "╰─ 1 output lines · Ctrl+O inspect",
+      "• Wrote report.md",
+      "  │ saved report.md",
       "The report is ready.",
     ]))
     expect(lines.findIndex((line) => line.text === "I will prepare it."))
-      .toBeLessThan(lines.findIndex((line) => line.text === "╭─ ✦ write · complete"))
+      .toBeLessThan(lines.findIndex((line) => line.text === "• Wrote report.md"))
+  })
+
+  it("defers an unfinished pre-tool paragraph and rejoins it after tool activity", () => {
+    const blocks = coalesceInterruptedAssistantBlocks([
+      { type: "text", content: "First paragraph.\n\nLet me check whether there is more to do" },
+      { type: "tool", id: "one", tool: "bash", args: "git log", pending: false },
+      { type: "tool", id: "two", tool: "bash", args: "git status", pending: false },
+      { type: "text", content: "before answering.Thanks, I am well." },
+    ])
+
+    expect(blocks).toEqual([
+      { block: { type: "text", content: "First paragraph." }, sourceIndex: 0 },
+      { block: { type: "tool", id: "one", tool: "bash", args: "git log", pending: false }, sourceIndex: 1 },
+      { block: { type: "tool", id: "two", tool: "bash", args: "git status", pending: false }, sourceIndex: 2 },
+      { block: { type: "text", content: "Let me check whether there is more to do before answering. Thanks, I am well." }, sourceIndex: 3 },
+    ])
+  })
+
+  it("keeps complete commentary before a tool in chronological order", () => {
+    const blocks = coalesceInterruptedAssistantBlocks([
+      { type: "text", content: "I will inspect the repository." },
+      { type: "tool", id: "one", tool: "bash", args: "git status", pending: false },
+      { type: "text", content: "The repository has changes." },
+    ])
+
+    expect(blocks.map(({ block }) => block.type === "text" ? block.content : block.tool)).toEqual([
+      "I will inspect the repository.",
+      "bash",
+      "The repository has changes.",
+    ])
+  })
+
+  it("keeps tool detail identity while repairing the observed mid-sentence split", () => {
+    const lines = buildTranscriptLines([{
+      id: "assistant",
+      role: "assistant",
+      content: "",
+      blocks: [
+        { type: "text", content: "Bakayım en son nerede kaldık, yapılacak bir şey var mı" },
+        { type: "tool", id: "status", tool: "bash", args: "git status", pending: false },
+        { type: "text", content: "diye.İyidir ya, sağ ol." },
+      ],
+    }], 100, null, null, null)
+
+    const visible = lines.map((line) => line.text)
+    expect(visible.findIndex((line) => line.startsWith("• Ran git status")))
+      .toBeLessThan(visible.findIndex((line) => line.includes("var mı diye. İyidir")))
+    expect(lines.find((line) => line.text.startsWith("• Ran git status"))?.detailId)
+      .toBe("assistant:tool:1")
   })
 
   it("uses distinct identity markers and preserves message timestamps", () => {
@@ -70,8 +119,8 @@ describe("conversation line buffer", () => {
     )
 
     expect(lines.map((line) => line.text)).toEqual(expect.arrayContaining([
-      "◆ you · 09:05",
-      "◇ aurict · 09:06",
+      "▸ You · 09:05",
+      "◇ Aurict · 09:06",
     ]))
   })
 
@@ -81,7 +130,7 @@ describe("conversation line buffer", () => {
         {
           id: "markdown",
           role: "assistant",
-          content: "# Plan\n- [x] Complete\n> Review this\n```ts\nconst ready = true\n```",
+          content: "# Plan\n- [x] Complete\n- Review next\n> Review this\n```ts\nconst ready = true\n```",
         },
       ],
       48,
@@ -92,11 +141,80 @@ describe("conversation line buffer", () => {
 
     expect(lines).toEqual(expect.arrayContaining([
       expect.objectContaining({ text: "◆ Plan", tone: "heading", bold: true }),
-      expect.objectContaining({ text: "● Complete", tone: "assistant" }),
+      expect.objectContaining({ text: "● Complete", tone: "success" }),
+      expect.objectContaining({ text: "• Review next", tone: "bullet" }),
       expect.objectContaining({ text: "│ Review this", tone: "quote", italic: true }),
       expect.objectContaining({ text: "┌ ts", tone: "code" }),
       expect.objectContaining({ text: "const ready = true", tone: "code" }),
     ]))
+  })
+
+  it("gives Markdown and bold-only section headings one readable row above and below", () => {
+    const lines = buildTranscriptLines([{
+      id: "readability",
+      role: "assistant",
+      content: "Intro paragraph.\n**Changes:**\n- First item\n## Verification\nAll checks passed.",
+    }], 80, null, null, null)
+    const visible = lines.map((line) => line.text)
+    const boldSection = visible.indexOf("Changes:")
+    const markdownSection = visible.indexOf("◆ Verification")
+
+    expect(visible[boldSection - 1]).toBe("")
+    expect(visible[boldSection + 1]).toBe("")
+    expect(visible[markdownSection - 1]).toBe("")
+    expect(visible[markdownSection + 1]).toBe("")
+    expect(lines[boldSection]).toMatchObject({ tone: "heading", bold: true })
+  })
+
+  it("does not add section spacing around inline emphasis or bold sentences", () => {
+    const lines = buildTranscriptLines([{
+      id: "inline",
+      role: "assistant",
+      content: "Use **semantic color** here.\n**This is a complete sentence.**",
+    }], 80, null, null, null)
+    const visible = lines.map((line) => line.text)
+    expect(visible).toContain("Use semantic color here.")
+    expect(lines.find((line) => line.text === "This is a complete sentence.")?.tone).toBe("assistant")
+  })
+
+  it("caps wide prose with a small inset while leaving compact terminals fluid", () => {
+    expect(proseLayout(78)).toEqual({ contentWidth: 78, leftInset: 0 })
+    expect(proseLayout(138)).toEqual({ contentWidth: 110, leftInset: 2 })
+
+    const lines = buildTranscriptLines([{
+      id: "wide",
+      role: "assistant",
+      content: "word ".repeat(60),
+    }], 140, null, null, null)
+    const prose = lines.filter((line) => line.text.trim().startsWith("word"))
+    expect(prose.length).toBeGreaterThan(1)
+    expect(prose.every((line) => line.text.startsWith("  ") && line.text.length <= 112)).toBe(true)
+  })
+
+  it("steps down weight and tone for deeper heading levels", () => {
+    const lines = buildTranscriptLines([{
+      id: "levels",
+      role: "assistant",
+      content: "# Primary\n### Tertiary\n#### Detail",
+    }], 80, null, null, null)
+    expect(lines.find((line) => line.text === "◆ Primary")).toMatchObject({ tone: "heading", bold: true })
+    expect(lines.find((line) => line.text === "▸ Tertiary")).toMatchObject({ tone: "assistant", bold: true })
+    expect(lines.find((line) => line.text === "▸ Detail")).toMatchObject({ tone: "assistant" })
+    expect(lines.find((line) => line.text === "▸ Detail")?.bold).toBeUndefined()
+  })
+
+  it("keeps list items tight while giving the list one surrounding row", () => {
+    const lines = buildTranscriptLines([{
+      id: "list-rhythm",
+      role: "assistant",
+      content: "Before\n- First\n- Second\nAfter",
+    }], 80, null, null, null)
+    const visible = lines.map((line) => line.text)
+    const first = visible.indexOf("• First")
+    const second = visible.indexOf("• Second")
+    expect(visible[first - 1]).toBe("")
+    expect(second).toBe(first + 1)
+    expect(visible[second + 1]).toBe("")
   })
 
   it("keeps message and block thinking summaries visible", () => {
@@ -123,8 +241,8 @@ describe("conversation line buffer", () => {
     )
 
     expect(lines.filter((line) => line.tone === "thinking")).toEqual([
-      expect.objectContaining({ text: "∴ planning · 2 lines · Ctrl+O inspect", detailId: "reasoning:thinking" }),
-      expect.objectContaining({ text: "∴ thinking · 1 line · Ctrl+O inspect", detailId: "reasoning:text:0:thinking" }),
+      expect.objectContaining({ text: "∴ planning · Ctrl+O inspect", detailId: "reasoning:thinking" }),
+      expect.objectContaining({ text: "∴ thinking · Ctrl+O inspect", detailId: "reasoning:text:0:thinking" }),
     ])
   })
 
@@ -132,10 +250,9 @@ describe("conversation line buffer", () => {
     const lines = buildTranscriptLines([], 80, null, "Checking the test output", null)
     expect(lines).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        text: "∴ thinking in progress…",
+        text: "∴ thinking…",
         tone: "thinking",
       }),
-      expect.objectContaining({ text: "Checking the test output", tone: "thinking" }),
     ]))
   })
 
@@ -177,8 +294,7 @@ describe("conversation line buffer", () => {
     ], 80, null, null, null)
 
     expect(lines).toEqual(expect.arrayContaining([
-      expect.objectContaining({ text: "│ changed src/file.ts · +1 −1", detailId: "change:tool:0" }),
-      expect.objectContaining({ text: "╰─ actual workspace diff · Ctrl+O inspect", detailId: "change:tool:0" }),
+      expect.objectContaining({ text: "  src/file.ts  +1 −1 · Ctrl+O diff", detailId: "change:tool:0" }),
     ]))
   })
 })

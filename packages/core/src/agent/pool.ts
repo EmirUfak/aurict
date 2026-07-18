@@ -6,6 +6,7 @@ import type { Session }   from "../session/types.js"
 import type { WorkerRequest, WorkerMessage, WorkerControl, AgentType } from "./protocol.js"
 import { AGENT_TYPE_TOOLS } from "./protocol.js"
 import { agentLearner }   from "./learning.js"
+import { providerEnvironmentFromConfig } from "../provider/credentials.js"
 
 export class PoolFullError extends Error {
   constructor(max: number) {
@@ -28,13 +29,13 @@ const ENV_VAR_KEYS = [
   "AURICT_PROVIDER",
 ] as const
 
-function collectEnvVars(): Record<string, string> {
+function collectEnvVars(workdir: string): Record<string, string> {
   const vars: Record<string, string> = {}
   for (const k of ENV_VAR_KEYS) {
     const v = process.env[k]
     if (v) vars[k] = v
   }
-  return vars
+  return { ...vars, ...providerEnvironmentFromConfig(loadConfig(workdir)) }
 }
 
 export interface AgentInfo {
@@ -61,11 +62,12 @@ interface PoolEntry {
   reject:      (err: Error) => void
   onText?:     (delta: string) => void
   textBuffer:  string
+  receivedText: boolean
 }
 
 class AgentPool {
   private entries    = new Map<string, PoolEntry>()
-  private byName     = new Map<string, string>()   // name.toLowerCase() → id
+  private byName     = new Map<string, string>()   // parentSessionId\0name.toLowerCase() → id
   private listeners: Array<(agents: AgentInfo[]) => void> = []
 
   constructor() {
@@ -92,6 +94,10 @@ class AgentPool {
 
   get active(): AgentInfo[] {
     return [...this.entries.values()].map((e) => e.info)
+  }
+
+  activeFor(parentSessionId: string): AgentInfo[] {
+    return this.active.filter((agent) => agent.parentSessionId === parentSessionId)
   }
 
   listSessions(parentSessionId?: string) {
@@ -127,6 +133,10 @@ class AgentPool {
     entry.textBuffer = ""
   }
 
+  private nameKey(parentSessionId: string, name: string): string {
+    return `${parentSessionId}\0${name.toLowerCase()}`
+  }
+
   private makeTimer(id: string, ms: number): ReturnType<typeof setTimeout> {
     return setTimeout(() => {
       const entry = this.entries.get(id)
@@ -152,11 +162,15 @@ class AgentPool {
 
     if (to === "*") {
       for (const [id, entry] of this.entries) {
-        if (id === from) continue
+        if (id === from || entry.info.parentSessionId !== fromEntry?.info.parentSessionId) continue
         this.deliverMessage(entry, from, fromName, message)
       }
     } else {
-      const targetId = this.byName.get(to.toLowerCase()) ?? (this.entries.has(to) ? to : null)
+      const parentSessionId = fromEntry?.info.parentSessionId
+      if (!parentSessionId) return
+      const directEntry = this.entries.get(to)
+      const targetId = this.byName.get(this.nameKey(parentSessionId, to))
+        ?? (directEntry?.info.parentSessionId === parentSessionId ? to : null)
       if (!targetId) return
       const target = this.entries.get(targetId)
       if (!target) return
@@ -192,7 +206,10 @@ class AgentPool {
   }): Promise<string> {
     const agentsCfg  = loadConfig(opts.workdir).agents ?? {}
     const maxWorkers = agentsCfg.maxWorkers ?? DEFAULT_MAX_WORKERS
-    if (this.entries.size >= maxWorkers) {
+    const activeForParent = [...this.entries.values()].filter(
+      (entry) => entry.info.parentSessionId === opts.sessionId,
+    ).length
+    if (activeForParent >= maxWorkers) {
       return Promise.reject(new PoolFullError(maxWorkers))
     }
 
@@ -231,11 +248,12 @@ class AgentPool {
         resolve,
         reject,
         textBuffer: "",
+        receivedText: false,
         ...(opts.onText !== undefined ? { onText: opts.onText } : {}),
       }
 
       this.entries.set(opts.id, entry)
-      this.byName.set(opts.desc.toLowerCase(), opts.id)
+      this.byName.set(this.nameKey(opts.sessionId, opts.desc), opts.id)
       this.notify()
 
       hooks.emit("v1.agent.spawn", { childSessionId: subSessionId, type: opts.agentType, prompt: opts.prompt })
@@ -265,7 +283,7 @@ class AgentPool {
         allowedTools:  opts.allowedTools ?? AGENT_TYPE_TOOLS[opts.agentType],
         sessionId:     subSessionId,
         ...(opts.backendAccessToken !== undefined ? { backendAccessToken: opts.backendAccessToken } : {}),
-        envVars:       collectEnvVars(),
+        envVars:       collectEnvVars(opts.workdir),
         ...(opts.parentContext ? { parentContext: opts.parentContext } : {}),
       }
       worker.postMessage(req)
@@ -293,6 +311,7 @@ class AgentPool {
       case "text": {
         entry.onText?.(msg.delta)
         entry.textBuffer += msg.delta
+        entry.receivedText = true
         sseManager.emit(parentSessionId, {
           type: "agent_text",
           data: { id, delta: msg.delta, agentType: entry.info.type, sessionId: entry.info.sessionId },
@@ -325,12 +344,8 @@ class AgentPool {
       }
 
       case "tool_result": {
-        SessionManager.addPart({
-          sessionId,
-          role:    "tool",
-          type:    "tool_result",
-          content: typeof msg.result === "string" ? msg.result : JSON.stringify(msg.result),
-        })
+        // executeTool is the sole persistence owner for tool results. This
+        // branch only updates live UI state and emits the parent event.
         delete entry.info.currentTool
         this.notify()
         sseManager.emit(parentSessionId, {
@@ -345,7 +360,7 @@ class AgentPool {
         this.flushText(entry)
         entry.info.status = "done"
         entry.info.result = msg.result
-        if (msg.result) {
+        if (msg.result && !entry.receivedText) {
           SessionManager.addPart({
             sessionId,
             role:    "assistant",
@@ -359,7 +374,7 @@ class AgentPool {
         sseManager.emit(parentSessionId, { type: "agent_done", data: { id, result: msg.result } })
         agentLearner.recordTask(entry.info.type, true, entry.info.toolCount, Date.now() - entry.info.startedAt)
         this.entries.delete(id)
-        this.byName.delete(entry.info.name.toLowerCase())
+        this.byName.delete(this.nameKey(entry.info.parentSessionId, entry.info.name))
         this.notify()
         entry.worker.terminate()
         entry.resolve(msg.result)
@@ -376,7 +391,7 @@ class AgentPool {
         sseManager.emit(parentSessionId, { type: "agent_error", data: { id, error: msg.message } })
         agentLearner.recordTask(entry.info.type, false, entry.info.toolCount, Date.now() - entry.info.startedAt)
         this.entries.delete(id)
-        this.byName.delete(entry.info.name.toLowerCase())
+        this.byName.delete(this.nameKey(entry.info.parentSessionId, entry.info.name))
         this.notify()
         entry.worker.terminate()
         entry.reject(new Error(msg.message))
@@ -396,7 +411,7 @@ class AgentPool {
     try { entry.worker.postMessage({ type: "abort" } as WorkerControl) } catch { /* zaten kapanmış */ }
     entry.worker.terminate()
     this.entries.delete(id)
-    this.byName.delete(entry.info.name.toLowerCase())
+    this.byName.delete(this.nameKey(entry.info.parentSessionId, entry.info.name))
     this.notify()
   }
 

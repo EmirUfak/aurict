@@ -45,12 +45,14 @@ export type TextTone =
   | "user"
   | "assistant"
 
-export interface TypoProps extends Omit<TextProps, "color"> {
+export interface TypoProps extends Omit<TextProps, "color" | "dimColor"> {
   variant?: TextVariant
   tone?:    TextTone
   bold?:    boolean
   italic?:  boolean
   dim?:     boolean
+  /** Compatibility alias; semantic muted/dim tones never apply ANSI dim twice. */
+  dimColor?: boolean
   underline?: boolean
   strikethrough?: boolean
   inverse?: boolean
@@ -85,7 +87,7 @@ function toneColor(tone: TextTone, theme: ReturnType<typeof useTheme>): string {
   switch (tone) {
     case "primary":    return theme.textPrimary
     case "secondary":  return theme.textSecondary
-    case "muted":      return theme.textSecondary
+    case "muted":      return theme.textDim
     case "dim":        return theme.textDim
     case "accent":     return theme.accent
     case "accentAlt":  return theme.accentAlt
@@ -107,6 +109,7 @@ export function Typo({
   bold,
   italic,
   dim,
+  dimColor,
   underline,
   strikethrough,
   inverse,
@@ -118,7 +121,8 @@ export function Typo({
   const def   = VARIANT_DEFAULT_STYLE[variant]
   const finalBold    = bold ?? def.bold
   const finalItalic  = italic ?? def.italic
-  const finalDim     = dim ?? def.dim
+  const requestedDim = dimColor ?? dim ?? def.dim
+  const finalDim     = tone === "muted" || tone === "dim" ? false : requestedDim
 
   const color = toneColor(tone, theme)
 

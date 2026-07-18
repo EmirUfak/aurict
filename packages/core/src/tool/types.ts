@@ -3,6 +3,7 @@ import type { DistilledToolResult } from "./result-distiller.js"
 import type { FailureCooldownEntry } from "../agent/failure-cooldown.js"
 import type { SecurityDistillation } from "../security/distiller.js"
 import type { VerificationCheck, VerificationCheckResult } from "../verification/pipeline.js"
+import type { GlobalTruncationConfig } from "./truncation.js"
 
 export type ToolCategory = "read" | "write" | "execute" | "network" | "system"
 export type RiskLevel    = "low" | "medium" | "high" | "critical"
@@ -21,6 +22,7 @@ export interface ToolContext {
   signal:       AbortSignal
   provider?:    string
   model?:       string
+  truncation?:  GlobalTruncationConfig
   /** Aurict backend access token (varsa) — bkz. AgentRunOptions.backendAccessToken.
    *  Aynı süreçte çalışan subagent worker'larına yalnızca ToolContext üzerinden aktarılır. */
   backendAccessToken?: string

@@ -3,6 +3,7 @@ import { Box, Text, useInput } from "ink";
 import { useTheme } from "../utils/theme.js";
 import { useTerminalSize } from "./TerminalSizeContext.js";
 import { wrapTranscriptText } from "./conversation/line-buffer.js";
+import { glyph } from "./terminal-glyphs.js";
 
 function clean(value: string): string {
   return value.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
@@ -55,40 +56,51 @@ export function PermissionCommandPreview({
     { isActive: open },
   );
 
-  const preview = lines.slice(0, 3);
   const visible = lines.slice(offset, offset + detailRows);
+  if (!open) {
+    return (
+      <Box
+        borderStyle="single"
+        borderColor={theme.borderDim}
+        borderTop={false}
+        borderRight={false}
+        borderBottom={false}
+        paddingLeft={1}
+      >
+        <Text color={theme.textPrimary} wrap="truncate-end">
+          <Text color={theme.textDim}>{label} {glyph("statusTiny")} </Text>
+          {linePrefix}{lines[0] || " "}
+          {lines.length > 1
+            ? <Text color={theme.textDim}> {glyph("statusTiny")} +{lines.length - 1} lines {glyph("statusTiny")} d inspect</Text>
+            : null}
+        </Text>
+      </Box>
+    );
+  }
+
   return (
     <Box
       flexDirection="column"
       marginBottom={1}
       borderStyle="single"
-      borderColor={open ? theme.accent : theme.borderDim}
+      borderColor={theme.accent}
       paddingX={1}
     >
       <Text color={theme.textDim} dimColor>
         {label} · {command.length.toLocaleString()} chars · {lines.length}{" "}
         visual lines
-        {open
-          ? " · d/Esc close · ↑↓ scroll"
-          : lines.length > 3
-            ? " · d inspect full command"
-            : ""}
+        {" · d/Esc close · ↑↓ scroll"}
       </Text>
-      {(open ? visible : preview).map((line, index) => (
+      {visible.map((line, index) => (
         <Text
-          key={`${open ? offset : 0}-${index}`}
+          key={`${offset}-${index}`}
           color={theme.textPrimary}
           wrap="truncate-end"
         >
           {linePrefix}{line || " "}
         </Text>
       ))}
-      {!open && lines.length > 3 && (
-        <Text color={theme.textDim} dimColor>
-          … {lines.length - 3} more lines hidden
-        </Text>
-      )}
-      {open && lines.length > detailRows && (
+      {lines.length > detailRows && (
         <Text color={theme.textDim} dimColor>
           {offset + 1}-{Math.min(offset + detailRows, lines.length)} /{" "}
           {lines.length}

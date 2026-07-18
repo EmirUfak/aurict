@@ -6,8 +6,8 @@ import { Select, type SelectOption } from "./Select.js";
 import type { PermissionPromptDecision } from "./PermissionPrompt.js";
 import type { PermissionDecision } from "@aurict/core";
 import { PermissionScaffold } from "./PermissionScaffold.js";
-import { StatusDot } from "./design-system/StatusDot.js";
 import { PermissionCommandPreview } from "./PermissionCommandPreview.js";
+import { glyph } from "./terminal-glyphs.js";
 
 type Decision = PermissionDecision | "deny_abort" | "edit";
 
@@ -23,15 +23,6 @@ function sandboxLine(request: PermissionRequest): string | null {
     return reason ? `sandboxed · ${reason}` : "sandboxed";
   if (backend === "docker") return "docker sandbox";
   return reason ?? null;
-}
-
-function blastGauge(level: string): {
-  tone: "safe" | "warning" | "danger";
-  bars: number;
-} {
-  if (level === "danger") return { tone: "danger", bars: 5 };
-  if (level === "warning") return { tone: "warning", bars: 3 };
-  return { tone: "safe", bars: 1 };
 }
 
 export function BashPermissionRequest({ request, onDecide }: Props) {
@@ -122,74 +113,32 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
       ? "elevated privileges"
       : undefined;
   const blast = isDanger ? "high" : isWarning ? "medium" : "low";
-  const gauge = blastGauge(
-    isDanger ? "danger" : isWarning ? "warning" : "safe",
-  );
   const bareBackends = request.sandbox?.backend === "none";
 
+  const shield = bareBackends
+    ? "unsandboxed"
+    : request.sandbox?.backend === "docker"
+      ? "docker shield"
+      : "policy shield";
+  const executables = request.command?.executables?.filter(Boolean).join(", ");
+  const explanation = request.reason ?? request.permissionSummary ?? request.summary;
   const header = (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box gap={2} marginBottom={1}>
-        <Box gap={1}>
-          <Text color={theme.textDim}>blast</Text>
-          <StatusDot tone={gauge.tone} active />
-          <Text
-            color={accentColor}
-            bold
-          >{`[${"▮".repeat(gauge.bars)}${"▯".repeat(5 - gauge.bars)}] ${blast}`}</Text>
-        </Box>
-        <Text color={bareBackends ? theme.warning : theme.accentAlt}>
-          {bareBackends
-            ? "unsandboxed"
-            : request.sandbox?.backend === "docker"
-              ? "docker shield"
-              : "policy shield"}
-        </Text>
-      </Box>
+    <Box flexDirection="column">
+      <Text color={theme.textDim} wrap="truncate-end">
+        scope <Text color={accentColor} bold>{blast}</Text>
+        {` ${glyph("statusTiny")} `}
+        <Text color={bareBackends ? theme.warning : theme.accentAlt}>{shield}</Text>
+        {executables ? ` ${glyph("statusTiny")} exec ${executables}` : ""}
+      </Text>
       <PermissionCommandPreview
         command={request.pattern}
         open={showCommand}
         onOpenChange={setShowCommand}
       />
-      {request.summary && (
-        <Text color={theme.textDim} dimColor>
-          {request.summary}
+      {explanation && explanation !== sandbox && (
+        <Text color={isDanger || isWarning ? accentColor : theme.textDim} wrap="truncate-end">
+          {glyph("statusTiny")} {explanation}
         </Text>
-      )}
-      {sandbox && (
-        <Text color={theme.textDim} dimColor>
-          {sandbox}
-        </Text>
-      )}
-      {request.command?.executables &&
-        request.command.executables.length > 0 && (
-          <Box gap={1}>
-            <Text color={theme.textDim} dimColor>
-              exec
-            </Text>
-            <Text color={theme.textDim}>
-              {request.command.executables.filter(Boolean).join(", ")}
-            </Text>
-          </Box>
-        )}
-      {(request.reason || request.permissionSummary) && (
-        <Box
-          borderStyle="single"
-          borderColor={accentColor}
-          borderTop={false}
-          borderLeft={true}
-          borderRight={false}
-          borderBottom={false}
-          paddingLeft={1}
-          marginTop={1}
-        >
-          <Text
-            color={isDanger || isWarning ? accentColor : theme.accent}
-            wrap="wrap"
-          >
-            {request.reason ?? request.permissionSummary}
-          </Text>
-        </Box>
       )}
     </Box>
   );
@@ -201,9 +150,6 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
       color={accentColor}
       header={header}
     >
-      <Box marginBottom={1}>
-        <Text color={theme.textSecondary}>Do you want to proceed?</Text>
-      </Box>
       <Select
         options={options}
         selectedIndex={selectIdx}
@@ -211,12 +157,13 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
         onSelect={handleSelect}
         onCancel={() => onDecide("deny")}
         isActive={!showCommand}
+        compact
       />
-      <Box marginTop={1}>
+      <Box>
         <Text color={theme.textDim} dimColor>
           {showCommand
-            ? "d/Esc command details  ↑↓ scroll"
-            : "↑↓ select  Enter confirm  d inspect command  Esc deny"}
+            ? "d/Esc close  ↑↓ scroll"
+            : "y allow once  n deny  e edit  ←→ choose  Enter confirm  d inspect"}
         </Text>
       </Box>
     </PermissionScaffold>

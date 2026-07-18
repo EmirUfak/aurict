@@ -4,4 +4,5 @@ export interface Snapshot {
   originalContent: string
   existed: boolean
   timestamp: number
+  scope?: string
 }

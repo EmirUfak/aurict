@@ -20,6 +20,7 @@ import { useTheme } from "../../utils/theme.js"
 import type { Spacing } from "./Box.js"
 import { spacingValue } from "./Box.js"
 import { DesignBox as Box, type DesignBoxProps } from "./types.js"
+import { prefersAsciiGlyphs } from "../terminal-glyphs.js"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ function resolveBorderStyle(v: SurfaceVariant): BoxStyleKey | undefined {
     case "flat":   return "single"
     case "double": return "double"
     case "heavy":  return "bold"
-    case "ascii":  return "single"
+    case "ascii":  return "classic"
     case "sunken":
     case "ghost":  return undefined
     case "raised":
@@ -101,7 +102,8 @@ export function Surface({
   ...rest
 }: SurfaceProps) {
   const theme = useTheme()
-  const borderStyle  = resolveBorderStyle(variant)
+  const requestedBorderStyle = resolveBorderStyle(variant)
+  const borderStyle = requestedBorderStyle && prefersAsciiGlyphs() ? "classic" : requestedBorderStyle
   const borderColor  = resolveBorderColor(tone, theme, accentColor)
   const hasBorder    = borderStyle !== undefined
 
