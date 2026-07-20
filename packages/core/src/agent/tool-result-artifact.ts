@@ -55,13 +55,19 @@ function embeddedDiff(output: string): string | undefined {
   return /^(?:diff --git|---\s)/m.test(candidate) ? candidate : undefined;
 }
 
+function directDiff(output: string): string | undefined {
+  const plain = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "").replace(/\r/g, "");
+  const start = plain.search(/^(?:diff --git\s|---\s)/m);
+  return start >= 0 ? plain.slice(start) : undefined;
+}
+
 /** Converts provider-facing string output into a stable UI/IPC artifact once. */
 export function classifyToolResult(tool: string, output: string): ToolResultArtifact {
   const outputLines = output ? output.replace(/\n$/, "").split("\n").length : 0;
   const base = { output, outputLines };
   if (/^ERROR:/m.test(output)) return { ...base, kind: "error" };
 
-  const rawDiff = embeddedDiff(output);
+  const rawDiff = embeddedDiff(output) ?? directDiff(output);
   if (rawDiff) {
     const files = diffFiles(rawDiff);
     return {

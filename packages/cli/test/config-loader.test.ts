@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { coreStatePath } from "@aurict/core/storage/paths"
 import { applyFlags, loadConfig } from "../src/config/loader.js"
+import { persistThemePreference, resolveThemePreference } from "../src/config/theme-preference.js"
 
 let globalPath = ""
 let stateDir = ""
@@ -86,6 +87,18 @@ describe("CLI config loader", () => {
     expect(cfg.provider).toBe("openai")
     expect(cfg.model).toBe("gpt-test")
     expect(cfg.stream).toBe(false)
+  })
+
+  it("restores the persisted terminal theme on the next launch", () => {
+    persistThemePreference("dracula")
+
+    const restarted = loadConfig(projectDir())
+    expect(restarted.defaults?.theme).toBe("dracula")
+    expect(resolveThemePreference(restarted.defaults?.theme)).toBe("dracula")
+  })
+
+  it("fails visibly when a persisted theme is no longer available", () => {
+    expect(() => resolveThemePreference("removed-theme")).toThrow("is not available")
   })
 })
 

@@ -248,10 +248,10 @@ describe("PermissionDialog", () => {
       </PermissionDialog>,
     )
     const frame = lastFrame() ?? ""
-    expect(frame).toContain("Permission required")
+    expect(frame).toContain("Permission")
     expect(frame).toContain("Bash command")
     expect(frame).toContain("destructive operation")
-    expect(frame).toContain("DANGER")
+    expect(frame).toContain("danger")
   })
 
   test("stays bounded on a narrow terminal", () => {
@@ -266,7 +266,7 @@ describe("PermissionDialog", () => {
     expect(plain.split("\n").every((line) => line.length <= 24)).toBe(true)
   })
 
-  test("uses a centered card instead of spanning a wide terminal", () => {
+  test("aligns the inline card with the composer inset on a wide terminal", () => {
     const { lastFrame } = render(
       <TerminalSizeContext.Provider value={{ columns: 120, rows: 30 }}>
         <PermissionDialog title="Bash command" color="#ff0000">
@@ -275,9 +275,9 @@ describe("PermissionDialog", () => {
       </TerminalSizeContext.Provider>,
     )
     const plain = (lastFrame() ?? "").replace(/\x1b\[[0-9;]*m/g, "")
-    const heading = plain.split("\n").find((line) => line.includes("Permission required"))
+    const heading = plain.split("\n").find((line) => line.includes("Permission"))
     expect(heading).toBeDefined()
-    expect(heading!.trimStart().length).toBeLessThanOrEqual(84)
-    expect(heading!.length).toBeGreaterThan(heading!.trimStart().length)
+    expect(heading!.startsWith("  │")).toBe(true)
+    expect(plain.split("\n").every((line) => line.length <= 120)).toBe(true)
   })
 })

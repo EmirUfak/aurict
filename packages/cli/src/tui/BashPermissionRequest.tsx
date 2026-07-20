@@ -70,14 +70,8 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
         },
         {
           id: "allow",
-          label: "Allow for session",
-          hint: "remember until exit",
-        },
-        {
-          id: "edit",
-          label: "Edit command",
-          hint: "move command to input",
-          color: theme.accent,
+          label: "Always allow",
+          hint: "save this exact command rule",
         },
         {
           id: "deny",
@@ -110,7 +104,7 @@ export function BashPermissionRequest({ request, onDecide }: Props) {
   const subtitle = isDanger
     ? "destructive operation"
     : isWarning
-      ? "elevated privileges"
+      ? "review required"
       : undefined;
   const blast = isDanger ? "high" : isWarning ? "medium" : "low";
   const bareBackends = request.sandbox?.backend === "none";

@@ -74,14 +74,14 @@ export function FallbackPermissionRequest({ request, onDecide }: Props) {
               {
                 id: "allow_directory" as Decision,
                 label: "Allow directory",
-                hint: "remember folder for session",
+                hint: "save this folder rule",
               },
             ]
           : []),
         {
           id: "allow",
-          label: "Allow for session",
-          hint: "remember until exit",
+          label: "Always allow",
+          hint: "save this exact rule",
         },
         {
           id: "deny",

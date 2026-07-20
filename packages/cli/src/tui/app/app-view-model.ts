@@ -46,6 +46,7 @@ export function isBlockingOverlayLayer(focusLayer: FocusLayer): boolean {
   return ![
     "ready",
     "streaming",
+    "permission",
     "subagent",
     "taskPanel",
   ].includes(focusLayer);

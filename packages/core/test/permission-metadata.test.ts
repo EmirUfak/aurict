@@ -80,8 +80,24 @@ describe("permission request metadata", () => {
     off()
 
     expect(result.error).toContain("Permission denied by user")
-    expect(seen?.level).toBe("danger")
+    expect(seen?.level).toBe("warning")
     expect(seen?.reason).toContain("workspace path protections")
+  })
+
+  it("does not auto-approve shell file readers for subagents", async () => {
+    const result = await executeTool(
+      bashTool,
+      { action: "run", command: "cat package.json" },
+      {
+        workdir: process.cwd(),
+        sessionId: "subagent-test",
+        signal: new AbortController().signal,
+        isSubagent: true,
+      },
+    )
+
+    expect(result.error).toContain("requires direct user approval")
+    expect(result.error).toContain("Level: warning")
   })
 
   it("marks low-risk Aurict Modules requests safe for desktop auto-approval", async () => {

@@ -23,6 +23,7 @@ import { configuredSandboxBackend } from "./app/app-environment.js";
 export function App({
   initialProvider,
   initialModel,
+  initialTheme,
   workdir,
   system,
   undercover,
@@ -70,7 +71,7 @@ export function App({
     remoteRuntimeRef, remoteBridgeRef, streamTextRef, streamReasonRef,
     streamTimerRef, tokenRateRef, lastTokenTimeRef, turnHadToolRef,
     turnAssistantIdRef,
-  } = useAppState({ initialProvider, initialModel, workdir, updatePromise });
+  } = useAppState({ initialProvider, initialModel, initialTheme, workdir, updatePromise });
   const {
     overlayOpen,
     focusLayer,

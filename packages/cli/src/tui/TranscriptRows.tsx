@@ -1,5 +1,5 @@
 import React from "react";
-import { Text } from "ink";
+import { Box, Text } from "ink";
 import type { TranscriptRow, TranscriptTone } from "./conversation/projector.js";
 import { useSemanticTheme, type SemanticTheme } from "./theme/semantic-theme.js";
 
@@ -21,18 +21,24 @@ export function TranscriptRows({ rows, rail = false }: { rows: TranscriptRow[]; 
   const theme = useSemanticTheme();
   return <>
     {rows.map((row) => (
-      <Text key={row.id} wrap="truncate-end">
-        {rail && rowHasContent(row) && <Text color={railColor(row, theme)}>│ </Text>}
-        {row.segments.map((segment, index) => (
-          <Text
-            key={`${row.id}:${index}`}
-            color={toneColor(segment.tone, theme)}
-            {...(segment.bold ? { bold: true } : {})}
-            {...(segment.italic ? { italic: true } : {})}
-            {...(segment.dim ? { dimColor: true } : {})}
-          >{segment.text || " "}</Text>
-        ))}
-      </Text>
+      <Box
+        key={row.id}
+        width="100%"
+        {...(row.surface === "user" ? { backgroundColor: theme.surface.selected } : {})}
+      >
+        <Text wrap="truncate-end">
+          {rail && rowHasContent(row) && <Text color={railColor(row, theme)}>│ </Text>}
+          {row.segments.map((segment, index) => (
+            <Text
+              key={`${row.id}:${index}`}
+              color={toneColor(segment.tone, theme)}
+              {...(segment.bold ? { bold: true } : {})}
+              {...(segment.italic ? { italic: true } : {})}
+              {...(segment.dim ? { dimColor: true } : {})}
+            >{segment.text || " "}</Text>
+          ))}
+        </Text>
+      </Box>
     ))}
   </>;
 }

@@ -76,7 +76,6 @@ export function AppScreen(props: AppScreenProps) {
       theme={activeTheme}
       keybindingContext={keybindingContext}
       overlayOpen={blockingOverlayOpen}
-      overlayBackdrop={focusLayer !== "permission"}
       onTranscriptHeight={(rows) => setMeasuredViewportRows(Math.max(6, rows))}
       header={
         <AppHeader
@@ -282,10 +281,6 @@ export function AppScreen(props: AppScreenProps) {
             onAnswer: handleQuestionAnswer,
             onReject: handleQuestionReject,
           } : null}
-          permission={permission ? {
-            props: { request: permission, onDecide: handlePermission },
-            queueLength: permissionQueueLength,
-          } : null}
           attachmentInput={attachInput ? { path: attachPath } : null}
           expandedOutput={expandedContent ? {
             content: expandedContent.content,
@@ -338,6 +333,11 @@ export function AppScreen(props: AppScreenProps) {
             ),
           } : null}
           attachmentNames={attachments.map((attachment) => attachment.name)}
+          permission={permission ? {
+            request: permission,
+            onDecide: handlePermission,
+            queueLength: permissionQueueLength,
+          } : null}
           composer={{
             visible: viewingSubagentId === null,
             active: composerInputActive,

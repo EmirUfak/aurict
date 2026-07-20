@@ -24,7 +24,6 @@ import type { DisplayMessage } from "../conversation/types.js";
 import type { CliRemoteRuntime } from "../../remote/runtime.js";
 import { RemoteEventTypes } from "../../remote/event-codec.js";
 import { getTerminalCaps } from "../../util/terminal-caps.js";
-import { hasPendingCrashReport } from "../../util/draft.js";
 import { registerTerminalMode } from "../event-system/terminal-modes.js";
 import { installStdinResumeGuard } from "../event-system/stdin-resume.js";
 import { PERMISSION_STORE_FILE } from "../app/app-environment.js";
@@ -150,14 +149,6 @@ export function useAppLifecycle(params: Params): void {
   }, []);
 
   useEffect(() => {
-    if (hasPendingCrashReport()) {
-      params.addSystemMsg(
-        "⚠ Crash report detected from a previous session. Use /crashes to view.",
-      );
-    }
-  }, []);
-
-  useEffect(() => {
     const info = ProviderRegistry.available().find(
       (provider) => provider.id === params.initialProvider,
     );
@@ -170,7 +161,6 @@ export function useAppLifecycle(params: Params): void {
       .then((isPublic) => {
         if (!isPublic) return;
         params.setIsUndercover(true);
-        params.addSystemMsg("Public repo detected — undercover mode active");
       })
       .catch((error) => {
         params.addSystemMsg(

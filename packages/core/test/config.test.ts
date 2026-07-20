@@ -250,6 +250,12 @@ describe("setDefault", () => {
     expect(raw.defaults?.effort).toBe(8000)
   })
 
+  it("saves the terminal theme", () => {
+    setDefault("theme", "dracula")
+    const cfg = loadConfig()
+    expect(cfg.defaults?.theme).toBe("dracula")
+  })
+
   it("overwrites previous default", () => {
     setDefault("provider", "anthropic")
     setDefault("provider", "openai")

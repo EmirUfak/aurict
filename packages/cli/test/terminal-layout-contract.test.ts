@@ -27,8 +27,8 @@ describe("terminal layout contract", () => {
   test("diff and shell scenarios keep inspectable summaries", () => {
     const diff = projectTranscript({ messages: terminalScenarios.multiFileDiff!, width: 80, streamingText: null, streamingReason: null, streamingError: null });
     const shell = projectTranscript({ messages: terminalScenarios.shell!, width: 80, streamingText: null, streamingReason: null, streamingError: null });
-    expect(diff.map(rowText).join("\n")).toContain("Changed 2 files");
-    expect(diff.map(rowText).join("\n")).toContain("+2 −2 · Ctrl+O inspect");
-    expect(shell.map(rowText).join("\n")).toContain("of 80 lines hidden");
+    expect(diff.map(rowText).join("\n")).toMatch(/│ change\s+2 files · \+2 −2/);
+    expect(diff.map(rowText).join("\n")).toContain("└ completed");
+    expect(shell.map(rowText).join("\n")).toContain("80 passed · 0 failed · ctrl+o");
   });
 });

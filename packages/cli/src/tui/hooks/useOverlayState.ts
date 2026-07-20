@@ -180,7 +180,7 @@ export function useOverlayState(): OverlayState & OverlayActions {
   const [attachPath, setAttachPath] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
 
-  // Computed overlay flag — true when any full-screen overlay/modal is open
+  // Computed interaction flag — true when any focus-owning surface is open.
   const computeOverlayOpen = useCallback((extras?: {
     permission?: unknown
     picker?: unknown

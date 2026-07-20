@@ -647,6 +647,7 @@ export async function executeTool(
   let level: "safe" | "warning" | "danger" = "warning";
   let reason = "";
   let specRequiresConfirmation = false;
+  let requiresDirectApproval = false;
   let permissionMetadata: Partial<PermissionRequest> = patchSummary
     ? patchPermissionMetadata(
         patchSummary,
@@ -705,10 +706,11 @@ export async function executeTool(
     };
     if (analysis.isReadOnly && usesShellFileReader(command)) {
       // Shell readers bypass the read tool's workspace/symlink boundary. Keep
-      // them behind explicit approval; subagents cannot auto-approve danger.
+      // them behind explicit approval without presenting a read as destructive.
       if (evalDecision !== "deny") decision = "ask";
-      level = "danger";
-      reason = "Shell file readers bypass workspace path protections; use the read/grep tool instead";
+      requiresDirectApproval = true;
+      level = "warning";
+      reason = "Shell file readers bypass workspace path protections; review the target path or use the read/grep tool";
     } else if (analysis.isReadOnly) {
       // Other read-only commands: evaluator deny yoksa auto-approve
       if (evalDecision !== "deny") decision = "allow";
@@ -742,10 +744,13 @@ export async function executeTool(
       // Kategori onayı var — bireysel onay gerekmez
     } else if (ctx.isSubagent) {
       // Subagent: PermissionGate.wait() would hang forever — auto-approve non-critical asks
-      if (level === "danger" || (def.spec?.category === "network" && specRequiresConfirmation)) {
+      if (level === "danger" || requiresDirectApproval || (def.spec?.category === "network" && specRequiresConfirmation)) {
+        const explanation = level === "danger"
+          ? "is too risky to auto-approve"
+          : "requires direct user approval";
         return {
           output: "",
-          error: `Permission denied: [${def.id}] is too risky to auto-approve in subagent context. Level: danger.`,
+          error: `Permission denied: [${def.id}] ${explanation} in subagent context. Level: ${level}.`,
         };
       }
       PermissionStore.approve(

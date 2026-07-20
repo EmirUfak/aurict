@@ -14,7 +14,8 @@ import {
 } from "@aurict/core";
 import { CliRemoteRuntime, type CliRemoteStatus } from "../../remote/runtime.js";
 import type { UpdateInfo } from "../../util/update-check.js";
-import { DEFAULT_THEME } from "../../utils/theme.js";
+import { DEFAULT_THEME, THEMES } from "../../utils/theme.js";
+import { persistThemePreference } from "../../config/theme-preference.js";
 import type { ComposerQueueItem } from "../composer-queue.js";
 import type { DisplayMessage } from "../conversation/types.js";
 import type { RunActivity } from "../run-status.js";
@@ -31,6 +32,7 @@ import {
 interface AppStateOptions {
   initialProvider: string;
   initialModel: string;
+  initialTheme: string;
   workdir: string;
   updatePromise: Promise<UpdateInfo | null> | undefined;
 }
@@ -70,7 +72,15 @@ export function useAppState(options: AppStateOptions) {
   const [streamingError, setStreamingError] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<string>();
   const [runActivity, setRunActivity] = useState<RunActivity>();
-  const [themeName, setThemeName] = useState(DEFAULT_THEME);
+  const initialTheme = THEMES[options.initialTheme] ? options.initialTheme : DEFAULT_THEME;
+  const [themeName, setThemeNameState] = useState(initialTheme);
+  const themeNameRef = useRef(initialTheme);
+  const setThemeName = useCallback((value: string | ((previous: string) => string)) => {
+    const next = typeof value === "function" ? value(themeNameRef.current) : value;
+    persistThemePreference(next);
+    themeNameRef.current = next;
+    setThemeNameState(next);
+  }, []);
   const [sessionTitle, setSessionTitle] = useState<string>();
   const [isUndercover, setIsUndercover] = useState(false);
   const [coordinatorMode, setCoordinatorMode] = useState(true);

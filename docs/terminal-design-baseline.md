@@ -52,7 +52,7 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 
 - Presentation components consume Ink through `design-system/renderer.ts`. Direct Ink imports are restricted to the design-system implementation and explicit low-level renderer, measurement, input, transcript, and diff paths. The architecture test scans `src/tui` and fails when a presentation component bypasses this boundary.
 - Composer-level overlays use a discriminated `PrimaryOverlay` state, so search, command palette, settings, design wizard, shortcut help, history search, and attachment input are mutually exclusive by construction. System requests and detail views retain their independent data lifecycles, while the focus selector chooses the single mounted modal.
-- `OverlayStack` is a root-level, absolute Yoga layer rendered after the application surface. It no longer consumes a `FullscreenLayout` flex slot, so opening a modal does not resize the transcript or composer. Permission requests use the same layer without its opaque full-screen backdrop, preserving conversation context around the centered decision card.
+- `OverlayStack` is a root-level, absolute Yoga layer rendered after the application surface. It no longer consumes a `FullscreenLayout` flex slot, so opening a modal does not resize the transcript or composer. Permission requests are not modals: they render inline immediately above the composer, resize the transcript naturally, and preserve the conversation around the decision.
 - Overlay bounds adapt at 60-column and 18-row thresholds. Narrow terminals use the full safe area; larger terminals retain a small edge margin and vertically center the modal surface.
 - The composer remains mounted below a modal but receives `disabled` input state. Command/file suggestions and passive agent input are inactive while another focus layer owns the keyboard. Passive attachment summaries remain in the bottom surface rather than entering the modal stack.
 - Terminals provide opaque cell compositing rather than browser-style alpha, blur, or DOM portals. The absolute host therefore guarantees geometry and draw order; individual surfaces own their border and background treatment.
@@ -75,9 +75,9 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 ## Phase 5 recovery and permission model
 
 - Provider/runtime failures render once as a short diagnosis, original first-line detail, and concrete recovery action. Authentication, rate limit, context, connection, and cancellation failures have specific guidance.
-- Permission requests use one centered, compact, responsive decision card capped at 84 columns. The workspace stays visible behind it; risk and execution scope are textual rather than decorative gauges, and dangerous actions still default to deny.
+- Permission requests use one compact inline decision surface immediately above the composer. Risk and execution scope are textual rather than decorative gauges, and dangerous actions still default to deny.
 - Direct permission keys are `y` (allow once), `n` (deny), and for shell requests `e` (edit). Arrow/Enter selection and Escape denial remain available.
-- The permission dialog reduces padding on short or narrow terminals and is contract-tested at 24×14.
+- The permission surface uses the same responsive horizontal inset and frame width as the composer. Routine requests expose a horizontal `Allow once` / `Always allow` / `Deny` decision strip; dangerous requests omit persistent approval. The specialized granular-patch flow retains file selection and is contract-tested on narrow terminals.
 
 ## Phase 6 production hardening
 
@@ -102,6 +102,8 @@ Aurict loads custom themes from the user and project scopes in this order:
 2. `<project>/.aurict/themes.json`
 
 Project definitions may override an identically named user custom theme, but cannot replace a built-in palette. Unknown base themes, color roles, malformed values, and invalid IDs fail visibly during startup.
+
+Theme and palette selections are user preferences. Every picker, slash-command, and Settings selection is synchronously persisted to the global config before the React state changes, then restored before the next TUI mount. Unknown persisted theme IDs fail visibly instead of silently reverting to the default palette.
 
 ```json
 {
@@ -152,3 +154,7 @@ Project definitions may override an identically named user custom theme, but can
 - Successful permission approvals are transient interaction state and never create transcript rows. Denials, aborts, and edit handoffs remain visible because they change or interrupt execution.
 - Permission prompts use a compact action strip: risk, sandbox, executable, and command preview are summary-first; only the selected action exposes its hint. Long commands and patches retain a scrollable `d` detail view.
 - Horizontal permission action strips use `←/→`; vertical granular-patch actions use `↑/↓`, leaving `←/→` exclusively for patch-file navigation in that specialized view.
+- A single tool call uses a stable marker, fixed-width semantic action, primary target, and right-aligned muted metadata. Two or more adjacent successful calls render as one `activity` tree: one aggregate row per semantic family (`read`, `search`, `change`, `verify`, `git`, `web`, or `run`) and one right-aligned total-duration footer. Multi-line stdout never spills into the transcript; complete raw output remains available through `ctrl+o` on the family row.
+- Shell commands are named by intent instead of transport, so `cat` appears as `read`, test/build/lint commands as `verify`, and Git commands as `git`. Colon, flattened, and provider-safe MCP identifiers (`mcp:git:git_status`, `mcp_git_git_status`, `mcp__git__git_status`) normalize to one `git / status` identity; repeated family prefixes never enter the action column. Unknown tools retain one humanized label and an aligned singular/plural call count. Shell file readers still require explicit approval because they bypass the dedicated read tool boundary, but they are warning-level review requests rather than destructive red alerts.
+- Routine environment detection never enters the conversation. Public-repository detection silently enables undercover behavior; pending crash diagnostics appear only as a transient composer-adjacent snackbar with `/crashes` as the recovery path.
+- User turns use a quiet raised transcript surface, while assistant prose stays borderless. Activity trees have no card around every event and follow the compact `┌ activity` / `│ family` / `└ completed` visual grammar.

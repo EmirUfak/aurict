@@ -2,7 +2,10 @@ import { glyph, terminalText } from "../terminal-glyphs.js";
 import { activityLabel, type RunActivity } from "../run-status.js";
 import { wrapLine } from "../event-system/wrap-line.js";
 import type { TranscriptMessage, TranscriptBlock } from "./types.js";
-import { parseToolArtifact, type ToolArtifact } from "./tool-artifact.js";
+import { parseToolArtifact } from "./tool-artifact.js";
+import { toolRowModel } from "./tool-row-model.js";
+import { toolOutputSummary } from "./tool-output-summary.js";
+import { activityClusterModel } from "./activity-cluster.js";
 import { coalesceInterruptedAssistantBlocks } from "./block-flow.js";
 import { resolveLivePresentation } from "./live-state.js";
 import { groupAdjacentToolBlocks } from "./tool-grouping.js";
@@ -24,6 +27,7 @@ export interface TranscriptRow {
   id: string;
   segments: TranscriptSegment[];
   detailId?: string;
+  surface?: "user";
 }
 
 export interface TranscriptLine {
@@ -203,121 +207,77 @@ function thinkingSummary(content: string): string {
   return `${glyph("thinking")} ${stage} · Ctrl+O inspect`;
 }
 
-function toolLabel(tool: string): { done: string; pending: string } {
-  const labels: Record<string, { done: string; pending: string }> = {
-    bash: { done: "Ran", pending: "Running" }, shell: { done: "Ran", pending: "Running" },
-    read: { done: "Read", pending: "Reading" }, write: { done: "Wrote", pending: "Writing" },
-    edit: { done: "Edited", pending: "Editing" }, apply_patch: { done: "Patched", pending: "Patching" },
-    grep: { done: "Searched", pending: "Searching" }, glob: { done: "Explored", pending: "Exploring" },
-    websearch: { done: "Searched web", pending: "Searching web" }, webfetch: { done: "Fetched", pending: "Fetching" },
-    subagent: { done: "Delegated", pending: "Delegating" },
-  };
-  return labels[tool] ?? { done: `Used ${tool}`, pending: `Using ${tool}` };
-}
-
-function argSummary(artifact: ToolArtifact): string {
-  if (artifact.command) return artifact.command.replace(/\n/g, " ");
-  try {
-    const parsed = JSON.parse(artifact.args) as Record<string, unknown>;
-    for (const key of ["path", "query", "pattern", "url"])
-      if (typeof parsed[key] === "string") return String(parsed[key]).replace(/\n/g, " ");
-  } catch {
-    // Plain-text tool input is valid and displayed below.
-  }
-  return artifact.args.replace(/\n/g, " ");
-}
-
-function shortSubject(value: string, max: number): string {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  return normalized.length <= max ? normalized : `${normalized.slice(0, Math.max(1, max - 1))}${glyph("ellipsis")}`;
-}
-
 function pushTool(rows: TranscriptRow[], id: string, block: Extract<TranscriptBlock, { type: "tool" }>, width: number): void {
   const artifact = parseToolArtifact(block.tool, block.args, block.resultContent, block.artifact);
-  const presentation = toolLabel(block.tool);
   const failed = !block.pending && artifact.kind === "error";
-  const rawSubject = artifact.files && artifact.files.length > 1
-    ? `${artifact.files.length} files`
-    : artifact.filePath ?? argSummary(artifact);
-  const subject = shortSubject(rawSubject, Math.max(24, Math.min(96, width - 18)));
+  const presentation = toolRowModel(block.tool, artifact, width, block.durationMs);
+  const statusTone = failed ? "error" : block.pending ? "thinking" : "tool";
   pushWrapped(rows, `${id}:summary`, [
-    { text: `${block.pending ? glyph("working") : failed ? glyph("error") : glyph("bullet")} `, tone: block.pending ? "thinking" : failed ? "error" : "tool" },
-    { text: block.pending ? presentation.pending : presentation.done, tone: failed ? "error" : block.pending ? "thinking" : "tool", bold: true },
-    ...(subject ? [{ text: ` ${subject}`, tone: "assistant" as const }] : []),
-    ...(block.durationMs !== undefined && block.durationMs >= 1_000 ? [{ text: ` · ${formatDuration(block.durationMs)}`, tone: "muted" as const }] : []),
+    { text: `${block.pending ? glyph("working") : failed ? glyph("error") : glyph("tool")} `, tone: statusTone },
+    { text: presentation.action, tone: statusTone, bold: true },
+    ...(presentation.subject ? [{ text: presentation.subject, tone: "assistant" as const }] : []),
+    ...(presentation.metadata ? [{ text: presentation.spacer, tone: "muted" as const }, { text: presentation.metadata, tone: "muted" as const }] : []),
   ], width, id);
   if (block.pending) return;
   if (artifact.kind === "diff") {
     const target = artifact.files && artifact.files.length > 1
       ? `${artifact.files.length} files · ${artifact.files.join(", ")}`
       : artifact.filePath ?? "file";
-    pushWrapped(rows, `${id}:result`, [{ text: `  ${target}`, tone: "assistant" }, { text: `  +${artifact.additions ?? 0} −${artifact.deletions ?? 0} · Ctrl+O diff`, tone: "muted" }], width, id);
+    pushText(rows, `${id}:result`, `  ${glyph("close")} ${target} · +${artifact.additions ?? 0} −${artifact.deletions ?? 0} · ctrl+o`, "muted", width, id);
   } else if (artifact.kind === "write") {
-    pushWrapped(rows, `${id}:result`, [{ text: `  ${artifact.filePath ?? "file"}`, tone: "assistant" }, { text: `  ${artifact.totalLines ?? 0} lines · Ctrl+O preview`, tone: "muted" }], width, id);
+    pushText(rows, `${id}:result`, `  ${glyph("close")} ${artifact.totalLines ?? 0} lines · preview · ctrl+o`, "muted", width, id);
   } else if (artifact.kind === "patch") {
     pushWrapped(rows, `${id}:result`, [
-      { text: `  ${glyph("close")} +${artifact.additions ?? 0} −${artifact.deletions ?? 0} · Ctrl+O details`, tone: "muted" },
+      { text: `  ${glyph("close")} +${artifact.additions ?? 0} −${artifact.deletions ?? 0} · ctrl+o`, tone: "muted" },
     ], width, id);
   } else if (artifact.kind === "error") {
-    pushText(rows, `${id}:error`, `  ${glyph("quote")} ${artifact.output.split("\n")[0] ?? "tool failed"} · Ctrl+O details`, "error", width, id);
+    pushText(rows, `${id}:error`, `  ${glyph("close")} ${artifact.output.split("\n")[0] ?? "tool failed"} · ctrl+o`, "error", width, id);
   } else if (artifact.result && (artifact.kind === "shell" || !["read", "grep", "glob", "websearch", "webfetch"].includes(block.tool))) {
-    const source = clean(artifact.result).split("\n");
-    const preview = source.length > 5 ? [...source.slice(0, 3), source[source.length - 1]!] : source;
-    preview.forEach((line, index) => pushText(rows, `${id}:output:${index}`, `  ${glyph("quote")} ${line}`, "muted", width, id));
-    if (source.length > preview.length) pushText(rows, `${id}:hidden`, `  ${glyph("close")} ${source.length - preview.length} of ${source.length} lines hidden · Ctrl+O inspect`, "muted", width, id);
+    const summary = toolOutputSummary(artifact);
+    if (summary) pushText(rows, `${id}:result`, `  ${glyph("close")} ${summary} · ctrl+o`, "muted", width, id);
   }
 }
 
-const GROUPABLE_TOOL_FAMILIES: Record<string, string> = {
-  read: "read",
-  grep: "search",
-  glob: "search",
-  websearch: "web",
-  webfetch: "web",
-  write: "change",
-  edit: "change",
-  apply_patch: "change",
-};
-
 function toolGroupKey(block: Extract<TranscriptBlock, { type: "tool" }>): string | undefined {
   if (block.pending) return undefined;
-  const family = GROUPABLE_TOOL_FAMILIES[block.tool];
-  if (!family) return undefined;
   const artifact = parseToolArtifact(block.tool, block.args, block.resultContent, block.artifact);
-  return artifact.kind === "error" ? undefined : family;
+  return artifact.kind === "error" ? undefined : "activity";
 }
 
 function pushToolGroup(
   rows: TranscriptRow[],
-  id: string,
-  family: string,
+  messageId: string,
   entries: Array<{ block: Extract<TranscriptBlock, { type: "tool" }>; sourceIndex: number }>,
   width: number,
 ): void {
-  const artifacts = entries.map(({ block }) => parseToolArtifact(block.tool, block.args, block.resultContent, block.artifact));
-  const paths = [...new Set(artifacts.map((artifact) => artifact.filePath).filter((path): path is string => Boolean(path)))];
-  const additions = artifacts.reduce((sum, artifact) => sum + (artifact.additions ?? 0), 0);
-  const deletions = artifacts.reduce((sum, artifact) => sum + (artifact.deletions ?? 0), 0);
-  const duration = entries.reduce((sum, { block }) => sum + (block.durationMs ?? 0), 0);
-  const noun = family === "read" ? "Read"
-    : family === "search" ? "Searched"
-      : family === "web" ? "Researched"
-        : "Changed";
-  const unit = family === "search" ? "queries" : family === "web" ? "sources" : "files";
-  const sample = paths.length > 0
-    ? ` · ${shortSubject(paths.slice(0, 2).join(", "), Math.max(18, width - 34))}${paths.length > 2 ? ` +${paths.length - 2}` : ""}`
-    : "";
-  const diff = family === "change" ? ` · +${additions} −${deletions}` : "";
-  const timing = duration >= 1_000 ? ` · ${formatDuration(duration)}` : "";
-  pushWrapped(rows, `${id}:summary`, [
-    { text: `${glyph("bullet")} `, tone: "tool" },
-    { text: `${noun} ${entries.length} ${unit}`, tone: "tool", bold: true },
-    { text: `${sample}${diff}${timing} · Ctrl+O inspect`, tone: "muted" },
-  ], width, id);
-}
+  const firstSourceIndex = entries[0]!.sourceIndex;
+  const cluster = activityClusterModel(entries.map(({ block, sourceIndex }) => ({
+    tool: block.tool,
+    artifact: parseToolArtifact(block.tool, block.args, block.resultContent, block.artifact),
+    sourceIndex,
+    ...(block.durationMs !== undefined ? { durationMs: block.durationMs } : {}),
+  })), width);
 
-function formatDuration(durationMs: number): string {
-  return durationMs < 1_000 ? `${durationMs}ms` : `${(durationMs / 1_000).toFixed(durationMs < 10_000 ? 1 : 0)}s`;
+  pushWrapped(rows, `${messageId}:activity:${firstSourceIndex}:header`, [
+    { text: `${glyph("open")} `, tone: "tool" },
+    { text: "activity", tone: "tool", bold: true },
+  ], width);
+  cluster.rows.forEach((presentation) => {
+    const detailId = `${messageId}:tool:${presentation.detailSourceIndex}`;
+    pushWrapped(rows, `${messageId}:activity:${firstSourceIndex}:${presentation.key}`, [
+      { text: `${glyph("quote")} `, tone: "muted" },
+      { text: presentation.action, tone: "tool", bold: true },
+      { text: presentation.subject, tone: "assistant" },
+    ], width, detailId);
+  });
+  pushWrapped(rows, `${messageId}:activity:${firstSourceIndex}:completed`, [
+    { text: `${glyph("close")} `, tone: "muted" },
+    { text: cluster.completed.action, tone: "success", bold: true },
+    ...(cluster.completed.metadata ? [
+      { text: cluster.completed.spacer, tone: "muted" as const },
+      { text: cluster.completed.metadata, tone: "muted" as const },
+    ] : []),
+  ], width);
 }
 
 function timestamp(timestamp: number | undefined): string {
@@ -346,6 +306,7 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
     return;
   }
   const tone = message.role === "user" ? "user" : "assistant";
+  const messageStart = rows.length;
   const toolOnly = message.role === "assistant" && Boolean(message.blocks?.length) && message.blocks!.every((block) => block.type === "tool");
   if (!toolOnly) {
     const marker = message.role === "user" ? glyph("headingMinor") : glyph("assistant");
@@ -368,7 +329,7 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
       if (previousKind && previousKind !== kind)
         pushGap(rows, `${id}:flow:${sourceIndex}:gap`);
       if (item.kind === "tool-group") {
-        pushToolGroup(rows, `${id}:tool:${sourceIndex}`, item.key, item.entries, width);
+        pushToolGroup(rows, id, item.entries, width);
       } else if (block.type === "tool") pushTool(rows, `${id}:tool:${sourceIndex}`, block, width);
       else {
         if (block.reasoningContent) rows.push({ id: `${id}:text:${sourceIndex}:thinking`, segments: [{ text: thinkingSummary(block.reasoningContent), tone: "thinking", italic: true }], detailId: `${id}:text:${sourceIndex}:thinking` });
@@ -378,6 +339,12 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
     }
   } else pushMarkdown(rows, `${id}:body`, message.resultContent ?? message.content, tone, width);
   pushGap(rows, `${id}:gap`);
+  if (message.role === "user") {
+    for (let rowIndex = messageStart; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex]!;
+      if (!isBlankRow(row)) row.surface = "user";
+    }
+  }
 }
 
 export function projectStableTranscript(messages: TranscriptMessage[], width: number): TranscriptRow[] {

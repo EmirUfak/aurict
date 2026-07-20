@@ -442,7 +442,7 @@ describe("MultilineInput", () => {
 // ── Tool Output Rendering ────────────────────────────────────────────────────
 
 describe("Tool output rendering", () => {
-  it("summarizes and collapses long tool output", () => {
+  it("reduces long tool output to one semantic result row", () => {
     const output = Array.from({ length: 12 }, (_, i) => `line-${i + 1}`).join(
       "\n",
     );
@@ -459,11 +459,10 @@ describe("Tool output rendering", () => {
     );
 
     const frame = lastFrame() ?? "";
-    expect(frame).toContain("of 12 lines hidden");
-    expect(frame).toContain("line-1");
-    expect(frame).toContain("line-12");
-    expect(frame).toContain("8 of 12 lines hidden");
-    expect(frame).toContain("Ctrl+O inspect");
+    expect(frame).toContain("12 lines · ctrl+o");
+    expect(frame).not.toContain("line-1");
+    expect(frame).not.toContain("line-12");
+    expect(frame).toContain("ctrl+o");
   });
 
   it("renders empty expanded output explicitly", () => {

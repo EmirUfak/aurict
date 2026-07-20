@@ -156,6 +156,7 @@ export interface OmniConfig {
     provider?: string
     model?: string
     effort?: number
+    theme?: string
     /** Continuation bütçesi — Faz 6 CLI'ye taşır (şu an CLI'de hardcoded). */
     maxContinuations?: number
     maxTaskContinuations?: number
@@ -390,7 +391,7 @@ export function removeCustomProvider(id: string): void {
   save(path, cfg)
 }
 
-export function setDefault(key: "provider" | "model" | "effort", value: string | number): void {
+export function setDefault(key: "provider" | "model" | "effort" | "theme", value: string | number): void {
   const path = globalConfigPath()
   const cfg = load(path)
   cfg.defaults = cfg.defaults ?? {}

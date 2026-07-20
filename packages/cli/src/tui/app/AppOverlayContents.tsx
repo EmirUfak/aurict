@@ -15,7 +15,6 @@ import { PromptInput } from "../PromptInput.js";
 import { QuestionPrompt } from "../QuestionPrompt.js";
 import { QuickSearch } from "../QuickSearch.js";
 import { SettingsPanel } from "../SettingsPanel.js";
-import { PermissionPrompt } from "../PermissionPrompt.js";
 
 type ComponentConfig<T extends React.ElementType> = React.ComponentProps<T> | null;
 
@@ -33,10 +32,6 @@ export interface AppOverlayContentsProps {
   picker: ComponentConfig<typeof Picker>;
   prompt: ComponentConfig<typeof PromptInput>;
   question: ComponentConfig<typeof QuestionPrompt>;
-  permission: {
-    props: React.ComponentProps<typeof PermissionPrompt>;
-    queueLength: number;
-  } | null;
   attachmentInput: { path: string } | null;
   expandedOutput: ComponentConfig<typeof ExpandableOutput>;
   btw: ComponentConfig<typeof BtwPanel>;
@@ -71,22 +66,8 @@ export function AppOverlayContents(props: AppOverlayContentsProps) {
       return <PromptInput {...requireConfig(props.activeLayer, props.prompt)} />;
     case "question":
       return <QuestionPrompt {...requireConfig(props.activeLayer, props.question)} />;
-    case "permission": {
-      const permission = requireConfig(props.activeLayer, props.permission);
-      return (
-        <Box flexDirection="column">
-          <PermissionPrompt {...permission.props} />
-          {permission.queueLength > 1 && (
-            <Box paddingX={2}>
-              <Text color={props.theme.textDim} dimColor>
-                Permission 1/{permission.queueLength} · +
-                {permission.queueLength - 1} queued
-              </Text>
-            </Box>
-          )}
-        </Box>
-      );
-    }
+    case "permission":
+      return null;
     case "attach": {
       const attachmentInput = requireConfig(props.activeLayer, props.attachmentInput);
       return (

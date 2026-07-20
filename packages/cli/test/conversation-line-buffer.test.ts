@@ -50,12 +50,12 @@ describe("conversation line buffer", () => {
       "write a report",
       "◇ Aurict",
       "I will prepare it.",
-      "• Wrote report.md",
-      "  │ saved report.md",
+      expect.stringMatching(/› change\s+report\.md/),
+      "  └ saved report.md · ctrl+o",
       "The report is ready.",
     ]))
     expect(lines.findIndex((line) => line.text === "I will prepare it."))
-      .toBeLessThan(lines.findIndex((line) => line.text === "• Wrote report.md"))
+      .toBeLessThan(lines.findIndex((line) => /› change\s+report\.md/.test(line.text)))
   })
 
   it("adds one breathing row at prose and tool boundaries", () => {
@@ -70,7 +70,7 @@ describe("conversation line buffer", () => {
       ],
     }], 80, null, null, null)
     const visible = lines.map((line) => line.text)
-    const tool = visible.indexOf("• Read src/app.ts")
+    const tool = visible.findIndex((line) => /› read\s+src\/app\.ts/.test(line))
     const response = visible.indexOf("The implementation is clear.")
 
     expect(visible[tool - 1]).toBe("")
@@ -90,12 +90,26 @@ describe("conversation line buffer", () => {
       ],
     }], 80, null, null, null)
     const visible = lines.map((line) => line.text)
-    const firstTool = visible.indexOf("• Ran git status")
-    const secondTool = visible.indexOf("• Ran git diff")
+    const tool = visible.findIndex((line) => /│ git\s+status, diff/.test(line))
 
-    expect(visible[firstTool - 1]).toBe("")
-    expect(secondTool).toBe(firstTool + 1)
-    expect(visible[secondTool + 1]).toBe("")
+    expect(visible[tool - 1]).toBe("┌ activity")
+    expect(visible[tool + 1]).toBe("└ completed")
+    expect(lines[tool]?.detailId).toBe("tool-cluster:tool:1")
+    expect(visible.some((line) => /› git\s+status/.test(line))).toBe(false)
+    expect(visible.some((line) => /› git\s+diff/.test(line))).toBe(false)
+  })
+
+  it("marks user rows for a quiet raised transcript surface", () => {
+    const rows = projectStableTranscript([
+      { id: "user-surface", role: "user", content: "Modern terminal" },
+      { id: "assistant-surface", role: "assistant", content: "Borderless response" },
+    ], 80)
+    expect(rows
+      .filter((row) => row.id.startsWith("user-surface") && row.segments.some((segment) => segment.text))
+      .every((row) => row.surface === "user")).toBe(true)
+    expect(rows
+      .filter((row) => row.id.startsWith("assistant-surface") && row.segments.some((segment) => segment.text))
+      .every((row) => row.surface === undefined)).toBe(true)
   })
 
   it("defers an unfinished pre-tool paragraph and rejoins it after tool activity", () => {
@@ -141,9 +155,9 @@ describe("conversation line buffer", () => {
     }], 100, null, null, null)
 
     const visible = lines.map((line) => line.text)
-    expect(visible.findIndex((line) => line.startsWith("• Ran git status")))
+    expect(visible.findIndex((line) => /› git\s+status/.test(line)))
       .toBeLessThan(visible.findIndex((line) => line.includes("var mı diye. İyidir")))
-    expect(lines.find((line) => line.text.startsWith("• Ran git status"))?.detailId)
+    expect(lines.find((line) => /› git\s+status/.test(line.text))?.detailId)
       .toBe("assistant:tool:1")
   })
 
@@ -360,7 +374,7 @@ describe("conversation line buffer", () => {
     ], 80, null, null, null)
 
     expect(lines).toEqual(expect.arrayContaining([
-      expect.objectContaining({ text: "  src/file.ts  +1 −1 · Ctrl+O diff", detailId: "change:tool:0" }),
+      expect.objectContaining({ text: "  └ src/file.ts · +1 −1 · ctrl+o", detailId: "change:tool:0" }),
     ]))
   })
 })

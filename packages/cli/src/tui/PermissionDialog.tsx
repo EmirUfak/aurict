@@ -25,18 +25,17 @@ function toneForColor(color: string, theme: ReturnType<typeof useTheme>): Permis
 
 export function PermissionDialog({ title, subtitle, color, tone, innerPaddingX = 2, children }: Props) {
   const theme = useTheme()
-  const { columns, rows } = useTerminalSize()
+  const { columns } = useTerminalSize()
   const resolvedTone = tone ?? toneForColor(color, theme)
   const borderColor = color
   const horizontalInset = shellHorizontalInset(columns)
-  const width = Math.max(1, Math.min(columns - horizontalInset * 2, 84))
+  const width = Math.max(1, columns - horizontalInset * 2)
   const contentPadding = columns < 36 ? 1 : innerPaddingX
 
   return (
-    <Box flexDirection="row" width={columns} justifyContent="center">
+    <Box flexDirection="column" paddingLeft={horizontalInset}>
       <Box
         flexDirection="column"
-        marginY={rows < 28 ? 0 : 1}
         width={width}
         borderStyle={prefersAsciiGlyphs() ? "classic" : "round"}
         borderColor={borderColor}
@@ -45,10 +44,10 @@ export function PermissionDialog({ title, subtitle, color, tone, innerPaddingX =
         <Box paddingX={contentPadding} flexDirection="column">
           <Box flexDirection="row" justifyContent="space-between">
             <Text color={borderColor} bold wrap="truncate-end">
-              {glyph("headingMajor")} Permission required {glyph("statusTiny")} {title}
+              {glyph("action")} Permission {glyph("statusTiny")} {title}
               {subtitle ? ` ${glyph("statusTiny")} ${subtitle}` : ""}
             </Text>
-            <Text color={borderColor}>{resolvedTone.toUpperCase()}</Text>
+            {columns >= 54 && <Text color={borderColor}>{resolvedTone}</Text>}
           </Box>
         </Box>
         <Box flexDirection="column" paddingX={contentPadding}>

@@ -244,7 +244,7 @@ describe("TUI responsive regression", () => {
 })
 
 describe("TUI stress regression", () => {
-  it("renders long tool output with bounded preview", () => {
+  it("renders long tool output as a bounded summary", () => {
     const output = Array.from({ length: 120 }, (_, i) => `line ${String(i + 1).padStart(3, "0")}`).join("\n")
     const frame = render(
       <Message
@@ -258,10 +258,9 @@ describe("TUI stress regression", () => {
       />,
     ).lastFrame() ?? ""
 
-    expect(frame).toContain("of 120 lines hidden")
-    expect(frame).toContain("line 001")
-    expect(frame).toContain("line 120")
-    expect(frame).toContain("116 of 120 lines hidden")
+    expect(frame).toContain("120 lines · ctrl+o")
+    expect(frame).not.toContain("line 001")
+    expect(frame).not.toContain("line 120")
   })
 
   it("handles small terminal expanded-output paging", () => {

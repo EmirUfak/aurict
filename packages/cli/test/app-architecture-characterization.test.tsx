@@ -85,6 +85,7 @@ describe("App focus characterization", () => {
     expect(keybindingContextForFocusLayer("question")).toBe("question");
     expect(keybindingContextForFocusLayer("prompt")).toBe("picker");
     expect(isBlockingOverlayLayer("settings")).toBe(true);
+    expect(isBlockingOverlayLayer("permission")).toBe(false);
     expect(isBlockingOverlayLayer("taskPanel")).toBe(false);
   });
 

@@ -84,7 +84,7 @@ export function resolveSemanticTheme(theme: Theme): SemanticTheme {
       error: theme.error,
     },
     tool: {
-      default: theme.textSecondary,
+      default: theme.accentAlt,
       running: theme.accentAlt,
       success: theme.success,
       error: theme.error,

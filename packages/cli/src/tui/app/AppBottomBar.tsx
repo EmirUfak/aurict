@@ -4,6 +4,8 @@ import { CommandSuggest } from "../CommandSuggest.js";
 import { FileMention } from "../FileMention.js";
 import { StatusBar } from "../StatusBar.js";
 import { ComposerPane } from "../app-shell/ComposerPane.js";
+import { InlinePermissionPane } from "../app-shell/InlinePermissionPane.js";
+import { CrashNotice } from "../app-shell/CrashNotice.js";
 import { Box, Text } from "../design-system/renderer.js";
 import { useTheme } from "../../utils/theme.js";
 
@@ -14,6 +16,7 @@ export interface AppBottomBarProps {
   commandSuggest: React.ComponentProps<typeof CommandSuggest>;
   fileMention: ComponentConfig<typeof FileMention>;
   attachmentNames: string[];
+  permission: ComponentConfig<typeof InlinePermissionPane>;
   composer: React.ComponentProps<typeof ComposerPane>;
   status: ComponentConfig<typeof StatusBar>;
 }
@@ -32,6 +35,8 @@ export function AppBottomBar(props: AppBottomBarProps) {
           </Text>
         </Box>
       )}
+      <CrashNotice />
+      {props.permission && <InlinePermissionPane {...props.permission} />}
       <ComposerPane {...props.composer} />
       {props.status && <StatusBar {...props.status} />}
     </>

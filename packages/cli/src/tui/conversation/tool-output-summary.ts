@@ -1,0 +1,81 @@
+import type { ToolArtifact } from "./tool-artifact.js";
+import { toolDisplayIdentity } from "./tool-identity.js";
+
+function linesOf(output: string): string[] {
+  return output
+    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function countMatches(lines: string[], pattern: RegExp): number {
+  return lines.filter((line) => pattern.test(line)).length;
+}
+
+function testSummary(lines: string[]): string | undefined {
+  const joined = lines.join("\n");
+  const passed = [...joined.matchAll(/(?:^|\s)(\d+)\s+(?:tests?\s+)?pass(?:ed)?\b/gim)].at(-1)?.[1];
+  const failed = [...joined.matchAll(/(?:^|\s)(\d+)\s+(?:tests?\s+)?fail(?:ed)?\b/gim)].at(-1)?.[1];
+  if (passed || failed) return `${passed ?? "0"} passed · ${failed ?? "0"} failed`;
+
+  const passingLines = countMatches(lines, /\bpass(?:ed)?\b/i);
+  const failingLines = countMatches(lines, /\bfail(?:ed)?\b/i);
+  if (passingLines || failingLines)
+    return `${passingLines} passed · ${failingLines} failed`;
+  return undefined;
+}
+
+function gitStatusSummary(lines: string[]): string {
+  if (lines.some((line) => /working tree clean/i.test(line))) return "working tree clean";
+  const changed = lines.filter((line) => /^(?:[ MADRCU?!]{2}|[MADRCU?!]\s)/.test(line)).length;
+  return changed > 0 ? `${changed} changed` : `${lines.length} status lines`;
+}
+
+function gitAction(artifact: ToolArtifact): string | undefined {
+  const identity = toolDisplayIdentity(artifact.tool, artifact);
+  return identity.key === "git" ? identity.operation : undefined;
+}
+
+function backgroundSummary(lines: string[]): string | undefined {
+  const sessionId = lines.find((line) => /^Session ID:/i.test(line))?.replace(/^Session ID:\s*/i, "");
+  if (sessionId) return `background started · session ${sessionId}`;
+  const status = lines.find((line) => /^Status:/i.test(line))?.replace(/^Status:\s*/i, "");
+  if (status) return `${status} · ${Math.max(0, lines.length - 2)} output lines`;
+  return undefined;
+}
+
+/** Produces one quiet transcript row; the complete result remains available in tool details. */
+export function toolOutputSummary(artifact: ToolArtifact): string | undefined {
+  const lines = linesOf(artifact.result ?? artifact.output);
+  if (lines.length === 0 || (lines.length === 1 && lines[0] === "(no output)")) return undefined;
+
+  const background = backgroundSummary(lines);
+  if (background) return background;
+
+  const command = artifact.command?.trim() ?? "";
+  const semanticGitAction = gitAction(artifact);
+  if (semanticGitAction === "status") return gitStatusSummary(lines);
+  if (semanticGitAction === "log") return `${lines.length} commits`;
+  if (/^git\s+status\b/.test(command)) return gitStatusSummary(lines);
+  if (/^git\s+(?:diff|show)\b/.test(command)) {
+    const stats = [...lines].reverse().find((line) => /\bfiles? changed\b/.test(line));
+    return stats ?? `${lines.length} diff lines`;
+  }
+  if (/^git\s+log\b/.test(command)) return `${lines.length} commits`;
+
+  const tests = /(?:^|\s)(?:bun|npm|pnpm|yarn|pytest|jest|vitest|cargo|go)\b.*\btest\b|\btest\b/i.test(command)
+    ? testSummary(lines)
+    : undefined;
+  if (tests) return tests;
+
+  if (/\b(?:build|compile|typecheck|tsc)\b/i.test(command)
+    && lines.some((line) => /success|finished|built|compiled|done/i.test(line)))
+    return `completed · ${lines.length} lines`;
+
+  if (/^(?:rg|grep|find)\b/.test(command)) return `${lines.length} matches`;
+  if (/^(?:ls|fd)\b/.test(command)) return `${lines.length} entries`;
+  if (lines.length === 1) return lines[0]!.slice(0, 120);
+  return `${lines.length} lines`;
+}
