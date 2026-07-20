@@ -163,9 +163,10 @@ describe("TUI responsive regression", () => {
     expect(wide).toContain("tasks 1/4")
     expect(wide).toContain("agents 2")
     expect(wide).toContain("bg 1")
-    expect(wide).toContain("feature/coc…")
+    expect(wide).toContain("feature/cockpit")
     expect(wide).toContain("tasks 1/4 · agents 2 · bg 1 · anthropic")
-    expect(wide.split("\n")).toHaveLength(3)
+    expect(wide).toContain("single-agent")
+    expect(wide.split("\n")).toHaveLength(4)
     expect(wide.split("\n").every((line) => line.length <= 140)).toBe(true)
     cleanup()
 
@@ -183,8 +184,31 @@ describe("TUI responsive regression", () => {
         taskSummary={{ pending: 2, inProgress: 1, done: 1, error: 0 }}
       />,
     ).lastFrame() ?? "")
-    expect(minimumWide.split("\n")).toHaveLength(3)
+    expect(minimumWide.split("\n")).toHaveLength(4)
     expect(minimumWide.split("\n").every((line) => line.length <= 120)).toBe(true)
+  })
+
+  it("surfaces durable proof state in the cockpit", () => {
+    const frame = stripAnsi(render(
+      <CockpitHeader
+        {...DEFAULT_STATUS_PROPS}
+        cols={120}
+        contextTokens={20_000}
+        title="Verified terminal redesign"
+        proof={{
+          version: 1,
+          sessionId: "session-1",
+          objective: "modernize the terminal",
+          status: "passed",
+          criteria: [],
+          evidenceCount: 4,
+          createdAt: 1,
+          updatedAt: 2,
+        }}
+      />,
+    ).lastFrame() ?? "")
+    expect(frame).toContain("Verified terminal redesign")
+    expect(frame).toContain("proof 4")
   })
 
   it("renders a stable ASCII cockpit signal when motion is disabled", () => {

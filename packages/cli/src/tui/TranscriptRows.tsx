@@ -17,11 +17,12 @@ function toneColor(tone: TranscriptTone | undefined, theme: SemanticTheme): stri
   return theme.foreground.secondary;
 }
 
-export function TranscriptRows({ rows }: { rows: TranscriptRow[] }) {
+export function TranscriptRows({ rows, rail = false }: { rows: TranscriptRow[]; rail?: boolean }) {
   const theme = useSemanticTheme();
   return <>
     {rows.map((row) => (
       <Text key={row.id} wrap="truncate-end">
+        {rail && <Text color={railColor(row, theme)}>│ </Text>}
         {row.segments.map((segment, index) => (
           <Text
             key={`${row.id}:${index}`}
@@ -34,4 +35,13 @@ export function TranscriptRows({ rows }: { rows: TranscriptRow[] }) {
       </Text>
     ))}
   </>;
+}
+
+function railColor(row: TranscriptRow, theme: SemanticTheme): string {
+  const tone = row.segments.find((segment) => segment.text.trim())?.tone;
+  if (row.id.endsWith(":header") && tone === "user") return theme.identity.user;
+  if (row.id.endsWith(":header") && tone === "assistant") return theme.identity.assistant;
+  if (tone === "error") return theme.status.error;
+  if (tone === "thinking") return theme.activity.running;
+  return theme.border.subtle;
 }

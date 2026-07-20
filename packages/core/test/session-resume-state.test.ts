@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   extractVerificationSnapshot,
+  extractWorkingSetVerificationSnapshot,
   readSessionResumeState,
   writeSessionResumeState,
 } from "../src/session/resume-state.js"
@@ -64,5 +65,42 @@ describe("session resume state", () => {
     expect(extractVerificationSnapshot("[TypeScript] ✓ No errors")?.status).toBe("passed")
     expect(extractVerificationSnapshot("[TypeScript] Errors in this file after edit:\nsrc/a.ts(1,1): error TS2322")?.status).toBe("failed")
     expect(extractVerificationSnapshot("[TypeScript] Skipped (post-edit check timed out)")?.status).toBe("timeout")
+  })
+
+  it("prefers structured tool verification evidence", () => {
+    const snapshot = extractWorkingSetVerificationSnapshot({
+      updatedAt: 20,
+      items: [{
+        id: "verification:1",
+        kind: "verification",
+        label: "12 tests passed, 0 failed",
+        score: 90,
+        lastSeenAt: 20,
+        source: "verify",
+        reason: "verification signal",
+        status: "passed",
+      }],
+    })
+    expect(snapshot).toEqual({
+      status: "passed",
+      source: "tool_metadata",
+      summary: "verify: 12 tests passed, 0 failed",
+    })
+  })
+
+  it("does not promote arbitrary shell output into structured verification", () => {
+    expect(extractWorkingSetVerificationSnapshot({
+      updatedAt: 20,
+      items: [{
+        id: "verification:echo",
+        kind: "verification",
+        label: "tests passed, 0 failed",
+        score: 90,
+        lastSeenAt: 20,
+        source: "bash",
+        reason: "verification signal",
+        status: "passed",
+      }],
+    })).toBeUndefined()
   })
 })

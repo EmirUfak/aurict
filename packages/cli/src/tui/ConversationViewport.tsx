@@ -5,6 +5,8 @@ import { useTheme } from "../utils/theme.js";
 import { projectLiveTranscript, projectStableTranscript, type TranscriptRow } from "./conversation/projector.js";
 import { TranscriptRows } from "./TranscriptRows.js";
 import type { RunActivity } from "./run-status.js";
+import { useTerminalSize } from "./TerminalSizeContext.js";
+import { shellHorizontalInset } from "./app-shell/layout-metrics.js";
 
 export interface ConversationViewportProps {
   height: number;
@@ -31,6 +33,7 @@ export function viewportTopPadding(contentRows: number, viewportRows: number, of
 
 export function ConversationViewport(props: ConversationViewportProps) {
   const theme = useTheme();
+  const columns = useTerminalSize().columns;
   const stableLines = useMemo(
     () => projectStableTranscript(props.messages, props.width),
     [props.messages, props.width],
@@ -91,13 +94,14 @@ export function ConversationViewport(props: ConversationViewportProps) {
       height={props.height}
       flexDirection="column"
       overflow="hidden"
+      paddingX={shellHorizontalInset(columns)}
       {...(theme.bgDeep !== undefined ? { backgroundColor: theme.bgDeep } : {})}
     >
       {reserveUnseen && (
         <Text color={theme.accent} bold>⋯ {props.unseenCount} new messages below</Text>
       )}
       {topPaddingRows > 0 && <Box height={topPaddingRows} flexShrink={0} />}
-      <TranscriptRows rows={lines.slice(start, start + viewportRows)} />
+      <TranscriptRows rows={lines.slice(start, start + viewportRows)} rail={columns >= 60} />
     </Box>
   );
 }

@@ -7,6 +7,7 @@ export type CompletionGateStatus =
   | "continue_required"
   | "blocked"
   | "verification_required"
+  | "proof_required"
   | "critique_required"
   | "budget_exhausted"
 

@@ -7,6 +7,7 @@ import type { ContinuationDecision, ContinuationTaskState } from "./continuation
 import type { CompletionGateDecision } from "./completion-gate.js"
 import type { LongTaskContinuationDecision } from "./continuation-controller.js"
 import type { TaskLedger } from "./task-ledger.js"
+import type { CompletionProof } from "./completion-proof.js"
 import type { ToolResultArtifact } from "./tool-result-artifact.js"
 
 export interface AgentContinuationOptions {
@@ -109,6 +110,7 @@ export interface AgentFinishResult {
   completionGate?: CompletionGateDecision
   longTask?: LongTaskContinuationDecision
   taskLedger?: TaskLedger
+  completionProof?: CompletionProof
 }
 
 export type AgentStatus = "idle" | "running" | "done" | "error" | "aborted"

@@ -159,6 +159,29 @@ describe("OverlayStack", () => {
     expect(frame).toContain("▶ Anthropic")
     r.unmount()
   })
+
+  test("can preserve workspace context behind a compact decision card", async () => {
+    const workspace = (
+      <Box flexDirection="column">
+        {Array.from({ length: 20 }, (_, i) => <Text key={i}>workspace line {i}</Text>)}
+      </Box>
+    )
+    const r = render(
+      <Box position="relative" width={80} height={20}>
+        {workspace}
+        <OverlayStack open columns={80} rows={20} backdrop={false}>
+          <Box borderStyle="round" paddingX={1}>
+            <Text>Permission card</Text>
+          </Box>
+        </OverlayStack>
+      </Box>,
+    )
+    await sleep(30)
+    const frame = r.lastFrame() ?? ""
+    expect(frame).toContain("workspace line 2")
+    expect(frame).toContain("Permission card")
+    r.unmount()
+  })
 })
 
 describe("Picker wide-glyph rows", () => {

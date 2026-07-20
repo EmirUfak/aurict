@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type {
   Attachment,
+  CompletionProof,
   ContextUsage,
   CoreMessage,
   PromptCacheHealthResult,
@@ -79,6 +80,7 @@ export interface AgentSubmitParams {
   setCheckpoints: Dispatch<SetStateAction<Checkpoint[]>>;
   setWasCompacted: Dispatch<SetStateAction<boolean>>;
   setContextUsage: Dispatch<SetStateAction<ContextUsage | undefined>>;
+  setCompletionProof: Dispatch<SetStateAction<CompletionProof | undefined>>;
   setPromptDiagnostics: Dispatch<SetStateAction<PromptDiagnostics | undefined>>;
   setPromptCacheHealth: Dispatch<SetStateAction<PromptCacheHealthResult | undefined>>;
   setTokens: Dispatch<SetStateAction<TokenBreakdown>>;

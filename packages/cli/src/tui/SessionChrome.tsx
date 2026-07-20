@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "./design-system/renderer.js";
-import type { TokenBreakdown } from "@aurict/core";
+import type { CompletionProof, TokenBreakdown } from "@aurict/core";
 import { HStack, Surface, StatusDot } from "./design-system/index.js";
 import { useTheme } from "../utils/theme.js";
 import { useTerminalSize } from "./TerminalSizeContext.js";
@@ -19,6 +19,7 @@ export interface SessionHeaderProps {
   bgTaskCount?: number | undefined; localServer?: { enabled: boolean; port?: number; started: boolean; reused: boolean; reason?: string } | undefined;
   sandboxBackend?: "none" | "policy" | "docker" | undefined; coordinatorMode?: boolean | undefined;
   autopilotMode?: boolean | undefined; cols?: number | undefined;
+  title?: string | undefined; proof?: CompletionProof | undefined;
 }
 
 export interface SessionFooterProps {
@@ -54,6 +55,13 @@ function contextState(tokens: number, window = 200_000) {
   return { ratio, label: tokens > 0 ? `${Math.round(ratio * 100)}%` : "—" };
 }
 
+function proofState(proof: CompletionProof | undefined, semantic: ReturnType<typeof useSemanticTheme>) {
+  if (!proof || proof.status === "not_applicable") return null;
+  if (proof.status === "passed") return { color: semantic.status.success, icon: glyph("done"), label: `proof ${proof.evidenceCount}` };
+  if (proof.status === "failed") return { color: semantic.status.error, icon: glyph("error"), label: "proof failed" };
+  return { color: semantic.status.warning, icon: glyph("todo"), label: "proof pending" };
+}
+
 export function SessionHeader(props: SessionHeaderProps) {
   const theme = useTheme();
   const semantic = useSemanticTheme();
@@ -64,6 +72,7 @@ export function SessionHeader(props: SessionHeaderProps) {
   const compact = tiny || density === "compact";
   const wide = density === "wide";
   const context = contextState(props.contextTokens, props.contextWindow);
+  const proof = proofState(props.proof, semantic);
   const contextColor = context.ratio >= 0.85
     ? semantic.status.error
     : context.ratio >= 0.6
@@ -94,7 +103,6 @@ export function SessionHeader(props: SessionHeaderProps) {
             <Text color={theme.accent} bold>AURICT</Text>
             {!tiny && <Text color={props.loading ? theme.textPrimary : theme.textDim}>{state}</Text>}
             {!compact && props.activeAgent && <Text color={theme.accentAlt}>@{short(props.activeAgent, 16)}</Text>}
-            {wide && props.branch && <Text color={theme.textDim}>{glyph("branch")} {short(props.branch, 12)}</Text>}
           </HStack>
           <HStack>
             {wide && taskTotal > 0 && <Text color={semantic.foreground.muted}>tasks {props.taskSummary!.done}/{taskTotal} {glyph("statusTiny")} </Text>}
@@ -105,6 +113,23 @@ export function SessionHeader(props: SessionHeaderProps) {
             <Text color={contextColor}>ctx {context.label}</Text>
           </HStack>
         </HStack>
+        {!compact && (
+          <HStack justify="space-between">
+            <HStack gap="sm">
+              <Text color={theme.borderBright}>{glyph("headingMinor")}</Text>
+              <Text color={theme.textSecondary} bold>{short(props.title ?? "new session", wide ? 44 : 26)}</Text>
+              <Text color={theme.textDim}>{glyph("separator")} {shortDir(props.workdir, wide ? 38 : 24)}</Text>
+              {wide && props.branch && <Text color={theme.textDim}>{glyph("branch")} {short(props.branch, 16)}</Text>}
+            </HStack>
+            <HStack gap="sm">
+              {proof && <Text color={proof.color}>{proof.icon} {proof.label}</Text>}
+              <Text color={props.coordinatorMode ? semantic.status.info : theme.textDim}>
+                {props.coordinatorMode ? "multi-agent" : "single-agent"}
+              </Text>
+              {props.autopilotMode && <Text color={semantic.status.warning}>auto</Text>}
+            </HStack>
+          </HStack>
+        )}
       </Surface>
     </Box>
   );
@@ -125,6 +150,7 @@ export function SessionFooter(props: SessionFooterProps) {
     <Surface variant="ghost" tone="muted" paddingX="md" paddingY="none">
       <HStack justify="space-between">
         <HStack gap="sm">
+          <Text color={theme.borderBright}>{glyph("headingMinor")}</Text>
           <Text color={theme.textSecondary}>{shortDir(props.workdir, compact ? 24 : 42)}</Text>
           {!compact && props.branch && <Text color={theme.textDim}>{glyph("branch")} {short(props.branch, 16)}</Text>}
           {!compact && props.activeAgent && <Text color={props.agentColor ?? theme.accent}>@{short(props.activeAgent, 14)}</Text>}
@@ -134,8 +160,10 @@ export function SessionFooter(props: SessionFooterProps) {
           {taskErrors > 0 && <Text color={semantic.status.error}>{taskErrors} failed</Text>}
           {(props.bgTaskCount ?? 0) > 0 && <Text color={semantic.status.info}>bg {props.bgTaskCount}</Text>}
           {!compact && skills > 0 && <Text color={theme.textDim}>{skills} skills</Text>}
-          {!compact && props.remoteConnected && <Text color={semantic.status.success}>remote</Text>}
-          <Text color={props.sandboxBackend === "none" ? semantic.status.warning : semantic.foreground.muted}>{sandbox}</Text>
+          {!compact && props.remoteConnected && <Text color={semantic.status.success}>{glyph("statusTiny")} remote</Text>}
+          {!compact && props.autopilotMode && <Text color={semantic.status.warning}>{glyph("statusTiny")} auto</Text>}
+          <Text color={props.sandboxBackend === "none" ? semantic.status.warning : semantic.foreground.muted}>{glyph("statusTiny")} {sandbox}</Text>
+          <Text color={theme.borderDim}>{glyph("separator")}</Text>
           <Text color={theme.textDim}>/help</Text>
         </HStack>
       </HStack>

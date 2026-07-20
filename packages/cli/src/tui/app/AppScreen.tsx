@@ -28,7 +28,7 @@ export function AppScreen(props: AppScreenProps) {
   const {
     termRows, termCols, terminalMeasured, themeName, keybindingContext,
     blockingOverlayOpen, focusLayer, composerInputActive, provider, model,
-    workdir: workdirState, initialWorkdir: workdir, tokens, contextUsage,
+    workdir: workdirState, initialWorkdir: workdir, tokens, contextUsage, completionProof,
     loading, coordinatorMode, autopilotMode, activeTool, runActivity, tasks,
     taskSummary, runningBackgroundTaskCount, localServer, sandboxBackend, activeAgentCount, branch,
     activeAgent, skillNames, turnSkillNames, isUndercover, wasCompacted,
@@ -76,6 +76,7 @@ export function AppScreen(props: AppScreenProps) {
       theme={activeTheme}
       keybindingContext={keybindingContext}
       overlayOpen={blockingOverlayOpen}
+      overlayBackdrop={focusLayer !== "permission"}
       onTranscriptHeight={(rows) => setMeasuredViewportRows(Math.max(6, rows))}
       header={
         <AppHeader
@@ -121,6 +122,8 @@ export function AppScreen(props: AppScreenProps) {
             ...(activeAgentCount > 0 ? { activeAgentCount } : {}),
             ...(branch !== undefined ? { branch } : {}),
             ...(activeAgent !== undefined ? { activeAgent } : {}),
+            ...(sessionTitle !== undefined ? { title: sessionTitle } : {}),
+            ...(completionProof !== undefined ? { proof: completionProof } : {}),
           } : null}
           startup={showStartupBanner ? {
             version: `v${CURRENT_VERSION}`,

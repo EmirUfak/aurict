@@ -101,11 +101,33 @@ describe("terminal polish contract", () => {
         />
       </TerminalSizeContext.Provider>,
     ).lastFrame() ?? "";
+    const plain = stripAnsi(frame);
     expect(frame).toContain("Ask Aurict to plan, explain, or build");
+    expect(plain).toContain("PROMPT workspace input");
     expect(frame).toContain("commands");
     expect(frame).not.toContain("INSERT");
     expect(frame).not.toContain("tasks");
     expect(frame).not.toContain("history");
+  });
+
+  test("renders the transcript as a subtle timeline", () => {
+    const frame = stripAnsi(render(
+      <TerminalSizeContext.Provider value={{ columns: 100, rows: 20 }}>
+        <ConversationViewport
+          height={6}
+          width={91}
+          messages={[{ id: "user", role: "user", content: "Modern terminal" }]}
+          loading={false}
+          streamingText={null}
+          streamingReason={null}
+          streamingError={null}
+          scrollLocked={false}
+          offsetRowsFromBottom={0}
+        />
+      </TerminalSizeContext.Provider>,
+    ).lastFrame() ?? "");
+    expect(frame).toContain("│ ▸ You");
+    expect(frame).toContain("│ Modern terminal");
   });
 
   test("gives the cockpit and composer the same outer frame width", () => {

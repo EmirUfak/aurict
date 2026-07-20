@@ -7,7 +7,7 @@ This document is the acceptance contract for Aurict's terminal UI. It records th
 ## Product principles
 
 - The transcript is the primary surface. Chrome must not compete with the work.
-- One compact header answers: “what is Aurict doing, with which model, and how full is context?”
+- One responsive cockpit answers: “what is Aurict doing, with which model, how full is context, and is completion proven?”
 - One compact footer answers: “where am I, and are there exceptional session states?”
 - The composer remains writable while Aurict works. Enter adds a priority steering message; Tab adds a normal queued message.
 - Tool calls are summaries first. Raw output, reasoning, and actual diffs stay available through `Ctrl+O`.
@@ -20,8 +20,8 @@ This document is the acceptance contract for Aurict's terminal UI. It records th
 | --- | --- | --- |
 | 60×18 | tiny | Two-line startup, one-line chrome, no optional metadata |
 | 80×24 | compact | Centered welcome wordmark before the first turn; compact model/context header afterward |
-| 100×30 | normal | Agent/branch and exceptional state labels may appear |
-| 140×40 | wide | Additional session metadata may appear without adding rows |
+| 100×30 | normal | A second cockpit tier may show session identity, workspace, mode, and proof state |
+| 140×40 | wide | The same two-tier cockpit may add branch and task/agent telemetry |
 
 The automated contract renders every scenario below at all four sizes and verifies bounded, uniquely keyed rows.
 
@@ -42,7 +42,7 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 ## Phase 2 interaction model
 
 - Startup preflight text is printed only for non-interactive output. The full-screen TUI shows a centered AURICT wordmark on terminals at least 76×24 and a compact two/three-line identity on smaller terminals. The wordmark disappears after the first turn; MCP success chatter stays suppressed and failures remain visible.
-- Header and footer use the same 60/90/120-column breakpoints.
+- Header and footer use the same 60/90/120-column breakpoints. Tiny/compact terminals collapse the cockpit to one content row; normal/wide terminals use two.
 - During a run, the composer switches to `STEER` mode without becoming disabled.
 - Enter stores a priority steering item. With the installed AI SDK, safe mid-provider injection is unavailable, so it executes at the next turn boundary before normal queued items; the UI does not pretend the current tool call was interrupted.
 - Tab stores a normal FIFO queue item. The queue preview shows its kind and remaining count.
@@ -52,10 +52,11 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 
 - Presentation components consume Ink through `design-system/renderer.ts`. Direct Ink imports are restricted to the design-system implementation and explicit low-level renderer, measurement, input, transcript, and diff paths. The architecture test scans `src/tui` and fails when a presentation component bypasses this boundary.
 - Composer-level overlays use a discriminated `PrimaryOverlay` state, so search, command palette, settings, design wizard, shortcut help, history search, and attachment input are mutually exclusive by construction. System requests and detail views retain their independent data lifecycles, while the focus selector chooses the single mounted modal.
-- `OverlayStack` is a root-level, absolute Yoga layer rendered after the application surface. It no longer consumes a `FullscreenLayout` flex slot, so opening a modal does not resize the transcript or composer.
+- `OverlayStack` is a root-level, absolute Yoga layer rendered after the application surface. It no longer consumes a `FullscreenLayout` flex slot, so opening a modal does not resize the transcript or composer. Permission requests use the same layer without its opaque full-screen backdrop, preserving conversation context around the centered decision card.
 - Overlay bounds adapt at 60-column and 18-row thresholds. Narrow terminals use the full safe area; larger terminals retain a small edge margin and vertically center the modal surface.
 - The composer remains mounted below a modal but receives `disabled` input state. Command/file suggestions and passive agent input are inactive while another focus layer owns the keyboard. Passive attachment summaries remain in the bottom surface rather than entering the modal stack.
 - Terminals provide opaque cell compositing rather than browser-style alpha, blur, or DOM portals. The absolute host therefore guarantees geometry and draw order; individual surfaces own their border and background treatment.
+- The root shell paints the theme's deepest surface across the alternate screen. Transcript rows use a semantic timeline rail inside the same responsive horizontal inset as the cockpit and composer.
 
 ## Phase 3 live-run model
 
@@ -74,7 +75,7 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 ## Phase 5 recovery and permission model
 
 - Provider/runtime failures render once as a short diagnosis, original first-line detail, and concrete recovery action. Authentication, rate limit, context, connection, and cancellation failures have specific guidance.
-- Permission requests use one compact, responsive decision surface. Risk and execution scope are textual rather than decorative gauges; dangerous actions still default to deny.
+- Permission requests use one centered, compact, responsive decision card capped at 84 columns. The workspace stays visible behind it; risk and execution scope are textual rather than decorative gauges, and dangerous actions still default to deny.
 - Direct permission keys are `y` (allow once), `n` (deny), and for shell requests `e` (edit). Arrow/Enter selection and Escape denial remain available.
 - The permission dialog reduces padding on short or narrow terminals and is contract-tested at 24×14.
 
@@ -132,7 +133,7 @@ Project definitions may override an identically named user custom theme, but can
 ## Final polish contract
 
 - Short transcripts are bottom-anchored so the latest answer rests one natural gap above the composer. Scrolled history remains top-aligned, and every one-row header/composer resize updates the scroll boundary.
-- The composer uses one rounded focus surface, one restrained shortcut row, and no persistent `INSERT`/dashboard labels. Working state changes the placeholder and exposes Enter steering plus Tab queue semantics.
+- The composer uses one rounded focus surface, one restrained shortcut row, and no persistent `INSERT`/dashboard labels. At normal/wide density its internal command strip exposes `PROMPT`/`STEER`, readiness, queue depth, and character count; compact terminals remove the strip. Working state changes the placeholder and exposes Enter steering plus Tab queue semantics.
 - Tool-only assistant turns omit redundant assistant headers. Tool actions are semantic text first and decoration second, matching the scan rhythm of modern coding terminals.
 - Markdown list bullets use the active theme's secondary accent while the list text keeps its normal reading color.
 - Markdown headings and short bold-only section labels receive exactly one blank transcript row above and below. Inline bold emphasis, list-item emphasis, and complete bold sentences retain normal line flow so compact terminals do not become vertically sparse.
@@ -143,9 +144,10 @@ Project definitions may override an identically named user custom theme, but can
 - When a provider starts a tool call mid-sentence, only the unfinished trailing paragraph is deferred and rejoined with post-tool prose. Completed commentary and tool chronology remain in place, avoiding split phrases such as `...var mı / tool / diye...`.
 - The startup wordmark is centered and brand-led without remaining in the working transcript after the first prompt.
 - Spacious startup banners select one original, developer-focused science-fiction quip per launch. The selection stays fixed for that mounted banner, uses no borrowed character dialogue, and disappears with the wordmark after the first prompt.
-- The working header is a one-row micro-cockpit rather than a second dashboard. Its fixed-width signal animates at low frequency only while Aurict is active; idle, `AURICT_NO_MOTION`, `NO_COLOR`, and `TERM=dumb` modes remain still.
+- The working header is a responsive cockpit rather than a second dashboard. Its first tier is the stable run/model/context bar; the optional second tier carries session title, workspace, branch, execution mode, and durable proof state. Its fixed-width signal animates at low frequency only while Aurict is active; idle, `AURICT_NO_MOTION`, `NO_COLOR`, and `TERM=dumb` modes remain still.
 - Wide terminals may add branch, completed/total tasks, active-agent count, and running-background-task count to the cockpit. Compact terminals remove this optional telemetry before it can compete with provider/model and context state.
-- The working cockpit uses the same responsive horizontal inset, rounded frame width, card background, and border language as the composer. Its three-row outer frame makes session continuity distinct from transcript content without becoming a dashboard.
+- The working cockpit uses the same responsive horizontal inset, rounded frame width, card background, and border language as the composer. Its outer frame is three rows at tiny/compact density and four rows at normal/wide density, making session continuity distinct from transcript content without becoming a dashboard.
+- The transcript timeline rail changes color only for identity, active work, and errors; routine body/tool rows remain on the subtle border token. This preserves scan rhythm without turning every line into a card.
 - Successful permission approvals are transient interaction state and never create transcript rows. Denials, aborts, and edit handoffs remain visible because they change or interrupt execution.
 - Permission prompts use a compact action strip: risk, sandbox, executable, and command preview are summary-first; only the selected action exposes its hint. Long commands and patches retain a scrollable `d` detail view.
 - Horizontal permission action strips use `←/→`; vertical granular-patch actions use `↑/↓`, leaving `←/→` exclusively for patch-file navigation in that specialized view.

@@ -3,11 +3,12 @@ import { join } from "node:path"
 import type { ActiveSkillPolicy } from "../skill/runtime-policy.js"
 import type { ContinuationDecision } from "../agent/continuation.js"
 import type { TokenBreakdown } from "../agent/types.js"
-import type { WorkingSetSnapshot } from "../agent/working-set.js"
 import type { FailureCooldownSnapshot } from "../agent/failure-cooldown.js"
 import type { CompletionGateDecision } from "../agent/completion-gate.js"
 import type { LongTaskContinuationDecision } from "../agent/continuation-controller.js"
 import type { TaskLedger } from "../agent/task-ledger.js"
+import type { CompletionProof } from "../agent/completion-proof.js"
+import type { WorkingSetSnapshot } from "../agent/working-set.js"
 
 export interface SessionResumeState {
   sessionId: string
@@ -22,6 +23,7 @@ export interface SessionResumeState {
   continuation?: ContinuationDecision | undefined
   longTask?: LongTaskContinuationDecision | undefined
   taskLedger?: TaskLedger | undefined
+  completionProof?: CompletionProof | undefined
   finishReason?: string | undefined
   tokens?: TokenBreakdown | undefined
   lastVerification?: SessionVerificationSnapshot | undefined
@@ -33,6 +35,15 @@ export interface SessionVerificationSnapshot {
   source: "tool_metadata" | "text"
   summary: string
 }
+
+const TRUSTED_VERIFICATION_TOOLS = new Set([
+  "verify",
+  "edit",
+  "write",
+  "apply_patch",
+  "patch_test",
+  "atomic_patch_test",
+])
 
 export async function readSessionResumeState(workdir: string, sessionId: string): Promise<SessionResumeState | null> {
   try {
@@ -67,6 +78,23 @@ export function extractVerificationSnapshot(text: string): SessionVerificationSn
     }
   }
   return undefined
+}
+
+export function extractWorkingSetVerificationSnapshot(
+  workingSet: WorkingSetSnapshot,
+): SessionVerificationSnapshot | undefined {
+  const latest = workingSet.items
+    .filter((item) => item.kind === "verification" && item.status && TRUSTED_VERIFICATION_TOOLS.has(item.source))
+    .sort((left, right) => right.lastSeenAt - left.lastSeenAt)[0]
+  if (!latest) return undefined
+  const status = latest.status === "passed" || latest.status === "failed" || latest.status === "skipped"
+    ? latest.status
+    : "unknown"
+  return {
+    status,
+    source: "tool_metadata",
+    summary: `${latest.source}: ${latest.label}`.slice(0, 1_500),
+  }
 }
 
 function summarizeVerificationText(text: string): string {

@@ -132,6 +132,7 @@ export function useCommandController(params: AppCommandParams) {
         content: message.content,
       }));
       params.setHistory(history);
+      params.setCompletionProof(undefined);
       params.setMessages(messages.map((message) => ({
         role: message.role as DisplayMessage["role"],
         content: message.content,
@@ -149,6 +150,7 @@ export function useCommandController(params: AppCommandParams) {
       await snapshotManager.restoreToMark(checkpoint.mark);
       params.setMessages(checkpoint.messages);
       params.setHistory(checkpoint.history);
+      params.setCompletionProof(undefined);
       params.setCheckpoints((checkpoints) => checkpoints.slice(0, index));
       params.addSystemMsg(
         `↩ Rolled back ${count} step${count > 1 ? "s" : ""}`,
@@ -205,6 +207,7 @@ export function useCommandController(params: AppCommandParams) {
       params.setMessages(target.messages);
       params.setHistory(target.history);
       params.setTokens(target.tokens);
+      params.setCompletionProof(undefined);
       params.setActiveBranchIdx(index);
       params.addSystemMsg(`⎇ Switched to branch "${target.name}"`);
     },
@@ -281,6 +284,7 @@ export function useCommandController(params: AppCommandParams) {
       await snapshotManager.restoreToMark(checkpoint.mark);
       params.setMessages(checkpoint.messages);
       params.setHistory(checkpoint.history);
+      params.setCompletionProof(undefined);
       params.setCheckpoints((checkpoints) => checkpoints.slice(0, index + 1));
     },
     openDesign: (brief?: string) => {
@@ -323,6 +327,7 @@ export function useCommandController(params: AppCommandParams) {
         params.setHistory([]);
         params.setTokens(ZERO_TOKENS);
         params.setContextUsage(undefined);
+        params.setCompletionProof(undefined);
         params.setSessionTitle(undefined);
         params.isFirstMessage.current = true;
         params.extractedRef.current = false;

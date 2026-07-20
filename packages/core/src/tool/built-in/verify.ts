@@ -6,6 +6,7 @@ import { join } from "node:path"
 import { findRelatedTests } from "../../verification/detector.js"
 import { runRelatedTests, detectFramework } from "../../verification/runner.js"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
+import type { VerificationCheck, VerificationStatus } from "../../verification/pipeline.js"
 
 const ACTION_TIMEOUT: Record<string, number> = {
   typecheck: 10_000,
@@ -99,6 +100,27 @@ async function runCmd(
   return { output: raw.slice(0, 6_000) + (raw.length > 6_000 ? "\n[truncated]" : ""), exitCode: exitCode ?? -1 }
 }
 
+function verificationResult(
+  check: VerificationCheck,
+  status: VerificationStatus,
+  output: string,
+  options: { error?: string; reason?: string } = {},
+): ExecuteResult {
+  return {
+    output,
+    ...(options.error ? { error: options.error } : {}),
+    metadata: {
+      verification: {
+        [check]: {
+          status,
+          ...(options.reason ? { reason: options.reason } : {}),
+          ...(output ? { output: output.slice(0, 6_000) } : {}),
+        },
+      },
+    },
+  }
+}
+
 // ── Tool tanımı ───────────────────────────────────────────────────────────────
 
 export const verifyTool: ToolDef = {
@@ -130,26 +152,26 @@ export const verifyTool: ToolDef = {
     if (action === "typecheck") {
       const hasTsConfig = existsSync(join(ctx.workdir, "tsconfig.json"))
       if (!hasTsConfig) {
-        return { output: "[typecheck] No tsconfig.json found in project root — skipping." }
+        return verificationResult("tsc", "skipped", "[typecheck] Skipped — no tsconfig.json found in project root.", { reason: "no tsconfig.json" })
       }
       try {
         const { output, exitCode } = await runCmd(
           ["bunx", "tsc", "--noEmit", "--pretty", "false"],
           ctx.workdir, timeout, ctx.signal,
         )
-        if (exitCode === 0) return { output: "[typecheck] ✓ No TypeScript errors." }
+        if (exitCode === 0) return verificationResult("tsc", "passed", "[typecheck] ✓ No TypeScript errors.")
 
         // Sadece belirtilen dosyaya ait satırları filtrele
         if (absPath) {
           const name    = absPath.split("/").pop() ?? ""
           const relevant = output.split("\n").filter(l => l.includes(name)).slice(0, 20)
           if (relevant.length > 0) {
-            return { output: `[typecheck] Errors in ${name}:\n${relevant.join("\n")}` }
+            return verificationResult("tsc", "failed", `[typecheck] Errors in ${name}:\n${relevant.join("\n")}`)
           }
         }
-        return { output: `[typecheck] Errors found:\n${output}` }
+        return verificationResult("tsc", "failed", `[typecheck] Errors found:\n${output}`)
       } catch (e) {
-        return { output: "", error: `[typecheck] Failed to run tsc: ${e instanceof Error ? e.message : String(e)}` }
+        return verificationResult("tsc", "failed", "", { error: `[typecheck] Failed to run tsc: ${e instanceof Error ? e.message : String(e)}` })
       }
     }
 
@@ -157,7 +179,7 @@ export const verifyTool: ToolDef = {
     if (action === "test") {
       const framework = detectFramework(ctx.workdir)
       if (!framework) {
-        return { output: "[test] No test framework detected. Checked: bun, vitest, jest, pytest, go, cargo, dotnet." }
+        return verificationResult("test", "skipped", "[test] Skipped — no test framework detected. Checked: bun, vitest, jest, pytest, go, cargo, dotnet.", { reason: "no test framework detected" })
       }
 
       let testFiles: string[] = []
@@ -175,42 +197,41 @@ export const verifyTool: ToolDef = {
       const cacheNote = result.cached ? " (cached)" : ""
       const icon      = result.passed ? "✓" : "✗"
 
-      return {
-        output: `[test:${result.framework}${cacheNote}${suiteNote}] ${icon}\n${result.output}`,
-        ...(result.passed ? {} : { error: "Tests failed — fix before declaring done." }),
-      }
+      return verificationResult(
+        "test",
+        result.passed ? "passed" : "failed",
+        `[test:${result.framework}${cacheNote}${suiteNote}] ${icon}\n${result.output}`,
+        result.passed ? {} : { error: "Tests failed — fix before declaring done." },
+      )
     }
 
     // ── lint ──────────────────────────────────────────────────────────────────
     if (action === "lint") {
       const cmd = detectLinter(ctx.workdir)
       if (!cmd) {
-        return { output: "[lint] No linter detected. Checked: biome, eslint, ruff, clippy." }
+        return verificationResult("lint", "skipped", "[lint] Skipped — no linter detected. Checked: biome, eslint, ruff, clippy.", { reason: "no linter detected" })
       }
       const { output, exitCode } = await runCmd(cmd, ctx.workdir, timeout, ctx.signal)
-      if (exitCode === 0) return { output: `[lint:${cmd[0]}] ✓ No issues.` }
-      return {
-        output: `[lint:${cmd[0]}] Issues found:\n${output}`,
-        error:  "Lint errors found.",
-      }
+      if (exitCode === 0) return verificationResult("lint", "passed", `[lint:${cmd[0]}] ✓ No issues.`)
+      return verificationResult("lint", "failed", `[lint:${cmd[0]}] Issues found:\n${output}`, { error: "Lint errors found." })
     }
 
     // ── security ──────────────────────────────────────────────────────────────
     if (action === "security") {
       const cmd = detectSecurityTool(ctx.workdir)
       if (!cmd) {
-        return { output: "[security] No security audit tool detected. Checked: bun audit, cargo audit, pip-audit." }
+        return verificationResult("security", "skipped", "[security] Skipped — no security audit tool detected. Checked: bun audit, cargo audit, pip-audit.", { reason: "no security audit tool detected" })
       }
       const { output, exitCode } = await runCmd(cmd, ctx.workdir, timeout, ctx.signal)
-      if (exitCode === 0) return { output: `[security:${cmd[0]}] ✓ No vulnerabilities found.` }
-      return { output: `[security:${cmd[0]}] Vulnerabilities found:\n${output}` }
+      if (exitCode === 0) return verificationResult("security", "passed", `[security:${cmd[0]}] ✓ No vulnerabilities found.`)
+      return verificationResult("security", "failed", `[security:${cmd[0]}] Vulnerabilities found:\n${output}`)
     }
 
     // ── deps ──────────────────────────────────────────────────────────────────
     if (action === "deps") {
       const cmd = detectDepCheck(ctx.workdir)
       if (!cmd) {
-        return { output: "[deps] Dependency check only supported for Node.js projects (package.json required)." }
+        return verificationResult("deps", "skipped", "[deps] Skipped — dependency check requires a Node.js package.json.", { reason: "package.json required" })
       }
       const { output, exitCode } = await runCmd(cmd, ctx.workdir, timeout, ctx.signal)
       if (exitCode === 0) {
@@ -219,17 +240,17 @@ export const verifyTool: ToolDef = {
           const unused  = parsed.unused  ?? []
           const missing = Object.keys(parsed.missing ?? {})
           if (unused.length === 0 && missing.length === 0) {
-            return { output: "[deps] ✓ No unused or missing dependencies." }
+            return verificationResult("deps", "passed", "[deps] ✓ No unused or missing dependencies.")
           }
           const lines: string[] = ["[deps] Issues found:"]
           if (unused.length)  lines.push(`  Unused:  ${unused.join(", ")}`)
           if (missing.length) lines.push(`  Missing: ${missing.join(", ")}`)
-          return { output: lines.join("\n") }
+          return verificationResult("deps", "failed", lines.join("\n"))
         } catch {
-          return { output: `[deps]\n${output}` }
+          return verificationResult("deps", "skipped", `[deps]\n${output}`, { reason: "dependency output was not structured" })
         }
       }
-      return { output: `[deps]\n${output}` }
+      return verificationResult("deps", "failed", `[deps]\n${output}`)
     }
 
     return { output: "", error: `Unknown action: ${action}` }

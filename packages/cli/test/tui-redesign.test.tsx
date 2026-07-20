@@ -265,4 +265,19 @@ describe("PermissionDialog", () => {
     const plain = (lastFrame() ?? "").replace(/\x1b\[[0-9;]*m/g, "")
     expect(plain.split("\n").every((line) => line.length <= 24)).toBe(true)
   })
+
+  test("uses a centered card instead of spanning a wide terminal", () => {
+    const { lastFrame } = render(
+      <TerminalSizeContext.Provider value={{ columns: 120, rows: 30 }}>
+        <PermissionDialog title="Bash command" color="#ff0000">
+          <Text>body</Text>
+        </PermissionDialog>
+      </TerminalSizeContext.Provider>,
+    )
+    const plain = (lastFrame() ?? "").replace(/\x1b\[[0-9;]*m/g, "")
+    const heading = plain.split("\n").find((line) => line.includes("Permission required"))
+    expect(heading).toBeDefined()
+    expect(heading!.trimStart().length).toBeLessThanOrEqual(84)
+    expect(heading!.length).toBeGreaterThan(heading!.trimStart().length)
+  })
 })

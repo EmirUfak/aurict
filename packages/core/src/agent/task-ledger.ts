@@ -30,6 +30,7 @@ export interface TaskLedger {
   verification: {
     status: "none" | SessionVerificationSnapshot["status"]
     summary?: string | undefined
+    source?: SessionVerificationSnapshot["source"] | undefined
   }
   lastToolError?: ToolErrorState | undefined
   recoveryAttempts: RecoveryAttempt[]
@@ -55,9 +56,9 @@ export function buildTaskLedger(input: BuildTaskLedgerInput): TaskLedger {
   const failedError = input.workingSet.items.find(item => item.kind === "error" && item.status === "failed")
   const openSteps = buildOpenSteps(input.tasks)
   const verification = input.verification
-    ? { status: input.verification.status, summary: input.verification.summary }
+    ? { status: input.verification.status, summary: input.verification.summary, source: input.verification.source }
     : failedVerification
-      ? { status: "failed" as const, summary: failedVerification.label }
+      ? { status: "failed" as const, summary: failedVerification.label, source: "tool_metadata" as const }
       : { status: "none" as const }
   const blockers = input.continuation?.stopReason === "blocked" ? ["continuation reported blocker"] : []
   const lastToolError = failedError

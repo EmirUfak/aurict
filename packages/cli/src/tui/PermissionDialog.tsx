@@ -29,7 +29,7 @@ export function PermissionDialog({ title, subtitle, color, tone, innerPaddingX =
   const resolvedTone = tone ?? toneForColor(color, theme)
   const borderColor = color
   const horizontalInset = shellHorizontalInset(columns)
-  const width = Math.max(1, Math.min(columns - horizontalInset * 2, 104))
+  const width = Math.max(1, Math.min(columns - horizontalInset * 2, 84))
   const contentPadding = columns < 36 ? 1 : innerPaddingX
 
   return (

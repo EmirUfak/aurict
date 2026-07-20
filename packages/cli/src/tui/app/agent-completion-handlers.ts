@@ -87,6 +87,14 @@ function finishTurn(
     finalSegmentText,
     finalReason,
   ));
+  const proof = result.completionProof;
+  params.setCompletionProof(proof);
+  if (proof && proof.status !== "not_applicable" && !result.completionGate?.shouldAutoContinue) {
+    const completed = proof.criteria.filter((criterion) => criterion.status === "passed" || criterion.status === "waived").length;
+    params.addSystemMsg(
+      `Proof ${proof.status}: ${completed}/${proof.criteria.length} criteria, ${proof.evidenceCount} evidence record${proof.evidenceCount === 1 ? "" : "s"}. Use /proof for details.`,
+    );
+  }
   params.autoContinueRef.current = resolveAutoContinue(context, result);
 }
 

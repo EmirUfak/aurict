@@ -6,6 +6,8 @@ import { resolve, join } from "path"
 import { THEMES, THEME_NAMES, BRAND_PALETTE_IDS, isBrandTheme } from "../utils/theme.js"
 import type { CommandDef, CommandResult, PickerItem } from "./types.js"
 import { CURRENT_VERSION } from "../util/update-check.js"
+import { proofCommands } from "./proof-commands.js"
+import { flightCommands } from "./flight-commands.js"
 
 function formatRelativeTime(ts: number): string {
   const delta = Math.max(0, Date.now() - ts)
@@ -224,7 +226,7 @@ const commands: CommandDef[] = [
     handler: () => {
       const CATEGORIES: Record<string, string[]> = {
         "Setup & Config":      ["init", "doctor", "providers", "models", "config", "theme", "palette", "keys", "settings", "version"],
-        "Session & History":   ["status", "history", "diffs", "session", "sessions", "clear", "fork", "branch", "undo", "rewind", "replay", "checkpoints"],
+        "Session & History":   ["status", "history", "diffs", "session", "sessions", "clear", "fork", "branch", "undo", "rewind", "replay", "checkpoints", "proof", "flight"],
         "Agents & AI":         ["agent", "agents", "coordinator", "autopilot", "undercover", "background", "btw"],
         "Context & Memory":    ["pin", "memory", "ctx", "trace", "compact", "worktree"],
         "Tools & Integration": ["commit", "watch", "unwatch", "mcp", "security", "skill", "plugin", "editor", "template", "protect", "unprotect", "design", "adr", "diag", "skill-scores"],
@@ -244,6 +246,9 @@ const commands: CommandDef[] = [
       return { type: "text", content: out.join("\n") }
     },
   },
+
+  ...proofCommands,
+  ...flightCommands,
 
   // ── /models ───────────────────────────────────────────────────────────────
   {

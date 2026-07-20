@@ -110,6 +110,36 @@ Jump to any checkpoint by index (random access). Unlike `/undo` which is sequent
 /replay 4
 ```
 
+### `/proof`
+Show the current session's durable completion proof: changed files, verification evidence,
+open work, and any explicit waivers. Export the raw record with `/proof json`. A required
+criterion can only be waived with a reason:
+
+```
+/proof
+/proof json
+/proof waive verification test runner unavailable in this environment
+```
+
+Proof records are stored in `.aurict/proofs/` and completion remains gated while required
+evidence is pending or failed.
+
+### `/flight`
+List failure recordings captured automatically when a tool fails. Each recording includes
+redacted arguments, output, error, runtime details, and a workspace dependency fingerprint.
+
+```
+/flight
+/flight show <id>
+/flight replay <id>
+/flight replay <id> --confirm
+/flight replay <id> --confirm --allow-drift
+```
+
+Read-only failures can be replayed directly. Potentially mutating commands require
+`--confirm`; destructive, stateful, or secret-bearing recordings are never replayed.
+Workspace drift must be acknowledged explicitly. Records are stored in `.aurict/flights/`.
+
 ### `/rewind`
 Rewind the conversation to a checkpoint, with an interactive picker if no index is provided.
 

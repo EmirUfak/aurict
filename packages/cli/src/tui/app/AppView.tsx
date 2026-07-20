@@ -13,6 +13,7 @@ export interface AppViewProps {
   transcript: React.ReactNode;
   overlay: React.ReactNode;
   overlayOpen: boolean;
+  overlayBackdrop?: boolean | undefined;
   bottom: React.ReactNode;
   sidePanel?: React.ReactNode;
 }
@@ -29,6 +30,7 @@ export function AppView(props: AppViewProps) {
       transcript={props.transcript}
       overlay={props.overlay}
       overlayOpen={props.overlayOpen}
+      overlayBackdrop={props.overlayBackdrop}
       bottom={props.bottom}
       {...(props.sidePanel !== undefined ? { sidePanel: props.sidePanel } : {})}
     />

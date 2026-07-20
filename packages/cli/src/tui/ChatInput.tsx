@@ -12,7 +12,7 @@ import React from "react"
 import { Box, Text } from "./design-system/renderer.js"
 import { MultilineInput } from "./MultilineInput.js"
 import { useTheme } from "../utils/theme.js"
-import { HStack, VStack, Surface, Typo } from "./design-system/index.js"
+import { HStack, VStack, Surface, StatusDot, Typo } from "./design-system/index.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
 import type { ComposerQueueItem } from "./composer-queue.js"
 import { glyph, terminalText } from "./terminal-glyphs.js"
@@ -43,7 +43,7 @@ export function ChatInput({ value, onChange, onSubmit, onQueue, disabled, workin
   const theme = useTheme()
   const semantic = useSemanticTheme()
   const promptChar = glyph("headingMinor")
-  const borderColor = disabled ? theme.borderDim : theme.borderActive
+  const borderColor = disabled ? theme.borderDim : working ? theme.accentAlt : theme.borderActive
 
   const termCols  = useTerminalSize().columns
   const isNarrow  = termCols < 80
@@ -56,7 +56,7 @@ export function ChatInput({ value, onChange, onSubmit, onQueue, disabled, workin
   return (
     <VStack flexGrow={1} flexShrink={1}>
       {queued && queued.length > 0 && (
-        <HStack paddingX="md" gap="xs">
+        <HStack paddingX="md" gap="sm">
           <Typo variant="body" tone="warning">{queued[0]!.kind}</Typo>
           <Typo variant="body" tone="muted" dimColor>"{queued[0]!.text.slice(0, 42)}{queued[0]!.text.length > 42 ? glyph("ellipsis") : ""}"</Typo>
           {queued.length > 1 && <Typo variant="body" tone="muted" dimColor>+{queued.length - 1}</Typo>}
@@ -73,6 +73,23 @@ export function ChatInput({ value, onChange, onSubmit, onQueue, disabled, workin
         flexGrow={1}
         flexShrink={1}
       >
+        {!isNarrow && (
+          <HStack justify="space-between">
+            <HStack gap="sm">
+              <StatusDot tone={disabled ? "muted" : working ? "accent" : "safe"} active={working} size="sm" />
+              <Typo variant="caption" tone={working ? "accentAlt" : "muted"} bold>
+                {working ? "STEER" : "PROMPT"}
+              </Typo>
+              <Typo variant="caption" tone="muted">
+                {working ? "agent is running" : "workspace input"}
+              </Typo>
+            </HStack>
+            <HStack gap="sm">
+              {(queued?.length ?? 0) > 0 && <Typo variant="caption" tone="warning">queue {queued!.length}</Typo>}
+              {charCount > 0 && <Typo variant="caption" tone="muted">{charCount.toLocaleString()} chars</Typo>}
+            </HStack>
+          </HStack>
+        )}
         <HStack flexGrow={1} flexShrink={1} gap="xs">
           <Typo
             variant="bodyEmphasis"
@@ -95,7 +112,7 @@ export function ChatInput({ value, onChange, onSubmit, onQueue, disabled, workin
               {...(onCopied !== undefined ? { onCopied } : {})}
             />
           </Box>
-          {!isNarrow && charCount > 0 && <Typo variant="caption" tone="muted" dimColor>{charCount.toLocaleString()}</Typo>}
+          {isNarrow && charCount > 0 && <Typo variant="caption" tone="muted" dimColor>{charCount.toLocaleString()}</Typo>}
         </HStack>
       </Surface>
 

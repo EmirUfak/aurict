@@ -30,7 +30,7 @@ export function PermissionCommandPreview({
 }: Props) {
   const theme = useTheme();
   const { columns, rows } = useTerminalSize();
-  const width = Math.max(20, columns - 10);
+  const width = Math.max(20, Math.min(columns - 10, 74));
   const detailRows = Math.max(3, Math.min(12, rows - 14));
   const lines = wrapPermissionText(command, width);
   const [offset, setOffset] = useState(0);

@@ -1,7 +1,7 @@
 import type { ExecuteResult } from "../tool/types.js"
 
 // Faz 4.1: TS/JS dışı diller için de post-edit doğrulama — dile-agnostik.
-export type VerificationCheck = "tsc" | "ruff" | "mypy" | "govet" | "cargo" | "ruby" | "rubocop"
+export type VerificationCheck = "tsc" | "ruff" | "mypy" | "govet" | "cargo" | "ruby" | "rubocop" | "test" | "lint" | "security" | "deps"
 export type VerificationStatus = "passed" | "failed" | "skipped" | "timeout"
 
 export interface VerificationCheckResult {
@@ -34,7 +34,7 @@ export function withTscVerification(
   return withVerification(result, "tsc", checkResult)
 }
 
-const ALL_CHECKS: VerificationCheck[] = ["tsc", "ruff", "mypy", "govet", "cargo", "ruby", "rubocop"]
+const ALL_CHECKS: VerificationCheck[] = ["tsc", "ruff", "mypy", "govet", "cargo", "ruby", "rubocop", "test", "lint", "security", "deps"]
 
 /**
  * Bir tool sonucundaki TÜM doğrulama kontrollerini (tsc + dile-agnostik

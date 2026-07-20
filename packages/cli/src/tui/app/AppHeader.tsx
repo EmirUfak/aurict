@@ -43,7 +43,7 @@ export function AppHeader({
           <Text color={theme.textDim}> (esc to dismiss)</Text>
         </Box>
       )}
-      {showSessionTitle && sessionTitle && (
+      {showSessionTitle && sessionTitle && !cockpit && (
         <Box paddingX={2} marginBottom={1}>
           <Text color={theme.textDim}>◈ </Text>
           <Text color={theme.textSecondary} italic>{sessionTitle}</Text>

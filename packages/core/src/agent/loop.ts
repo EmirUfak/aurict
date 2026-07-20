@@ -29,7 +29,7 @@ import { getCachedToolSchema } from "../tool/schema-cache.js"
 import { getPromptCacheControl, isPromptCachingEnabled } from "./prompt-cache-control.js"
 import { clearActiveSkillPolicy, getSkillLifecycleSnapshot, restoreSkillLifecycle } from "../skill/runtime-policy.js"
 import { evaluateContinuation } from "./continuation.js"
-import { extractVerificationSnapshot, readSessionResumeState, writeSessionResumeState } from "../session/resume-state.js"
+import { extractVerificationSnapshot, extractWorkingSetVerificationSnapshot, readSessionResumeState, writeSessionResumeState } from "../session/resume-state.js"
 import { restoreWorkingSet, getWorkingSetSnapshot } from "./working-set.js"
 import { restoreFailureCooldown, getFailureCooldownSnapshot } from "./failure-cooldown.js"
 import { failedStrategiesStore } from "./failed-strategies-store.js"
@@ -41,6 +41,7 @@ import { filterToolIdsForSecurityCapability, prepareToolForSecurityCapability } 
 import type { OmniConfig } from "../config/config.js"
 import { evaluateLongTaskContinuation } from "./continuation-controller.js"
 import { buildTaskLedger, formatTaskLedgerAnchor } from "./task-ledger.js"
+import { applyCompletionProofGate, buildCompletionProof, writeCompletionProof } from "./completion-proof.js"
 import { isTaskContinuationTurn } from "./turn-intent.js"
 import { assessComplexity, stepsForComplexity, deriveReasoningEffort } from "./complexity.js"
 import { getCoordinatorSystemPrompt, getCoordinatorContext, shouldInjectCoordinatorPrompt } from "./coordinator.js"
@@ -805,9 +806,11 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     maxContinuations: opts.continuation?.maxContinuations,
     maxTaskContinuations: opts.continuation?.maxTaskContinuations,
   })
-  const lastVerification = extractVerificationSnapshot(fullText) ?? resumedState?.lastVerification
   const finalWorkingSet = getWorkingSetSnapshot(stateSessionId)
-  const completionGate = evaluateCompletionGate({
+  const lastVerification = extractWorkingSetVerificationSnapshot(finalWorkingSet)
+    ?? extractVerificationSnapshot(fullText)
+    ?? resumedState?.lastVerification
+  let completionGate = evaluateCompletionGate({
     text: fullText,
     continuation,
     workingSet: finalWorkingSet,
@@ -815,13 +818,50 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     allowTaskAutoContinue: taskContinuationTurn,
   })
   const taskLedger = buildTaskLedger({
-    objective: lastUserText,
+    objective: taskContinuationTurn && resumedState?.taskLedger
+      ? resumedState.taskLedger.objective
+      : lastUserText,
     workingSet: finalWorkingSet,
     verification: lastVerification,
     continuation,
     tasks: continuationTasks,
     previous: resumedState?.taskLedger,
   })
+  let completionProof = buildCompletionProof({
+    sessionId: stateSessionId,
+    ledger: taskLedger,
+    completionGate,
+    previous: resumedState?.completionProof,
+  })
+  completionGate = applyCompletionProofGate(completionGate, completionProof)
+  try {
+    await writeCompletionProof(workdir, completionProof)
+  } catch (error) {
+    completionProof = {
+      ...completionProof,
+      status: "failed",
+      criteria: [...completionProof.criteria, {
+        id: "proof-persistence",
+        label: "Completion evidence is durably stored",
+        required: true,
+        status: "failed",
+        evidence: [{
+          id: `proof-persistence:${Date.now()}`,
+          kind: "task_state",
+          status: "failed",
+          summary: error instanceof Error ? error.message : String(error),
+          source: "proof_store",
+          recordedAt: Date.now(),
+        }],
+      }],
+      evidenceCount: completionProof.evidenceCount + 1,
+      updatedAt: Date.now(),
+    }
+    completionGate = applyCompletionProofGate(
+      { status: "complete", shouldAutoContinue: false, reason: "proof persistence failed", shadowOnly: false },
+      completionProof,
+    )
+  }
   // Faz 2.4: bu turdaki tool çalışmaları failure-cooldown'u güncellemiş olabilir —
   // turn başında alınan `failureCooldown` snapshot'ı bayattır, taze bir tane çek.
   const finalFailureCooldown = getFailureCooldownSnapshot(stateSessionId)
@@ -858,6 +898,7 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     completionGate,
     longTask,
     taskLedger,
+    completionProof,
     ...(finishReason ? { finishReason } : {}),
     ...(sessionId !== undefined ? { sessionId } : {}),
   }
@@ -878,6 +919,7 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
       continuation,
       longTask,
       taskLedger,
+      completionProof,
       ...(finishReason ? { finishReason } : {}),
       tokens: breakdown,
       ...(lastVerification ? { lastVerification } : {}),
@@ -891,6 +933,11 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     recordRunTrace(workdir, sessionId, "working_set", {
       items: finalWorkingSet.items.slice(0, 12),
       updatedAt: finalWorkingSet.updatedAt,
+    }).catch(() => {})
+    recordRunTrace(workdir, sessionId, "completion_proof", {
+      status: completionProof.status,
+      evidenceCount: completionProof.evidenceCount,
+      criteria: completionProof.criteria.map((criterion) => ({ id: criterion.id, status: criterion.status })),
     }).catch(() => {})
   }
 

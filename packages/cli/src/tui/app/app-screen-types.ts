@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type {
   ContextUsage,
+  CompletionProof,
   CoreMessage,
   PermissionRequest,
   QuestionAnswer,
@@ -44,6 +45,7 @@ export interface AppScreenProps {
   initialWorkdir: string;
   tokens: TokenBreakdown;
   contextUsage: ContextUsage | undefined;
+  completionProof: CompletionProof | undefined;
   loading: boolean;
   coordinatorMode: boolean;
   autopilotMode: boolean;

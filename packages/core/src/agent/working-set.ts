@@ -57,7 +57,7 @@ export function updateWorkingSetFromTool(
   }
   for (const line of distilled.verification.slice(0, 6)) {
     const failed = /\b(failed|error|ts\d+)\b/i.test(line)
-    const skipped = /\bskipped|timeout|timed out\b/i.test(line)
+    const skipped = /\bskipp(?:ed|ing)|timeout|timed out\b/i.test(line)
     upsert(sessionId, {
       id: `verification:${hashKey(line)}`,
       kind: "verification",

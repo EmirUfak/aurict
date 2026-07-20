@@ -57,7 +57,8 @@ export function App({
     isUndercover, setIsUndercover, coordinatorMode, setCoordinatorMode,
     activeAgent, setActiveAgent, workdirState, setWorkdirState, composerQueue,
     setComposerQueue, branch, setBranch, wasCompacted, setWasCompacted,
-    contextUsage, setContextUsage, promptDiagnostics, setPromptDiagnostics,
+    contextUsage, setContextUsage, completionProof, setCompletionProof,
+    promptDiagnostics, setPromptDiagnostics,
     promptCacheHealth, setPromptCacheHealth, activeAgentCount,
     setActiveAgentCount, updateInfo, autopilotMode, setAutopilotMode,
     recentCmds, setRecentCmds, designInitialBrief, setDesignInitialBrief,
@@ -297,6 +298,7 @@ export function App({
     setTokens,
     setWatchedPaths,
     setContextUsage,
+    setCompletionProof,
     setSessionTitle,
     setDesignInitialBrief,
     setInput,
@@ -356,6 +358,7 @@ export function App({
     setCheckpoints,
     setWasCompacted,
     setContextUsage,
+    setCompletionProof,
     setPromptDiagnostics,
     setPromptCacheHealth,
     setTokens,
@@ -388,6 +391,7 @@ export function App({
       initialWorkdir={workdir}
       tokens={tokens}
       contextUsage={contextUsage}
+      completionProof={completionProof}
       loading={loading}
       coordinatorMode={coordinatorMode}
       autopilotMode={autopilotMode}

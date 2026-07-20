@@ -29,6 +29,7 @@ interface Props {
   open: boolean;
   columns: number;
   rows: number;
+  backdrop?: boolean | undefined;
   children: React.ReactNode;
 }
 
@@ -37,7 +38,7 @@ interface Props {
  * absolute Yoga positioning, so opening a modal never changes transcript or
  * composer measurements.
  */
-export function OverlayStack({ open, columns, rows, children }: Props) {
+export function OverlayStack({ open, columns, rows, backdrop = true, children }: Props) {
   const theme = useTheme();
   if (!open) return null;
   const geometry = overlayGeometry(columns, rows);
@@ -51,19 +52,21 @@ export function OverlayStack({ open, columns, rows, children }: Props) {
       flexDirection="column"
       overflow="hidden"
     >
-      <Box
-        position="absolute"
-        flexDirection="column"
-        width={geometry.width}
-        height={geometry.height}
-        marginX={geometry.marginX}
-        marginY={geometry.marginY}
-        overflow="hidden"
-      >
-        {Array.from({ length: geometry.height }, (_, row) => (
-          <Text key={row} backgroundColor={backdropColor}>{backdropLine}</Text>
-        ))}
-      </Box>
+      {backdrop && (
+        <Box
+          position="absolute"
+          flexDirection="column"
+          width={geometry.width}
+          height={geometry.height}
+          marginX={geometry.marginX}
+          marginY={geometry.marginY}
+          overflow="hidden"
+        >
+          {Array.from({ length: geometry.height }, (_, row) => (
+            <Text key={row} backgroundColor={backdropColor}>{backdropLine}</Text>
+          ))}
+        </Box>
+      )}
       <Box
         flexDirection="column"
         width={geometry.width}

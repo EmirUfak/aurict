@@ -44,4 +44,9 @@ describe("verification pipeline metadata", () => {
     const result = withVerification({ output: "ok" }, "cargo", { status: "skipped", reason: "cargo not installed" })
     expect(verificationSummary(result)).toBe("skipped:cargo:cargo not installed")
   })
+
+  it("summarizes first-class test evidence", () => {
+    const result = withVerification({ output: "24 tests passed" }, "test", { status: "passed" })
+    expect(verificationSummary(result)).toBe("verified:test")
+  })
 })

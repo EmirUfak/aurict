@@ -1,6 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type {
   ContextUsage,
+  CompletionProof,
   CoreMessage,
   PromptCacheHealthResult,
   PromptDiagnostics,
@@ -70,6 +71,7 @@ export interface AppCommandParams {
   setTokens: Dispatch<SetStateAction<TokenBreakdown>>;
   setWatchedPaths: Dispatch<SetStateAction<WatchedPath[]>>;
   setContextUsage: Dispatch<SetStateAction<ContextUsage | undefined>>;
+  setCompletionProof: Dispatch<SetStateAction<CompletionProof | undefined>>;
   setSessionTitle: Dispatch<SetStateAction<string | undefined>>;
   setDesignInitialBrief: Dispatch<SetStateAction<string | undefined>>;
   setInput: Dispatch<SetStateAction<string>>;

@@ -43,6 +43,7 @@ import { acquireFileLock, releaseFileLock } from "../agent/file-lock.js";
 import { recordFailureCooldown } from "../agent/failure-cooldown.js";
 import { failedStrategiesStore } from "../agent/failed-strategies-store.js";
 import { recordRunTrace } from "../agent/run-trace.js";
+import { recordFlightFailure, type FlightReplayPolicy } from "../diagnostics/flight-recorder.js";
 import type { ToolDef, ToolContext, ExecuteResult } from "./types.js";
 import type {
   PermissionRequest,
@@ -108,6 +109,24 @@ function analyzeToolError(toolId: string, error: string): string {
     hint =
       "Process killed (OOM or ulimit) — operation requires too much memory.";
   return hint ? `${error}\n[Hint] ${hint}` : error;
+}
+
+function flightReplayPolicy(
+  def: ToolDef,
+  args: Record<string, unknown>,
+): { policy: FlightReplayPolicy; reason?: string } {
+  if (def.id === "bash") {
+    const action = String(args["action"] ?? "run");
+    if (action !== "run") return { policy: "blocked", reason: `Bash action '${action}' is stateful` };
+    const analysis = classifyCommand(String(args["command"] ?? ""));
+    if (analysis.level === "danger") return { policy: "blocked", reason: analysis.reason };
+    return analysis.isReadOnly
+      ? { policy: "safe" }
+      : { policy: "confirm", reason: analysis.reason };
+  }
+  if (def.spec?.category === "read") return { policy: "safe" };
+  if (def.spec?.category === "execute") return { policy: "confirm", reason: "Execution may mutate workspace state" };
+  return { policy: "blocked", reason: `${def.spec?.category ?? "unknown"} tools are not replayed automatically` };
 }
 
 // C: Pre-verify named imports from existing local modules before write/edit
@@ -1215,6 +1234,24 @@ export async function executeTool(
     verification: distilled.verification,
     cooldown,
   }).catch(() => {});
+  if (result.error) {
+    const replay = flightReplayPolicy(def, args);
+    try {
+      await recordFlightFailure({
+        workdir: ctx.workdir,
+        sessionId: ctx.sessionId,
+        tool: def.id,
+        args,
+        output: result.output,
+        error: result.error,
+        durationMs,
+        replayPolicy: replay.policy,
+        ...(replay.reason ? { replayBlockReason: replay.reason } : {}),
+      });
+    } catch (flightError) {
+      console.error(`[aurict] failed to record flight for ${def.id}: ${flightError instanceof Error ? flightError.message : String(flightError)}`);
+    }
+  }
 
   // durationMs zaten yukarıda (post-execute) hesaplandı
 

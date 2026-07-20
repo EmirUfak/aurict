@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import crypto from "node:crypto";
 import {
   agentPool,
+  type CompletionProof,
   type ContextUsage,
   type CoreMessage,
   type PermissionRequest,
@@ -79,6 +80,7 @@ export function useAppState(options: AppStateOptions) {
   const [branch, setBranch] = useState<string>();
   const [wasCompacted, setWasCompacted] = useState(false);
   const [contextUsage, setContextUsage] = useState<ContextUsage>();
+  const [completionProof, setCompletionProof] = useState<CompletionProof>();
   const [promptDiagnostics, setPromptDiagnostics] = useState<PromptDiagnostics>();
   const [promptCacheHealth, setPromptCacheHealth] = useState<PromptCacheHealthResult>();
   const [activeAgentCount, setActiveAgentCount] = useState(() => agentPool.active.length);
@@ -149,7 +151,8 @@ export function useAppState(options: AppStateOptions) {
     sessionTitle, setSessionTitle, isUndercover, setIsUndercover, coordinatorMode,
     setCoordinatorMode, activeAgent, setActiveAgent, workdirState, setWorkdirState,
     composerQueue, setComposerQueue, branch, setBranch, wasCompacted, setWasCompacted,
-    contextUsage, setContextUsage, promptDiagnostics, setPromptDiagnostics,
+    contextUsage, setContextUsage, completionProof, setCompletionProof,
+    promptDiagnostics, setPromptDiagnostics,
     promptCacheHealth, setPromptCacheHealth, activeAgentCount, setActiveAgentCount,
     updateInfo, autopilotMode, setAutopilotMode, recentCmds, setRecentCmds,
     designInitialBrief, setDesignInitialBrief, watchedPaths, setWatchedPaths,
