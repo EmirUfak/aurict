@@ -7,6 +7,7 @@ import { TerminalSizeContext } from "../src/tui/TerminalSizeContext.js";
 import { Typo } from "../src/tui/design-system/index.js";
 import { CockpitHeader } from "../src/tui/CockpitHeader.js";
 import { ComposerPane } from "../src/tui/app-shell/ComposerPane.js";
+import { TranscriptRows } from "../src/tui/TranscriptRows.js";
 
 const stripAnsi = (value: string) => value.replace(/\x1b\[[0-9;]*m/g, "");
 
@@ -128,6 +129,20 @@ describe("terminal polish contract", () => {
     ).lastFrame() ?? "");
     expect(frame).toContain("│ ▸ You");
     expect(frame).toContain("│ Modern terminal");
+  });
+
+  test("turns semantic gap rows into true visual whitespace", () => {
+    const frame = stripAnsi(render(
+      <TranscriptRows
+        rail
+        rows={[
+          { id: "before", segments: [{ text: "Before tool", tone: "assistant" }] },
+          { id: "gap", segments: [{ text: "", tone: "muted" }] },
+          { id: "after", segments: [{ text: "After tool", tone: "assistant" }] },
+        ]}
+      />,
+    ).lastFrame() ?? "");
+    expect(frame).toContain("│ Before tool\n\n│ After tool");
   });
 
   test("gives the cockpit and composer the same outer frame width", () => {

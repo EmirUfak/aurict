@@ -22,7 +22,7 @@ export function TranscriptRows({ rows, rail = false }: { rows: TranscriptRow[]; 
   return <>
     {rows.map((row) => (
       <Text key={row.id} wrap="truncate-end">
-        {rail && <Text color={railColor(row, theme)}>│ </Text>}
+        {rail && rowHasContent(row) && <Text color={railColor(row, theme)}>│ </Text>}
         {row.segments.map((segment, index) => (
           <Text
             key={`${row.id}:${index}`}
@@ -35,6 +35,10 @@ export function TranscriptRows({ rows, rail = false }: { rows: TranscriptRow[]; 
       </Text>
     ))}
   </>;
+}
+
+function rowHasContent(row: TranscriptRow): boolean {
+  return row.segments.some((segment) => segment.text.length > 0);
 }
 
 function railColor(row: TranscriptRow, theme: SemanticTheme): string {

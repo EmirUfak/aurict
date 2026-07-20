@@ -171,12 +171,15 @@ function pushMarkdown(rows: TranscriptRow[], id: string, text: string, tone: Tra
       pushGap(rows, `${id}:${index}:gap`);
       continue;
     }
+    const wasInCode = inCode;
+    const codeFence = /^```/.test(source);
     const sectionHeading = !inCode && (isMarkdownHeading(source) || standaloneSectionTitle(source) !== undefined);
     const listItem = !inCode && isMarkdownListItem(source);
     const previousListItem = index > 0 && isMarkdownListItem(sources[index - 1]!);
     const nextListItem = index + 1 < sources.length && isMarkdownListItem(sources[index + 1]!);
     if (sectionHeading) pushGap(rows, `${id}:${index}:before`);
     if (listItem && !previousListItem) pushGap(rows, `${id}:${index}:list-before`);
+    if (codeFence && !wasInCode) pushGap(rows, `${id}:${index}:code-before`);
     const formatted = markdownSegments(source, tone, inCode);
     const codeLine = inCode || formatted.toggleCode;
     if (formatted.toggleCode) inCode = !inCode;
@@ -188,6 +191,7 @@ function pushMarkdown(rows: TranscriptRow[], id: string, text: string, tone: Tra
     }
     if (sectionHeading) pushGap(rows, `${id}:${index}:after`);
     if (listItem && !nextListItem) pushGap(rows, `${id}:${index}:list-after`);
+    if (codeFence && wasInCode) pushGap(rows, `${id}:${index}:code-after`);
   }
 }
 
@@ -290,7 +294,6 @@ function pushToolGroup(
   entries: Array<{ block: Extract<TranscriptBlock, { type: "tool" }>; sourceIndex: number }>,
   width: number,
 ): void {
-  pushGap(rows, `${id}:before`);
   const artifacts = entries.map(({ block }) => parseToolArtifact(block.tool, block.args, block.resultContent, block.artifact));
   const paths = [...new Set(artifacts.map((artifact) => artifact.filePath).filter((path): path is string => Boolean(path)))];
   const additions = artifacts.reduce((sum, artifact) => sum + (artifact.additions ?? 0), 0);
@@ -311,7 +314,6 @@ function pushToolGroup(
     { text: `${noun} ${entries.length} ${unit}`, tone: "tool", bold: true },
     { text: `${sample}${diff}${timing} · Ctrl+O inspect`, tone: "muted" },
   ], width, id);
-  pushGap(rows, `${id}:after`);
 }
 
 function formatDuration(durationMs: number): string {
@@ -347,7 +349,11 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
   const toolOnly = message.role === "assistant" && Boolean(message.blocks?.length) && message.blocks!.every((block) => block.type === "tool");
   if (!toolOnly) {
     const marker = message.role === "user" ? glyph("headingMinor") : glyph("assistant");
-    rows.push({ id: `${id}:header`, segments: [{ text: `${marker} ${message.role === "user" ? "You" : "Aurict"}${timestamp(message.timestamp)}`, tone, bold: true }] });
+    const time = timestamp(message.timestamp);
+    rows.push({ id: `${id}:header`, segments: [
+      { text: `${marker} ${message.role === "user" ? "You" : "Aurict"}`, tone, bold: true },
+      ...(time ? [{ text: time, tone: "muted" as const }] : []),
+    ] });
   }
   if (message.reasoningContent) rows.push({ id: `${id}:thinking`, segments: [{ text: thinkingSummary(message.reasoningContent), tone: "thinking", italic: true }], detailId: `${id}:thinking` });
   if (message.blocks?.length) {
@@ -355,8 +361,12 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
       ? coalesceInterruptedAssistantBlocks(message.blocks)
       : message.blocks.map((block, sourceIndex) => ({ block, sourceIndex }));
     const groupedBlocks = groupAdjacentToolBlocks(displayBlocks, toolGroupKey);
+    let previousKind: TranscriptBlock["type"] | undefined;
     for (const item of groupedBlocks) {
       const { block, sourceIndex } = item.kind === "single" ? item.entry : item.entries[0]!;
+      const kind = item.kind === "tool-group" ? "tool" : block.type;
+      if (previousKind && previousKind !== kind)
+        pushGap(rows, `${id}:flow:${sourceIndex}:gap`);
       if (item.kind === "tool-group") {
         pushToolGroup(rows, `${id}:tool:${sourceIndex}`, item.key, item.entries, width);
       } else if (block.type === "tool") pushTool(rows, `${id}:tool:${sourceIndex}`, block, width);
@@ -364,6 +374,7 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
         if (block.reasoningContent) rows.push({ id: `${id}:text:${sourceIndex}:thinking`, segments: [{ text: thinkingSummary(block.reasoningContent), tone: "thinking", italic: true }], detailId: `${id}:text:${sourceIndex}:thinking` });
         pushMarkdown(rows, `${id}:text:${sourceIndex}`, block.content, tone, width);
       }
+      previousKind = kind;
     }
   } else pushMarkdown(rows, `${id}:body`, message.resultContent ?? message.content, tone, width);
   pushGap(rows, `${id}:gap`);
@@ -372,7 +383,12 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
 export function projectStableTranscript(messages: TranscriptMessage[], width: number): TranscriptRow[] {
   const rows: TranscriptRow[] = [];
   const contentWidth = Math.max(12, width - 2);
-  messages.forEach((message, index) => projectMessage(rows, message, index, contentWidth));
+  messages.forEach((message, index) => {
+    projectMessage(rows, message, index, contentWidth);
+    if (message.role !== "tool_call") return;
+    const nextVisible = messages.slice(index + 1).find((candidate) => candidate.role !== "tool_result");
+    if (nextVisible?.role !== "tool_call") pushGap(rows, `${message.id ?? `message-${index}`}:tool-gap`);
+  });
   return normalizeTerminalRows(rows);
 }
 

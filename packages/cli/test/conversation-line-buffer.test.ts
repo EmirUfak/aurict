@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import {
   buildTranscriptLines,
+  projectStableTranscript,
   wrapTranscriptText,
 } from "../src/tui/conversation/line-buffer.js"
 import { wrapLine } from "../src/tui/event-system/wrap-line.js"
@@ -55,6 +56,46 @@ describe("conversation line buffer", () => {
     ]))
     expect(lines.findIndex((line) => line.text === "I will prepare it."))
       .toBeLessThan(lines.findIndex((line) => line.text === "• Wrote report.md"))
+  })
+
+  it("adds one breathing row at prose and tool boundaries", () => {
+    const lines = buildTranscriptLines([{
+      id: "rhythm",
+      role: "assistant",
+      content: "",
+      blocks: [
+        { type: "text", content: "I will inspect it." },
+        { type: "tool", id: "read", tool: "read", args: "src/app.ts", pending: false, resultContent: "source" },
+        { type: "text", content: "The implementation is clear." },
+      ],
+    }], 80, null, null, null)
+    const visible = lines.map((line) => line.text)
+    const tool = visible.indexOf("• Read src/app.ts")
+    const response = visible.indexOf("The implementation is clear.")
+
+    expect(visible[tool - 1]).toBe("")
+    expect(visible[response - 1]).toBe("")
+  })
+
+  it("keeps adjacent tool calls in one tight activity cluster", () => {
+    const lines = buildTranscriptLines([{
+      id: "tool-cluster",
+      role: "assistant",
+      content: "",
+      blocks: [
+        { type: "text", content: "Checking both commands." },
+        { type: "tool", id: "one", tool: "bash", args: "git status", pending: false },
+        { type: "tool", id: "two", tool: "bash", args: "git diff", pending: false },
+        { type: "text", content: "The workspace is consistent." },
+      ],
+    }], 80, null, null, null)
+    const visible = lines.map((line) => line.text)
+    const firstTool = visible.indexOf("• Ran git status")
+    const secondTool = visible.indexOf("• Ran git diff")
+
+    expect(visible[firstTool - 1]).toBe("")
+    expect(secondTool).toBe(firstTool + 1)
+    expect(visible[secondTool + 1]).toBe("")
   })
 
   it("defers an unfinished pre-tool paragraph and rejoins it after tool activity", () => {
@@ -122,6 +163,14 @@ describe("conversation line buffer", () => {
       "▸ You · 09:05",
       "◇ Aurict · 09:06",
     ]))
+
+    const rows = projectStableTranscript([
+      { id: "timed", role: "assistant", content: "Done", timestamp: new Date(2026, 0, 1, 9, 6).getTime() },
+    ], 80)
+    expect(rows[0]?.segments).toEqual([
+      expect.objectContaining({ text: "◇ Aurict", tone: "assistant", bold: true }),
+      expect.objectContaining({ text: " · 09:06", tone: "muted" }),
+    ])
   })
 
   it("preserves Markdown structure without delegating row height to Ink", () => {
@@ -147,6 +196,23 @@ describe("conversation line buffer", () => {
       expect.objectContaining({ text: "┌ ts", tone: "code" }),
       expect.objectContaining({ text: "const ready = true", tone: "code" }),
     ]))
+  })
+
+  it("gives fenced code one surrounding row without loosening its body", () => {
+    const lines = buildTranscriptLines([{
+      id: "code-rhythm",
+      role: "assistant",
+      content: "Before.\n```ts\nconst ready = true\n```\nAfter.",
+    }], 80, null, null, null)
+    const visible = lines.map((line) => line.text)
+    const open = visible.indexOf("┌ ts")
+    const body = visible.indexOf("const ready = true")
+    const close = visible.indexOf("└")
+
+    expect(visible[open - 1]).toBe("")
+    expect(body).toBe(open + 1)
+    expect(close).toBe(body + 1)
+    expect(visible[close + 1]).toBe("")
   })
 
   it("gives Markdown and bold-only section headings one readable row above and below", () => {
