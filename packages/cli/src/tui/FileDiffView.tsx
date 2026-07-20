@@ -8,7 +8,7 @@
  */
 
 import React, { useMemo } from "react"
-import { Box, Text } from "ink"
+import { Box, Text } from "./design-system/renderer.js"
 import { useTheme } from "../utils/theme.js"
 import { parseRawDiff, wordDiff } from "./DiffRenderer/logic.js"
 import type { DiffLine } from "./DiffRenderer/logic.js"

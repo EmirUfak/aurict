@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import { Box, Text } from "ink"
+import { Box, Text } from "./design-system/renderer.js"
 import { agentPool } from "@aurict/core"
 import type { AgentInfo } from "@aurict/core"
 import { HStack } from "./design-system/index.js"

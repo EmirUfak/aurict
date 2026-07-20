@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Box, Text } from "ink"
+import { Box, Text } from "./design-system/renderer.js"
 import { createHash } from "node:crypto"
 import { userInfo } from "node:os"
 import { useTheme } from "../utils/theme.js"

@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box, Text } from "./design-system/renderer.js";
 import type { TokenBreakdown } from "@aurict/core";
 import { HStack, Surface, StatusDot } from "./design-system/index.js";
 import { useTheme } from "../utils/theme.js";

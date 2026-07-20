@@ -1,5 +1,5 @@
 import React from "react"
-import { Box, Text } from "ink"
+import { Box, Text } from "./design-system/renderer.js"
 import type { Task } from "@aurict/core"
 import { useSemanticTheme } from "./theme/semantic-theme.js"
 

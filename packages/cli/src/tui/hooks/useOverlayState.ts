@@ -52,7 +52,19 @@ export interface ExpandedContent {
   totalLines?: number
 }
 
+export type PrimaryOverlay =
+  | "quickSearch"
+  | "commandPalette"
+  | "settings"
+  | "designWizard"
+  | "historySearch"
+  | "keyboardShortcuts"
+  | "attach"
+  | null
+
 export interface OverlayState {
+  /** At most one composer-level modal can own input at a time. */
+  primaryOverlay: PrimaryOverlay
   // Overlay open flags
   quickSearchOpen: boolean
   cmdPaletteOpen: boolean
@@ -114,16 +126,50 @@ export interface OverlayActions {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useOverlayState(): OverlayState & OverlayActions {
-  // Overlay open flags
-  const [quickSearchOpen, setQuickSearchOpen] = useState(false)
-  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [designWizardOpen, setDesignWizardOpen] = useState(false)
-  const [historySearchOpen, setHistorySearchOpen] = useState(false)
-  const [keyboardShortcutsOpen, setKeyboardShortcutsOpen] = useState(false)
+  // Composer-level overlays are mutually exclusive by construction. The
+  // boolean setters remain as a compatibility boundary for command handlers.
+  const [primaryOverlay, setPrimaryOverlay] = useState<PrimaryOverlay>(null)
+  const setPrimaryOpen = useCallback((
+    name: Exclude<PrimaryOverlay, null>,
+    action: SetStateAction<boolean>,
+  ) => {
+    setPrimaryOverlay((current) => {
+      const isOpen = current === name
+      const nextOpen = typeof action === "function" ? action(isOpen) : action
+      if (nextOpen) return name
+      return isOpen ? null : current
+    })
+  }, [])
+  const setQuickSearchOpen = useCallback((action: SetStateAction<boolean>) => {
+    setPrimaryOpen("quickSearch", action)
+  }, [setPrimaryOpen])
+  const setCmdPaletteOpen = useCallback((action: SetStateAction<boolean>) => {
+    setPrimaryOpen("commandPalette", action)
+  }, [setPrimaryOpen])
+  const setSettingsOpen = useCallback((action: SetStateAction<boolean>) => {
+    setPrimaryOpen("settings", action)
+  }, [setPrimaryOpen])
+  const setDesignWizardOpen = useCallback((action: SetStateAction<boolean>) => {
+    setPrimaryOpen("designWizard", action)
+  }, [setPrimaryOpen])
+  const setHistorySearchOpen = useCallback((action: SetStateAction<boolean>) => {
+    setPrimaryOpen("historySearch", action)
+  }, [setPrimaryOpen])
+  const setKeyboardShortcutsOpen = useCallback((action: SetStateAction<boolean>) => {
+    setPrimaryOpen("keyboardShortcuts", action)
+  }, [setPrimaryOpen])
+  const setAttachInput = useCallback((action: SetStateAction<boolean>) => {
+    setPrimaryOpen("attach", action)
+  }, [setPrimaryOpen])
+  const quickSearchOpen = primaryOverlay === "quickSearch"
+  const cmdPaletteOpen = primaryOverlay === "commandPalette"
+  const settingsOpen = primaryOverlay === "settings"
+  const designWizardOpen = primaryOverlay === "designWizard"
+  const historySearchOpen = primaryOverlay === "historySearch"
+  const keyboardShortcutsOpen = primaryOverlay === "keyboardShortcuts"
+  const attachInput = primaryOverlay === "attach"
   const [taskPanelOpen, setTaskPanelOpen] = useState(false)
   const [updateDismissed, setUpdateDismissed] = useState(false)
-  const [attachInput, setAttachInput] = useState(false)
 
   // Overlay data
   const [editingMsg, setEditingMsg] = useState<EditingMessage | null>(null)
@@ -169,14 +215,8 @@ export function useOverlayState(): OverlayState & OverlayActions {
   ])
 
   const closePrimaryOverlays = useCallback(() => {
-    setQuickSearchOpen(false)
-    setCmdPaletteOpen(false)
-    setSettingsOpen(false)
-    setDesignWizardOpen(false)
-    setHistorySearchOpen(false)
-    setKeyboardShortcutsOpen(false)
+    setPrimaryOverlay(null)
     setTaskPanelOpen(false)
-    setAttachInput(false)
     setAttachPath("")
   }, [])
 
@@ -194,6 +234,7 @@ export function useOverlayState(): OverlayState & OverlayActions {
 
   return {
     // State
+    primaryOverlay,
     quickSearchOpen,
     cmdPaletteOpen,
     settingsOpen,

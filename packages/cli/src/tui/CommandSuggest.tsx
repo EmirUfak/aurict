@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useTerminalSize } from "./TerminalSizeContext.js"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import type { CommandDef } from "../commands/types.js"
 import { useTheme } from "../utils/theme.js"
 import {

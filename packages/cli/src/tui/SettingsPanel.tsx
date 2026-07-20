@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import { useTheme } from "../utils/theme.js"
 import { THEMES, THEME_NAMES, BRAND_PALETTE_IDS, isBrandTheme } from "../utils/theme.js"
 import { Eyebrow } from "./design-system/index.js"

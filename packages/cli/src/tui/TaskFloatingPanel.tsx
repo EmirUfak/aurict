@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import type { Task } from "@aurict/core"
 import { useTheme } from "../utils/theme.js"
 

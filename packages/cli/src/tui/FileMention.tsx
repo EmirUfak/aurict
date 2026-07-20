@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import { readdirSync } from "node:fs"
 import { join } from "node:path"
 import { useTheme } from "../utils/theme.js"

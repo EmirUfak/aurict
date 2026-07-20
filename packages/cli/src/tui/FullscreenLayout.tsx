@@ -6,7 +6,6 @@ interface FullscreenLayoutProps {
   rows:                number
   header?:             React.ReactNode  // fixed top (banner, update notice, session title)
   scrollable:          React.ReactNode  // grows to fill space (ConversationViewport)
-  overlay?:            React.ReactNode  // modals rendered between scrollable and bottom
   bottom:              React.ReactNode  // fixed bottom (input area + status bar)
   onScrollableHeight?: (rows: number) => void  // fires when scrollable slot height changes
 }
@@ -15,7 +14,6 @@ export function FullscreenLayout({
   rows,
   header,
   scrollable,
-  overlay,
   bottom,
   onScrollableHeight,
 }: FullscreenLayoutProps) {
@@ -43,17 +41,6 @@ export function FullscreenLayout({
       <Box ref={scrollableRef} flexGrow={1} flexShrink={1} flexDirection="column" overflow="hidden">
         {scrollable}
       </Box>
-      {/* The overlay (picker/modal) is the focused UI — it must NEVER shrink.
-          With flexShrink={1}, Yoga would shrink this box when space got
-          tight and Ink would draw with skipped rows (the title + selected
-          row would become invisible). Shrinking is delegated to the
-          scrollable area instead; overlay components cap their own height
-          based on the terminal's row count. */}
-      {overlay && (
-        <Box flexDirection="column" flexShrink={0}>
-          {overlay}
-        </Box>
-      )}
       <Box flexDirection="column" flexShrink={0} overflow="hidden">
         {bottom}
       </Box>

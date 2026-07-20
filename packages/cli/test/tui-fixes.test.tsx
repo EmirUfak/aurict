@@ -10,6 +10,7 @@ import React from "react"
 import { render } from "ink-testing-library"
 import { Box, Text } from "ink"
 import { FullscreenLayout } from "../src/tui/FullscreenLayout.js"
+import { OverlayStack } from "../src/tui/app-shell/OverlayStack.js"
 import { Picker } from "../src/tui/Picker.js"
 import { CommandSuggest, getCommandMatches } from "../src/tui/CommandSuggest.js"
 import { splitCoalescedKeys } from "../src/tui/mouse.js"
@@ -114,10 +115,10 @@ describe("getCommandMatches broader matching", () => {
   })
 })
 
-// ── FullscreenLayout overlay integrity ────────────────────────────────────────
+// ── Root overlay integrity ────────────────────────────────────────────────────
 
-describe("FullscreenLayout overlay", () => {
-  test("overlay rows are not dropped when vertical space is tight", async () => {
+describe("OverlayStack", () => {
+  test("renders above the layout without taking a flex slot", async () => {
     const items = [
       { id: "anthropic", label: "Anthropic", hint: "no key" },
       { id: "openai",    label: "OpenAI",    hint: "no key" },
@@ -146,7 +147,10 @@ describe("FullscreenLayout overlay", () => {
       </TerminalSizeContext.Provider>
     )
     const r = render(
-      <FullscreenLayout rows={20} header={header} scrollable={scrollable} overlay={overlay} bottom={bottom} />,
+      <Box position="relative" width={80} height={20}>
+        <FullscreenLayout rows={20} header={header} scrollable={scrollable} bottom={bottom} />
+        <OverlayStack open columns={80} rows={20}>{overlay}</OverlayStack>
+      </Box>,
     )
     await sleep(60)
     const frame = r.lastFrame() ?? ""

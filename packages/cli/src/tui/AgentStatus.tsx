@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import { agentPool } from "@aurict/core"
 import { motionEnabled } from "./design-system/motion.js"
 import type { AgentInfo } from "@aurict/core"
@@ -38,13 +38,14 @@ interface VisibleAgent {
 }
 
 interface Props {
+  inputActive?:       boolean
   viewingSessionId?: string | null
   onViewAgent?:      (sessionId: string | null) => void
   selectedAgentIdx?: number
   onSelectAgent?:    (idx: number) => void
 }
 
-export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, onSelectAgent }: Props) {
+export function AgentStatus({ inputActive = true, viewingSessionId, onViewAgent, selectedAgentIdx, onSelectAgent }: Props) {
   const theme = useTheme()
   const semantic = useSemanticTheme()
   const [visible, setVisible] = useState<VisibleAgent[]>([])
@@ -106,7 +107,7 @@ export function AgentStatus({ viewingSessionId, onViewAgent, selectedAgentIdx, o
         setVisible((prev) => prev.filter((_, i) => i !== idx))
       }
     }
-  }, { isActive: visible.length > 0 })
+  }, { isActive: inputActive && visible.length > 0 })
 
   if (!visible.length) return null
 

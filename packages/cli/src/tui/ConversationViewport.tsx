@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Box, Text } from "ink";
+import { Box, Text } from "./design-system/renderer.js";
 import type { TranscriptMessage } from "./conversation/types.js";
 import { useTheme } from "../utils/theme.js";
 import { projectLiveTranscript, projectStableTranscript, type TranscriptRow } from "./conversation/projector.js";

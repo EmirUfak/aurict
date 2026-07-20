@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import { useTheme } from "../utils/theme.js"
 import { DesignLoader, matchDesign, loadDesignPrefs } from "@aurict/core"
 import type { DesignSystem, Skill, MatchResult } from "@aurict/core"

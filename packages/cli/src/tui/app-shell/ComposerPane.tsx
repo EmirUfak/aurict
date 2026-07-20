@@ -7,6 +7,7 @@ import { shellHorizontalInset } from "./layout-metrics.js";
 
 interface Props {
   visible: boolean;
+  active?: boolean;
   value: string;
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;
@@ -19,7 +20,7 @@ interface Props {
   onCopied: (characters: number) => void;
 }
 
-export function ComposerPane(props: Props) {
+export function ComposerPane({ active = true, ...props }: Props) {
   const columns = useTerminalSize().columns;
   if (!props.visible) return null;
   return (
@@ -29,7 +30,7 @@ export function ComposerPane(props: Props) {
         onChange={props.onChange}
         onSubmit={props.onSubmit}
         onQueue={props.onQueue}
-        disabled={false}
+        disabled={!active}
         working={props.working}
         history={props.history}
         inlineSuggestionActive={props.inlineSuggestionActive}

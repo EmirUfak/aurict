@@ -7,6 +7,7 @@ import { KeybindingsProvider } from "../../keybindings/index.js";
 import { AlternateScreen } from "../AlternateScreen.js";
 import { FullscreenLayout } from "../FullscreenLayout.js";
 import { TerminalSizeContext } from "../TerminalSizeContext.js";
+import { OverlayStack } from "./OverlayStack.js";
 
 interface Props {
   rows: number;
@@ -16,6 +17,7 @@ interface Props {
   header: React.ReactNode;
   transcript: React.ReactNode;
   overlay: React.ReactNode;
+  overlayOpen: boolean;
   bottom: React.ReactNode;
   sidePanel?: React.ReactNode;
   onTranscriptHeight: (rows: number) => void;
@@ -27,16 +29,24 @@ export function TerminalAppShell(props: Props) {
       <TerminalSizeContext.Provider value={{ columns: props.columns, rows: props.rows }}>
         <ThemeContext.Provider value={props.theme}>
           <KeybindingsProvider initialContext={props.keybindingContext}>
-            <Box flexDirection="row" width="100%" height={props.rows}>
-              <FullscreenLayout
+            <Box position="relative" width="100%" height={props.rows}>
+              <Box flexDirection="row" width="100%" height={props.rows}>
+                <FullscreenLayout
+                  rows={props.rows}
+                  onScrollableHeight={props.onTranscriptHeight}
+                  header={props.header}
+                  scrollable={props.transcript}
+                  bottom={props.bottom}
+                />
+                {props.sidePanel}
+              </Box>
+              <OverlayStack
+                open={props.overlayOpen}
+                columns={props.columns}
                 rows={props.rows}
-                onScrollableHeight={props.onTranscriptHeight}
-                header={props.header}
-                scrollable={props.transcript}
-                overlay={props.overlay}
-                bottom={props.bottom}
-              />
-              {props.sidePanel}
+              >
+                {props.overlay}
+              </OverlayStack>
             </Box>
           </KeybindingsProvider>
         </ThemeContext.Provider>

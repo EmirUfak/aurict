@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Text } from "ink";
+import { Box, Text } from "./design-system/renderer.js";
 import { useTheme } from "../utils/theme.js";
 import { glyph } from "./terminal-glyphs.js";
 import { AurictWordmark } from "./AurictWordmark.js";

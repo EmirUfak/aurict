@@ -1,171 +1,24 @@
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useMemo,
-} from "react";
-import crypto from "node:crypto";
-import { join } from "node:path";
-import { homedir, tmpdir } from "node:os";
-import { writeFileSync, readFileSync, unlinkSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { Box, Text, useInput, useApp } from "ink";
-import {
-  runAgent,
-  parseProviderError,
-  ProviderRegistry,
-  SessionManager,
-  ExecutorEvents,
-  PermissionGate,
-  PermissionStore,
-  getSkillsForProject,
-  agentPool,
-  questionService,
-  readAttachmentFromPath,
-  extractSymbolBody,
-  taskManager,
-  detectUndercoverRepo,
-  getSessionAgent,
-  getAllSessionAgents,
-  notifyTaskDone,
-  notifyError,
-  extractAndStoreMemories,
-  fileWatcher,
-  snapshotManager,
-  depSentinel,
-  PlanGate,
-  setDefault,
-  setMCPLogHandler,
-} from "@aurict/core";
-import type {
-  PermissionRequest,
-  PermissionResponse,
-  QuestionRequest,
-  QuestionAnswer,
-  Attachment,
-  Task,
-  CoreMessage,
-  DependencyChange,
-  PlanRequest,
-  TokenBreakdown,
-  PromptDiagnostics,
-  PromptCacheHealthResult,
-  ContextUsage,
-} from "@aurict/core";
-
-import {
-  parseSlashCommand,
-  getCommand,
-  allCommands,
-} from "../commands/registry.js";
-import type { CommandResult, PickerItem } from "../commands/types.js";
-// Lightweight — werift is only in webrtc-transport.js (lazy-imported, see startRemoteSession).
-import { CliRemoteRuntime, type CliRemoteStatus } from "../remote/runtime.js";
-import { RemoteEventTypes, type RemoteEvent } from "../remote/event-codec.js";
-import { ensureAccessToken } from "../remote/auth.js";
-import { RemoteApiError } from "../remote/backend-client.js";
-import { THEMES, DEFAULT_THEME } from "../utils/theme.js";
-import type { Context as KeybindingContext } from "../keybindings/index.js";
-
-import {
-  type DisplayMessage,
-  type AssistantContentBlock,
-} from "./conversation/types.js";
-import { TaskFloatingPanel } from "./TaskFloatingPanel.js";
-import {
-  PermissionPrompt,
-  type PermissionPromptDecision,
-} from "./PermissionPrompt.js";
-import { QuestionPrompt } from "./QuestionPrompt.js";
-import { Picker } from "./Picker.js";
-import { PromptInput } from "./PromptInput.js";
-import { StatusBar } from "./StatusBar.js";
-import { CommandSuggest, getCommandMatches } from "./CommandSuggest.js";
-import { StartupBanner } from "./StartupBanner.js";
-import { CockpitHeader } from "./CockpitHeader.js";
-import { AgentStatus } from "./AgentStatus.js";
-import {
-  collectTranscriptDetails,
-  type TranscriptDetail,
-} from "./conversation/transcript-details.js";
-import { SubagentView } from "./SubagentView.js";
-import { FileMention, listFileMentionMatches } from "./FileMention.js";
-import { ExpandableOutput } from "./ExpandableOutput.js";
-import { BtwPanel } from "./BtwPanel.js";
-import { QuickSearch } from "./QuickSearch.js";
-import { CommandPalette } from "./CommandPalette.js";
-import { MessageEditPanel } from "./MessageEditPanel.js";
-import { PlanApprovalModal } from "./PlanApprovalModal.js";
-import { SettingsPanel } from "./SettingsPanel.js";
-import { DesignWizard } from "./DesignWizard.js";
-import type { DesignWizardResult } from "./DesignWizard.js";
-import type { UpdateInfo } from "../util/update-check.js";
-import { CURRENT_VERSION } from "../util/update-check.js";
-import { readClipboard } from "../util/clipboard.js";
-import { useMouseEvents, injectInput } from "./mouse.js";
-import { registerTerminalMode } from "./event-system/terminal-modes.js";
-import { addComposerItem, takeComposerItem, type ComposerQueueItem } from "./composer-queue.js";
-import { TerminalAppShell } from "./app-shell/TerminalAppShell.js";
-import { TranscriptPane } from "./app-shell/TranscriptPane.js";
-import { ComposerPane } from "./app-shell/ComposerPane.js";
-import { permissionTranscriptFeedback } from "./permission-feedback.js";
-import { OverlayStack } from "./app-shell/OverlayStack.js";
-import { installStdinResumeGuard } from "./event-system/stdin-resume.js";
-import {
-  buildDesignPrompt,
-  recordSystemUsed,
-  recordSkillUsed,
-  slugify,
-  loadConfig,
-  metrics,
-} from "@aurict/core";
-import {
-  clearDraft,
-  hasPendingCrashReport,
-} from "../util/draft.js";
-import { getTerminalCaps } from "../util/terminal-caps.js";
+import React, { useMemo, useRef } from "react";
+import { allCommands } from "../commands/registry.js";
+import { useApp } from "./design-system/renderer.js";
 import { useOverlayState } from "./hooks/useOverlayState.js";
 import { useBackgroundTasks } from "./hooks/useBackgroundTasks.js";
-import { HistorySearch } from "./HistorySearch.js";
-import { KeyboardShortcuts } from "./KeyboardShortcuts.js";
-import type { RunActivity } from "./run-status.js";
-import { visibleLiveStream } from "./conversation/live-stream.js";
-import { presentTranscriptError } from "./conversation/error-presentation.js";
-import { AUTO_CONTINUE_PROMPT } from "./auto-continue.js";
-import type { LocalServerStatus } from "../bootstrap.js";
+import { useAppLifecycle } from "./hooks/useAppLifecycle.js";
+import { useSystemRequestHandlers } from "./hooks/useSystemRequestHandlers.js";
+import { useExternalEditor } from "./hooks/useExternalEditor.js";
+import { useAppKeyboard } from "./hooks/useAppKeyboard.js";
+import { useCommandController } from "./hooks/useCommandController.js";
+import { useAgentSubmit } from "./hooks/useAgentSubmit.js";
+import { useRemoteController } from "./hooks/useRemoteController.js";
+import { useAppFocusModel } from "./hooks/useAppFocusModel.js";
+import { useConversationViewport } from "./hooks/useConversationViewport.js";
+import { useTranscriptDetails } from "./hooks/useTranscriptDetails.js";
+import { useComposerSuggestions } from "./hooks/useComposerSuggestions.js";
+import { useAppState } from "./hooks/useAppState.js";
+import { AppScreen } from "./app/AppScreen.js";
+import type { AppProps as Props } from "./app/app-props.js";
+import { configuredSandboxBackend } from "./app/app-environment.js";
 
-interface Props {
-  initialProvider: string;
-  initialModel: string;
-  workdir: string;
-  system?: string;
-  undercover?: boolean;
-  updatePromise?: Promise<UpdateInfo | null>;
-  localServer?: LocalServerStatus;
-}
-
-function configuredSandboxBackend(): "none" | "policy" | "docker" {
-  const raw =
-    process.env["AURICT_SANDBOX_BACKEND"] ?? process.env["AURICT_SANDBOX"];
-  if (raw === "none" || raw === "off" || raw === "false" || raw === "0")
-    return "none";
-  if (raw === "docker") return "docker";
-  return "policy";
-}
-
-const PERM_FILE = join(homedir(), ".aurict", "permissions.json");
-
-/** Backend tokenını yalnızca onu gerektiren araç çağrısı sırasında çözer. */
-async function resolveBackendAccessToken(signal: AbortSignal): Promise<string | undefined> {
-  try {
-    return await ensureAccessToken(signal);
-  } catch (error) {
-    if (error instanceof RemoteApiError && error.code === 'not_signed_in') return undefined;
-    throw error;
-  }
-}
 
 export function App({
   initialProvider,
@@ -178,324 +31,59 @@ export function App({
 }: Props) {
   const { exit } = useApp();
 
-  // Overlay state management — merkezi hook
   const overlay = useOverlayState();
   const {
-    quickSearchOpen,
-    setQuickSearchOpen,
-    cmdPaletteOpen,
-    setCmdPaletteOpen,
-    settingsOpen,
-    setSettingsOpen,
-    designWizardOpen,
-    setDesignWizardOpen,
-    historySearchOpen,
-    setHistorySearchOpen,
     keyboardShortcutsOpen,
-    setKeyboardShortcutsOpen,
-    taskPanelOpen,
-    setTaskPanelOpen,
-    updateDismissed,
-    setUpdateDismissed,
-    attachInput,
     setAttachInput,
-    attachPath,
     setAttachPath,
     attachments,
     setAttachments,
-    editingMsg,
-    setEditingMsg,
-    planRequest,
     setPlanRequest,
-    expandedContent,
-    setExpandedContent,
-    btwState,
-    setBtwState,
     viewingSubagentId,
-    setViewingSubagentId,
   } = overlay;
 
-  const [provider, setProviderState] = useState(initialProvider);
-  const [model, setModelState] = useState(initialModel);
-  const [effort, setEffort] = useState<number | undefined>(undefined);
-  const [termCols, setTermCols] = useState(() => process.stdout.columns ?? 80);
-  const [termRows, setTermRows] = useState(() => process.stdout.rows ?? 24);
-  const [terminalMeasured, setTerminalMeasured] = useState(false);
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
-  const [selectedTranscriptDetailId, setSelectedTranscriptDetailId] = useState<string | null>(null);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [permissionQueue, setPermissionQueue] = useState<PermissionRequest[]>(
-    [],
-  );
-  const permission = permissionQueue[0] ?? null;
-  const [question, setQuestion] = useState<QuestionRequest | null>(null);
-  const [picker, setPicker] = useState<{
-    title: string;
-    items: PickerItem[];
-    onSelect: (i: PickerItem) => void;
-  } | null>(null);
-  const [prompt, setPrompt] = useState<{
-    title: string;
-    placeholder: string | undefined;
-    secret: boolean | undefined;
-    onSubmit: (v: string) => void;
-  } | null>(null);
-  const [tokens, setTokens] = useState<TokenBreakdown>({
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    reasoning: 0,
-  });
-  const [history, setHistory] = useState<CoreMessage[]>([]);
-  const historyRef = useRef<CoreMessage[]>([]);
-  const [skillNames, setSkillNames] = useState<string[]>([]);
-  const [turnSkillNames, setTurnSkillNames] = useState<string[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [startupBannerVisible, setStartupBannerVisible] = useState(true);
+  const {
+    provider, setProviderState, model, setModelState, effort, setEffort,
+    termCols, setTermCols, termRows, setTermRows, terminalMeasured,
+    setTerminalMeasured, messages, setMessages, addSystemMsg, input, setInput,
+    loading, setLoading, permissionQueue, setPermissionQueue, permission,
+    question, setQuestion, picker, setPicker, prompt, setPrompt, tokens,
+    setTokens, history, setHistory, historyRef, skillNames, setSkillNames,
+    turnSkillNames, setTurnSkillNames, tasks, setTasks, commandHistory,
+    setCommandHistory, startupBannerVisible, setStartupBannerVisible,
+    streamingText, setStreamingText, streamingReason, setStreamingReason,
+    streamingError, setStreamingError, activeTool, setActiveTool, runActivity,
+    setRunActivity, themeName, setThemeName, sessionTitle, setSessionTitle,
+    isUndercover, setIsUndercover, coordinatorMode, setCoordinatorMode,
+    activeAgent, setActiveAgent, workdirState, setWorkdirState, composerQueue,
+    setComposerQueue, branch, setBranch, wasCompacted, setWasCompacted,
+    contextUsage, setContextUsage, promptDiagnostics, setPromptDiagnostics,
+    promptCacheHealth, setPromptCacheHealth, activeAgentCount,
+    setActiveAgentCount, updateInfo, autopilotMode, setAutopilotMode,
+    recentCmds, setRecentCmds, designInitialBrief, setDesignInitialBrief,
+    watchedPaths, setWatchedPaths, checkpoints, setCheckpoints, branches,
+    setBranches, activeBranchIdx, setActiveBranchIdx, remoteStatus,
+    setRemoteStatus, submitRef, autopilotRef, watchCleanupRef, mainSessionId,
+    extractedRef, isFirstMessage, latestToolCallRef, btwFrameRef, skipSubmitRef,
+    abortControllerRef, loadingRef, autoContinueRef, autoContinueSubmittingRef,
+    remoteRuntimeRef, remoteBridgeRef, streamTextRef, streamReasonRef,
+    streamTimerRef, tokenRateRef, lastTokenTimeRef, turnHadToolRef,
+    turnAssistantIdRef,
+  } = useAppState({ initialProvider, initialModel, workdir, updatePromise });
+  const {
+    overlayOpen,
+    focusLayer,
+    keybindingContext,
+    blockingOverlayOpen,
+    composerInputActive,
+  } = useAppFocusModel({ overlay, permission, question, picker, prompt, loading });
 
-  // Streaming display — kept separate from the messages array (prevents a render storm)
-  const [streamingText, setStreamingText] = useState<string | null>(null);
-  const [streamingReason, setStreamingReason] = useState<string | null>(null);
-
-  const [activeTool, setActiveTool] = useState<string | undefined>(undefined);
-  const [runActivity, setRunActivity] = useState<RunActivity | undefined>(undefined);
-  const [themeName, setThemeName] = useState(DEFAULT_THEME);
-  const [sessionTitle, setSessionTitle] = useState<string | undefined>(
-    undefined,
-  );
-  const [isUndercover, setIsUndercover] = useState(false);
-  const [coordinatorMode, setCoordinatorMode] = useState(true);
-  const [activeAgent, setActiveAgent] = useState("omni");
-  const [workdirState, setWorkdirState] = useState(workdir);
-  const [composerQueue, setComposerQueue] = useState<ComposerQueueItem[]>([]);
-  const submitRef = useRef<(value: string) => void>(() => {});
-  const [branch, setBranch] = useState<string | undefined>(undefined);
-  const [wasCompacted, setWasCompacted] = useState(false);
-  const [contextUsage, setContextUsage] = useState<ContextUsage | undefined>(undefined);
-  const [promptDiagnostics, setPromptDiagnostics] = useState<
-    PromptDiagnostics | undefined
-  >(undefined);
-  const [promptCacheHealth, setPromptCacheHealth] = useState<
-    PromptCacheHealthResult | undefined
-  >(undefined);
-  // Active subagent count — updated reactively via agentPool.onChange
-  const [activeAgentCount, setActiveAgentCount] = useState(
-    () => agentPool.active.length,
-  );
-
-  // Update notification
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-
-  // Draft save timestamp — triggers a brief "✓ saved" flash in StatusBar
-
-  // Streaming inline error
-  const [streamingError, setStreamingError] = useState<string | null>(null);
-  useEffect(() => {
-    historyRef.current = history;
-  }, [history]);
-
-  useEffect(() => {
-    if (!updatePromise) return;
-    updatePromise
-      .then((info) => {
-        if (info) setUpdateInfo(info);
-      })
-      .catch(() => {});
-  }, []);
-
-  // Autopilot mode — auto-approves all permissions
-  const [autopilotMode, setAutopilotMode] = useState(false);
-  const autopilotRef = useRef(false);
-  useEffect(() => {
-    autopilotRef.current = autopilotMode;
-  }, [autopilotMode]);
-
-  // There's no native terminal scrollback inside the alternate screen; use
-  // the mouse wheel for overlay navigation or conversation viewport scroll.
-  const mouseTrackingActive = true;
-
-  useMouseEvents((e) => {
-    if (e.type !== "scroll") return;
-    if (picker !== null || permission !== null || question !== null) {
-      // injectInput: emit("data") doesn't work since Ink 5 consumes in 'readable' mode
-      if (e.button === "scroll-up") injectInput("\x1b[A");
-      if (e.button === "scroll-down") injectInput("\x1b[B");
-      return;
-    }
-    if (overlayOpen || viewingSubagentId) return;
-    scrollConversation(e.button === "scroll-up" ? 3 : -3);
-  }, mouseTrackingActive);
-
-  const [recentCmds, setRecentCmds] = useState<string[]>([]);
-  const [designInitialBrief, setDesignInitialBrief] = useState<
-    string | undefined
-  >(undefined);
-
-  // True whenever any full-screen overlay/modal is open — useInput guards use this flag.
-  // Computed from the central hook (useOverlayState).
-  const overlayOpen = overlay.computeOverlayOpen({
-    permission,
-    picker,
-    question,
-    prompt,
-  });
-
-  type FocusLayer =
-    | "permission"
-    | "question"
-    | "picker"
-    | "prompt"
-    | "keyboardShortcuts"
-    | "subagent"
-    | "historySearch"
-    | "quickSearch"
-    | "commandPalette"
-    | "settings"
-    | "designWizard"
-    | "editing"
-    | "plan"
-    | "expanded"
-    | "btw"
-    | "taskPanel"
-    | "attach"
-    | "streaming"
-    | "ready";
-
-  const focusLayer: FocusLayer = useMemo(() => {
-    if (permission) return "permission";
-    if (question) return "question";
-    if (picker) return "picker";
-    if (prompt) return "prompt";
-    if (keyboardShortcutsOpen) return "keyboardShortcuts";
-    if (viewingSubagentId) return "subagent";
-    if (historySearchOpen) return "historySearch";
-    if (quickSearchOpen) return "quickSearch";
-    if (cmdPaletteOpen) return "commandPalette";
-    if (settingsOpen) return "settings";
-    if (designWizardOpen) return "designWizard";
-    if (editingMsg) return "editing";
-    if (planRequest) return "plan";
-    if (expandedContent) return "expanded";
-    if (btwState) return "btw";
-    if (taskPanelOpen) return "taskPanel";
-    if (attachInput) return "attach";
-    if (loading) return "streaming";
-    return "ready";
-  }, [
-    permission,
-    question,
-    picker,
-    prompt,
-    keyboardShortcutsOpen,
-    viewingSubagentId,
-    historySearchOpen,
-    quickSearchOpen,
-    cmdPaletteOpen,
-    settingsOpen,
-    designWizardOpen,
-    editingMsg,
-    planRequest,
-    expandedContent,
-    btwState,
-    taskPanelOpen,
-    attachInput,
-    loading,
-  ]);
-
-  const keybindingContext: KeybindingContext = useMemo(() => {
-    if (focusLayer === "permission") return "permission";
-    if (focusLayer === "question") return "question";
-    if (focusLayer === "picker" || focusLayer === "prompt") return "picker";
-    if (focusLayer === "taskPanel") return "task-panel";
-    if (focusLayer === "streaming") return "streaming";
-    if (focusLayer === "ready") return "ready";
-    return "modal";
-  }, [focusLayer]);
-
-  // Watch Mode
-  const [watchedPaths, setWatchedPaths] = useState<
-    Array<{ path: string; prompt?: string }>
-  >([]);
-  const watchCleanupRef = useRef<Map<string, () => void>>(new Map());
-
-  // Checkpoints
-  interface Checkpoint {
-    mark: number;
-    messages: DisplayMessage[];
-    history: CoreMessage[];
-    label: string;
-  }
-  const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
-  const MAX_CHECKPOINTS = 20;
-
-  // Conversation Branches
-  interface ConvBranch {
-    id: string;
-    name: string;
-    messages: DisplayMessage[];
-    history: CoreMessage[];
-    tokens: TokenBreakdown;
-    createdAt: number;
-  }
-  const ZERO_TOKENS: TokenBreakdown = {
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    cacheWrite: 0,
-    reasoning: 0,
-  };
-  const [branches, setBranches] = useState<ConvBranch[]>([
-    {
-      id: "main",
-      name: "main",
-      messages: [],
-      history: [],
-      tokens: ZERO_TOKENS,
-      createdAt: Date.now(),
-    },
-  ]);
-  const [activeBranchIdx, setActiveBranchIdx] = useState(0);
-
-  const mainSessionId = useRef<string>(crypto.randomUUID());
-  const extractedRef = useRef(false);
-  const isFirstMessage = useRef(true);
-  const latestToolCallRef = useRef<{
-    id: string;
-    tool: string;
-    content: string;
-  } | null>(null);
-  const transcriptDetails = useMemo(
-    () => collectTranscriptDetails(messages),
-    [messages],
-  );
-  const openTranscriptDetail = useCallback((detail: TranscriptDetail) => {
-    overlay.closePrimaryOverlays();
-    setSelectedTranscriptDetailId(detail.id);
-    setExpandedContent({
-      content: detail.content,
-      toolName: detail.title,
-      kind: detail.kind,
-      ...(detail.rawDiff ? { rawDiff: detail.rawDiff } : {}),
-      ...(detail.filePath ? { filePath: detail.filePath } : {}),
-      ...(detail.totalLines !== undefined ? { totalLines: detail.totalLines } : {}),
-    });
-  }, [overlay, setExpandedContent]);
-  const moveTranscriptDetail = useCallback((direction: -1 | 1) => {
-    if (transcriptDetails.length < 2) return;
-    const currentIndex = Math.max(
-      0,
-      transcriptDetails.findIndex((detail) => detail.id === selectedTranscriptDetailId),
-    );
-    const nextIndex = (currentIndex + direction + transcriptDetails.length) % transcriptDetails.length;
-    openTranscriptDetail(transcriptDetails[nextIndex]!);
-  }, [openTranscriptDetail, selectedTranscriptDetailId, transcriptDetails]);
-  const btwFrameRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const skipSubmitRef = useRef(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const loadingRef = useRef(false);
+  const {
+    details: transcriptDetails,
+    selectedId: selectedTranscriptDetailId,
+    openDetail: openTranscriptDetail,
+    moveDetail: moveTranscriptDetail,
+  } = useTranscriptDetails(messages, overlay);
   const { tasks: bgTasks, startBackgroundTask, cancelBackgroundTask } =
     useBackgroundTasks({
       provider,
@@ -511,85 +99,36 @@ export function App({
           .join("\n"),
     });
 
-  // Auto-continue: automatically continues if the model stops mid-task
-  const autoContinueRef = useRef<{
-    needed: boolean;
-    count: number;
-    prompt?: string;
-  }>({ needed: false, count: 0 });
-  const autoContinueSubmittingRef = useRef(false);
-
-  // Remote control (WebRTC): phone pairing — managed via /remote start|stop.
-  const remoteRuntimeRef = useRef<CliRemoteRuntime | null>(null);
-  const [remoteStatus, setRemoteStatus] = useState<CliRemoteStatus | "off">(
-    "off",
-  );
   const remoteConnected = remoteStatus === "connected";
-  // startRemoteSession/stopRemoteSession are defined AFTER handleSubmit (below);
-  // buildCtx is defined BEFORE it — a direct reference in the dep array would
-  // hit the TDZ. The ref indirection decouples this from definition order
-  // (buildCtx only holds a stable ref; the real functions are written into
-  // the ref via a useEffect after they're actually defined).
-  const remoteBridgeRef = useRef<{ start: () => void; stop: () => void }>({
-    start: () => {},
-    stop: () => {},
+
+  const {
+    scrollLocked,
+    setScrollLocked,
+    scrollLockedRef,
+    conversationOffsetRows,
+    setConversationOffsetRows,
+    measuredViewportRows,
+    setMeasuredViewportRows,
+    unseenCount,
+    scrollConversation,
+    handleScrollRange,
+    pageConversation,
+  } = useConversationViewport({
+    messages,
+    terminalRows: termRows,
+    overlayOpen,
+    viewingSubagent: viewingSubagentId !== null,
+    pickerOpen: picker !== null,
+    permissionOpen: permission !== null,
+    questionOpen: question !== null,
   });
 
-  // Scroll lock: activated with Ctrl+L, freezes animation timers and stream flushing
-  const [scrollLocked, setScrollLocked] = useState(false);
-  const scrollLockedRef = useRef(false);
-  useEffect(() => {
-    scrollLockedRef.current = scrollLocked;
-  }, [scrollLocked]);
-  const [conversationOffsetRows, setConversationOffsetRows] = useState(0);
-  // The top scroll bound reported by the viewport — scrollConversation clamps from both ends.
-  const maxScrollOffsetRef = useRef(0);
-  // Unseen count: number of new messages that arrived while scroll lock was active
-  const scrollLockMsgCountRef = useRef(0);
-  useEffect(() => {
-    if (scrollLocked) scrollLockMsgCountRef.current = messages.length;
-  }, [scrollLocked]);
-  const unseenCount = scrollLocked
-    ? Math.max(0, messages.length - scrollLockMsgCountRef.current)
-    : 0;
-
-  // Adaptive throttle refs
-  const streamTextRef = useRef("");
-  const streamReasonRef = useRef("");
-  const streamTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tokenRateRef = useRef(80); // assume fast at first (80 tok/s → 30ms flush)
-  const lastTokenTimeRef = useRef(0);
-  const turnHadToolRef = useRef(false);
-  const turnAssistantIdRef = useRef<string | null>(null);
-
   const commandDefs = allCommands();
-
-  // "/" suggestion filter: only complete the command name, don't interfere with arguments.
-  const slashBody = input.startsWith("/") ? input.slice(1) : null;
-  const cmdFilter =
-    focusLayer === "ready" && slashBody !== null && !/\s/.test(slashBody)
-      ? slashBody
-      : null;
-
-  // "@" file completion filter — captures the path prefix following "@"
-  const mentionFilter =
-    focusLayer === "ready" && cmdFilter === null
-      ? (input.match(/@([\w./~-]*)$/)?.[1] ?? null)
-      : null;
-  const commandSuggestionOpen =
-    cmdFilter !== null && getCommandMatches(cmdFilter, commandDefs).length > 0;
-  const mentionSuggestionOpen =
-    mentionFilter !== null &&
-    listFileMentionMatches(workdirState, mentionFilter).length > 0;
-  const inlineSuggestionActive = commandSuggestionOpen || mentionSuggestionOpen;
+  const { cmdFilter, mentionFilter, inlineSuggestionActive } =
+    useComposerSuggestions(input, focusLayer, workdirState, commandDefs);
 
   // ── Finalized messages for Static ─────────────────────────────────────────
   const showStartupBanner = !viewingSubagentId && startupBannerVisible;
-  // The viewport height now comes from the real value Yoga measures (the FullscreenLayout callback).
-  // Fallback for the first render: termRows - 8 (an approximate chrome reservation).
-  const [measuredViewportRows, setMeasuredViewportRows] = useState(() =>
-    Math.max(6, termRows - 8),
-  );
   const taskSummary = useMemo(
     () => ({
       pending: tasks.filter((t) => t.status === "pending").length,
@@ -601,2555 +140,324 @@ export function App({
   );
   const sandboxBackend = useMemo(() => configuredSandboxBackend(), []);
 
-  const scrollConversation = useCallback((deltaRows: number) => {
-    if (deltaRows === 0) return;
-    // Clamp from both ends: no extra travel at the top (no dead zone on the
-    // way down), stays at 0 at the bottom. The top bound comes from the viewport (onScrollRange).
-    setConversationOffsetRows((prev) =>
-      Math.max(0, Math.min(maxScrollOffsetRef.current, prev + deltaRows)),
-    );
-  }, []);
-  const handleScrollRange = useCallback((maxOffset: number) => {
-    maxScrollOffsetRef.current = maxOffset;
-    // If the visible area grew (e.g. the terminal resized), pull the current offset back within bounds.
-    setConversationOffsetRows((prev) => (prev > maxOffset ? maxOffset : prev));
-  }, []);
-
-  const pageConversation = useCallback(
-    (direction: -1 | 1) => {
-      const page = Math.max(3, Math.floor(measuredViewportRows * 0.8));
-      scrollConversation(direction * page);
-    },
-    [measuredViewportRows, scrollConversation],
-  );
-
-  // Ctrl+G: opens the current input in $EDITOR — blocks the event loop with
-  // spawnSync, temporarily disables the alternate screen, and returns once the editor closes.
-  const openExternalEditor = useCallback(() => {
-    if (loadingRef.current) return;
-    const editor = process.env["EDITOR"] ?? process.env["VISUAL"] ?? "vi";
-    const tmpPath = join(tmpdir(), `aurict-input-${Date.now()}.txt`);
-    try {
-      writeFileSync(tmpPath, inputRef.current, "utf8");
-      process.stdout.write("\x1b[?1049l"); // exit the alternate screen
-      spawnSync(editor, [tmpPath], { stdio: "inherit" }); // run the editor
-      process.stdout.write("\x1b[?1049h\x1b[2J\x1b[H"); // return to the alternate screen + clear
-      const content = readFileSync(tmpPath, "utf8").replace(/\n$/, "");
-      setInput(content);
-    } catch {
-      process.stdout.write("\x1b[?1049h\x1b[2J\x1b[H");
-    } finally {
-      try {
-        unlinkSync(tmpPath);
-      } catch {
-        /* ignore */
-      }
-    }
-  }, []); // loadingRef + inputRef are stable refs, deps unnecessary
-
-  // ── Subscriptions ─────────────────────────────────────────────────────────
-  useLayoutEffect(() => {
-    const handler = () => {
-      const nextCols = process.stdout.columns ?? 80;
-      const nextRows = process.stdout.rows ?? 24;
-      setTermCols(nextCols);
-      setTermRows(nextRows);
-      setTerminalMeasured(true);
-      setMeasuredViewportRows(Math.max(3, nextRows - 8));
-      setConversationOffsetRows((prev) => Math.max(0, prev));
-    };
-    handler();
-    const timer = setTimeout(handler, 0);
-    process.stdout.on("resize", handler);
-    process.on("SIGWINCH", handler);
-    return () => {
-      clearTimeout(timer);
-      process.stdout.off("resize", handler);
-      process.off("SIGWINCH", handler);
-    };
-  }, []);
-
-  // Load persisted permissions at startup
-  useEffect(() => {
-    PermissionStore.loadPersisted(PERM_FILE);
-  }, []);
-
-  useEffect(() => questionService.onQuestion((req) => setQuestion(req)), []);
-  useEffect(
-    () => agentPool.onChange((agents) => setActiveAgentCount(agents.length)),
-    [],
-  );
-  useEffect(
-    () =>
-      ExecutorEvents.on((e) => {
-        if (e.type === "permission_ask") {
-          // In autopilot mode, auto-approve permission requests
-          if (autopilotRef.current) {
-            PermissionGate.respond(e.request.id, "allow");
-            return;
-          }
-          setPermissionQueue((q) => [...q, e.request]);
-          // Permission bridge: if remote is connected, also forward the same
-          // request to the phone — the user can approve/deny from the phone
-          // when they're not at the PC (see the permission.response handler
-          // inside startRemoteSession).
-          remoteRuntimeRef.current
-            ?.publish(RemoteEventTypes.permissionRequest, {
-              id: e.request.id,
-              tool: e.request.tool,
-              pattern: e.request.pattern,
-              ...(e.request.level ? { level: e.request.level } : {}),
-              ...(e.request.reason ? { reason: e.request.reason } : {}),
-              ...(e.request.summary ? { summary: e.request.summary } : {}),
-            })
-            .catch(() => {});
-        }
-      }),
-    [],
-  );
-  useEffect(() => {
-    getSkillsForProject(workdir)
-      .then((s) => setSkillNames(s.map((sk) => sk.id)))
-      .catch(() => {});
-  }, [workdir]);
-  useEffect(
-    () => taskManager.onUpdate(() => setTasks([...taskManager.getTasks()])),
-    [],
-  );
-  useEffect(() => PlanGate.onRequest((req) => setPlanRequest(req)), []);
-
   const inputRef = useRef(input);
-  const mcpFailuresRef = useRef(new Set<string>());
-  useEffect(() => {
-    inputRef.current = input;
-  }, [input]);
-
-  // Successful MCP connection chatter stays out of the transcript. Failures
-  // remain visible as actionable notices after the compact startup summary.
-  useEffect(() => {
-    setMCPLogHandler((message: string, isError: boolean) => {
-      if (message.startsWith("[mcp]")) {
-        if (isError) {
-          const server = message.match(/^\[mcp\]\s+([^:]+):/)?.[1] ?? "server";
-          mcpFailuresRef.current.add(server);
-          const failed = [...mcpFailuresRef.current].sort();
-          setMessages((previous) => [
-            ...previous.filter((entry) => entry.id !== "startup:mcp-errors"),
-            {
-              id: "startup:mcp-errors",
-              role: "system",
-              content: `⚠ MCP unavailable: ${failed.join(", ")} · /mcp for details`,
-            },
-          ]);
-        }
-        return;
-      }
-      addSystemMsg(isError ? `⚠ ${message}` : message);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Crash recovery notice on mount
-  useEffect(() => {
-    if (hasPendingCrashReport()) {
-      addSystemMsg(
-        `⚠ Crash report detected from a previous session. Use /crashes to view.`,
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Init ──────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const info = ProviderRegistry.available().find(
-      (p) => p.id === initialProvider,
-    );
-    if (info && !info.hasKey) {
-      addSystemMsg(
-        `⚠ Missing API key for ${info.name} — set the environment variable`,
-      );
-    }
-    detectUndercoverRepo(workdir)
-      .then((isPublic) => {
-        if (isPublic) {
-          setIsUndercover(true);
-          addSystemMsg("Public repo detected — undercover mode active");
-        }
-      })
-      .catch(() => {});
-    import("bun")
-      .then(({ spawn }) => {
-        const proc = spawn(["git", "branch", "--show-current"], {
-          cwd: workdir,
-          stdout: "pipe",
-          stderr: "pipe",
-        });
-        new Response(proc.stdout)
-          .text()
-          .then((out) => {
-            const b = out.trim();
-            if (b) setBranch(b);
-          })
-          .catch(() => {});
-      })
-      .catch(() => {});
-  }, [initialProvider, workdir]);
-
-  // Bracketed paste — enable only if the terminal supports it.
-  // The central registry (event-system/terminal-modes.ts) guarantees the
-  // disable sequence is written on every exit path, including SIGINT
-  // (Ctrl+C) — previously only "exit"/"SIGTERM" were listened to, so
-  // \x1b[?2004l was never written on exit via Ctrl+C, and it could leak as
-  // visible garbage text (\x1b[200~/\x1b[201~) in the next terminal session.
-  useEffect(() => {
-    const caps = getTerminalCaps();
-    if (!caps.bracketedPaste) return;
-    return registerTerminalMode(
-      "bracketed-paste",
-      "\x1b[?2004h",
-      "\x1b[?2004l",
-    );
-  }, []);
-
-  // After a tmux detach/reattach or an SSH disconnect, if there's a long
-  // silence on stdin, re-assert mouse tracking/bracketed paste modes that
-  // the remote terminal may have reset.
-  useEffect(() => installStdinResumeGuard(), []);
-
-  // Dependency Sentinel
-  useEffect(() => {
-    let cleanup: (() => void) | null = null;
-    depSentinel
-      .snapshot(workdir)
-      .then(() => {
-        cleanup = depSentinel.watch(workdir, (change: DependencyChange) => {
-          const parts: string[] = [];
-          if (change.added.length) parts.push(`+${change.added.length} added`);
-          if (change.removed.length)
-            parts.push(`-${change.removed.length} removed`);
-          if (change.changed.length)
-            parts.push(`~${change.changed.length} changed`);
-          if (parts.length)
-            addSystemMsg(`📦 Dependency change: ${parts.join(", ")}`);
-        });
-      })
-      .catch(() => {});
-    return () => {
-      cleanup?.();
-    };
-  }, [workdir]);
-
-  useEffect(() => {
-    loadingRef.current = loading;
-  }, [loading]);
-
-  // ── Global keyboard handler ───────────────────────────────────────────────
-  // 8 separate useInputs → 1 listener: avoids Ink's EventEmitter MaxListeners issue
-  const ctrlCCountRef = useRef(0);
-  const ctrlCTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const closeFocusedLayer = useCallback((): boolean => {
-    switch (focusLayer) {
-      case "permission":
-      case "question":
-      case "picker":
-      case "prompt":
-      case "streaming":
-        return true;
-      case "keyboardShortcuts":
-        setKeyboardShortcutsOpen(false);
-        return true;
-      case "subagent":
-        setViewingSubagentId(null);
-        return true;
-      case "historySearch":
-        setHistorySearchOpen(false);
-        return true;
-      case "quickSearch":
-        setQuickSearchOpen(false);
-        return true;
-      case "commandPalette":
-        setCmdPaletteOpen(false);
-        return true;
-      case "settings":
-        setSettingsOpen(false);
-        return true;
-      case "designWizard":
-        setDesignWizardOpen(false);
-        return true;
-      case "editing":
-        setEditingMsg(null);
-        return true;
-      case "plan":
-        if (planRequest) PlanGate.respond(planRequest.id, { type: "rejected" });
-        setPlanRequest(null);
-        return true;
-      case "expanded":
-        setExpandedContent(null);
-        return true;
-      case "btw":
-        setBtwState(null);
-        if (btwFrameRef.current) {
-          clearInterval(btwFrameRef.current);
-          btwFrameRef.current = null;
-        }
-        return true;
-      case "taskPanel":
-        setTaskPanelOpen(false);
-        return true;
-      case "attach":
-        setAttachInput(false);
-        setAttachPath("");
-        return true;
-      case "ready":
-        return false;
-    }
-  }, [
-    focusLayer,
-    planRequest,
-    setKeyboardShortcutsOpen,
-    setViewingSubagentId,
-    setHistorySearchOpen,
-    setQuickSearchOpen,
-    setCmdPaletteOpen,
-    setSettingsOpen,
-    setDesignWizardOpen,
-    setEditingMsg,
+  const openExternalEditor = useExternalEditor({
+    inputRef,
+    loadingRef,
+    setInput,
+    addSystemMsg,
+  });
+  useAppLifecycle({
+    initialProvider,
+    workdir,
+    input,
+    loading,
+    autopilotRef,
+    inputRef,
+    loadingRef,
+    remoteRuntimeRef,
+    setTermCols,
+    setTermRows,
+    setTerminalMeasured,
+    setMeasuredViewportRows,
+    setConversationOffsetRows,
+    setQuestion,
+    setActiveAgentCount,
+    setPermissionQueue,
+    setSkillNames,
+    setTasks,
     setPlanRequest,
-    setExpandedContent,
-    setBtwState,
-    setTaskPanelOpen,
-    setAttachInput,
-    setAttachPath,
-  ]);
-
-  const togglePrimaryOverlay = useCallback(
-    (
-      target:
-        | "quickSearch"
-        | "commandPalette"
-        | "historySearch"
-        | "settings"
-        | "taskPanel"
-        | "attach",
-    ) => {
-      const wasOpen =
-        (target === "quickSearch" && quickSearchOpen) ||
-        (target === "commandPalette" && cmdPaletteOpen) ||
-        (target === "historySearch" && historySearchOpen) ||
-        (target === "settings" && settingsOpen) ||
-        (target === "taskPanel" && taskPanelOpen) ||
-        (target === "attach" && attachInput);
-
-      overlay.closePrimaryOverlays();
-      if (wasOpen) return;
-
-      if (target === "quickSearch") setQuickSearchOpen(true);
-      if (target === "commandPalette") setCmdPaletteOpen(true);
-      if (target === "historySearch") setHistorySearchOpen(true);
-      if (target === "settings") setSettingsOpen(true);
-      if (target === "taskPanel") setTaskPanelOpen(true);
-      if (target === "attach") setAttachInput(true);
-    },
-    [
-      quickSearchOpen,
-      cmdPaletteOpen,
-      historySearchOpen,
-      settingsOpen,
-      taskPanelOpen,
-      attachInput,
-      overlay.closePrimaryOverlays,
-      setQuickSearchOpen,
-      setCmdPaletteOpen,
-      setHistorySearchOpen,
-      setSettingsOpen,
-      setTaskPanelOpen,
-      setAttachInput,
-    ],
-  );
-
-  useInput((input, key) => {
-    // ── Ctrl+C: abort / exit ──────────────────────────────────────────────
-    if (key.ctrl && input === "c") {
-      if (
-        focusLayer !== "ready" &&
-        focusLayer !== "streaming" &&
-        !loadingRef.current
-      ) {
-        closeFocusedLayer();
-        ctrlCCountRef.current = 0;
-        if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current);
-        return;
-      }
-      if (loadingRef.current && abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-        PermissionGate.cancelPending();
-        PlanGate.cancelPending();
-        setPlanRequest(null);
-        setPermissionQueue([]);
-        setMessages((prev) =>
-          prev.map((m) => (m.pending ? { ...m, pending: false } : m)),
-        );
-        setStreamingText(null);
-        setStreamingReason(null);
-        // After abort: pin scroll to the bottom and unlock it — a stale
-        // scroll state + a changing content height was causing overlap in partial draws.
-        setScrollLocked(false);
-        setConversationOffsetRows(0);
-        addSystemMsg("Aborted.");
-        return;
-      }
-      ctrlCCountRef.current += 1;
-      if (ctrlCTimerRef.current) clearTimeout(ctrlCTimerRef.current);
-      if (ctrlCCountRef.current >= 2) {
-        agentPool.active.forEach((a) => agentPool.cancel(a.id));
-        exit();
-        return;
-      }
-      setConversationOffsetRows(0);
-      addSystemMsg("Press Ctrl+C again to exit.");
-      ctrlCTimerRef.current = setTimeout(() => {
-        ctrlCCountRef.current = 0;
-      }, 3000);
-      return;
-    }
-
-    // ── ESC: close the active focus layer ─────────────────────────────────
-    if (key.escape) {
-      if (closeFocusedLayer()) return;
-      if (updateInfo && !updateDismissed) {
-        setUpdateDismissed(true);
-        return;
-      }
-      // Note: the `input` parameter is the keypress character (empty for
-      // Esc), NOT the typed text. If there's typed text, Esc clears it —
-      // it never exits. (A previous `input?.startsWith("/")` shadowing bug:
-      // Esc called exit() directly, and since Bun.serve keeps the process
-      // alive, the TUI turned into a zombie.)
-      if (inputRef.current.length > 0) {
-        setInput("");
-        return;
-      }
-      if (!loading) exit();
-      return;
-    }
-
-    // The attach panel behaves like real input focus.
-    if (focusLayer === "attach") {
-      if (key.return) {
-        void handleAttachSubmit(attachPath);
-        return;
-      }
-      if (key.backspace || key.delete) {
-        setAttachPath((p) => p.slice(0, -1));
-        return;
-      }
-      if (input && !key.ctrl && !key.meta) {
-        setAttachPath((p) => p + input);
-        return;
-      }
-      return;
-    }
-
-    // In the subagent view, only sibling navigation instead of the global shortcut.
-    if (focusLayer === "subagent" && (key.leftArrow || key.rightArrow)) {
-      const subSessions = SessionManager.list()
-        .filter((s) => s.parentId === mainSessionId.current)
-        .sort((a, b) => a.createdAt - b.createdAt);
-      if (!subSessions.length) return;
-      const idx = subSessions.findIndex((s) => s.id === viewingSubagentId);
-      const next = key.leftArrow
-        ? subSessions[(idx - 1 + subSessions.length) % subSessions.length]!
-        : subSessions[(idx + 1) % subSessions.length]!;
-      setViewingSubagentId(next.id);
-      return;
-    }
-
-    // ── Ctrl+L: scroll lock ── (works in every layer, including streaming)
-    if (key.ctrl && input === "l") {
-      setScrollLocked((locked) => {
-        const next = !locked;
-        if (!next) {
-          setStreamingText(streamTextRef.current || null);
-          setStreamingReason(streamReasonRef.current || null);
-        }
-        return next;
-      });
-      return;
-    }
-
-    // ── Ctrl+K: stop all subagents ──────────────────────────────────
-    if (key.ctrl && input === "k") {
-      const active = agentPool.active;
-      if (active.length > 0) {
-        active.forEach((a) => agentPool.cancel(a.id));
-        addSystemMsg(
-          `Killed ${active.length} subagent${active.length === 1 ? "" : "s"}`,
-        );
-      }
-      return;
-    }
-
-    // Global shortcuts behind an active modal/overlay don't work.
-    // "streaming" (loading) doesn't block this — shortcuts like Ctrl+O,
-    // Ctrl+T should stay accessible during processing too.
-    if (focusLayer !== "ready" && focusLayer !== "streaming") return;
-
-    // ── Ctrl+G: write in an external editor ───────────────────────────────────────
-    if (key.ctrl && input === "g") {
-      openExternalEditor();
-      return;
-    }
-
-    if (key.shift && key.upArrow) {
-      scrollConversation(3);
-      return;
-    }
-    if (key.shift && key.downArrow) {
-      scrollConversation(-3);
-      return;
-    }
-    if ((key as typeof key & { pageUp?: boolean }).pageUp) {
-      pageConversation(1);
-      return;
-    }
-    if ((key as typeof key & { pageDown?: boolean }).pageDown) {
-      pageConversation(-1);
-      return;
-    }
-    if (key.ctrl && input === "b") {
-      setConversationOffsetRows(1_000_000);
-      return;
-    }
-    if (key.ctrl && input === "n") {
-      setConversationOffsetRows(0);
-      return;
-    }
-
-    // ── Ctrl+T: task panel ────────────────────────────────────────────────
-    if (key.ctrl && input === "t") {
-      if (tasks.length > 0) togglePrimaryOverlay("taskPanel");
-      return;
-    }
-
-    // ── Ctrl+F: quick search ──────────────────────────────────────────────
-    if (key.ctrl && input === "f") {
-      togglePrimaryOverlay("quickSearch");
-      return;
-    }
-
-    // ── Ctrl+R: history search ──────────────────────────────────────────
-    if (key.ctrl && input === "r") {
-      if (commandHistory.length > 0) togglePrimaryOverlay("historySearch");
-      return;
-    }
-
-    // ── Ctrl+P: command palette ───────────────────────────────────────────
-    if (key.ctrl && input === "p") {
-      togglePrimaryOverlay("commandPalette");
-      return;
-    }
-
-    // ── Ctrl+V: paste image from clipboard ───────────────────────────────
-    if (key.ctrl && input === "v") {
-      if (loading) return;
-      const clip = readClipboard();
-      if (clip.type === "image") {
-        const att: import("@aurict/core").Attachment = {
-          type: "image",
-          name: clip.name,
-          base64: clip.base64,
-          mimeType: clip.mimeType,
-        };
-        setAttachments((prev) => [...prev, att]);
-        addSystemMsg(`📎 Image pasted from clipboard: ${clip.name}`);
-      } else if (clip.type === "text" && clip.text) {
-        setInput((prev) => prev + clip.text);
-      } else if (clip.type === "error") {
-        addSystemMsg(`⚠ Clipboard: ${clip.message}`);
-      } else {
-        addSystemMsg("Clipboard is empty.");
-      }
-      return;
-    }
-
-    // ── Ctrl+S: settings ─────────────────────────────────────────────────
-    if (key.ctrl && input === "s") {
-      togglePrimaryOverlay("settings");
-      return;
-    }
-
-    // ── Ctrl+E: edit last user message ────────────────────────────────────
-    if (key.ctrl && input === "e") {
-      if (loading || editingMsg) return;
-      // Find last user message
-      const userMsgs = messages
-        .map((m, i) => ({ m, i }))
-        .filter(({ m }) => m.role === "user" && !m.pending);
-      if (userMsgs.length === 0) return;
-      const last = userMsgs[userMsgs.length - 1]!;
-      overlay.closePrimaryOverlays();
-      setEditingMsg({
-        id: last.m.id ?? "",
-        content: last.m.content,
-        msgIndex: last.i,
-      });
-      return;
-    }
-
-    // ── Ctrl+A: attachment ────────────────────────────────────────────────
-    if (key.ctrl && input === "a") {
-      togglePrimaryOverlay("attach");
-      return;
-    }
-
-    // ── Ctrl+O: inspect the latest transcript detail ───────────────────────
-    if (key.ctrl && input === "o") {
-      if (!expandedContent && !btwState) {
-        const selected = transcriptDetails.find(
-          (detail) => detail.id === selectedTranscriptDetailId,
-        );
-        const detail = selected ?? transcriptDetails.at(-1);
-        if (detail) openTranscriptDetail(detail);
-        else {
-          const latest = latestToolCallRef.current;
-          if (latest) {
-            overlay.closePrimaryOverlays();
-            setExpandedContent({ content: latest.content, toolName: latest.tool });
-          }
-        }
-      }
-      return;
-    }
-
-    // ── Ctrl+X: subagent navigation ───────────────────────────────────────
-    if (key.ctrl && input === "x") {
-      if (picker || permission || question || expandedContent) return;
-      const subSessions = SessionManager.list()
-        .filter((s) => s.parentId === mainSessionId.current)
-        .sort((a, b) => a.createdAt - b.createdAt);
-      if (!subSessions.length) return;
-      overlay.closePrimaryOverlays();
-      if (!viewingSubagentId) {
-        setViewingSubagentId(subSessions[0]!.id);
-      } else {
-        const idx = subSessions.findIndex((s) => s.id === viewingSubagentId);
-        const next = subSessions[(idx + 1) % subSessions.length]!;
-        setViewingSubagentId(next.id);
-      }
-      return;
-    }
-
-    // ── Tab: agent cycling ────────────────────────────────────────────────
-    if (key.tab) {
-      if (inlineSuggestionActive) return;
-      if (loading || picker || permission || question || expandedContent)
-        return;
-      const agents = getAllSessionAgents(workdirState);
-      if (agents.length < 2) return;
-      const idx = agents.findIndex((a) => a.id === activeAgent);
-      const nextIdx = key.shift
-        ? (idx - 1 + agents.length) % agents.length
-        : (idx + 1) % agents.length;
-      const next = agents[nextIdx]!;
-      setActiveAgent(next.id);
-      addSystemMsg(`Agent: ${next.name}`);
-      return;
-    }
-
-    // ── ?: keyboard shortcuts ─────────────────────────────────────────────
-    if (input === "?" && !loading && !overlayOpen) {
-      setKeyboardShortcutsOpen(true);
-      return;
-    }
+    setMessages,
+    setIsUndercover,
+    setBranch,
+    addSystemMsg,
   });
 
-  // ── Setters ───────────────────────────────────────────────────────────────
-  const setProvider = useCallback((p: string, m: string) => {
-    setProviderState(p);
-    setModelState(m);
-    setDefault("provider", p);
-    setDefault("model", m);
-    addSystemMsg(`Provider changed: ${p} / ${m}`);
-  }, []);
 
-  const setModel = useCallback((m: string) => {
-    setModelState(m);
-    setDefault("model", m);
-    addSystemMsg(`Model changed: ${m}`);
-  }, []);
+  const {
+    setProvider,
+    setModel,
+    handlePermission,
+    handleQuestionAnswer,
+    handleQuestionReject,
+    handleAttachSubmit,
+  } = useSystemRequestHandlers({
+    permission,
+    question,
+    abortControllerRef,
+    setProviderState,
+    setModelState,
+    setInput,
+    setPermissionQueue,
+    setQuestion,
+    setAttachInput,
+    setAttachPath,
+    setAttachments,
+    addSystemMsg,
+  });
 
-  const addSystemMsg = (content: string) => {
-    setMessages((prev) => [
-      ...prev,
-      { role: "system" as const, content, id: crypto.randomUUID() },
-    ]);
-  };
+  useAppKeyboard({
+    exit,
+    focusLayer,
+    loading,
+    overlayOpen,
+    updateAvailable: updateInfo !== null,
+    inlineSuggestionActive,
+    workdir: workdirState,
+    activeAgent,
+    commandHistory,
+    tasks,
+    messages,
+    transcriptDetails,
+    selectedTranscriptDetailId,
+    permission,
+    pickerOpen: picker !== null,
+    questionOpen: question !== null,
+    overlay,
+    mainSessionId,
+    loadingRef,
+    inputRef,
+    abortControllerRef,
+    streamTextRef,
+    streamReasonRef,
+    latestToolCallRef,
+    btwFrameRef,
+    setPermissionQueue,
+    setMessages,
+    setStreamingText,
+    setStreamingReason,
+    setScrollLocked,
+    setConversationOffsetRows,
+    setInput,
+    setAttachments,
+    setActiveAgent,
+    addSystemMsg,
+    handleAttachSubmit,
+    openExternalEditor,
+    scrollConversation,
+    pageConversation,
+    openTranscriptDetail,
+  });
 
-  // ── Permission ────────────────────────────────────────────────────────────
-  const handlePermission = useCallback(
-    (decision: PermissionPromptDecision) => {
-      if (!permission) return;
-      const response: PermissionResponse | null =
-        typeof decision === "string" ? null : decision;
-      const action = typeof decision === "string" ? decision : decision.decision;
+  const {
+    executeCommand,
+    handleCmdExecute,
+    handleCmdFill,
+    handleEditRerun,
+  } = useCommandController({
+    provider,
+    model,
+    workdir: workdirState,
+    effort,
+    skillNames,
+    themeName,
+    isUndercover,
+    coordinatorMode,
+    activeAgent,
+    autopilotMode,
+    messages,
+    history,
+    tokens,
+    contextUsage,
+    promptDiagnostics,
+    promptCacheHealth,
+    checkpoints,
+    branches,
+    activeBranchIdx,
+    watchedPaths,
+    remoteConnected,
+    bgTasks,
+    overlay,
+    mainSessionId,
+    btwFrameRef,
+    watchCleanupRef,
+    remoteBridgeRef,
+    skipSubmitRef,
+    submitRef,
+    isFirstMessage,
+    extractedRef,
+    setProvider,
+    setModel,
+    setEffort,
+    setActiveAgent,
+    setThemeName,
+    setWorkdir: setWorkdirState,
+    setIsUndercover,
+    setCoordinatorMode,
+    setAutopilotMode,
+    startBackgroundTask,
+    cancelBackgroundTask,
+    setPicker,
+    setPrompt,
+    setHistory,
+    setMessages,
+    setCheckpoints,
+    setBranches,
+    setActiveBranchIdx,
+    setTokens,
+    setWatchedPaths,
+    setContextUsage,
+    setSessionTitle,
+    setDesignInitialBrief,
+    setInput,
+    addSystemMsg,
+  });
+  const { handleSubmit, handleQueue } = useAgentSubmit({
+    provider,
+    model,
+    workdir: workdirState,
+    system,
+    undercover: isUndercover || (undercover ?? false),
+    effort,
+    activeAgent,
+    coordinatorMode,
+    loading,
+    history,
+    messages,
+    attachments,
+    checkpoints,
+    executeCommand,
+    addSystemMsg,
+    mainSessionId,
+    historyRef,
+    extractedRef,
+    isFirstMessage,
+    skipSubmitRef,
+    submitRef,
+    abortControllerRef,
+    remoteRuntimeRef,
+    autoContinueRef,
+    autoContinueSubmittingRef,
+    scrollLockedRef,
+    streamTextRef,
+    streamReasonRef,
+    streamTimerRef,
+    tokenRateRef,
+    lastTokenTimeRef,
+    turnHadToolRef,
+    turnAssistantIdRef,
+    latestToolCallRef,
+    setInput,
+    setStartupBannerVisible,
+    setScrollLocked,
+    setConversationOffsetRows,
+    setAttachments,
+    setComposerQueue,
+    setCommandHistory,
+    setSessionTitle,
+    setStreamingError,
+    setTurnSkillNames,
+    setRunActivity,
+    setLoading,
+    setMessages,
+    setStreamingText,
+    setStreamingReason,
+    setActiveTool,
+    setCheckpoints,
+    setWasCompacted,
+    setContextUsage,
+    setPromptDiagnostics,
+    setPromptCacheHealth,
+    setTokens,
+    setHistory,
+  });
+  useRemoteController({
+    handleSubmit,
+    remoteRuntimeRef,
+    remoteBridgeRef,
+    abortControllerRef,
+    setRemoteStatus,
+    setPermissionQueue,
+    addSystemMsg,
+  });
 
-      if (action === "edit") {
-        PermissionGate.respond(permission.id, "deny");
-        setInput(permission.pattern);
-        setPermissionQueue((q) => q.slice(1));
-        const feedback = permissionTranscriptFeedback(action, permission.tool);
-        if (feedback) addSystemMsg(feedback);
-        return;
-      }
-      if (action === "deny_abort") {
-        PermissionGate.respond(permission.id, "deny");
-        setPermissionQueue((q) => q.slice(1));
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-          abortControllerRef.current = null;
-        }
-        const feedback = permissionTranscriptFeedback(action, permission.tool);
-        if (feedback) addSystemMsg(feedback);
-        return;
-      }
-      PermissionGate.respond(
-        permission.id,
-        response ?? (action === "allow_once" ? "allow_once" : action),
-      );
-      // Persist "allow" and "allow_directory" decisions to disk — remembered across sessions too
-      if (action === "allow") {
-        PermissionStore.approve(permission.tool, permission.pattern);
-        PermissionStore.savePersisted(PERM_FILE);
-      } else if (action === "allow_directory") {
-        PermissionStore.approveDirectory(permission.tool, permission.pattern);
-        PermissionStore.savePersisted(PERM_FILE);
-      }
-      setPermissionQueue((q) => q.filter((item) => item.id !== permission.id));
-      const feedback = permissionTranscriptFeedback(action, permission.tool);
-      if (feedback) addSystemMsg(feedback);
-    },
-    [permission],
-  );
-
-  // ── Question ──────────────────────────────────────────────────────────────
-  const handleQuestionAnswer = useCallback(
-    (answers: QuestionAnswer[]) => {
-      if (!question) return;
-      questionService.answer(question.id, answers);
-      setQuestion(null);
-    },
-    [question],
-  );
-
-  const handleQuestionReject = useCallback(() => {
-    if (!question) return;
-    questionService.reject(question.id);
-    setQuestion(null);
-  }, [question]);
-
-  // ── Attachment ────────────────────────────────────────────────────────────
-  const handleAttachSubmit = useCallback(async (filePath: string) => {
-    const trimmed = filePath.trim();
-    if (!trimmed) {
-      setAttachInput(false);
-      setAttachPath("");
-      return;
-    }
-    try {
-      const att = await readAttachmentFromPath(trimmed);
-      setAttachments((prev) => [...prev, att]);
-      addSystemMsg(`📎 Attached: ${att.name} (${att.mimeType})`);
-    } catch (err) {
-      addSystemMsg(
-        `⚠ Attachment failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    setAttachInput(false);
-    setAttachPath("");
-  }, []);
-
-  // ── Command context ───────────────────────────────────────────────────────
-  const buildCtx = useCallback(
-    () => ({
-      sessionId: mainSessionId.current,
-      provider,
-      model,
-      workdir: workdirState,
-      ...(effort !== undefined ? { effort } : {}),
-      skills: skillNames,
-      currentTheme: themeName,
-      isUndercover,
-      coordinatorMode,
-      activeAgent,
-      addSystemMsg,
-      setAgent: (id: string) => {
-        setActiveAgent(id);
-        const def = getSessionAgent(id, workdirState);
-        addSystemMsg(`Agent: ${def.name}`);
-      },
-      setProvider,
-      setModel,
-      setEffort,
-      setTheme: (name: string) => {
-        if (THEMES[name]) setThemeName(name);
-      },
-      setWorkdir: (path: string) => setWorkdirState(path),
-      toggleUndercover: () => setIsUndercover((v) => !v),
-      toggleCoordinator: () => setCoordinatorMode((v) => !v),
-      autopilotMode,
-      toggleAutopilot: () => {
-        setAutopilotMode((v) => {
-          const next = !v;
-          addSystemMsg(
-            next
-              ? "⚡ Autopilot ON — all permissions auto-approved"
-              : "⚡ Autopilot OFF — manual confirmation restored",
-          );
-          return next;
-        });
-      },
-      startBackgroundTask,
-      cancelBackgroundTask,
-      bgTasks,
-      showBgTask: (id: string) => {
-        const t = bgTasks.find((b) => b.id === id);
-        if (!t) return;
-        addSystemMsg(
-          `[bg:${id}] ${t.status}\n${t.output ?? "(no output yet)"}`,
-        );
-      },
-      openBtw: (question: string) => {
-        setBtwState({ question, answer: "", loading: true, frame: 0 });
-        const interval = setInterval(
-          () => setBtwState((s) => (s ? { ...s, frame: s.frame + 1 } : s)),
-          80,
-        );
-        btwFrameRef.current = interval;
-        runAgent({
-          provider,
-          model,
-          workdir: workdirState,
-          messages: [
-            ...history.slice(-10),
-            { role: "user", content: `[BTW] ${question}` },
-          ],
-          system:
-            "Answer this side question briefly and clearly. Be concise. Do NOT add to conversation history.",
-        })
-          .then((r) => {
-            clearInterval(interval);
-            btwFrameRef.current = null;
-            setBtwState((s) =>
-              s ? { ...s, answer: r.text, loading: false } : s,
-            );
-          })
-          .catch((err) => {
-            clearInterval(interval);
-            btwFrameRef.current = null;
-            setBtwState((s) =>
-              s
-                ? {
-                    ...s,
-                    answer: `Error: ${err instanceof Error ? err.message : String(err)}`,
-                    loading: false,
-                  }
-                : s,
-            );
-          });
-      },
-      showPicker: (title: string, items: any[], onSelect: any) =>
-        setPicker({ title, items, onSelect }),
-      showPrompt: (
-        title: string,
-        placeholder: string,
-        secret: boolean,
-        onSubmit: (v: string) => void,
-      ) => setPrompt({ title, placeholder, secret, onSubmit }),
-      restoreSession: (
-        msgs: Array<{ role: "user" | "assistant"; content: string }>,
-      ) => {
-        const coreMessages: CoreMessage[] = msgs.map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-        setHistory(coreMessages);
-        setMessages(
-          msgs.map((m) => ({
-            role: m.role as DisplayMessage["role"],
-            content: m.content,
-            id: crypto.randomUUID(),
-          })),
-        );
-        addSystemMsg(`Session restored — ${msgs.length} messages`);
-      },
-      messages,
-      checkpoints,
-      popCheckpoints: async (n: number) => {
-        if (checkpoints.length === 0) return;
-        const idx = Math.max(0, checkpoints.length - n);
-        const cp = checkpoints[idx];
-        if (!cp) return;
-        await snapshotManager.restoreToMark(cp.mark);
-        setMessages(cp.messages);
-        setHistory(cp.history);
-        setCheckpoints((prev) => prev.slice(0, idx));
-        addSystemMsg(`↩ Rolled back ${n} step${n > 1 ? "s" : ""}`);
-      },
-      branches: branches.map((b, i) => ({
-        id: b.id,
-        name: b.name,
-        createdAt: b.createdAt,
-        messageCount: b.messages.length,
-        active: i === activeBranchIdx,
-      })) as any,
-      activeBranchIdx,
-      createBranch: (name?: string) => {
-        const newName = name ?? `branch-${branches.length}`;
-        const newBranch: ConvBranch = {
-          id: crypto.randomUUID(),
-          name: newName,
-          messages: messages.slice(),
-          history: history.slice(),
-          tokens: { ...tokens },
-          createdAt: Date.now(),
-        };
-        setBranches((prev) => {
-          const updated = [...prev];
-          updated[activeBranchIdx] = {
-            ...updated[activeBranchIdx]!,
-            messages: messages.slice(),
-            history: history.slice(),
-            tokens: { ...tokens },
-          };
-          return [...updated, newBranch];
-        });
-        setActiveBranchIdx(branches.length);
-        addSystemMsg(`⎇ Switched to branch "${newName}"`);
-      },
-      switchBranch: (idx: number) => {
-        if (idx < 0 || idx >= branches.length || idx === activeBranchIdx)
-          return;
-        setBranches((prev) => {
-          const updated = [...prev];
-          updated[activeBranchIdx] = {
-            ...updated[activeBranchIdx]!,
-            messages: messages.slice(),
-            history: history.slice(),
-            tokens: { ...tokens },
-          };
-          return updated;
-        });
-        const target = branches[idx]!;
-        setMessages(target.messages);
-        setHistory(target.history);
-        setTokens(target.tokens);
-        setActiveBranchIdx(idx);
-        addSystemMsg(`⎇ Switched to branch "${target.name}"`);
-      },
-      deleteBranch: (name: string) => {
-        if (name === "main") {
-          addSystemMsg("Cannot delete main branch");
-          return;
-        }
-        const idx = branches.findIndex((b) => b.name === name);
-        if (idx === -1) {
-          addSystemMsg(`Branch "${name}" not found`);
-          return;
-        }
-        setBranches((prev) => prev.filter((_, i) => i !== idx));
-        if (activeBranchIdx >= idx)
-          setActiveBranchIdx(Math.max(0, activeBranchIdx - 1));
-        addSystemMsg(`⎇ Deleted branch "${name}"`);
-      },
-      watchedPaths,
-      addWatch: (watchPath: string, prompt?: string) => {
-        const abs = watchPath.startsWith("/")
-          ? watchPath
-          : `${workdirState}/${watchPath}`;
-        if (watchCleanupRef.current.has(abs)) {
-          addSystemMsg(`Already watching: ${abs}`);
-          return;
-        }
-        const cleanup = fileWatcher.watch(abs, (changedFile) => {
-          addSystemMsg(
-            `👁 ${changedFile.replace(workdirState + "/", "")} changed`,
-          );
-        });
-        watchCleanupRef.current.set(abs, cleanup);
-        setWatchedPaths((prev) => [
-          ...prev,
-          { path: abs, ...(prompt !== undefined ? { prompt } : {}) },
-        ]);
-        addSystemMsg(`👁 Watching: ${abs}`);
-      },
-      removeWatch: (watchPath?: string) => {
-        if (!watchPath) {
-          watchCleanupRef.current.forEach((fn) => fn());
-          watchCleanupRef.current.clear();
-          setWatchedPaths([]);
-          addSystemMsg("👁 Stopped all watchers");
-          return;
-        }
-        const abs = watchPath.startsWith("/")
-          ? watchPath
-          : `${workdirState}/${watchPath}`;
-        watchCleanupRef.current.get(abs)?.();
-        watchCleanupRef.current.delete(abs);
-        setWatchedPaths((prev) => prev.filter((w) => w.path !== abs));
-        addSystemMsg(`👁 Stopped watching: ${abs}`);
-      },
-      contextWindow:
-        contextUsage?.contextWindow ?? ProviderRegistry.get(provider)
-          .listModels()
-          .find((m) => m.id === model)?.contextWindow ?? 200_000,
-      tokens,
-      contextUsage,
-      promptDiagnostics,
-      promptCacheHealth,
-      replayTo: async (idx: number) => {
-        const cp = checkpoints[idx];
-        if (!cp) return;
-        await snapshotManager.restoreToMark(cp.mark);
-        setMessages(cp.messages);
-        setHistory(cp.history);
-        setCheckpoints((prev) => prev.slice(0, idx + 1));
-      },
-      openDesign: (brief?: string) => {
-        setDesignInitialBrief(brief?.trim() || undefined);
-        setDesignWizardOpen(true);
-      },
-      startRemoteSession: () => remoteBridgeRef.current.start(),
-      stopRemoteSession: () => remoteBridgeRef.current.stop(),
-      remoteConnected,
-    }),
-    [
-      provider,
-      model,
-      workdir,
-      skillNames,
-      setProvider,
-      setModel,
-      messages,
-      history,
-      tokens,
-      contextUsage,
-      promptDiagnostics,
-      promptCacheHealth,
-      checkpoints,
-      branches,
-      activeBranchIdx,
-      watchedPaths,
-      remoteConnected,
-      bgTasks,
-      startBackgroundTask,
-      cancelBackgroundTask,
-    ],
-  );
-
-  // ── Command executor ──────────────────────────────────────────────────────
-  const executeCommand = useCallback(
-    (raw: string): boolean => {
-      const parsed = parseSlashCommand(raw);
-      if (!parsed) return false;
-      const cmdDef = getCommand(parsed.cmd);
-      if (!cmdDef) {
-        addSystemMsg(
-          `Unknown command: /${parsed.cmd}  —  type /help to see all commands`,
-        );
-        return true;
-      }
-      const result = cmdDef.handler(parsed.args, buildCtx());
-      const resolve = (r: CommandResult) => applyResult(r);
-      if (result instanceof Promise)
-        result.then(resolve).catch((e) => addSystemMsg(`[error] ${e}`));
-      else resolve(result);
-      return true;
-    },
-    [buildCtx],
-  );
-
-  const applyResult = (r: CommandResult) => {
-    switch (r.type) {
-      case "text":
-        addSystemMsg(r.content);
-        break;
-      case "error":
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "error" as const,
-            content: r.message,
-          },
-        ]);
-        break;
-      case "picker":
-        setPicker({ title: r.title, items: r.items, onSelect: r.onSelect });
-        break;
-      case "prompt":
-        setPrompt({
-          title: r.title,
-          placeholder: r.placeholder,
-          secret: r.secret,
-          onSubmit: r.onSubmit,
-        });
-        break;
-      case "clear":
-        setMessages([]);
-        setHistory([]);
-        setTokens({
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          reasoning: 0,
-        });
-        setContextUsage(undefined);
-        setSessionTitle(undefined);
-        isFirstMessage.current = true;
-        extractedRef.current = false;
-        addSystemMsg("History cleared");
-        break;
-      case "exit":
-        process.exit(0);
-        break;
-    }
-  };
-
-  const handleCmdExecute = useCallback(
-    (cmdName: string) => {
-      skipSubmitRef.current = true;
-      setInput("");
-      executeCommand("/" + cmdName);
-    },
-    [executeCommand],
-  );
-
-  const handleCmdFill = useCallback(
-    (cmdName: string) => setInput("/" + cmdName + " "),
-    [],
-  );
-
-  // ── Message edit & rerun ──────────────────────────────────────────────────
-  const handleEditRerun = useCallback(
-    (msgIndex: number, newContent: string) => {
-      setEditingMsg(null);
-      // Cut messages array after msgIndex (exclusive) and replace the edited user msg
-      setMessages((prev) => {
-        const next = prev.slice(0, msgIndex);
-        next.push({ ...prev[msgIndex]!, content: newContent });
-        return next;
-      });
-      // Cut history: find corresponding position — history has paired user+assistant entries
-      // Safest: keep only user messages before this edit (by counting user msgs)
-      const userMsgsBefore = messages
-        .slice(0, msgIndex)
-        .filter((m) => m.role === "user").length;
-      // Interleave: rebuild history from scratch keeping only what's before the edit point
-      const newHistory: CoreMessage[] = [];
-      let uCount = 0;
-      for (const h of history) {
-        if (h.role === "user") {
-          if (uCount >= userMsgsBefore) break;
-          uCount++;
-        }
-        newHistory.push(h);
-      }
-      setHistory(newHistory);
-      // Rerun with the new content
-      setTimeout(() => handleSubmit(newContent), 30);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    },
-    [messages, history],
-  );
-
-  // ── Chat submit ───────────────────────────────────────────────────────────
-  const handleSubmit = useCallback(
-    async (userInput: string) => {
-      if (skipSubmitRef.current) {
-        skipSubmitRef.current = false;
-        return;
-      }
-      let text = userInput.trim();
-      if (!text) return;
-      setStartupBannerVisible(false);
-      setScrollLocked(false);
-      setConversationOffsetRows(0);
-      // Reset the auto-continue counter when the user submits a message manually;
-      // auto-continue messages should preserve their own limit.
-      const isAutoContinueSubmit = autoContinueSubmittingRef.current;
-      autoContinueSubmittingRef.current = false;
-      if (!isAutoContinueSubmit) autoContinueRef.current.count = 0;
-
-      // Phase 6.1: the continuation budget now comes from config (defaults.maxContinuations/maxTaskContinuations).
-      const continuationDefaults = (() => {
-        try {
-          return loadConfig(workdirState).defaults ?? {};
-        } catch {
-          return {} as {
-            maxContinuations?: number;
-            maxTaskContinuations?: number;
-          };
-        }
-      })();
-
-      // @path.ext[:symbol] syntax — file attachment or symbol context injection
-      // @auth.ts          → attach whole file (image) or inline code for text files
-      // @auth.ts:validate → inject only that function/class body as code block
-      const atRe = /@([\w./~-]+\.[a-zA-Z]{2,6})(?::(\w+))?/g;
-      const atMatches = [...text.matchAll(atRe)];
-      const symbolContextBlocks: string[] = [];
-      if (atMatches.length > 0) {
-        for (const m of atMatches) {
-          const rawPath = m[1]!;
-          const symbolName = m[2]; // may be undefined
-          const fullPath = rawPath.startsWith("~")
-            ? rawPath.replace("~", process.env["HOME"] ?? "~")
-            : rawPath.startsWith("/")
-              ? rawPath
-              : `${workdirState}/${rawPath}`;
-
-          if (symbolName) {
-            // Symbol context injection — extract just the function/class body
-            try {
-              const extracted = await extractSymbolBody(fullPath, symbolName);
-              if (extracted) {
-                const ext = rawPath.slice(rawPath.lastIndexOf(".") + 1);
-                symbolContextBlocks.push(
-                  `[Context: @${rawPath}:${symbolName} — lines ${extracted.startLine}-${extracted.endLine}]\n\`\`\`${ext}\n${extracted.code}\n\`\`\``,
-                );
-              }
-            } catch {
-              /* ignore */
-            }
-          } else {
-            // Whole-file attachment (existing behavior)
-            try {
-              const att = await readAttachmentFromPath(fullPath);
-              setAttachments((prev) => [...prev, att]);
-            } catch {
-              /* ignore — leave @path in message */
-            }
-          }
-        }
-        // Remove all @path[:symbol] references from message text
-        text = text
-          .replace(atRe, "")
-          .replace(/\s{2,}/g, " ")
-          .trim();
-      }
-
-      // Prepend symbol context blocks to the message
-      if (symbolContextBlocks.length > 0) {
-        text = symbolContextBlocks.join("\n\n") + (text ? "\n\n" + text : "");
-      }
-
-      setInput("");
-      clearDraft();
-      if (loading) {
-        setComposerQueue((items) => addComposerItem(items, {
-          id: crypto.randomUUID(),
-          kind: "steer",
-          text,
-        }));
-        return;
-      }
-      if (executeCommand(text)) return;
-
-      setCommandHistory((prev) => [...prev, text]);
-
-      if (isFirstMessage.current) {
-        isFirstMessage.current = false;
-        const words = text
-          .replace(/[^\w\s]/g, " ")
-          .trim()
-          .split(/\s+/)
-          .filter((w) => w.length > 2);
-        const title = words.slice(0, 5).join(" ").slice(0, 45) || "New Session";
-        setSessionTitle(title);
-      }
-
-      setStreamingError(null);
-      setTurnSkillNames([]);
-      setRunActivity("preparing_context");
-      const startTime = Date.now();
-      const now = Date.now();
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-      setLoading(true);
-      remoteRuntimeRef.current
-        ?.publish(RemoteEventTypes.agentStatus, { state: "working" })
-        .catch(() => {});
-      turnHadToolRef.current = false;
-      turnAssistantIdRef.current = null;
-
-      const userMsg: CoreMessage = { role: "user", content: text };
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "user",
-          content: text,
-          timestamp: now,
-          id: crypto.randomUUID(),
-        },
-      ]);
-      const newHistory = [...historyRef.current, userMsg];
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "",
-          pending: true,
-          timestamp: Date.now(),
-          id: crypto.randomUUID(),
-        },
-      ]);
-
-      try {
-        const agentDef = getSessionAgent(activeAgent, workdirState);
-        // Phase 3A: the coordinator prompt is no longer injected here — loop.ts now injects it
-        // in a complexity-gated way (cfg.orchestration.mode). The coordinatorMode state still
-        // has full authority to disable it via the /coordinator command (passed to runAgent below).
-        const effectiveSystem = [agentDef.system || null, system]
-          .filter(Boolean)
-          .join("\n\n---\n\n");
-
-        // Adaptive throttle flush — text + reasoning are flushed together
-        const flushStream = () => {
-          streamTimerRef.current = null;
-          // If remote is connected, also send a coalesced update to the phone on the same
-          // stream cadence (not the raw onText delta — riding the existing adaptive throttle cadence).
-          if (streamTextRef.current || streamReasonRef.current) {
-            remoteRuntimeRef.current
-              ?.publish(RemoteEventTypes.terminalOutput, {
-                text: streamTextRef.current,
-                reasoning: streamReasonRef.current,
-              })
-              .catch(() => {});
-          }
-          if (scrollLockedRef.current) return;
-          const visible = visibleLiveStream(
-            { text: streamTextRef.current, reasoning: streamReasonRef.current },
-          );
-          // Streaming output is transient; on the next tool call or on finish
-          // it is moved into the committed assistant transcript.
-          setStreamingText(visible.text);
-          setStreamingReason(visible.reasoning);
-        };
-
-        await runAgent({
-          provider,
-          model,
-          workdir: workdirState,
-          sessionId: mainSessionId.current,
-          backendAccessTokenResolver: resolveBackendAccessToken,
-          ...(effectiveSystem ? { system: effectiveSystem } : {}),
-          // If disabled via /coordinator (false), loop.ts never injects it; if true/undefined,
-          // loop.ts makes its own complexity-gated decision (cfg.orchestration.mode).
-          coordinatorMode,
-          undercover: isUndercover || (undercover ?? false),
-          ...(effort !== undefined ? { effort } : {}),
-          ...(agentDef.allowedTools
-            ? { toolsOverride: agentDef.allowedTools }
-            : {}),
-          messages: newHistory,
-          signal: controller.signal,
-          ...(attachments.length > 0 ? { attachments } : {}),
-          onText: (delta, isReasoning) => {
-            setRunActivity(isReasoning ? "thinking" : "responding");
-            const now = Date.now();
-            const dt = now - lastTokenTimeRef.current;
-            if (dt > 0 && dt < 3_000)
-              tokenRateRef.current =
-                0.8 * tokenRateRef.current + 0.2 * (1_000 / dt);
-            lastTokenTimeRef.current = now;
-
-            if (isReasoning) streamReasonRef.current += delta;
-            else streamTextRef.current += delta;
-
-            // Recompute the flush delay based on rate on every delta.
-            // 2s delay while scroll lock is active — the terminal isn't redrawn.
-            const rate = tokenRateRef.current;
-            const ms = scrollLockedRef.current
-              ? 2000
-              : rate > 40
-                ? 80
-                : rate > 15
-                  ? 100
-                  : rate > 5
-                    ? 120
-                    : 200;
-            if (streamTimerRef.current) clearTimeout(streamTimerRef.current);
-            streamTimerRef.current = setTimeout(flushStream, ms);
-          },
-          onChunk: (chunk: string) => {
-            setMessages((prev) => {
-              const stableId = turnAssistantIdRef.current;
-              if (stableId) {
-                const idx = prev.findIndex((m) => m.id === stableId);
-                if (idx !== -1) {
-                  const msg = prev[idx]!;
-                  if (msg.blocks) {
-                    for (let i = msg.blocks.length - 1; i >= 0; i--) {
-                      const b = msg.blocks[i]!;
-                      if (b.type === "tool" && b.pending) {
-                        const combined = (b.resultContent ?? "") + chunk;
-                        const capped =
-                          combined.length > 50_000
-                            ? combined.slice(-50_000)
-                            : combined;
-                        const next = [...prev];
-                        const newBlocks = [...msg.blocks];
-                        newBlocks[i] = { ...b, resultContent: capped };
-                        next[idx] = { ...msg, blocks: newBlocks };
-                        return next;
-                      }
-                    }
-                  }
-                }
-              }
-              // Fallback: the old tool_call message approach
-              const lastPendingIdx = prev.reduceRight<number>(
-                (found, m, i) =>
-                  found !== -1
-                    ? found
-                    : m.role === "tool_call" && m.pending
-                      ? i
-                      : -1,
-                -1,
-              );
-              if (lastPendingIdx === -1) return prev;
-              const next = [...prev];
-              const msg = next[lastPendingIdx]!;
-              const combined = (msg.resultContent ?? "") + chunk;
-              const capped =
-                combined.length > 50_000 ? combined.slice(-50_000) : combined;
-              next[lastPendingIdx] = { ...msg, resultContent: capped };
-              return next;
-            });
-          },
-          onToolCall: (tc) => {
-            setRunActivity("using_tool");
-            remoteRuntimeRef.current
-              ?.publish(RemoteEventTypes.toolCall, {
-                id: tc.id,
-                tool: tc.tool,
-                args: tc.args,
-              })
-              .catch(() => {});
-            if (streamTimerRef.current) {
-              clearTimeout(streamTimerRef.current);
-              streamTimerRef.current = null;
-            }
-            turnHadToolRef.current = true;
-            const textBefore = streamTextRef.current;
-            const reasonBefore = streamReasonRef.current;
-            streamTextRef.current = "";
-            streamReasonRef.current = "";
-            setStreamingText(null);
-            setStreamingReason(null);
-            setActiveTool(tc.tool);
-            latestToolCallRef.current = {
-              id: tc.id,
-              tool: tc.tool,
-              content: JSON.stringify(tc.args, null, 2),
-            };
-
-            const toolBlock: AssistantContentBlock = {
-              type: "tool",
-              id: tc.id ?? crypto.randomUUID(),
-              tool: tc.tool,
-              args: JSON.stringify(tc.args, null, 2),
-              pending: true,
-            };
-
-            if (!turnAssistantIdRef.current) {
-              // First tool: create a single blocks assistant message
-              const assistantId = crypto.randomUUID();
-              turnAssistantIdRef.current = assistantId;
-              setMessages((prev) => {
-                const next = [...prev];
-                // Remove the empty pending placeholder
-                const last = next[next.length - 1];
-                if (
-                  last?.role === "assistant" &&
-                  last.pending &&
-                  !last.content &&
-                  !last.reasoningContent &&
-                  !last.blocks
-                ) {
-                  next.pop();
-                }
-                const blocks: AssistantContentBlock[] = [];
-                if (textBefore || reasonBefore) {
-                  blocks.push({
-                    type: "text",
-                    content: textBefore,
-                    ...(reasonBefore ? { reasoningContent: reasonBefore } : {}),
-                  });
-                }
-                blocks.push(toolBlock);
-                next.push({
-                  id: assistantId,
-                  role: "assistant" as const,
-                  content: "",
-                  blocks,
-                  pending: true,
-                  timestamp: Date.now(),
-                });
-                return next;
-              });
-            } else {
-              // Next tool: append text + tool block to the existing blocks message
-              const stableId = turnAssistantIdRef.current;
-              setMessages((prev) => {
-                const idx = prev.findIndex((m) => m.id === stableId);
-                if (idx === -1) return prev;
-                const existing = prev[idx]!;
-                const currentBlocks = existing.blocks ?? [];
-                const newBlocks: AssistantContentBlock[] = [...currentBlocks];
-                if (textBefore || reasonBefore) {
-                  newBlocks.push({
-                    type: "text",
-                    content: textBefore,
-                    ...(reasonBefore ? { reasoningContent: reasonBefore } : {}),
-                  });
-                }
-                newBlocks.push(toolBlock);
-                const next = [...prev];
-                next[idx] = { ...existing, blocks: newBlocks };
-                return next;
-              });
-            }
-          },
-          onStepFinish: () => {
-            setRunActivity("waiting_for_provider");
-            const stableId = turnAssistantIdRef.current;
-            setMessages((prev) => {
-              if (stableId) {
-                const idx = prev.findIndex((m) => m.id === stableId);
-                if (idx !== -1 && prev[idx]?.blocks) {
-                  const msg = prev[idx]!;
-                  const newBlocks = msg.blocks!.map((b) =>
-                    b.type === "tool" && b.pending
-                      ? { ...b, pending: false }
-                      : b,
-                  );
-                  const next = [...prev];
-                  next[idx] = { ...msg, blocks: newBlocks };
-                  return next;
-                }
-              }
-              return prev.map((m) =>
-                m.role === "tool_call" && m.pending
-                  ? { ...m, pending: false }
-                  : m,
-              );
-            });
-            setActiveTool(undefined);
-            const mark = snapshotManager.mark();
-            const label = `step ${checkpoints.length + 1}`;
-            // Trim large tool results in the checkpoint (RAM protection).
-            const MAX_CP_RESULT = 10_000;
-            const cpMessages = messages.slice().map((m) => {
-              if (m.blocks) {
-                const trimmedBlocks = m.blocks.map((b) => {
-                  if (
-                    b.type === "tool" &&
-                    b.resultContent &&
-                    b.resultContent.length > MAX_CP_RESULT
-                  )
-                    return {
-                      ...b,
-                      resultContent:
-                        b.resultContent.slice(0, MAX_CP_RESULT) +
-                        "\n[truncated in checkpoint]",
-                    };
-                  return b;
-                });
-                return { ...m, blocks: trimmedBlocks };
-              }
-              if (m.resultContent && m.resultContent.length > MAX_CP_RESULT)
-                return {
-                  ...m,
-                  resultContent:
-                    m.resultContent.slice(0, MAX_CP_RESULT) +
-                    "\n[truncated in checkpoint]",
-                };
-              return m;
-            });
-            setCheckpoints((prev) => [
-              ...prev.slice(-(MAX_CHECKPOINTS - 1)),
-              { mark, messages: cpMessages, history: history.slice(), label },
-            ]);
-          },
-          onToolResult: (tr) => {
-            const remoteSummarySource =
-              typeof tr.result === "object"
-                ? JSON.stringify(tr.result)
-                : String(tr.result);
-            const REMOTE_SUMMARY_MAX = 2_000;
-            remoteRuntimeRef.current
-              ?.publish(RemoteEventTypes.toolResultSummary, {
-                id: tr.id,
-                durationMs: tr.durationMs,
-                summary:
-                  remoteSummarySource.length > REMOTE_SUMMARY_MAX
-                    ? remoteSummarySource.slice(0, REMOTE_SUMMARY_MAX) + "…"
-                    : remoteSummarySource,
-              })
-              .catch(() => {});
-            setMessages((prev) => {
-              let parsedResult = tr.result;
-              if (typeof parsedResult === "object")
-                parsedResult = JSON.stringify(parsedResult, null, 2);
-              const MAX_DISPLAY = 50_000;
-              const displayResult =
-                parsedResult.length > MAX_DISPLAY
-                  ? parsedResult.slice(0, MAX_DISPLAY) +
-                    `\n\n[... ${(parsedResult.length - MAX_DISPLAY).toLocaleString()} chars truncated]`
-                  : parsedResult;
-
-              // Blocks approach: update the tool block within blocks
-              const stableId = turnAssistantIdRef.current;
-              if (stableId) {
-                const idx = prev.findIndex((m) => m.id === stableId);
-                if (idx !== -1) {
-                  const msg = prev[idx]!;
-                  if (msg.blocks) {
-                    const blockIdx = msg.blocks.findIndex(
-                      (b) => b.type === "tool" && b.id === tr.id,
-                    );
-                    if (blockIdx !== -1) {
-                      const b = msg.blocks[blockIdx]!;
-                      if (b.type === "tool") {
-                        if (b.tool && parsedResult)
-                          latestToolCallRef.current = {
-                            id: tr.id,
-                            tool: b.tool,
-                            content: parsedResult,
-                          };
-                        const next = [...prev];
-                        const newBlocks = [...msg.blocks];
-                        newBlocks[blockIdx] = {
-                          ...b,
-                          pending: false,
-                          resultContent: displayResult,
-                          durationMs: tr.durationMs,
-                          artifact: tr.artifact,
-                        };
-                        next[idx] = { ...msg, blocks: newBlocks };
-                        return next;
-                      }
-                    }
-                  }
-                }
-              }
-
-              // Fallback: the old tool_call message approach
-              const next = [...prev];
-              const callIndex = next.findIndex(
-                (m) => m.role === "tool_call" && m.id === tr.id,
-              );
-              if (callIndex !== -1) {
-                const old = next[callIndex];
-                if (old) {
-                  next[callIndex] = {
-                    ...old,
-                    pending: false,
-                    resultContent: displayResult,
-                    durationMs: tr.durationMs,
-                  };
-                  if (old.tool && parsedResult)
-                    latestToolCallRef.current = {
-                      id: tr.id,
-                      tool: old.tool ?? "tool",
-                      content: parsedResult,
-                    };
-                }
-              } else {
-                next.push({
-                  id: crypto.randomUUID(),
-                  role: "tool_result" as const,
-                  content: displayResult,
-                  pending: false,
-                });
-              }
-              return next;
-            });
-          },
-          onCompaction: (event) => {
-            setWasCompacted(true);
-            setTimeout(() => setWasCompacted(false), 8000);
-            setContextUsage(event.after);
-            const formatTokens = (value: number) => value >= 1_000
-              ? `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}k`
-              : String(value);
-            addSystemMsg(
-              `Context compacted: ${formatTokens(event.before.effectiveTokens)} → ${formatTokens(event.after.effectiveTokens)} tokens (${event.reason.replaceAll("_", " ")}).`,
-            );
-            // Allow end-of-session extraction to run again after compaction
-            extractedRef.current = false;
-          },
-          onProviderFallback: (fromProvider, toProvider) => {
-            addSystemMsg(
-              `⚠ ${fromProvider} unavailable — switched to ${toProvider}`,
-            );
-          },
-          onStreamRestart: () => {
-            // Phase 1: a retry/fallback attempt is starting — discard the partial text that
-            // streamed from the previous (failed) attempt, otherwise it'd appear side-by-side with the new attempt's text.
-            if (streamTimerRef.current) {
-              clearTimeout(streamTimerRef.current);
-              streamTimerRef.current = null;
-            }
-            streamTextRef.current = "";
-            streamReasonRef.current = "";
-            setStreamingText(null);
-            setStreamingReason(null);
-          },
-          onSkillsActivated: (skills) => {
-            if (skills.length === 0) return;
-            setTurnSkillNames(skills.map((skill) => skill.id));
-          },
-          onPromptDiagnostics: setPromptDiagnostics,
-          continuation: {
-            getTasks: () => taskManager.getTasks(),
-            previousContinuations: autoContinueRef.current.count,
-            // Phase 6.1: previously hardcoded — now read from .aurict/config.json > defaults.
-            maxContinuations: continuationDefaults.maxContinuations ?? 5,
-            maxTaskContinuations:
-              continuationDefaults.maxTaskContinuations ?? 15,
-          },
-          onPromptCacheHealth: setPromptCacheHealth,
-          onPhase: (phase) => setRunActivity(phase),
-          onFinish: ({
-            tokens: t,
-            text: finalText,
-            newMessages,
-            continuation,
-            completionGate,
-            longTask,
-            contextUsage: nextContextUsage,
-          }) => {
-            if (streamTimerRef.current) {
-              clearTimeout(streamTimerRef.current);
-              streamTimerRef.current = null;
-            }
-            const finalSegmentText = turnHadToolRef.current
-              ? streamTextRef.current
-              : finalText;
-            const finalReason = streamReasonRef.current;
-            const stableAssistantId = turnAssistantIdRef.current;
-            streamTextRef.current = "";
-            streamReasonRef.current = "";
-            setStreamingText(null);
-            setStreamingReason(null);
-            setTokens((prev) => ({
-              input: prev.input + t.input,
-              output: prev.output + t.output,
-              cacheRead: prev.cacheRead + t.cacheRead,
-              cacheWrite: prev.cacheWrite + t.cacheWrite,
-              reasoning: prev.reasoning + t.reasoning,
-            }));
-            setContextUsage(nextContextUsage);
-            if (nextContextUsage.effectiveTokens >= nextContextUsage.compactionThreshold) {
-              addSystemMsg("Context limit reached — earlier context will be compacted before the next request.");
-            }
-            const duration = Date.now() - startTime;
-            if (duration > 15_000) notifyTaskDone(text, duration);
-            if (!extractedRef.current) {
-              extractedRef.current = true;
-              extractAndStoreMemories(
-                provider,
-                model,
-                [...newHistory, ...newMessages],
-                workdirState,
-              )
-                .catch(() => metrics.recordError("memory_extract"));
-            }
-            const updatedHistory = [
-              ...newHistory,
-              ...newMessages,
-            ] as CoreMessage[];
-            historyRef.current = updatedHistory;
-            setHistory(updatedHistory);
-            setMessages((prev) => {
-              const next = prev.map((m) =>
-                m.pending ? { ...m, pending: false } : m,
-              );
-              const reasonSpread = finalReason
-                ? { reasoningContent: finalReason }
-                : {};
-
-              if (stableAssistantId) {
-                const idx = next.findIndex((m) => m.id === stableAssistantId);
-                if (idx !== -1) {
-                  const existing = next[idx]!;
-                  if (existing.blocks) {
-                    // Blocks approach: append the post-tool text to the same message as a new text block
-                    const newBlocks = [...existing.blocks];
-                    if (finalSegmentText) {
-                      newBlocks.push({
-                        type: "text",
-                        content: finalSegmentText,
-                        ...reasonSpread,
-                      });
-                    }
-                    next[idx] = {
-                      ...existing,
-                      pending: false,
-                      blocks: newBlocks,
-                    };
-                    return next;
-                  }
-                  // Fallback: the old approach (when there are no blocks)
-                  next[idx] = {
-                    ...existing,
-                    role: "assistant" as const,
-                    pending: false,
-                    ...reasonSpread,
-                  };
-                  if (finalSegmentText) {
-                    next.push({
-                      id: crypto.randomUUID(),
-                      role: "assistant" as const,
-                      content: finalSegmentText,
-                      pending: false,
-                      timestamp: Date.now(),
-                      ...reasonSpread,
-                    });
-                  }
-                  return next;
-                }
-              }
-
-              // Turn without a tool call: existing behavior
-              const last = next[next.length - 1];
-              if (
-                (finalSegmentText || finalReason) &&
-                last?.role !== "assistant"
-              ) {
-                next.push({
-                  id: crypto.randomUUID(),
-                  role: "assistant",
-                  content: finalSegmentText,
-                  pending: false,
-                  ...reasonSpread,
-                });
-              } else if (last?.role === "assistant") {
-                next[next.length - 1] = {
-                  ...last,
-                  content: finalSegmentText,
-                  pending: false,
-                  ...reasonSpread,
-                };
-              }
-              return next;
-            });
-
-            // Core continuation decision is the single source of truth.
-            if (continuation?.shouldContinue) {
-              autoContinueRef.current = {
-                needed: true,
-                count: continuation.nextContinuationCount,
-                ...(longTask?.nudge ? { prompt: longTask.nudge } : {}),
-              };
-            } else if (
-              completionGate?.shouldAutoContinue &&
-              !completionGate.shadowOnly
-            ) {
-              autoContinueRef.current = {
-                needed: true,
-                count: autoContinueRef.current.count + 1,
-                ...(longTask?.nudge ? { prompt: longTask.nudge } : {}),
-              };
-            } else {
-              autoContinueRef.current.needed = false;
-              delete autoContinueRef.current.prompt;
-            }
-          },
-        });
-      } catch (err) {
-        if (streamTimerRef.current) {
-          clearTimeout(streamTimerRef.current);
-          streamTimerRef.current = null;
-        }
-        const partialText = streamTextRef.current;
-        const partialReason = streamReasonRef.current;
-        streamTextRef.current = "";
-        streamReasonRef.current = "";
-        const errMsg = parseProviderError(err);
-        setStreamingError(null);
-        setStreamingText(null);
-        setStreamingReason(null);
-        setMessages((prev) => {
-          const next = prev.map((m) =>
-            m.pending ? { ...m, pending: false } : m,
-          );
-          if (partialText || partialReason) {
-            const last = next[next.length - 1];
-            const segment = {
-              content: partialText,
-              pending: false,
-              ...(partialReason ? { reasoningContent: partialReason } : {}),
-            };
-            if (
-              last?.role === "assistant" &&
-              !last.content &&
-              !last.reasoningContent
-            ) {
-              next[next.length - 1] = { ...last, ...segment };
-            } else {
-              next.push({
-                id: crypto.randomUUID(),
-                role: "assistant",
-                timestamp: Date.now(),
-                ...segment,
-              });
-            }
-          }
-          next.push({
-            id: crypto.randomUUID(),
-            role: "error",
-            content: errMsg,
-            errorPresentation: presentTranscriptError(errMsg),
-          });
-          return next;
-        });
-        if (Date.now() - startTime > 15_000) notifyError(text);
-        if (!extractedRef.current && newHistory.length >= 4) {
-          extractedRef.current = true;
-          extractAndStoreMemories(
-            provider,
-            model,
-            newHistory,
-            workdirState,
-          ).catch(() => metrics.recordError("memory_extract"));
-        }
-      } finally {
-        setLoading(false);
-        setRunActivity(undefined);
-        remoteRuntimeRef.current
-          ?.publish(RemoteEventTypes.agentStatus, { state: "idle" })
-          .catch(() => {});
-        setActiveTool(undefined);
-        turnHadToolRef.current = false;
-        setTurnSkillNames([]);
-        abortControllerRef.current = null;
-        setAttachments([]);
-        setComposerQueue((items) => {
-          const { item, remaining } = takeComposerItem(items);
-          const autoMsg =
-            item === undefined && autoContinueRef.current.needed
-              ? (autoContinueRef.current.prompt ?? AUTO_CONTINUE_PROMPT)
-              : undefined;
-          autoContinueRef.current.needed = false;
-          delete autoContinueRef.current.prompt;
-          const toSend = item?.text ?? autoMsg;
-          if (toSend) {
-            if (autoMsg) autoContinueSubmittingRef.current = true;
-            setTimeout(() => submitRef.current(toSend), 80);
-          }
-          return remaining;
-        });
-      }
-    },
-    [loading, history, provider, model, workdir, system, executeCommand],
-  );
-
-  useEffect(() => {
-    submitRef.current = (value) => { void handleSubmit(value); };
-  }, [handleSubmit]);
-
-  const handleQueue = useCallback((value: string) => {
-    const text = value.trim();
-    if (!text || !loading) return;
-    setInput("");
-    clearDraft();
-    setComposerQueue((items) => addComposerItem(items, {
-      id: crypto.randomUUID(),
-      kind: "queued",
-      text,
-    }));
-  }, [loading]);
-
-  // ── Remote control (WebRTC) ─────────────────────────────────────────────────
-  // werift is lazy-imported only here, when an actual session is being started —
-  // it never enters the CLI's default startup path even if remote control is never used.
-  const startRemoteSession = useCallback(async () => {
-    if (remoteRuntimeRef.current) {
-      addSystemMsg("Remote session already active. Use /remote stop first.");
-      return;
-    }
-    addSystemMsg("🔗 Starting remote session…");
-    try {
-      const { WebRtcCliTransport } =
-        await import("../remote/webrtc-transport.js");
-      const runtime = new CliRemoteRuntime({
-        transport: new WebRtcCliTransport(),
-      });
-      remoteRuntimeRef.current = runtime;
-      runtime.onStatusChange((s) => setRemoteStatus(s));
-      runtime.onEvent((event: RemoteEvent) => {
-        if (event.type === RemoteEventTypes.promptSubmit) {
-          const prompt =
-            typeof event.payload["prompt"] === "string"
-              ? (event.payload["prompt"] as string)
-              : "";
-          if (prompt.trim()) void handleSubmit(prompt);
-          return;
-        }
-        if (event.type === RemoteEventTypes.interrupt) {
-          if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-            abortControllerRef.current = null;
-          }
-          return;
-        }
-        if (event.type === RemoteEventTypes.permissionResponse) {
-          const id =
-            typeof event.payload["id"] === "string"
-              ? (event.payload["id"] as string)
-              : undefined;
-          const decision = event.payload["decision"];
-          if (
-            id &&
-            (decision === "allow" ||
-              decision === "deny" ||
-              decision === "allow_once")
-          ) {
-            PermissionGate.respond(id, decision);
-            setPermissionQueue((q) => q.filter((p) => p.id !== id));
-          }
-        }
-      });
-      await runtime.start();
-      addSystemMsg(
-        "✓ Remote connected — the phone can now control this session.",
-      );
-    } catch (err) {
-      remoteRuntimeRef.current = null;
-      setRemoteStatus("off");
-      addSystemMsg(
-        `⚠ Remote session failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleSubmit]);
-
-  const stopRemoteSession = useCallback(() => {
-    const runtime = remoteRuntimeRef.current;
-    if (!runtime) {
-      addSystemMsg("No active remote session.");
-      return;
-    }
-    remoteRuntimeRef.current = null;
-    setRemoteStatus("off");
-    runtime
-      .close()
-      .then(() => addSystemMsg("Remote session closed."))
-      .catch(() => {});
-  }, []);
-
-  // buildCtx (defined above, before handleSubmit) can't reference startRemoteSession/stopRemoteSession
-  // directly (TDZ) — it connects indirectly via a ref, which always stays up to date.
-  useEffect(() => {
-    remoteBridgeRef.current = {
-      start: () => {
-        void startRemoteSession();
-      },
-      stop: stopRemoteSession,
-    };
-  }, [startRemoteSession, stopRemoteSession]);
-
-  // ── Render ────────────────────────────────────────────────────────────────
-  const activeTheme = THEMES[themeName] ?? THEMES[DEFAULT_THEME]!;
-  const currentContextWindow = useMemo(() => {
-    try {
-      return ProviderRegistry.get(provider)
-        .listModels()
-        .find((m) => m.id === model)?.contextWindow;
-    } catch {
-      return undefined;
-    }
-  }, [provider, model]);
-
-  const subSessions = viewingSubagentId
-    ? SessionManager.list()
-        .filter((s) => s.parentId === mainSessionId.current)
-        .sort((a, b) => a.createdAt - b.createdAt)
-    : [];
-  const subIdx = subSessions.findIndex((s) => s.id === viewingSubagentId);
-
-  // When any overlay/modal is open, ChatInput's useInput must stay disabled;
-  // otherwise keys (especially Enter and typed text) would go both to the modal
   return (
-    <TerminalAppShell
-      rows={termRows}
-      columns={termCols}
-      theme={activeTheme}
+    <AppScreen
+      termRows={termRows}
+      termCols={termCols}
+      terminalMeasured={terminalMeasured}
+      themeName={themeName}
       keybindingContext={keybindingContext}
-      onTranscriptHeight={(rows) => setMeasuredViewportRows(Math.max(6, rows))}
-      header={
-                  <>
-                    {/* Subagent view */}
-                    {viewingSubagentId && (
-                      <SubagentView
-                        sessionId={viewingSubagentId}
-                        parentSessionId={mainSessionId.current}
-                        siblingIndex={subIdx + 1}
-                        siblingCount={subSessions.length}
-                        onClose={() => setViewingSubagentId(null)}
-                        onPrev={() => {
-                          const prev =
-                            subSessions[
-                              (subIdx - 1 + subSessions.length) %
-                                subSessions.length
-                            ];
-                          if (prev) setViewingSubagentId(prev.id);
-                        }}
-                        onNext={() => {
-                          const next =
-                            subSessions[(subIdx + 1) % subSessions.length];
-                          if (next) setViewingSubagentId(next.id);
-                        }}
-                      />
-                    )}
-                    {!viewingSubagentId && !showStartupBanner && (
-                      <CockpitHeader
-                        provider={provider}
-                        model={model}
-                        workdir={workdirState}
-                        tokens={tokens}
-                        contextTokens={contextUsage?.effectiveTokens ?? 0}
-                        contextWindow={contextUsage?.contextWindow ?? currentContextWindow}
-                        loading={loading}
-                        activeTool={activeTool}
-                        activity={runActivity}
-                        taskSummary={tasks.length > 0 ? taskSummary : undefined}
-                        bgTaskCount={
-                          bgTasks.filter((t) => t.status === "running")
-                            .length || undefined
-                        }
-                        localServer={localServer}
-                        sandboxBackend={sandboxBackend}
-                        coordinatorMode={coordinatorMode}
-                        autopilotMode={autopilotMode}
-                        cols={termCols}
-                        activeAgentCount={
-                          activeAgentCount > 0 ? activeAgentCount : undefined
-                        }
-                        {...(branch !== undefined ? { branch } : {})}
-                        {...(activeAgent !== undefined ? { activeAgent } : {})}
-                      />
-                    )}
-                    {/* Startup banner */}
-                    {showStartupBanner && (
-                      <StartupBanner
-                        version={`v${CURRENT_VERSION}`}
-                        provider={provider}
-                        model={model}
-                        workdir={workdir}
-                        cols={termCols}
-                        rows={termRows}
-                      />
-                    )}
-                    {/* Update notification */}
-                    {updateInfo && !updateDismissed && (
-                      <Box paddingX={2} marginBottom={1}>
-                        <Text color={activeTheme.warning}>◆ </Text>
-                        <Text color={activeTheme.warning}>
-                          Update available:{" "}
-                        </Text>
-                        <Text color={activeTheme.textSecondary}>
-                          v{updateInfo.current}
-                        </Text>
-                        <Text color={activeTheme.textDim}> → </Text>
-                        <Text color={activeTheme.success} bold>
-                          v{updateInfo.latest}{" "}
-                        </Text>
-                        <Text color={activeTheme.textSecondary}>
-                          npm install -g aurict
-                        </Text>
-                        <Text color={activeTheme.textDim}>
-                          {" "}
-                          (esc to dismiss)
-                        </Text>
-                      </Box>
-                    )}
-                    {/* Session title */}
-                    {!viewingSubagentId &&
-                      sessionTitle &&
-                      history.length > 0 && (
-                        <Box paddingX={2} marginBottom={1}>
-                          <Text color={activeTheme.textDim}>◈ </Text>
-                          <Text color={activeTheme.textSecondary} italic>
-                            {sessionTitle}
-                          </Text>
-                        </Box>
-                      )}
-                  </>
-                }
-
-      transcript={
-        <TranscriptPane
-          visible={!viewingSubagentId}
-          height={measuredViewportRows}
-          width={Math.max(20, termCols - 9)}
-          messages={messages}
-          loading={loading}
-          streamingText={streamingText}
-          streamingReason={streamingReason}
-          streamingError={streamingError}
-          scrollLocked={scrollLocked}
-          offsetRowsFromBottom={conversationOffsetRows}
-          onScrollRange={handleScrollRange}
-          onAnchorShift={scrollConversation}
-          {...(unseenCount > 0 ? { unseenCount } : {})}
-          {...(activeTool !== undefined ? { activeTool } : {})}
-          {...(runActivity !== undefined ? { activity: runActivity } : {})}
-        />
-      }
-
-      overlay={
-        <OverlayStack>
-                    {keyboardShortcutsOpen && (
-                      <KeyboardShortcuts
-                        onClose={() => setKeyboardShortcutsOpen(false)}
-                      />
-                    )}
-
-                    {historySearchOpen && (
-                      <HistorySearch
-                        history={commandHistory}
-                        onClose={() => setHistorySearchOpen(false)}
-                        onSelect={(text) => {
-                          setHistorySearchOpen(false);
-                          setInput(text);
-                        }}
-                      />
-                    )}
-
-                    {quickSearchOpen && (
-                      <QuickSearch
-                        onClose={() => setQuickSearchOpen(false)}
-                        onSelect={(_sessionId, msgs) => {
-                          setQuickSearchOpen(false);
-                          const coreMessages: CoreMessage[] = msgs.map((m) => ({
-                            role: m.role,
-                            content: m.content,
-                          }));
-                          setHistory(coreMessages);
-                          setMessages(
-                            msgs.map((m) => ({
-                              role: m.role as DisplayMessage["role"],
-                              content: m.content,
-                              id: crypto.randomUUID(),
-                            })),
-                          );
-                          addSystemMsg(
-                            `Session loaded — ${msgs.length} messages`,
-                          );
-                        }}
-                      />
-                    )}
-
-                    {cmdPaletteOpen && (
-                      <CommandPalette
-                        commands={commandDefs}
-                        recentCommands={recentCmds}
-                        onClose={() => setCmdPaletteOpen(false)}
-                        onSelect={(cmd, args, action) => {
-                          setCmdPaletteOpen(false);
-                          setRecentCmds((prev) =>
-                            [
-                              cmd.name,
-                              ...prev.filter((n) => n !== cmd.name),
-                            ].slice(0, 10),
-                          );
-                          const raw = `/${cmd.name}${args ? ` ${args}` : ""}`;
-                          if (action === "run") {
-                            setInput("");
-                            executeCommand(raw);
-                          } else {
-                            setInput(raw);
-                          }
-                        }}
-                      />
-                    )}
-
-                    {settingsOpen && (
-                      <SettingsPanel
-                        provider={provider}
-                        model={model}
-                        currentTheme={themeName}
-                        workdir={workdirState}
-                        onTheme={(name) => {
-                          if (THEMES[name]) setThemeName(name);
-                        }}
-                        onClose={() => setSettingsOpen(false)}
-                      />
-                    )}
-
-                    {designWizardOpen && (
-                      <DesignWizard
-                        workdir={workdirState}
-                        initialBrief={designInitialBrief}
-                        onClose={() => {
-                          setDesignWizardOpen(false);
-                          setDesignInitialBrief(undefined);
-                        }}
-                        onLaunch={(result: DesignWizardResult) => {
-                          setDesignWizardOpen(false);
-                          setDesignInitialBrief(undefined);
-                          recordSystemUsed(result.systemId);
-                          recordSkillUsed(result.skillId);
-                          const slug = slugify(result.brief);
-                          const prompt = buildDesignPrompt({
-                            brief: result.brief,
-                            systemId: result.systemId,
-                            skillId: result.skillId,
-                            workdir: workdirState,
-                            outputSlug: slug,
-                          });
-                          void handleSubmit(prompt);
-                        }}
-                      />
-                    )}
-
-                    {planRequest && (
-                      <PlanApprovalModal
-                        request={planRequest}
-                        onDecide={(approvedSteps) => {
-                          const id = planRequest.id;
-                          setPlanRequest(null);
-                          if (approvedSteps === null) {
-                            PlanGate.respond(id, { type: "rejected" });
-                          } else {
-                            PlanGate.respond(id, {
-                              type: "approved",
-                              approvedSteps,
-                            });
-                          }
-                        }}
-                      />
-                    )}
-
-                    {editingMsg && (
-                      <MessageEditPanel
-                        original={editingMsg.content}
-                        onCancel={() => setEditingMsg(null)}
-                        onSubmit={(newText) =>
-                          handleEditRerun(editingMsg.msgIndex, newText)
-                        }
-                      />
-                    )}
-
-                    {picker && (
-                      <Picker
-                        title={picker.title}
-                        items={picker.items}
-                        onSelect={(item) => {
-                          const onSel = picker.onSelect;
-                          setPicker(null);
-                          setTimeout(() => onSel(item), 10);
-                        }}
-                        onCancel={() => setPicker(null)}
-                      />
-                    )}
-
-                    {prompt && (
-                      <PromptInput
-                        title={prompt.title}
-                        placeholder={prompt.placeholder}
-                        secret={prompt.secret}
-                        onSubmit={(v) => {
-                          const fn = prompt.onSubmit;
-                          setPrompt(null);
-                          fn(v);
-                        }}
-                        onCancel={() => setPrompt(null)}
-                      />
-                    )}
-
-                    {question && (
-                      <QuestionPrompt
-                        request={question}
-                        onAnswer={handleQuestionAnswer}
-                        onReject={handleQuestionReject}
-                      />
-                    )}
-
-                    {permission && (
-                      <Box flexDirection="column">
-                        <PermissionPrompt
-                          request={permission}
-                          onDecide={handlePermission}
-                        />
-                        {permissionQueue.length > 1 && (
-                          <Box paddingX={2}>
-                            <Text color={activeTheme.textDim} dimColor>
-                              Permission 1/{permissionQueue.length} · +
-                              {permissionQueue.length - 1} queued
-                            </Text>
-                          </Box>
-                        )}
-                      </Box>
-                    )}
-
-                    {attachInput && (
-                      <Box
-                        borderStyle="round"
-                        borderColor={activeTheme.warning}
-                        paddingX={1}
-                      >
-                        <Text color={activeTheme.warning}>📎 File path: </Text>
-                        <Text>{attachPath}</Text>
-                        <Text color={activeTheme.textDim}> (Enter: attach Esc: cancel)</Text>
-                      </Box>
-                    )}
-
-                    {attachments.length > 0 && !attachInput && (
-                      <Box>
-                        <Text color={activeTheme.accentAlt}>
-                          📎 {attachments.length} dosya:{" "}
-                          {attachments.map((a) => a.name).join(", ")}
-                        </Text>
-                      </Box>
-                    )}
-
-                    {expandedContent && (
-                      <ExpandableOutput
-                        content={expandedContent.content}
-                        toolName={expandedContent.toolName}
-                        {...(expandedContent.kind !== undefined ? { kind: expandedContent.kind } : {})}
-                        {...(expandedContent.rawDiff ? { rawDiff: expandedContent.rawDiff } : {})}
-                        {...(expandedContent.filePath ? { filePath: expandedContent.filePath } : {})}
-                        {...(expandedContent.totalLines !== undefined ? { totalLines: expandedContent.totalLines } : {})}
-                        {...(transcriptDetails.length > 1
-                          ? {
-                              onPrevious: () => moveTranscriptDetail(-1),
-                              onNext: () => moveTranscriptDetail(1),
-                            }
-                          : {})}
-                        onClose={() => setExpandedContent(null)}
-                      />
-                    )}
-
-                    {btwState && (
-                      <BtwPanel
-                        question={btwState.question}
-                        answer={btwState.answer}
-                        loading={btwState.loading}
-                        frame={btwState.frame}
-                        onClose={() => {
-                          setBtwState(null);
-                          if (btwFrameRef.current) {
-                            clearInterval(btwFrameRef.current);
-                            btwFrameRef.current = null;
-                          }
-                        }}
-                      />
-                    )}
-        </OverlayStack>
-      }
-
-      bottom={
-                  <>
-                    {/* Active subagent rows — if placed at the bottom, FullscreenLayout measures the scrollable area correctly */}
-                    <AgentStatus
-                      viewingSessionId={viewingSubagentId}
-                      onViewAgent={setViewingSubagentId}
-                    />
-                    <CommandSuggest
-                      filter={cmdFilter ?? ""}
-                      commands={commandDefs}
-                      isActive={cmdFilter !== null}
-                      onExecute={handleCmdExecute}
-                      onFill={handleCmdFill}
-                    />
-
-                    {mentionFilter !== null && (
-                      <FileMention
-                        filter={mentionFilter}
-                        workdir={workdirState}
-                        isActive={true}
-                        onSelect={(path) =>
-                          setInput((prev) =>
-                            prev.replace(/@([\w./~-]*)$/, `@${path}`),
-                          )
-                        }
-                      />
-                    )}
-
-                    <ComposerPane
-                      visible={!permission && !picker && !question && !attachInput && !expandedContent && !overlayOpen}
-                      value={input}
-                      onChange={setInput}
-                      onSubmit={handleSubmit}
-                      onQueue={handleQueue}
-                      working={loading}
-                      history={commandHistory}
-                      queue={composerQueue}
-                      inlineSuggestionActive={inlineSuggestionActive}
-                      onInputTruncated={(original, truncated) => addSystemMsg(
-                        `Input truncated: ${original.toLocaleString()} → ${truncated.toLocaleString()} chars`,
-                      )}
-                      onCopied={(characters) => addSystemMsg(
-                        `📋 Copied (${characters.toLocaleString()} chars)`,
-                      )}
-                    />
-
-                    {terminalMeasured && (
-                      <StatusBar
-                        provider={provider}
-                        model={model}
-                        tokens={tokens}
-                        contextTokens={contextUsage?.effectiveTokens}
-                        workdir={workdirState}
-                        skills={skillNames}
-                        turnSkills={turnSkillNames}
-                        isUndercover={isUndercover}
-                        coordinatorMode={coordinatorMode}
-                        wasCompacted={wasCompacted}
-                        activeAgent={activeAgent}
-                        agentColor={
-                          getSessionAgent(activeAgent, workdirState).color
-                        }
-                        bgTaskCount={
-                          bgTasks.filter((t) => t.status === "running")
-                            .length || undefined
-                        }
-                        taskCount={tasks.length || undefined}
-                        taskSummary={tasks.length > 0 ? taskSummary : undefined}
-                        taskPanelOpen={taskPanelOpen}
-                        localServer={localServer}
-                        sandboxBackend={sandboxBackend}
-                        effort={effort}
-                        autopilotMode={autopilotMode}
-                        cols={termCols}
-                        activeAgentCount={
-                          activeAgentCount > 0 ? activeAgentCount : undefined
-                        }
-                        hasBtwNote={btwState !== null}
-                        scrollLocked={scrollLocked}
-                        remoteConnected={remoteConnected}
-                        {...(branch !== undefined ? { branch } : {})}
-                        {...(contextUsage?.contextWindow !== undefined
-                          ? { contextWindow: contextUsage.contextWindow }
-                          : currentContextWindow !== undefined
-                          ? { contextWindow: currentContextWindow }
-                          : {})}
-                      />
-                    )}
-                  </>
-      }
-      sidePanel={taskPanelOpen && tasks.length > 0 && !viewingSubagentId ? (
-        <TaskFloatingPanel tasks={tasks} onClose={() => setTaskPanelOpen(false)} />
-      ) : undefined}
+      blockingOverlayOpen={blockingOverlayOpen}
+      focusLayer={focusLayer}
+      composerInputActive={composerInputActive}
+      overlay={overlay}
+      provider={provider}
+      model={model}
+      workdir={workdirState}
+      initialWorkdir={workdir}
+      tokens={tokens}
+      contextUsage={contextUsage}
+      loading={loading}
+      coordinatorMode={coordinatorMode}
+      autopilotMode={autopilotMode}
+      activeTool={activeTool}
+      runActivity={runActivity}
+      tasks={tasks}
+      taskSummary={taskSummary}
+      runningBackgroundTaskCount={bgTasks.filter((task) => task.status === "running").length}
+      localServer={localServer}
+      sandboxBackend={sandboxBackend}
+      activeAgentCount={activeAgentCount}
+      branch={branch}
+      activeAgent={activeAgent}
+      skillNames={skillNames}
+      turnSkillNames={turnSkillNames}
+      isUndercover={isUndercover}
+      wasCompacted={wasCompacted}
+      remoteConnected={remoteConnected}
+      effort={effort}
+      showStartupBanner={showStartupBanner}
+      updateInfo={updateInfo}
+      sessionTitle={sessionTitle}
+      history={history}
+      messages={messages}
+      streamingText={streamingText}
+      streamingReason={streamingReason}
+      streamingError={streamingError}
+      scrollLocked={scrollLocked}
+      conversationOffsetRows={conversationOffsetRows}
+      unseenCount={unseenCount}
+      measuredViewportRows={measuredViewportRows}
+      commandHistory={commandHistory}
+      commandDefs={commandDefs}
+      recentCmds={recentCmds}
+      designInitialBrief={designInitialBrief}
+      picker={picker}
+      prompt={prompt}
+      question={question}
+      permission={permission}
+      permissionQueueLength={permissionQueue.length}
+      transcriptDetails={transcriptDetails}
+      input={input}
+      composerQueue={composerQueue}
+      inlineSuggestionActive={inlineSuggestionActive}
+      cmdFilter={cmdFilter}
+      mentionFilter={mentionFilter}
+      mainSessionId={mainSessionId}
+      btwFrameRef={btwFrameRef}
+      setMeasuredViewportRows={setMeasuredViewportRows}
+      setHistory={setHistory}
+      setMessages={setMessages}
+      setRecentCmds={setRecentCmds}
+      setInput={setInput}
+      setThemeName={setThemeName}
+      setDesignInitialBrief={setDesignInitialBrief}
+      setPicker={setPicker}
+      setPrompt={setPrompt}
+      addSystemMsg={addSystemMsg}
+      executeCommand={executeCommand}
+      handleSubmit={handleSubmit}
+      handleQueue={handleQueue}
+      handleCmdExecute={handleCmdExecute}
+      handleCmdFill={handleCmdFill}
+      handleEditRerun={handleEditRerun}
+      handleQuestionAnswer={handleQuestionAnswer}
+      handleQuestionReject={handleQuestionReject}
+      handlePermission={handlePermission}
+      handleScrollRange={handleScrollRange}
+      scrollConversation={scrollConversation}
+      moveTranscriptDetail={moveTranscriptDetail}
     />
   );
 }

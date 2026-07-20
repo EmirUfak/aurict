@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import type { PickerItem } from "../commands/types.js"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"

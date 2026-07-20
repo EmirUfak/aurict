@@ -9,7 +9,7 @@
  */
 
 import React from "react"
-import { Box, Text } from "ink"
+import { Box, Text } from "./design-system/renderer.js"
 import { MultilineInput } from "./MultilineInput.js"
 import { useTheme } from "../utils/theme.js"
 import { HStack, VStack, Surface, Typo } from "./design-system/index.js"

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
 import { useBlinkFrame } from "./design-system/motion.js"

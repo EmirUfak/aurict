@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Box, Text, useInput } from "ink";
+import { Box, Text, useInput } from "./design-system/renderer.js";
 import { useTheme } from "../utils/theme.js";
 import type { PermissionRequest } from "@aurict/core";
 import { Select, type SelectOption } from "./Select.js";

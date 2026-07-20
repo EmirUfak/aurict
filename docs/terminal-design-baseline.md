@@ -37,7 +37,7 @@ Fixtures live in `packages/cli/test/fixtures/terminal-scenarios.ts`; the cross-s
 
 ## Phase 1 architecture
 
-Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBlock`. `projectTranscript` is the only presentation projector and emits styled `TranscriptSegment` rows. `ConversationViewport` and the compatibility `Message` surface both use `TranscriptRows`; the former standalone streaming renderer and tool loader were removed. Tool strings are parsed once at the UI boundary into `ToolArtifact`, which is shared by transcript summaries and detail overlays. The root view now has stable `TerminalAppShell`, `TranscriptPane`, `ComposerPane`, and `OverlayStack` boundaries, leaving session orchestration in the controller instead of mixing it into the leaf renderers.
+Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBlock`. `projectTranscript` is the only presentation projector and emits styled `TranscriptSegment` rows. `ConversationViewport` and the compatibility `Message` surface both use `TranscriptRows`; the former standalone streaming renderer and tool loader were removed. Tool strings are parsed once at the UI boundary into `ToolArtifact`, which is shared by transcript summaries and detail overlays. The root view has stable `TerminalAppShell`, `TranscriptPane`, `ComposerPane`, and `OverlayStack` boundaries. `AppView` composes that shell, while `AppScreen`, `AppHeader`, `AppOverlayContents`, and `AppBottomBar` own view composition and leaf JSX. `App.tsx` is a thin orchestrator: lifecycle, keyboard, commands, agent submit/stream/completion, remote control, focus, transcript details, suggestions, and viewport behavior live behind dedicated hooks or controller modules.
 
 ## Phase 2 interaction model
 
@@ -47,6 +47,15 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 - Enter stores a priority steering item. With the installed AI SDK, safe mid-provider injection is unavailable, so it executes at the next turn boundary before normal queued items; the UI does not pretend the current tool call was interrupted.
 - Tab stores a normal FIFO queue item. The queue preview shows its kind and remaining count.
 - Streaming projection is capped at roughly 5–12 redraws per second, reducing flicker and CPU use on fast providers.
+
+## Application shell phases 3–4
+
+- Presentation components consume Ink through `design-system/renderer.ts`. Direct Ink imports are restricted to the design-system implementation and explicit low-level renderer, measurement, input, transcript, and diff paths. The architecture test scans `src/tui` and fails when a presentation component bypasses this boundary.
+- Composer-level overlays use a discriminated `PrimaryOverlay` state, so search, command palette, settings, design wizard, shortcut help, history search, and attachment input are mutually exclusive by construction. System requests and detail views retain their independent data lifecycles, while the focus selector chooses the single mounted modal.
+- `OverlayStack` is a root-level, absolute Yoga layer rendered after the application surface. It no longer consumes a `FullscreenLayout` flex slot, so opening a modal does not resize the transcript or composer.
+- Overlay bounds adapt at 60-column and 18-row thresholds. Narrow terminals use the full safe area; larger terminals retain a small edge margin and vertically center the modal surface.
+- The composer remains mounted below a modal but receives `disabled` input state. Command/file suggestions and passive agent input are inactive while another focus layer owns the keyboard. Passive attachment summaries remain in the bottom surface rather than entering the modal stack.
+- Terminals provide opaque cell compositing rather than browser-style alpha, blur, or DOM portals. The absolute host therefore guarantees geometry and draw order; individual surfaces own their border and background treatment.
 
 ## Phase 3 live-run model
 
@@ -113,10 +122,11 @@ Project definitions may override an identically named user custom theme, but can
 
 - TypeScript CLI compilation succeeds.
 - TUI unit/regression tests and the terminal layout contract pass.
+- App architecture characterization tests lock focus precedence, mutually exclusive primary overlays, primary/detail closure, responsive overlay geometry, single active modal rendering, and the renderer import boundary.
 - Phase 3–5 contracts cover live/paused status, grouped tool calls, multi-file hunk ownership, actionable errors, direct permission keys, and narrow permission rendering.
 - Phase 6 contracts cover stable/live projection separation and degraded-terminal glyph behavior.
 - Theme contracts cover all semantic roles, brand/accessibility contrast, custom-theme validation, ANSI/no-color capability detection, and theme-responsive component rendering.
-- `App.tsx`, `Message.tsx`, and `MultilineInput.tsx` presentation responsibilities are moved toward modular files; new and rewritten code files remain below the repository's 500-line ceiling.
+- Every TypeScript/TSX file under `packages/cli/src/tui` is capped at 500 physical lines by the architecture characterization test. Controller and presentation growth must be split across stable modules rather than added back to `App.tsx`.
 - The interactive path is exercised in a real PTY at 80×24 before release.
 
 ## Final polish contract

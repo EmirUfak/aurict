@@ -1,5 +1,5 @@
 import React from "react";
-import { Text } from "ink";
+import { Text } from "./design-system/renderer.js";
 import { useTheme } from "../utils/theme.js";
 import { motionEnabled, usePulseFrame } from "./design-system/motion.js";
 import { prefersAsciiGlyphs } from "./terminal-glyphs.js";

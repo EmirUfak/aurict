@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import type { QuestionRequest, QuestionAnswer } from "@aurict/core"
 import { useSemanticTheme } from "./theme/semantic-theme.js"
 

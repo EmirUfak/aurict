@@ -1,5 +1,5 @@
 import React from "react"
-import { Box, Text } from "ink"
+import { Box, Text } from "./design-system/renderer.js"
 import { tokenizeLine, detectLang, C, type Lang } from "../utils/highlight.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
 import { useTheme } from "../utils/theme.js"

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react"
-import { Box, Text, useInput } from "ink"
+import { Box, Text, useInput } from "./design-system/renderer.js"
 import { ProviderRegistry, SECURITY_SANDBOX_PROFILE_DEFAULTS, setApiKey, setDefault, setSecuritySandbox } from "@aurict/core"
 import { useTheme } from "../utils/theme.js"
 

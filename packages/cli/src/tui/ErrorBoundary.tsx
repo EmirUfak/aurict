@@ -12,7 +12,7 @@
  */
 
 import React from "react"
-import { Box, Text } from "ink"
+import { Box, Text } from "./design-system/renderer.js"
 import { ThemeContext, type Theme } from "../utils/theme.js"
 import { resolveSemanticTheme } from "./theme/semantic-theme.js"
 

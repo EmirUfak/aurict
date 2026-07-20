@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { Box } from "ink";
+import { Box } from "./design-system/renderer.js";
 import { projectTranscript } from "./conversation/projector.js";
 import type { TranscriptMessage } from "./conversation/types.js";
 import { TranscriptRows } from "./TranscriptRows.js";

@@ -8,7 +8,7 @@
  */
 
 import React from "react"
-import { Text } from "ink"
+import { Text } from "./design-system/renderer.js"
 import { mcpManager } from "@aurict/core"
 import { HStack, VStack, Surface, Eyebrow, StatusDot } from "./design-system/index.js"
 import { useTheme } from "../utils/theme.js"
