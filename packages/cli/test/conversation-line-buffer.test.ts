@@ -390,7 +390,9 @@ describe("conversation line buffer", () => {
     ], 80, null, null, null)
 
     expect(lines).toEqual(expect.arrayContaining([
-      expect.objectContaining({ text: "  └ src/file.ts · +1 −1 · ctrl+o", detailId: "change:tool:0" }),
+      expect.objectContaining({ text: "  ◆ src/file.ts  +1 −1  · ctrl+o", detailId: "change:tool:0" }),
+      expect.objectContaining({ text: "   1      − old", tone: "diff-remove", detailId: "change:tool:0" }),
+      expect.objectContaining({ text: "        1 + new", tone: "diff-add", detailId: "change:tool:0" }),
     ]))
   })
 })

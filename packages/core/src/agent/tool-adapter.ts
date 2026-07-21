@@ -10,12 +10,13 @@ import type { ToolOutcome } from "../runtime/contracts.js"
 import type { TaskContext } from "../context/types.js"
 import type { ExecuteResult, ToolDef, ToolResultContentPart } from "../tool/types.js"
 import { isAgentFeatureEnabled } from "./runtime-features.js"
-import type { ToolResultPresentation } from "./tool-result-artifact.js"
+import { classifyToolResult, type ToolResultArtifact, type ToolResultPresentation } from "./tool-result-artifact.js"
 
 export interface MultipartToolResult {
   text: string
   content: ToolResultContentPart[]
   presentation?: ToolResultPresentation
+  artifact?: ToolResultArtifact
 }
 
 export type AdaptedToolResult = string | MultipartToolResult
@@ -149,7 +150,15 @@ async function executeAdaptedTool(
       : [{ type: "text" as const, text: output }, ...result.content]
     : [{ type: "text" as const, text: output }]
   const presentation = toolResultPresentation(result)
-  return { text: output, content, ...(presentation ? { presentation } : {}) }
+  const artifact = result.metadata?.uiArtifact?.rawDiff
+    ? classifyToolResult(definition.id, `__UNIFIED_DIFF__\n${result.metadata.uiArtifact.rawDiff}`, presentation)
+    : undefined
+  return {
+    text: output,
+    content,
+    ...(presentation ? { presentation } : {}),
+    ...(artifact ? { artifact } : {}),
+  }
 }
 
 /** Keeps UI/event consumers text-only while the provider receives multipart content. */
@@ -168,6 +177,12 @@ export function adaptedToolResultPresentation(value: unknown): ToolResultPresent
   return presentation && typeof presentation === "object"
     ? presentation as ToolResultPresentation
     : undefined
+}
+
+export function adaptedToolResultArtifact(value: unknown): ToolResultArtifact | undefined {
+  if (!value || typeof value !== "object" || !("artifact" in value)) return undefined
+  const artifact = (value as { artifact?: unknown }).artifact
+  return artifact && typeof artifact === "object" ? artifact as ToolResultArtifact : undefined
 }
 
 export function toolResultPresentation(result: ExecuteResult): ToolResultPresentation | undefined {

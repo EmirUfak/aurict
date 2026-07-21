@@ -73,6 +73,10 @@ export interface ExecuteResult {
       added: number
       removed: number
     }
+    /** Complete user-facing artifact, kept separate from model-output truncation. */
+    uiArtifact?: {
+      rawDiff: string
+    }
     transaction?: WorkspaceTransactionRecord
   }
 }

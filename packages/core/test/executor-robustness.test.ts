@@ -193,4 +193,18 @@ describe("summarizeToolOutput", () => {
     // Should never blow up beyond reasonable limit
     expect(out.length).toBeLessThan(20_000)
   })
+
+  it("keeps the complete UI diff when the model-facing write output is truncated", async () => {
+    const { executeTool } = await import("../src/tool/executor.js")
+    const { writeTool } = await import("../src/tool/built-in/write.js")
+    const content = Array.from({ length: 80 }, (_, index) => `line-${index}`).join("\n")
+    const res = await executeTool(
+      writeTool,
+      { path: join(dir, "large-diff.txt"), content },
+      ctx({ truncation: { maxChars: 200 } }),
+    )
+
+    expect(res.output).toContain("read_tool_output")
+    expect(res.metadata?.uiArtifact?.rawDiff).toContain("+line-79")
+  })
 })

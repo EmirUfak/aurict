@@ -36,9 +36,20 @@ function diffStats(rawDiff: string): { additions: number; deletions: number } {
 }
 
 function diffFiles(rawDiff: string): string[] {
-  return [...rawDiff.matchAll(/^\+\+\+\s+(?:b\/)?(.+)$/gm)]
-    .map((match) => match[1]!.trim())
-    .filter((path) => path !== "/dev/null");
+  const files: string[] = [];
+  let oldPath: string | undefined;
+  for (const line of rawDiff.split("\n")) {
+    if (line.startsWith("--- ")) {
+      const candidate = line.slice(4).trim().replace(/^a\//, "");
+      oldPath = candidate === "/dev/null" ? undefined : candidate;
+      continue;
+    }
+    if (!line.startsWith("+++ ")) continue;
+    const candidate = line.slice(4).trim().replace(/^b\//, "");
+    const path = candidate === "/dev/null" ? oldPath : candidate;
+    if (path && !files.includes(path)) files.push(path);
+  }
+  return files;
 }
 
 function pathFromOutput(output: string): string | undefined {

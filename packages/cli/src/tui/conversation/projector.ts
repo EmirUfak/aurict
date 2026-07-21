@@ -13,36 +13,12 @@ import { isMarkdownHeading, isMarkdownListItem, proseLayout, standaloneSectionTi
 import { wrapStyledSegments } from "../terminal-text/wrap-segments.js";
 import { terminalHyperlink } from "../terminal-text/hyperlink.js";
 import { truncateDisplayWidth } from "../terminal-text/display-width.js";
+import { projectInlineDiff } from "./inline-diff.js";
+import type { TranscriptLine, TranscriptRow, TranscriptSegment, TranscriptTone } from "./row-model.js";
 
-export type TranscriptTone =
-  | "user" | "assistant" | "tool" | "error" | "muted"
-  | "heading" | "code" | "quote" | "thinking" | "success" | "bullet";
+export type { TranscriptLine, TranscriptRow, TranscriptSegment, TranscriptTone } from "./row-model.js";
 
-export interface TranscriptSegment {
-  text: string;
-  tone?: TranscriptTone;
-  bold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  strikethrough?: boolean;
-  dim?: boolean;
-}
-
-export interface TranscriptRow {
-  id: string;
-  segments: TranscriptSegment[];
-  detailId?: string;
-  surface?: "user";
-}
-
-export interface TranscriptLine {
-  id: string;
-  text: string;
-  tone: TranscriptTone;
-  bold?: boolean;
-  italic?: boolean;
-  detailId?: string;
-}
+const INLINE_DIFF_TOOLS = new Set(["write", "edit", "apply_patch"]);
 
 export interface ProjectOptions {
   messages: TranscriptMessage[];
@@ -191,6 +167,10 @@ function thinkingSummary(content: string): string {
   return `${glyph("thinking")} ${stage} · Ctrl+O inspect`;
 }
 
+function shouldRenderInlineDiff(tool: string, rawDiff: string | undefined): rawDiff is string {
+  return INLINE_DIFF_TOOLS.has(tool) && Boolean(rawDiff);
+}
+
 function pushTool(rows: TranscriptRow[], id: string, block: Extract<TranscriptBlock, { type: "tool" }>, width: number): void {
   const artifact = parseToolArtifact(block.tool, block.args, block.resultContent, block.artifact);
   const failed = !block.pending && artifact.kind === "error";
@@ -203,7 +183,9 @@ function pushTool(rows: TranscriptRow[], id: string, block: Extract<TranscriptBl
     ...(presentation.metadata ? [{ text: presentation.spacer, tone: "muted" as const }, { text: presentation.metadata, tone: "muted" as const }] : []),
   ], width, id);
   if (block.pending) return;
-  if (artifact.kind === "diff") {
+  if (artifact.kind === "diff" && shouldRenderInlineDiff(block.tool, artifact.rawDiff)) {
+    rows.push(...projectInlineDiff(artifact.rawDiff, `${id}:diff`, id, width));
+  } else if (artifact.kind === "diff") {
     const target = artifact.files && artifact.files.length > 1
       ? `${artifact.files.length} files · ${artifact.files.join(", ")}`
       : artifact.filePath ?? "file";
@@ -254,6 +236,17 @@ function pushToolGroup(
       { text: presentation.subject, tone: "assistant" },
     ], width, detailId);
   });
+  entries.forEach(({ block, sourceIndex }) => {
+    const artifact = parseToolArtifact(block.tool, block.args, block.resultContent, block.artifact);
+    if (!shouldRenderInlineDiff(block.tool, artifact.rawDiff)) return;
+    const detailId = `${messageId}:tool:${sourceIndex}`;
+    rows.push(...projectInlineDiff(
+      artifact.rawDiff,
+      `${messageId}:activity:${firstSourceIndex}:diff:${sourceIndex}`,
+      detailId,
+      width,
+    ));
+  });
   pushWrapped(rows, `${messageId}:activity:${firstSourceIndex}:completed`, [
     { text: `${glyph("close")} `, tone: "muted" },
     { text: cluster.completed.action, tone: "success", bold: true },
@@ -286,7 +279,7 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
   }
   if (message.role === "tool_result") return;
   if (message.role === "tool_call") {
-    pushTool(rows, `${id}:tool`, { type: "tool", id, tool: message.tool ?? "tool", args: message.content, pending: Boolean(message.pending), ...(message.resultContent !== undefined ? { resultContent: message.resultContent } : {}) }, width);
+    pushTool(rows, `${id}:tool`, { type: "tool", id, tool: message.tool ?? "tool", args: message.content, pending: Boolean(message.pending), ...(message.resultContent !== undefined ? { resultContent: message.resultContent } : {}), ...(message.artifact !== undefined ? { artifact: message.artifact } : {}) }, width);
     return;
   }
   const tone = message.role === "user" ? "user" : "assistant";
