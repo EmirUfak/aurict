@@ -1,5 +1,5 @@
 import type { ToolDef } from "./types.js"
-import { zodSchema } from "@ai-sdk/provider-utils"
+import { zodSchema } from "ai"
 import { countTokens } from "../provider/tokenizer.js"
 import { ToolRegistry } from "./registry.js"
 
