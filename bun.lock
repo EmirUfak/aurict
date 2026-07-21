@@ -113,21 +113,21 @@
     },
     "packages/aurict": {
       "name": "aurict",
-      "version": "1.2.10",
+      "version": "1.2.11",
       "bin": {
         "aurict": "./bin/aurict",
       },
       "optionalDependencies": {
-        "@aurict/cli-darwin-arm64": "1.2.10",
-        "@aurict/cli-darwin-x64": "1.2.10",
-        "@aurict/cli-linux-arm64": "1.2.10",
-        "@aurict/cli-linux-x64": "1.2.10",
-        "@aurict/cli-win32-x64": "1.2.10",
+        "@aurict/cli-darwin-arm64": "1.2.11",
+        "@aurict/cli-darwin-x64": "1.2.11",
+        "@aurict/cli-linux-arm64": "1.2.11",
+        "@aurict/cli-linux-x64": "1.2.11",
+        "@aurict/cli-win32-x64": "1.2.11",
       },
     },
     "packages/cli": {
       "name": "@aurict/cli",
-      "version": "1.2.10",
+      "version": "1.2.11",
       "bin": {
         "aurict": "./bin/aurict",
       },
@@ -144,36 +144,36 @@
         "wrap-ansi": "^9.0.2",
       },
       "optionalDependencies": {
-        "@aurict/cli-darwin-arm64": "1.2.10",
-        "@aurict/cli-darwin-x64": "1.2.10",
-        "@aurict/cli-linux-arm64": "1.2.10",
-        "@aurict/cli-linux-x64": "1.2.10",
-        "@aurict/cli-win32-x64": "1.2.10",
+        "@aurict/cli-darwin-arm64": "1.2.11",
+        "@aurict/cli-darwin-x64": "1.2.11",
+        "@aurict/cli-linux-arm64": "1.2.11",
+        "@aurict/cli-linux-x64": "1.2.11",
+        "@aurict/cli-win32-x64": "1.2.11",
       },
     },
     "packages/cli-darwin-arm64": {
       "name": "@aurict/cli-darwin-arm64",
-      "version": "1.2.10",
+      "version": "1.2.11",
     },
     "packages/cli-darwin-x64": {
       "name": "@aurict/cli-darwin-x64",
-      "version": "1.2.10",
+      "version": "1.2.11",
     },
     "packages/cli-linux-arm64": {
       "name": "@aurict/cli-linux-arm64",
-      "version": "1.2.10",
+      "version": "1.2.11",
     },
     "packages/cli-linux-x64": {
       "name": "@aurict/cli-linux-x64",
-      "version": "1.2.10",
+      "version": "1.2.11",
     },
     "packages/cli-win32-x64": {
       "name": "@aurict/cli-win32-x64",
-      "version": "1.2.10",
+      "version": "1.2.11",
     },
     "packages/core": {
       "name": "@aurict/core",
-      "version": "1.2.8",
+      "version": "1.2.11",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^4.0.113",
         "@ai-sdk/anthropic": "^1.1.5",
