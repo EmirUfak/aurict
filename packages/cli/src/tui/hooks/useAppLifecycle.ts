@@ -36,6 +36,7 @@ interface Params {
   autopilotRef: MutableRefObject<boolean>;
   inputRef: MutableRefObject<string>;
   loadingRef: MutableRefObject<boolean>;
+  mainSessionId: MutableRefObject<string>;
   remoteRuntimeRef: MutableRefObject<CliRemoteRuntime | null>;
   setTermCols: Dispatch<SetStateAction<number>>;
   setTermRows: Dispatch<SetStateAction<number>>;
@@ -118,10 +119,11 @@ export function useAppLifecycle(params: Params): void {
         );
       });
   }, [params.workdir]);
-  useEffect(
-    () => taskManager.onUpdate(() => params.setTasks([...taskManager.getTasks()])),
-    [],
-  );
+  useEffect(() => {
+    taskManager.configureScope(params.workdir, params.mainSessionId.current);
+    params.setTasks(taskManager.getTasks());
+    return taskManager.onUpdate(() => params.setTasks(taskManager.getTasks()));
+  }, [params.workdir, params.mainSessionId, params.setTasks]);
   useEffect(() => PlanGate.onRequest(params.setPlanRequest), []);
   useEffect(() => {
     params.inputRef.current = params.input;

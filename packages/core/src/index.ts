@@ -30,6 +30,13 @@ export type { HookOutcome }                  from "./hook/emitter.js"
 export { ToolRegistry }                                  from "./tool/registry.js"
 export { executeTool, ExecutorEvents }                   from "./tool/executor.js"
 export type { ToolDef, ToolContext, ExecuteResult }      from "./tool/types.js"
+export { AgentRuntime }                                  from "./runtime/agent-runtime.js"
+export { AgentEventStream }                              from "./runtime/event-stream.js"
+export { RunStateMachine }                               from "./runtime/run-state.js"
+export { buildHeadlessRunResult }                        from "./runtime/headless-result.js"
+export { toolOutcomeFromExecuteResult, legacyToolOutcome } from "./runtime/tool-outcome.js"
+export type { AgentEvent, RuntimeExecutionOptions, RuntimeProfile, RuntimeRunSummary, RunPhase, RunStateSnapshot, ToolEffect, ToolOutcome } from "./runtime/contracts.js"
+export type { HeadlessRunResult, HeadlessRunStatus }      from "./runtime/headless-result.js"
 
 export { PermissionEvaluator }                           from "./permission/evaluator.js"
 export { PermissionStore, PermissionGate }               from "./permission/store.js"
@@ -153,7 +160,10 @@ export { snapshotManager }                               from "./snapshot/snapsh
 export type { Snapshot }                                 from "./snapshot/snapshot.js"
 
 export { taskManager }                                   from "./task/manager.js"
-export type { Task, TaskStatus }                         from "./task/types.js"
+export type { Task, TaskStatus, TaskScope, TaskEvent }   from "./task/types.js"
+export { buildTaskContext }                              from "./context/builder.js"
+export { formatTaskContext }                             from "./context/format.js"
+export type { TaskContext, ContextConstraint, ContextDecision, WorkspaceFact, ContextFileRef, FailedStrategy } from "./context/types.js"
 
 // Hook function API
 export { onToolBefore, onToolAfter, onCompact, onSessionStart, onAgentComplete } from "./hook/session.js"
@@ -283,6 +293,16 @@ export { prefetchManager, PrefetchManager, extractPrefetchHints } from "./util/p
 export type { PrefetchRequest, PrefetchResult, PrefetchHint } from "./util/prefetch.js"
 export { extractInstantContext, formatInstantContext } from "./util/instant-context.js"
 export type { InstantContextResult, InstantContextConfig } from "./util/instant-context.js"
+
+// ── Agent Harness Runtime ─────────────────────────────────────────────────────
+export { selectTools } from "./tool/capability-router.js"
+export type { ToolCapability, ToolSelection, ToolSelectionInput } from "./tool/capability-router.js"
+export { isAgentFeatureEnabled, AGENT_RUNTIME_FEATURES } from "./agent/runtime-features.js"
+export type { AgentRuntimeFeature } from "./agent/runtime-features.js"
+export { runAgentPolicyEval, compareAgentPolicies } from "./eval/agent-policy-eval.js"
+export type { AgentPolicyProfile, AgentPolicyEvalResult, AgentPolicyComparison } from "./eval/agent-policy-eval.js"
+export { RunBudgetManager, BudgetExceededError } from "./runtime/budget-manager.js"
+export type { RunBudgetLimits, RunBudgetSnapshot } from "./runtime/contracts.js"
 
 // ── Security & Robustness (Faz 7) ─────────────────────────────────────────────
 export {

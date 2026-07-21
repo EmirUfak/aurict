@@ -8,12 +8,12 @@ import { ProviderRegistry } from "../src/provider/registry.js"
 import { createMockProvider, createMockContext, createTempDir } from "./helpers.js"
 import { markCritiqueRequired, getWorkingSetSnapshot, clearWorkingSet } from "../src/agent/working-set.js"
 
-const spawnCalls: Array<{ desc: string; prompt: string; model: string }> = []
+const spawnCalls: Array<{ desc: string; prompt: string; model: string; provider: string }> = []
 
 mock.module("../src/agent/pool.js", () => ({
   agentPool: {
-    spawn: async (opts: { desc: string; prompt: string; model: string }) => {
-      spawnCalls.push({ desc: opts.desc, prompt: opts.prompt, model: opts.model })
+    spawn: async (opts: { desc: string; prompt: string; model: string; provider: string }) => {
+      spawnCalls.push({ desc: opts.desc, prompt: opts.prompt, model: opts.model, provider: opts.provider })
       return `mock critic output for ${opts.desc}`
     },
   },
@@ -75,6 +75,22 @@ describe("critiqueTool", () => {
     } finally {
       cleanup()
     }
+  })
+
+  it("configured independent reviewer uses its own provider and model visibly", async () => {
+    spawnCalls.length = 0
+    ProviderRegistry.register(createMockProvider({ id: "reviewer-provider", defaultModel: "reviewer-default" }))
+    const { dir, cleanup, createFile } = createTempDir()
+    createFile(".aurict/config.json", JSON.stringify({ critique: { provider: "reviewer-provider", model: "reviewer-model" } }))
+    try {
+      const result = await critiqueTool.execute(
+        { target: "code", content: "x", context: `independent-${Date.now()}` },
+        createMockContext({ workdir: dir, provider: "anthropic", model: "primary-model" }),
+      )
+      expect(spawnCalls[0]?.provider).toBe("reviewer-provider")
+      expect(spawnCalls[0]?.model).toBe("reviewer-model")
+      expect(result.output).toContain("independent")
+    } finally { cleanup() }
   })
 
   it("çalıştırıldığında working-set'teki bekleyen critique kaydını çözer", async () => {

@@ -133,9 +133,9 @@ export function App({
   const showStartupBanner = !viewingSubagentId && startupBannerVisible;
   const taskSummary = useMemo(
     () => ({
-      pending: tasks.filter((t) => t.status === "pending").length,
-      inProgress: tasks.filter((t) => t.status === "in_progress").length,
-      done: tasks.filter((t) => t.status === "done").length,
+      pending: tasks.filter((t) => t.status === "pending" || t.status === "ready" || t.status === "blocked").length,
+      inProgress: tasks.filter((t) => t.status === "in_progress" || t.status === "verifying").length,
+      done: tasks.filter((t) => t.status === "done" || t.status === "cancelled").length,
       error: tasks.filter((t) => t.status === "error").length,
     }),
     [tasks],
@@ -157,6 +157,7 @@ export function App({
     autopilotRef,
     inputRef,
     loadingRef,
+    mainSessionId,
     remoteRuntimeRef,
     setTermCols,
     setTermRows,
