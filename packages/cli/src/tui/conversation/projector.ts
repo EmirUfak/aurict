@@ -10,6 +10,9 @@ import { coalesceInterruptedAssistantBlocks } from "./block-flow.js";
 import { resolveLivePresentation } from "./live-state.js";
 import { groupAdjacentToolBlocks } from "./tool-grouping.js";
 import { isMarkdownHeading, isMarkdownListItem, proseLayout, standaloneSectionTitle } from "./readability.js";
+import { wrapStyledSegments } from "../terminal-text/wrap-segments.js";
+import { terminalHyperlink } from "../terminal-text/hyperlink.js";
+import { truncateDisplayWidth } from "../terminal-text/display-width.js";
 
 export type TranscriptTone =
   | "user" | "assistant" | "tool" | "error" | "muted"
@@ -20,6 +23,8 @@ export interface TranscriptSegment {
   tone?: TranscriptTone;
   bold?: boolean;
   italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
   dim?: boolean;
 }
 
@@ -56,9 +61,10 @@ export type LiveTranscriptOptions = Omit<ProjectOptions, "messages"> & {
 };
 
 const ANSI = /\x1B\[[0-?]*[ -/]*[@-~]/g;
+const OSC = /\x1B\](?:[^\x07\x1B]|\x1B(?!\\))*(?:\x07|\x1B\\)/g;
 
 function clean(text: string): string {
-  return text.replace(ANSI, "").replace(/\r/g, "").replace(/\t/g, "    ");
+  return text.replace(OSC, "").replace(ANSI, "").replace(/\r/g, "").replace(/\t/g, "    ");
 }
 
 export function wrapTranscriptText(text: string, width: number): string[] {
@@ -69,14 +75,20 @@ export function wrapTranscriptText(text: string, width: number): string[] {
 
 function inlineSegments(text: string, tone: TranscriptTone): TranscriptSegment[] {
   const segments: TranscriptSegment[] = [];
-  const pattern = /(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`)/g;
+  const pattern = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|`[^`]+`|\*[^*\n]+\*|_[^_\n]+_)/g;
   let cursor = 0;
   for (const match of text.matchAll(pattern)) {
     const index = match.index ?? 0;
     if (index > cursor) segments.push({ text: text.slice(cursor, index), tone });
     const token = match[0];
-    if (token.startsWith("`")) segments.push({ text: token.slice(1, -1), tone: "code" });
-    else segments.push({ text: token.slice(2, -2), tone, bold: true });
+    const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      segments.push({ text: terminalHyperlink(link[1]!, link[2]!), tone, underline: true });
+      segments.push({ text: ` (${truncateDisplayWidth(link[2]!, 40)})`, tone: "muted" });
+    } else if (token.startsWith("`")) segments.push({ text: token.slice(1, -1), tone: "code" });
+    else if (token.startsWith("**") || token.startsWith("__")) segments.push({ text: token.slice(2, -2), tone, bold: true });
+    else if (token.startsWith("~~")) segments.push({ text: token.slice(2, -2), tone, strikethrough: true });
+    else segments.push({ text: token.slice(1, -1), tone, italic: true });
     cursor = index + token.length;
   }
   if (cursor < text.length) segments.push({ text: text.slice(cursor), tone });
@@ -84,35 +96,7 @@ function inlineSegments(text: string, tone: TranscriptTone): TranscriptSegment[]
 }
 
 function wrapSegments(segments: TranscriptSegment[], width: number): TranscriptSegment[][] {
-  const max = Math.max(12, width);
-  const rows: TranscriptSegment[][] = [[]];
-  let used = 0;
-  for (const segment of segments) {
-    let rest = segment.text;
-    while (rest.length > 0) {
-      const room = max - used;
-      if (room === 0) {
-        rows.push([]);
-        used = 0;
-        continue;
-      }
-      let take = Math.min(room, rest.length);
-      if (take < rest.length) {
-        const breakAt = rest.slice(0, take + 1).lastIndexOf(" ");
-        if (breakAt > 0) take = breakAt;
-      }
-      const part = rest.slice(0, take);
-      rows[rows.length - 1]!.push({ ...segment, text: part });
-      used += part.length;
-      rest = rest.slice(take);
-      if (rest.startsWith(" ")) rest = rest.slice(1);
-      if (rest.length > 0) {
-        rows.push([]);
-        used = 0;
-      }
-    }
-  }
-  return rows;
+  return wrapStyledSegments(segments, Math.max(12, width));
 }
 
 function pushWrapped(rows: TranscriptRow[], id: string, segments: TranscriptSegment[], width: number, detailId?: string): void {
@@ -349,13 +333,22 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
 
 export function projectStableTranscript(messages: TranscriptMessage[], width: number): TranscriptRow[] {
   const rows: TranscriptRow[] = [];
-  const contentWidth = Math.max(12, width - 2);
   messages.forEach((message, index) => {
-    projectMessage(rows, message, index, contentWidth);
+    rows.push(...projectStableMessage(message, index, width));
     if (message.role !== "tool_call") return;
     const nextVisible = messages.slice(index + 1).find((candidate) => candidate.role !== "tool_result");
     if (nextVisible?.role !== "tool_call") pushGap(rows, `${message.id ?? `message-${index}`}:tool-gap`);
   });
+  return rows;
+}
+
+export function projectStableMessage(
+  message: TranscriptMessage,
+  index: number,
+  width: number,
+): TranscriptRow[] {
+  const rows: TranscriptRow[] = [];
+  projectMessage(rows, message, index, Math.max(12, width - 2));
   return normalizeTerminalRows(rows);
 }
 

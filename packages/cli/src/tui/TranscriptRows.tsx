@@ -34,6 +34,8 @@ export function TranscriptRows({ rows, rail = false }: { rows: TranscriptRow[]; 
               color={toneColor(segment.tone, theme)}
               {...(segment.bold ? { bold: true } : {})}
               {...(segment.italic ? { italic: true } : {})}
+              {...(segment.underline ? { underline: true } : {})}
+              {...(segment.strikethrough ? { strikethrough: true } : {})}
               {...(segment.dim ? { dimColor: true } : {})}
             >{segment.text || " "}</Text>
           ))}

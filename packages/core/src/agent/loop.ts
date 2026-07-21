@@ -47,7 +47,7 @@ import { AgentRuntime } from "../runtime/agent-runtime.js"
 import type { ToolOutcome } from "../runtime/contracts.js"
 import { taskManager } from "../task/manager.js"
 import { selectTools } from "../tool/capability-router.js"
-import { buildAITools as buildRoutedAITools, formatAdaptedToolResult, listEligibleAIToolIds } from "./tool-adapter.js"
+import { adaptedToolResultPresentation, buildAITools as buildRoutedAITools, formatAdaptedToolResult, listEligibleAIToolIds } from "./tool-adapter.js"
 import { withRetry as runWithRetry } from "./provider-errors.js"
 import { buildTaskContext } from "../context/builder.js"
 import { createFirstResponseDeadline } from "./first-response-deadline.js"
@@ -776,7 +776,7 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
               tool: toolName,
               result: output,
               durationMs,
-              artifact: classifyToolResult(toolName, output),
+              artifact: classifyToolResult(toolName, output, adaptedToolResultPresentation(part.result)),
               ...(outcome ? { outcome } : {}),
             })
           }
@@ -839,7 +839,7 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
               tool: toolName,
               result: output,
               durationMs: 0,
-              artifact: classifyToolResult(toolName, output),
+              artifact: classifyToolResult(toolName, output, adaptedToolResultPresentation(tr.result)),
               ...(outcome ? { outcome } : {}),
             })
           }

@@ -8,13 +8,14 @@ import type { OmniConfig } from "../config/config.js"
 import type { AgentRunOptions } from "./types.js"
 import type { ToolOutcome } from "../runtime/contracts.js"
 import type { TaskContext } from "../context/types.js"
-import type { ToolResultContentPart } from "../tool/types.js"
-import type { ToolDef } from "../tool/types.js"
+import type { ExecuteResult, ToolDef, ToolResultContentPart } from "../tool/types.js"
 import { isAgentFeatureEnabled } from "./runtime-features.js"
+import type { ToolResultPresentation } from "./tool-result-artifact.js"
 
 export interface MultipartToolResult {
   text: string
   content: ToolResultContentPart[]
+  presentation?: ToolResultPresentation
 }
 
 export type AdaptedToolResult = string | MultipartToolResult
@@ -142,11 +143,13 @@ async function executeAdaptedTool(
     options.failureTracker.set(fingerprint, count)
     if (count >= 2) output += `\n\n[SYSTEM: This exact error occurred ${count} times. Diagnose the root cause and use a different strategy.]`
   }
-  if (!result.content?.length) return output
-  const content = result.content.some(part => part.type === "text")
-    ? result.content
-    : [{ type: "text" as const, text: output }, ...result.content]
-  return { text: output, content }
+  const content = result.content?.length
+    ? result.content.some(part => part.type === "text")
+      ? result.content
+      : [{ type: "text" as const, text: output }, ...result.content]
+    : [{ type: "text" as const, text: output }]
+  const presentation = toolResultPresentation(result)
+  return { text: output, content, ...(presentation ? { presentation } : {}) }
 }
 
 /** Keeps UI/event consumers text-only while the provider receives multipart content. */
@@ -157,6 +160,29 @@ export function formatAdaptedToolResult(value: unknown): string {
     if (typeof text === "string") return text
   }
   return String(value)
+}
+
+export function adaptedToolResultPresentation(value: unknown): ToolResultPresentation | undefined {
+  if (!value || typeof value !== "object" || !("presentation" in value)) return undefined
+  const presentation = (value as { presentation?: unknown }).presentation
+  return presentation && typeof presentation === "object"
+    ? presentation as ToolResultPresentation
+    : undefined
+}
+
+export function toolResultPresentation(result: ExecuteResult): ToolResultPresentation | undefined {
+  const distilled = result.metadata?.distilled
+  const verification = Object.entries(result.metadata?.verification ?? {})
+    .flatMap(([check, value]) => value ? [{ check, status: value.status }] : [])
+  if (!distilled && verification.length === 0 && !(result.metadata?.changedFiles?.length)) return undefined
+  return {
+    status: result.error || distilled?.status === "error" ? "error" : "success",
+    changedFiles: [...new Set(result.metadata?.changedFiles ?? [])],
+    filePaths: [...new Set(distilled?.filePaths ?? [])],
+    errors: [...new Set([...(result.error ? [result.error] : []), ...(distilled?.errors ?? [])])],
+    importantLines: distilled?.importantLines ?? [],
+    verification,
+  }
 }
 
 async function staleEditMessage(

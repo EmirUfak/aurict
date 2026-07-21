@@ -1,5 +1,16 @@
 export type ToolResultArtifactKind = "diff" | "write" | "patch" | "shell" | "error" | "output";
 
+export type ToolVerificationStatus = "passed" | "failed" | "skipped" | "timeout";
+
+export interface ToolResultPresentation {
+  status: "success" | "error";
+  changedFiles: string[];
+  filePaths: string[];
+  errors: string[];
+  importantLines: string[];
+  verification: Array<{ check: string; status: ToolVerificationStatus }>;
+}
+
 export interface ToolResultArtifact {
   kind: ToolResultArtifactKind;
   output: string;
@@ -11,6 +22,7 @@ export interface ToolResultArtifact {
   totalLines?: number;
   preview?: string;
   outputLines: number;
+  presentation?: ToolResultPresentation;
 }
 
 function diffStats(rawDiff: string): { additions: number; deletions: number } {
@@ -62,10 +74,14 @@ function directDiff(output: string): string | undefined {
 }
 
 /** Converts provider-facing string output into a stable UI/IPC artifact once. */
-export function classifyToolResult(tool: string, output: string): ToolResultArtifact {
+export function classifyToolResult(
+  tool: string,
+  output: string,
+  presentation?: ToolResultPresentation,
+): ToolResultArtifact {
   const outputLines = output ? output.replace(/\n$/, "").split("\n").length : 0;
-  const base = { output, outputLines };
-  if (/^ERROR:/m.test(output)) return { ...base, kind: "error" };
+  const base = { output, outputLines, ...(presentation ? { presentation } : {}) };
+  if (presentation?.status === "error" || /^ERROR:/m.test(output)) return { ...base, kind: "error" };
 
   const rawDiff = embeddedDiff(output) ?? directDiff(output);
   if (rawDiff) {

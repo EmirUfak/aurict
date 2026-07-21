@@ -1,6 +1,29 @@
 import type { ToolArtifact } from "./tool-artifact.js";
 import { toolDisplayIdentity } from "./tool-identity.js";
 
+function structuredSummary(artifact: ToolArtifact): string | undefined {
+  const presentation = artifact.presentation;
+  if (!presentation) return undefined;
+  const failed = presentation.verification.filter((item) => item.status === "failed" || item.status === "timeout");
+  const passed = presentation.verification.filter((item) => item.status === "passed");
+  const skipped = presentation.verification.filter((item) => item.status === "skipped");
+  if (failed.length > 0) return failed.length === 1
+    ? `${failed[0]!.check} ${failed[0]!.status}`
+    : `${failed.length} checks failed`;
+  if (presentation.status === "error" && presentation.errors[0]) return presentation.errors[0]!.slice(0, 120);
+  if (passed.length > 0) return passed.length === 1
+    ? `${passed[0]!.check} passed`
+    : `${passed.length} checks passed`;
+  if (skipped.length > 0) return skipped.length === 1
+    ? `${skipped[0]!.check} skipped`
+    : `${skipped.length} checks skipped`;
+  if (presentation.changedFiles.length > 0) {
+    const count = presentation.changedFiles.length;
+    return `${count} file${count === 1 ? "" : "s"} changed`;
+  }
+  return undefined;
+}
+
 function linesOf(output: string): string[] {
   return output
     .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
@@ -48,6 +71,8 @@ function backgroundSummary(lines: string[]): string | undefined {
 
 /** Produces one quiet transcript row; the complete result remains available in tool details. */
 export function toolOutputSummary(artifact: ToolArtifact): string | undefined {
+  const structured = structuredSummary(artifact);
+  if (structured) return structured;
   const lines = linesOf(artifact.result ?? artifact.output);
   if (lines.length === 0 || (lines.length === 1 && lines[0] === "(no output)")) return undefined;
 

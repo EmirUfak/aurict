@@ -76,6 +76,8 @@ export interface AppScreenProps {
   scrollLocked: boolean;
   conversationOffsetRows: number;
   unseenCount: number;
+  unseenLabel: string;
+  selectionHintVisible: boolean;
   measuredViewportRows: number;
   commandHistory: string[];
   commandDefs: CommandDef[];
@@ -95,6 +97,7 @@ export interface AppScreenProps {
   mainSessionId: MutableRefObject<string>;
   btwFrameRef: MutableRefObject<ReturnType<typeof setInterval> | null>;
   setMeasuredViewportRows: Dispatch<SetStateAction<number>>;
+  setConversationOffsetRows: Dispatch<SetStateAction<number>>;
   setHistory: Dispatch<SetStateAction<CoreMessage[]>>;
   setMessages: Dispatch<SetStateAction<DisplayMessage[]>>;
   setRecentCmds: Dispatch<SetStateAction<string[]>>;

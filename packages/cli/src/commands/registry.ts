@@ -1779,7 +1779,7 @@ const commands: CommandDef[] = [
     name:        "export",
     aliases:     ["exp"],
     description: "Export current session to Markdown or HTML",
-    usage:       "/export [md|html]",
+    usage:       "/export [md|html|clipboard]",
     handler: (args, ctx): CommandResult => {
       const fmt = (args[0] ?? "").toLowerCase()
 
@@ -1795,6 +1795,11 @@ const commands: CommandDef[] = [
 
       if (fmt === "md" || fmt === "markdown") return doExport("md")
       if (fmt === "html")                      return doExport("html")
+      if (fmt === "clipboard" || fmt === "copy") {
+        const content = exportToMarkdown(ctx.messages, "Aurict Session")
+        ctx.copyText(content)
+        return { type: "text", content: `✓ Complete transcript copied (${content.length.toLocaleString()} chars)` }
+      }
 
       // Format picker
       return {
@@ -1803,8 +1808,11 @@ const commands: CommandDef[] = [
         items: [
           { id: "md",   label: "Markdown (.md)",  hint: "Human-readable, works in any editor" },
           { id: "html", label: "HTML (.html)",     hint: "Self-contained, dark theme, collapsible tools" },
+          { id: "clipboard", label: "Clipboard", hint: "Copy complete Markdown transcript" },
         ],
-        onSelect: (item) => doExport(item.id as "md" | "html"),
+        onSelect: (item) => item.id === "clipboard"
+          ? ctx.copyText(exportToMarkdown(ctx.messages, "Aurict Session"))
+          : doExport(item.id as "md" | "html"),
       }
     },
   },

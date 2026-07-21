@@ -2,6 +2,7 @@ import type { ToolArtifact } from "./tool-artifact.js";
 import { normalizeToolOperation, toolDisplayIdentity } from "./tool-identity.js";
 import { toolOutputSummary } from "./tool-output-summary.js";
 import { alignToolRow, formatToolDuration, type ToolRowModel } from "./tool-row-model.js";
+import { displayWidth } from "../terminal-text/display-width.js";
 
 export interface ActivityClusterEntry {
   tool: string;
@@ -47,6 +48,16 @@ function resultSummary(artifact: ToolArtifact): string | undefined {
 }
 
 function verificationSummary(artifacts: ToolArtifact[]): string {
+  const structured = artifacts.flatMap((artifact) => artifact.presentation?.verification ?? []);
+  if (structured.length > 0) {
+    const failed = structured.filter((item) => item.status === "failed" || item.status === "timeout");
+    const passed = structured.filter((item) => item.status === "passed");
+    if (failed.length === 1) return `${failed[0]!.check} ${failed[0]!.status}`;
+    if (failed.length > 1) return `${failed.length} checks failed`;
+    if (passed.length === 1) return `${passed[0]!.check} passed`;
+    if (passed.length > 1) return `${passed.length} checks passed`;
+    return `${structured.length} checks skipped`;
+  }
   let passed = 0;
   let failed = 0;
   let foundTests = false;
@@ -109,7 +120,7 @@ function familySummary(key: string, entries: ActivityClusterEntry[]): string {
 function completedRow(totalDuration: number, width: number): ToolRowModel {
   const action = "completed";
   const metadata = totalDuration > 0 ? formatToolDuration(totalDuration) : "";
-  const used = 2 + action.length + metadata.length;
+  const used = 2 + displayWidth(action) + displayWidth(metadata);
   return {
     action,
     subject: "",

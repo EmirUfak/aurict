@@ -22,6 +22,22 @@ describe("conversation line buffer", () => {
     expect(wrapTranscriptText("\u001b[31mfailed\u001b[0m", 20)).toEqual(["failed"])
   })
 
+  it("projects inline emphasis and safe links without raw markdown syntax", () => {
+    const rows = projectStableTranscript([{
+      id: "inline-markdown",
+      role: "assistant",
+      content: "Use *care* and ~~legacy~~; read [docs](https://example.com/guide).",
+    }], 100)
+    const segments = rows.flatMap((row) => row.segments)
+    const visible = segments.map((segment) => segment.text).join("")
+
+    expect(segments).toContainEqual(expect.objectContaining({ text: "care", italic: true }))
+    expect(segments).toContainEqual(expect.objectContaining({ text: "legacy", strikethrough: true }))
+    expect(segments.some((segment) => segment.text.includes("\x1b]8;;https://example.com/guide"))).toBe(true)
+    expect(visible).not.toContain("*care*")
+    expect(visible).not.toContain("~~legacy~~")
+  })
+
   it("keeps ordered assistant text and tool output as individual visual rows", () => {
     const messages: DisplayMessage[] = [
       { id: "user", role: "user", content: "write a report" },

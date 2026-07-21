@@ -1,4 +1,4 @@
-# Terminal design baseline (Phases 0–6)
+# Terminal design baseline (Phases 0–7)
 
 Date: 2026-07-17
 
@@ -8,7 +8,7 @@ This document is the acceptance contract for Aurict's terminal UI. It records th
 
 - The transcript is the primary surface. Chrome must not compete with the work.
 - One responsive cockpit answers: “what is Aurict doing, with which model, how full is context, and is completion proven?”
-- One compact footer answers: “where am I, and are there exceptional session states?”
+- The cockpit owns identity and location. One compact footer reports only current runtime state and exceptional conditions.
 - The composer remains writable while Aurict works. Enter adds a priority steering message; Tab adds a normal queued message.
 - Tool calls are summaries first. Raw output, reasoning, and actual diffs stay available through `Ctrl+O`.
 - Color communicates semantics: identity tones distinguish people and Aurict, the activity tone marks current work, green is reserved for meaningful success, red for errors, warning for risk/attention, and neutral tones for routine tool history and metadata.
@@ -86,6 +86,12 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 - `AURICT_ASCII=1`, `TERM=dumb`, and explicitly non-UTF locales select an ASCII-safe glyph vocabulary. Transcript decorations, activity/error markers, startup chrome, status dots, branch/separator symbols, and composer affordances use that vocabulary without relying on color alone.
 - Phase 6 tests lock the split-projection contract and ASCII decoration fallback, complementing the cross-size layout and real-PTY checks.
 
+## Unicode layout contract
+
+- Terminal geometry is measured in display cells, not JavaScript string length. Transcript wrapping, tool rows, cockpit shortening, mouse hit-testing, and vertical cursor movement share the `terminal-text` primitives backed by `string-width`.
+- Composer offsets remain safe string-slice boundaries, while movement, deletion, word navigation, selection, and cursor painting advance by `Intl.Segmenter` grapheme clusters. Emoji ZWJ sequences, flags, combining marks, and CJK text must never be split into malformed output.
+- Unicode regression tests cover both the pure layout model and real Ink keyboard input. Any new terminal truncation or alignment path must use the shared display-width helpers rather than `.length`, `slice`, or `padEnd` as a column calculation.
+
 ## Semantic themes and accessibility
 
 All user-facing components consume semantic roles from `theme/semantic-theme.ts` rather than choosing literal colors. The contract covers foreground hierarchy, identity, activity, status, tools, surfaces, borders, Markdown, and diffs. Brand and accessibility palettes are checked against WCAG-style contrast thresholds in automated tests.
@@ -132,6 +138,15 @@ Theme and palette selections are user preferences. Every picker, slash-command, 
 - Every TypeScript/TSX file under `packages/cli/src/tui` is capped at 500 physical lines by the architecture characterization test. Controller and presentation growth must be split across stable modules rather than added back to `App.tsx`.
 - The interactive path is exercised in a real PTY at 80×24 before release.
 
+## Phase 7 interaction and feedback contract
+
+- Leaving the alternate screen prints a bounded plain-text copy of the last three conversation turns into normal terminal scrollback. `/export clipboard`, `Ctrl+Y`, and `Alt+Y` provide full-transcript, last-response, and last-code-block copy paths; clipboard writes include an OSC 52 path for SSH and terminal multiplexers.
+- `Ctrl+F` searches within the current conversation and jumps using projected row offsets; `Ctrl+Shift+F` retains cross-session search. Composer undo/redo stores at most 30 complete input snapshots and never splits grapheme clusters.
+- Terminal focus drives attention behavior. While unfocused, completed turns and permission requests emit BEL plus OSC 9 notifications; OSC 0 titles expose ready, running, and permission state and are sanitized before output.
+- Stable transcript projection is cached by message identity and terminal width. App rendering does not synchronously enumerate subagent sessions unless its session dependencies change.
+- Tool presentation metadata travels from core execution to the transcript artifact. Verification status, changed files, and failures therefore render without reparsing localized stdout; regex summarization remains only for legacy persisted events and tools without structured metadata.
+- Paused output reports both unseen message count and semantic kind, such as `verify failed`, `response`, or `tool result`. Cancelling an active turn records `Turn cancelled — session state preserved.` so the user can distinguish cancellation from a stalled provider.
+
 ## Final polish contract
 
 - Short transcripts are bottom-anchored so the latest answer rests one natural gap above the composer. Scrolled history remains top-aligned, and every one-row header/composer resize updates the scroll boundary.
@@ -158,3 +173,5 @@ Theme and palette selections are user preferences. Every picker, slash-command, 
 - Shell commands are named by intent instead of transport, so `cat` appears as `read`, test/build/lint commands as `verify`, and Git commands as `git`. Colon, flattened, and provider-safe MCP identifiers (`mcp:git:git_status`, `mcp_git_git_status`, `mcp__git__git_status`) normalize to one `git / status` identity; repeated family prefixes never enter the action column. Unknown tools retain one humanized label and an aligned singular/plural call count. Shell file readers still require explicit approval because they bypass the dedicated read tool boundary, but they are warning-level review requests rather than destructive red alerts.
 - Routine environment detection never enters the conversation. Public-repository detection silently enables undercover behavior; pending crash diagnostics appear only as a transient composer-adjacent snackbar with `/crashes` as the recovery path.
 - User turns use a quiet raised transcript surface, while assistant prose stays borderless. Activity trees have no card around every event and follow the compact `┌ activity` / `│ family` / `└ completed` visual grammar.
+- Inline Markdown has one projection contract across stable transcripts and full Markdown views: emphasis, strike-through, code, and links never leak raw delimiter syntax. Safe `http`, `https`, `file`, and `mailto` targets use OSC 8 links; control characters and unsafe schemes are never emitted.
+- The cockpit is the sole owner of provider, model, context, session identity, workspace, and branch. The footer is the sole owner of runtime exceptions, background activity, remote/autopilot state, sandbox scope, and transient selection guidance.

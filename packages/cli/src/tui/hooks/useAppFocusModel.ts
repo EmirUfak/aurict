@@ -31,6 +31,7 @@ export function useAppFocusModel(params: FocusModelParams) {
     prompt: params.prompt !== null,
     keyboardShortcuts: overlay.keyboardShortcutsOpen,
     subagent: overlay.viewingSubagentId !== null,
+    transcriptSearch: overlay.transcriptSearchOpen,
     historySearch: overlay.historySearchOpen,
     quickSearch: overlay.quickSearchOpen,
     commandPalette: overlay.cmdPaletteOpen,

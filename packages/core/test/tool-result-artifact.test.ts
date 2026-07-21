@@ -31,4 +31,18 @@ describe("tool result artifacts", () => {
   test("marks shell failures as errors before shell presentation", () => {
     expect(classifyToolResult("bash", "ERROR: command failed\nexit 1").kind).toBe("error");
   });
+
+  test("uses structured status without parsing localized output", () => {
+    const presentation = {
+      status: "error" as const,
+      changedFiles: [],
+      filePaths: [],
+      errors: ["検証に失敗しました"],
+      importantLines: [],
+      verification: [{ check: "test", status: "failed" as const }],
+    };
+    const artifact = classifyToolResult("verify", "検証に失敗しました", presentation);
+    expect(artifact.kind).toBe("error");
+    expect(artifact.presentation).toEqual(presentation);
+  });
 });

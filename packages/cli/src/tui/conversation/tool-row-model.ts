@@ -1,5 +1,11 @@
 import type { ToolArtifact } from "./tool-artifact.js";
 import { toolDisplayIdentity } from "./tool-identity.js";
+import {
+  displayWidth,
+  padDisplayEnd,
+  truncateDisplayMiddle,
+  truncateDisplayWidth,
+} from "../terminal-text/display-width.js";
 
 export interface ToolRowModel {
   action: string;
@@ -22,27 +28,21 @@ function argumentSubject(artifact: ToolArtifact): string {
 
 function compact(value: string, max: number): string {
   const normalized = value.replace(/\s+/g, " ").trim();
-  return normalized.length <= max
-    ? normalized
-    : `${normalized.slice(0, Math.max(1, max - 1))}…`;
+  return truncateDisplayWidth(normalized, max);
 }
 
 function compactMetadata(value: string, max: number): string {
-  if (value.length <= max) return value;
-  if (max < 8) return compact(value, max);
-  const tailLength = Math.min(18, Math.floor(max * 0.55));
-  const headLength = Math.max(1, max - tailLength - 1);
-  return `${value.slice(0, headLength)}…${value.slice(-tailLength)}`;
+  return max < 8 ? compact(value, max) : truncateDisplayMiddle(value, max);
 }
 
 export function alignToolRow(action: string, subject: string, metadata: string, width: number): ToolRowModel {
-  const actionColumn = action.slice(0, 10).padEnd(10);
-  const available = Math.max(8, width - 2 - actionColumn.length);
-  const maxMetadata = Math.max(0, Math.min(metadata.length, Math.floor(available * 0.5)));
+  const actionColumn = padDisplayEnd(truncateDisplayWidth(action, 10), 10);
+  const available = Math.max(8, width - 2 - displayWidth(actionColumn));
+  const maxMetadata = Math.max(0, Math.min(displayWidth(metadata), Math.floor(available * 0.5)));
   const visibleMetadata = maxMetadata > 0 ? compactMetadata(metadata, maxMetadata) : "";
-  const metadataWidth = visibleMetadata ? visibleMetadata.length + 2 : 0;
+  const metadataWidth = visibleMetadata ? displayWidth(visibleMetadata) + 2 : 0;
   const visibleSubject = compact(subject, Math.max(4, available - metadataWidth));
-  const used = 2 + actionColumn.length + visibleSubject.length + visibleMetadata.length;
+  const used = 2 + displayWidth(actionColumn) + displayWidth(visibleSubject) + displayWidth(visibleMetadata);
   const spacer = visibleMetadata ? " ".repeat(Math.max(2, width - used)) : "";
   return { action: actionColumn, subject: visibleSubject, spacer, metadata: visibleMetadata };
 }

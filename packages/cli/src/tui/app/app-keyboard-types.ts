@@ -53,6 +53,7 @@ export interface AppKeyboardParams {
 }
 
 export type PrimaryOverlayTarget =
+  | "transcriptSearch"
   | "quickSearch"
   | "commandPalette"
   | "historySearch"

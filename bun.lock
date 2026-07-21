@@ -14,7 +14,7 @@
     },
     "apps/desktop": {
       "name": "hoprel",
-      "version": "1.2.6",
+      "version": "1.2.8",
       "dependencies": {
         "@codemirror/autocomplete": "^6.20.3",
         "@codemirror/commands": "^6.8.0",
@@ -113,21 +113,21 @@
     },
     "packages/aurict": {
       "name": "aurict",
-      "version": "1.2.5",
+      "version": "1.2.10",
       "bin": {
         "aurict": "./bin/aurict",
       },
       "optionalDependencies": {
-        "@aurict/cli-darwin-arm64": "1.2.5",
-        "@aurict/cli-darwin-x64": "1.2.5",
-        "@aurict/cli-linux-arm64": "1.2.5",
-        "@aurict/cli-linux-x64": "1.2.5",
-        "@aurict/cli-win32-x64": "1.2.5",
+        "@aurict/cli-darwin-arm64": "1.2.10",
+        "@aurict/cli-darwin-x64": "1.2.10",
+        "@aurict/cli-linux-arm64": "1.2.10",
+        "@aurict/cli-linux-x64": "1.2.10",
+        "@aurict/cli-win32-x64": "1.2.10",
       },
     },
     "packages/cli": {
       "name": "@aurict/cli",
-      "version": "1.2.5",
+      "version": "1.2.10",
       "bin": {
         "aurict": "./bin/aurict",
       },
@@ -138,41 +138,42 @@
         "ink": "^5.2.1",
         "react": "^18.3.1",
         "react-devtools-core": "^4.19.1",
+        "string-width": "^7.2.0",
         "typescript": "^5.8.0",
         "werift": "^0.23.0",
         "wrap-ansi": "^9.0.2",
       },
       "optionalDependencies": {
-        "@aurict/cli-darwin-arm64": "1.2.5",
-        "@aurict/cli-darwin-x64": "1.2.5",
-        "@aurict/cli-linux-arm64": "1.2.5",
-        "@aurict/cli-linux-x64": "1.2.5",
-        "@aurict/cli-win32-x64": "1.2.5",
+        "@aurict/cli-darwin-arm64": "1.2.10",
+        "@aurict/cli-darwin-x64": "1.2.10",
+        "@aurict/cli-linux-arm64": "1.2.10",
+        "@aurict/cli-linux-x64": "1.2.10",
+        "@aurict/cli-win32-x64": "1.2.10",
       },
     },
     "packages/cli-darwin-arm64": {
       "name": "@aurict/cli-darwin-arm64",
-      "version": "1.2.5",
+      "version": "1.2.10",
     },
     "packages/cli-darwin-x64": {
       "name": "@aurict/cli-darwin-x64",
-      "version": "1.2.5",
+      "version": "1.2.10",
     },
     "packages/cli-linux-arm64": {
       "name": "@aurict/cli-linux-arm64",
-      "version": "1.2.5",
+      "version": "1.2.10",
     },
     "packages/cli-linux-x64": {
       "name": "@aurict/cli-linux-x64",
-      "version": "1.2.5",
+      "version": "1.2.10",
     },
     "packages/cli-win32-x64": {
       "name": "@aurict/cli-win32-x64",
-      "version": "1.2.5",
+      "version": "1.2.10",
     },
     "packages/core": {
       "name": "@aurict/core",
-      "version": "1.2.5",
+      "version": "1.2.8",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^4.0.113",
         "@ai-sdk/anthropic": "^1.1.5",
@@ -193,6 +194,14 @@
         "@types/bun": "latest",
         "typescript": "^5.8.0",
       },
+      "peerDependencies": {
+        "playwright-core": "*",
+        "puppeteer-core": "*",
+      },
+      "optionalPeers": [
+        "playwright-core",
+        "puppeteer-core",
+      ],
     },
   },
   "trustedDependencies": [

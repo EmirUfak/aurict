@@ -85,6 +85,36 @@ describe("terminal phases 3-5", () => {
     expect(text).not.toContain("test two: passed");
   });
 
+  test("summarizes verification from structured metadata instead of localized stdout", () => {
+    const rows = projectTranscript({
+      width: 90, streamingText: null, streamingReason: null, streamingError: null,
+      messages: [{ id: "structured-verify", role: "assistant", content: "", blocks: [{
+        type: "tool",
+        id: "verify",
+        tool: "bash",
+        args: '{"command":"bun test"}',
+        pending: false,
+        resultContent: "すべてのテストが完了しました",
+        artifact: {
+          kind: "shell",
+          output: "すべてのテストが完了しました",
+          outputLines: 1,
+          presentation: {
+            status: "success",
+            changedFiles: [],
+            filePaths: [],
+            errors: [],
+            importantLines: [],
+            verification: [{ check: "test", status: "passed" }],
+          },
+        },
+      }] }],
+    });
+    const text = rows.map(rowText).join("\n");
+    expect(text).toContain("test passed · ctrl+o");
+    expect(text).not.toContain("すべてのテスト");
+  });
+
   test("presents git diff as a compact artifact instead of stdout", () => {
     const rows = projectTranscript({
       width: 90, streamingText: null, streamingReason: null, streamingError: null,

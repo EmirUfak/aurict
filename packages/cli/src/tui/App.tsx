@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { allCommands } from "../commands/registry.js";
 import { useApp } from "./design-system/renderer.js";
 import { useOverlayState } from "./hooks/useOverlayState.js";
@@ -18,6 +18,7 @@ import { useAppState } from "./hooks/useAppState.js";
 import { AppScreen } from "./app/AppScreen.js";
 import type { AppProps as Props } from "./app/app-props.js";
 import { configuredSandboxBackend } from "./app/app-environment.js";
+import { useTerminalAttention } from "./hooks/useTerminalAttention.js";
 
 
 export function App({
@@ -79,6 +80,7 @@ export function App({
     blockingOverlayOpen,
     composerInputActive,
   } = useAppFocusModel({ overlay, permission, question, picker, prompt, loading });
+  useTerminalAttention({ loading, permission, sessionTitle });
 
   const {
     details: transcriptDetails,
@@ -112,6 +114,7 @@ export function App({
     measuredViewportRows,
     setMeasuredViewportRows,
     unseenCount,
+    unseenLabel,
     scrollConversation,
     handleScrollRange,
     pageConversation,
@@ -141,6 +144,11 @@ export function App({
     [tasks],
   );
   const sandboxBackend = useMemo(() => configuredSandboxBackend(), []);
+  const [selectionHintVisible, setSelectionHintVisible] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setSelectionHintVisible(false), 10_000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const inputRef = useRef(input);
   const openExternalEditor = useExternalEditor({
@@ -305,6 +313,7 @@ export function App({
     setDesignInitialBrief,
     setInput,
     addSystemMsg,
+    exit,
   });
   const { handleSubmit, handleQueue } = useAgentSubmit({
     provider,
@@ -424,6 +433,8 @@ export function App({
       scrollLocked={scrollLocked}
       conversationOffsetRows={conversationOffsetRows}
       unseenCount={unseenCount}
+      unseenLabel={unseenLabel}
+      selectionHintVisible={selectionHintVisible}
       measuredViewportRows={measuredViewportRows}
       commandHistory={commandHistory}
       commandDefs={commandDefs}
@@ -443,6 +454,7 @@ export function App({
       mainSessionId={mainSessionId}
       btwFrameRef={btwFrameRef}
       setMeasuredViewportRows={setMeasuredViewportRows}
+      setConversationOffsetRows={setConversationOffsetRows}
       setHistory={setHistory}
       setMessages={setMessages}
       setRecentCmds={setRecentCmds}
