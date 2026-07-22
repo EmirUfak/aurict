@@ -127,15 +127,18 @@ aurict --undercover
 
 ---
 
-## Autopilot mode
+## Project Auto mode
 
-In autopilot mode, Aurict executes multi-step tasks without asking for confirmation on safe operations:
+The TUI asks whether to enable Project Auto when Aurict opens in a folder. It can also be toggled
+during the session:
 
 ```
-/autopilot
+/auto
 ```
 
-Autopilot respects the permission system — dangerous operations (destructive bash commands, force pushes) still require explicit approval.
+Project Auto skips repeated prompts only for bounded typed file changes inside that project.
+Shell commands, secrets, internal paths, project escapes, dangerous operations, and broad deletes
+still require explicit approval. The grant is session-scoped and is reset when the workdir changes.
 
 ---
 

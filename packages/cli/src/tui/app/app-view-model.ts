@@ -3,6 +3,7 @@ import type { FocusLayer, FocusState } from "./app-types.js";
 
 const FOCUS_PRIORITY: ReadonlyArray<readonly [FocusLayer, keyof FocusState]> = [
   ["permission", "permission"],
+  ["projectAuto", "projectAuto"],
   ["question", "question"],
   ["picker", "picker"],
   ["prompt", "prompt"],
@@ -48,6 +49,7 @@ export function isBlockingOverlayLayer(focusLayer: FocusLayer): boolean {
     "ready",
     "streaming",
     "permission",
+    "projectAuto",
     "subagent",
     "taskPanel",
   ].includes(focusLayer);

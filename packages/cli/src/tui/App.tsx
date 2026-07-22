@@ -19,7 +19,7 @@ import { AppScreen } from "./app/AppScreen.js";
 import type { AppProps as Props } from "./app/app-props.js";
 import { configuredSandboxBackend } from "./app/app-environment.js";
 import { useTerminalAttention } from "./hooks/useTerminalAttention.js";
-
+import { useProjectAutoMode } from "./hooks/useProjectAutoMode.js";
 
 export function App({
   initialProvider,
@@ -63,6 +63,7 @@ export function App({
     promptDiagnostics, setPromptDiagnostics,
     promptCacheHealth, setPromptCacheHealth, activeAgentCount,
     setActiveAgentCount, updateInfo, autopilotMode, setAutopilotMode,
+    projectAutoPromptOpen, setProjectAutoPromptOpen,
     recentCmds, setRecentCmds, designInitialBrief, setDesignInitialBrief,
     watchedPaths, setWatchedPaths, checkpoints, setCheckpoints, branches,
     setBranches, activeBranchIdx, setActiveBranchIdx, remoteStatus,
@@ -79,7 +80,15 @@ export function App({
     keybindingContext,
     blockingOverlayOpen,
     composerInputActive,
-  } = useAppFocusModel({ overlay, permission, question, picker, prompt, loading });
+  } = useAppFocusModel({
+    overlay,
+    permission,
+    projectAutoPromptOpen,
+    question,
+    picker,
+    prompt,
+    loading,
+  });
   useTerminalAttention({ loading, permission, sessionTitle });
 
   const {
@@ -151,6 +160,13 @@ export function App({
   }, []);
 
   const inputRef = useRef(input);
+  const resolveProjectAutoPrompt = useProjectAutoMode({
+    workdir: workdirState,
+    autopilotRef,
+    setAutopilotMode,
+    setPromptOpen: setProjectAutoPromptOpen,
+    addSystemMsg,
+  });
   const openExternalEditor = useExternalEditor({
     inputRef,
     loadingRef,
@@ -159,7 +175,7 @@ export function App({
   });
   useAppLifecycle({
     initialProvider,
-    workdir,
+    workdir: workdirState,
     input,
     loading,
     autopilotRef,
@@ -183,8 +199,6 @@ export function App({
     setBranch,
     addSystemMsg,
   });
-
-
   const {
     setProvider,
     setModel,
@@ -222,6 +236,8 @@ export function App({
     transcriptDetails,
     selectedTranscriptDetailId,
     permission,
+    projectAutoPromptOpen,
+    resolveProjectAutoPrompt,
     pickerOpen: picker !== null,
     questionOpen: question !== null,
     overlay,
@@ -444,6 +460,8 @@ export function App({
       prompt={prompt}
       question={question}
       permission={permission}
+      projectAutoPromptOpen={projectAutoPromptOpen}
+      resolveProjectAutoPrompt={resolveProjectAutoPrompt}
       permissionQueueLength={permissionQueue.length}
       transcriptDetails={transcriptDetails}
       input={input}

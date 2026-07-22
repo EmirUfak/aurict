@@ -41,6 +41,8 @@ export type { HeadlessRunResult, HeadlessRunStatus }      from "./runtime/headle
 export { PermissionEvaluator }                           from "./permission/evaluator.js"
 export { PermissionStore, PermissionGate }               from "./permission/store.js"
 export type { PermissionRule, PermissionRequest, PermissionDecision, PermissionResponse } from "./permission/types.js"
+export { evaluateProjectAutoRequest }                    from "./permission/project-auto.js"
+export type { ProjectAutoVerdict }                       from "./permission/project-auto.js"
 export { gateGuard }                                     from "./permission/gateguard.js"
 export type { GateRule, AuditEntry }                     from "./permission/gateguard.js"
 

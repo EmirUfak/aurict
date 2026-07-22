@@ -71,6 +71,7 @@ export function AppOverlayContents(props: AppOverlayContentsProps) {
     case "question":
       return <QuestionPrompt {...requireConfig(props.activeLayer, props.question)} />;
     case "permission":
+    case "projectAuto":
       return null;
     case "attach": {
       const attachmentInput = requireConfig(props.activeLayer, props.attachmentInput);

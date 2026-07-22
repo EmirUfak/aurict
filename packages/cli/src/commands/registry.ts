@@ -491,7 +491,7 @@ const commands: CommandDef[] = [
         `Session:      ${ctx.sessionId.slice(0, 12)}  (${persistedParts} persisted parts, ${ctx.messages.length} visible messages)`,
         `Provider:     ${ctx.provider}`,
         `Model:        ${ctx.model}${ctx.effort !== undefined ? `  effort=${ctx.effort}` : ""}`,
-        `Agent:        ${ctx.activeAgent}${ctx.coordinatorMode ? "  coordinator=on" : ""}${ctx.autopilotMode ? "  autopilot=on" : ""}`,
+        `Agent:        ${ctx.activeAgent}${ctx.coordinatorMode ? "  coordinator=on" : ""}${ctx.autopilotMode ? "  project-auto=on" : ""}`,
         `Workdir:      ${ctx.workdir}`,
         `Undercover:   ${ctx.isUndercover ? "on" : "off"}`,
         `Context:      ${ctx.contextWindow.toLocaleString()} tokens window, ${tokenTotal.toLocaleString()} session tokens observed`,
@@ -1372,7 +1372,7 @@ const commands: CommandDef[] = [
   {
     name:        "autopilot",
     aliases:     ["auto"],
-    description: "Toggle autopilot mode — auto-approve all permission requests",
+    description: "Toggle Project Auto for typed file changes in this project",
     handler: (_args, ctx): CommandResult => {
       ctx.toggleAutopilot()
       return { type: "text", content: "" }

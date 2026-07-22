@@ -13,6 +13,9 @@ export function closeFocusedLayer(params: AppKeyboardParams): boolean {
     case "prompt":
     case "streaming":
       return true;
+    case "projectAuto":
+      params.resolveProjectAutoPrompt(false);
+      return true;
     case "keyboardShortcuts":
       overlay.setKeyboardShortcutsOpen(false);
       return true;

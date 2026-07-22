@@ -37,7 +37,8 @@ export function AppScreen(props: AppScreenProps) {
     history, messages, streamingText, streamingReason, streamingError,
     scrollLocked, conversationOffsetRows, unseenCount, unseenLabel, measuredViewportRows,
     commandHistory, commandDefs, recentCmds, designInitialBrief, picker,
-    prompt, question, permission, permissionQueueLength, transcriptDetails,
+    prompt, question, permission, projectAutoPromptOpen,
+    resolveProjectAutoPrompt, permissionQueueLength, transcriptDetails,
     input, composerQueue, inlineSuggestionActive, cmdFilter, mentionFilter,
     mainSessionId, btwFrameRef, setMeasuredViewportRows, setHistory,
     setMessages, setRecentCmds, setInput, setThemeName, setDesignInitialBrief,
@@ -354,6 +355,10 @@ export function AppScreen(props: AppScreenProps) {
             ),
           } : null}
           attachmentNames={attachments.map((attachment) => attachment.name)}
+          projectAuto={projectAutoPromptOpen && !permission ? {
+            workdir: workdirState,
+            onDecide: resolveProjectAutoPrompt,
+          } : null}
           permission={permission ? {
             request: permission,
             onDecide: handlePermission,

@@ -87,6 +87,8 @@ export interface AppScreenProps {
   prompt: PromptRequest | null;
   question: QuestionRequest | null;
   permission: PermissionRequest | null;
+  projectAutoPromptOpen: boolean;
+  resolveProjectAutoPrompt: (enabled: boolean) => void;
   permissionQueueLength: number;
   transcriptDetails: TranscriptDetail[];
   input: string;

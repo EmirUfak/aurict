@@ -53,8 +53,8 @@ export function useCommandController(params: AppCommandParams) {
         const next = !value;
         params.addSystemMsg(
           next
-            ? "⚡ Autopilot ON — all permissions auto-approved"
-            : "⚡ Autopilot OFF — manual confirmation restored",
+            ? `Project Auto ON for ${params.workdir} — typed file changes are auto-approved; shell and sensitive operations still ask`
+            : "Project Auto OFF — manual confirmation restored",
         );
         return next;
       });

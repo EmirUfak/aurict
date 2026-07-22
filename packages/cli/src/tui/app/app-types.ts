@@ -1,5 +1,6 @@
 export type FocusLayer =
   | "permission"
+  | "projectAuto"
   | "question"
   | "picker"
   | "prompt"
@@ -22,6 +23,7 @@ export type FocusLayer =
 
 export interface FocusState {
   permission: boolean;
+  projectAuto: boolean;
   question: boolean;
   picker: boolean;
   prompt: boolean;

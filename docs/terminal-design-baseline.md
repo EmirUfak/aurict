@@ -74,6 +74,9 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 
 ## Phase 5 recovery and permission model
 
+- On startup, an inline Yes/No Project Auto prompt appears above the composer. Yes applies only to
+  bounded typed file mutations in the active project for the current session; No preserves normal
+  per-request approval. Workdir changes reopen the choice.
 - Provider/runtime failures render once as a short diagnosis, original first-line detail, and concrete recovery action. Authentication, rate limit, context, connection, and cancellation failures have specific guidance.
 - Permission requests use one compact inline decision surface immediately above the composer. Risk and execution scope are textual rather than decorative gauges, and dangerous actions still default to deny.
 - Direct permission keys are `y` (allow once), `n` (deny), and for shell requests `e` (edit). Arrow/Enter selection and Escape denial remain available.

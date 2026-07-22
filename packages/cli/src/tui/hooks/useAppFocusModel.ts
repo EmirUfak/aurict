@@ -10,6 +10,7 @@ import type { useOverlayState } from "./useOverlayState.js";
 interface FocusModelParams {
   overlay: ReturnType<typeof useOverlayState>;
   permission: PermissionRequest | null;
+  projectAutoPromptOpen: boolean;
   question: QuestionRequest | null;
   picker: PickerRequest | null;
   prompt: PromptRequest | null;
@@ -26,6 +27,7 @@ export function useAppFocusModel(params: FocusModelParams) {
   });
   const focusLayer = resolveFocusLayer({
     permission: params.permission !== null,
+    projectAuto: params.projectAutoPromptOpen,
     question: params.question !== null,
     picker: params.picker !== null,
     prompt: params.prompt !== null,
