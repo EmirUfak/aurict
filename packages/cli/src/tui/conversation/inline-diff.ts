@@ -91,7 +91,7 @@ export function projectInlineDiff(rawDiff: string, id: string, detailId: string,
         { text: group.file, tone: "assistant", bold: true },
         { text: `  +${stats.additions}`, tone: "diff-add", bold: true },
         { text: ` −${stats.deletions}`, tone: "diff-remove", bold: true },
-        { text: "  · ctrl+o", tone: "muted" },
+        { text: "  · details ^O", tone: "muted" },
       ],
       detailId,
     })

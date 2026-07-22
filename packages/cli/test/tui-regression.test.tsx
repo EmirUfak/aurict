@@ -267,7 +267,7 @@ describe("TUI stress regression", () => {
       />,
     ).lastFrame() ?? ""
 
-    expect(frame).toContain("120 lines · ctrl+o")
+    expect(frame).toMatch(/120 lines\s+details \^O/)
     expect(frame).not.toContain("line 001")
     expect(frame).not.toContain("line 120")
   })

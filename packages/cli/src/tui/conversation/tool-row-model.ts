@@ -8,11 +8,16 @@ import {
 } from "../terminal-text/display-width.js";
 
 export interface ToolRowModel {
+  layout: "inline" | "stacked";
   action: string;
   subject: string;
+  separator: string;
   spacer: string;
   metadata: string;
 }
+
+const PREFIX_WIDTH = 2;
+const STACKED_MAX_WIDTH = 51;
 
 function argumentSubject(artifact: ToolArtifact): string {
   if (artifact.command) return artifact.command.replace(/\n/g, " ");
@@ -36,15 +41,40 @@ function compactMetadata(value: string, max: number): string {
 }
 
 export function alignToolRow(action: string, subject: string, metadata: string, width: number): ToolRowModel {
-  const actionColumn = padDisplayEnd(truncateDisplayWidth(action, 10), 10);
-  const available = Math.max(8, width - 2 - displayWidth(actionColumn));
+  if (width <= STACKED_MAX_WIDTH && subject.trim()) {
+    const visibleMetadata = compactMetadata(metadata, Math.max(0, Math.floor(width * 0.3)));
+    const metadataWidth = visibleMetadata ? displayWidth(visibleMetadata) + 2 : 0;
+    const visibleAction = compact(action, Math.max(4, width - PREFIX_WIDTH - metadataWidth));
+    const used = PREFIX_WIDTH + displayWidth(visibleAction) + displayWidth(visibleMetadata);
+    return {
+      layout: "stacked",
+      action: visibleAction,
+      subject: compact(subject, Math.max(4, width - 4)),
+      separator: "",
+      spacer: visibleMetadata ? " ".repeat(Math.max(2, width - used)) : "",
+      metadata: visibleMetadata,
+    };
+  }
+
+  const actionWidth = width >= 100 ? 16 : 11;
+  const actionColumn = padDisplayEnd(truncateDisplayWidth(action, actionWidth), actionWidth);
+  const separator = subject.trim() ? "  " : "";
+  const available = Math.max(8, width - PREFIX_WIDTH - displayWidth(actionColumn) - displayWidth(separator));
   const maxMetadata = Math.max(0, Math.min(displayWidth(metadata), Math.floor(available * 0.5)));
   const visibleMetadata = maxMetadata > 0 ? compactMetadata(metadata, maxMetadata) : "";
   const metadataWidth = visibleMetadata ? displayWidth(visibleMetadata) + 2 : 0;
   const visibleSubject = compact(subject, Math.max(4, available - metadataWidth));
-  const used = 2 + displayWidth(actionColumn) + displayWidth(visibleSubject) + displayWidth(visibleMetadata);
+  const used = PREFIX_WIDTH + displayWidth(actionColumn) + displayWidth(separator)
+    + displayWidth(visibleSubject) + displayWidth(visibleMetadata);
   const spacer = visibleMetadata ? " ".repeat(Math.max(2, width - used)) : "";
-  return { action: actionColumn, subject: visibleSubject, spacer, metadata: visibleMetadata };
+  return {
+    layout: "inline",
+    action: actionColumn,
+    subject: visibleSubject,
+    separator,
+    spacer,
+    metadata: visibleMetadata,
+  };
 }
 
 export function formatToolDuration(durationMs: number): string {

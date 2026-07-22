@@ -82,6 +82,8 @@ describe("terminal Unicode text primitives", () => {
     expect(wordRight(value, 4)).toBe(value.lastIndexOf("bar"))
 
     const row = alignToolRow("ara", "日本語 dosyaları", "2.4s", 36)
-    expect(displayWidth(`  ${row.action}${row.subject}${row.spacer}${row.metadata}`)).toBeLessThanOrEqual(36)
+    expect(row.layout).toBe("stacked")
+    expect(displayWidth(`  ${row.action}${row.spacer}${row.metadata}`)).toBeLessThanOrEqual(36)
+    expect(displayWidth(`    ${row.subject}`)).toBeLessThanOrEqual(36)
   })
 })

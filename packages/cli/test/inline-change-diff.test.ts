@@ -59,7 +59,7 @@ describe("inline change diffs", () => {
     }], 80, null, null, null).map((line) => line.text)
     expect(visible.some((line) => line.includes("− old"))).toBe(false)
     expect(visible.some((line) => line.includes("+ new"))).toBe(false)
-    expect(visible.some((line) => line.includes("+1 −1 · ctrl+o"))).toBe(true)
+    expect(visible.some((line) => /\+1 −1\s+details \^O/.test(line))).toBe(true)
   })
 
   it("keeps wrapped change content complete and styled", () => {

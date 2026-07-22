@@ -74,15 +74,22 @@ function verificationSummary(artifacts: ToolArtifact[]): string {
 }
 
 function searchSummary(artifacts: ToolArtifact[]): string {
+  const files = new Set<string>();
   const matches = artifacts.reduce((sum, artifact) => {
+    for (const path of artifact.files ?? (artifact.filePath ? [artifact.filePath] : [])) files.add(path);
     const output = (artifact.result ?? artifact.output).trim();
     if (!output || /^(?:no matches|\(no output\))\.?$/i.test(output)) return sum;
     const resultLines = output.split("\n")
       .map((line) => line.trim())
       .filter((line) => line && !/^\.\.\. \((?:truncated|timed out)/i.test(line));
+    for (const line of resultLines) {
+      const match = line.match(/^(.+?):\d+(?::\d+)?:/);
+      if (match?.[1]) files.add(match[1]);
+    }
     return sum + resultLines.length;
   }, 0);
-  return matches === 1 ? "1 match" : `${matches} matches`;
+  const count = matches === 1 ? "1 match" : `${matches} matches`;
+  return `${count}${files.size > 0 ? ` · ${files.size} file${files.size === 1 ? "" : "s"}` : ""}`;
 }
 
 function familySummary(key: string, entries: ActivityClusterEntry[]): string {
@@ -108,6 +115,10 @@ function familySummary(key: string, entries: ActivityClusterEntry[]): string {
     return [operations.join(", "), outcome].filter(Boolean).join(" · ") || `${entries.length} operations`;
   }
   if (key === "run") return `${entries.length} command${entries.length === 1 ? "" : "s"}`;
+  if (key === "environment") {
+    const outcome = [...artifacts].reverse().map(resultSummary).find(Boolean);
+    return outcome ?? `${entries.length} inspection${entries.length === 1 ? "" : "s"}`;
+  }
   if (key === "web") return `${entries.length} source${entries.length === 1 ? "" : "s"}`;
   if (key === "agent") return `${entries.length} agent${entries.length === 1 ? "" : "s"}`;
 
@@ -122,8 +133,10 @@ function completedRow(totalDuration: number, width: number): ToolRowModel {
   const metadata = totalDuration > 0 ? formatToolDuration(totalDuration) : "";
   const used = 2 + displayWidth(action) + displayWidth(metadata);
   return {
+    layout: "inline",
     action,
     subject: "",
+    separator: "",
     spacer: metadata ? " ".repeat(Math.max(2, width - used)) : "",
     metadata,
   };

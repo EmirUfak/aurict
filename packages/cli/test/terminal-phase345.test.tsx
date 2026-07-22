@@ -80,7 +80,7 @@ describe("terminal phases 3-5", () => {
       ] }],
     });
     const text = rows.map(rowText).join("\n");
-    expect(text).toContain("2 passed · 0 failed · ctrl+o");
+    expect(text).toMatch(/2 passed · 0 failed\s+details \^O/);
     expect(text).not.toContain("test one: passed");
     expect(text).not.toContain("test two: passed");
   });
@@ -111,7 +111,7 @@ describe("terminal phases 3-5", () => {
       }] }],
     });
     const text = rows.map(rowText).join("\n");
-    expect(text).toContain("test passed · ctrl+o");
+    expect(text).toMatch(/test passed\s+details \^O/);
     expect(text).not.toContain("すべてのテスト");
   });
 
@@ -131,7 +131,7 @@ describe("terminal phases 3-5", () => {
     });
     const text = rows.map(rowText).join("\n");
     expect(text).toMatch(/› git\s+diff/);
-    expect(text).toContain("└ src/a.ts · +1 −1 · ctrl+o");
+    expect(text).toMatch(/└ src\/a\.ts · \+1 −1\s+details \^O/);
     expect(text).not.toContain("diff --git");
     expect(text).not.toContain("-old");
   });

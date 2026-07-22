@@ -459,10 +459,10 @@ describe("Tool output rendering", () => {
     );
 
     const frame = lastFrame() ?? "";
-    expect(frame).toContain("12 lines · ctrl+o");
+    expect(frame).toMatch(/12 lines\s+details \^O/);
     expect(frame).not.toContain("line-1");
     expect(frame).not.toContain("line-12");
-    expect(frame).toContain("ctrl+o");
+    expect(frame).toContain("details ^O");
   });
 
   it("renders empty expanded output explicitly", () => {
