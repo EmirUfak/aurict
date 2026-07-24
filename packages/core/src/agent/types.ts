@@ -20,7 +20,7 @@ export interface AgentContinuationOptions {
   maxTaskContinuations?: number | undefined
 }
 
-export type AgentRunPhase = "preparing_context" | "resolving_model" | "waiting_for_provider"
+export type AgentRunPhase = "preparing_context" | "resolving_model" | "compacting" | "waiting_for_provider"
 
 /** A conservative snapshot of the prompt that will be sent to the model. */
 export interface ContextUsage {

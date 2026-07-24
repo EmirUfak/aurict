@@ -1,10 +1,10 @@
-import { ProviderRegistry, createOpenAICompatiblePlugin, SessionManager, mcpManager, loadCustomAgents, memoryStore, getAllSessionAgents, pinStore, setApiKey, setDefault, setCustomProvider, removeCustomProvider, setSecuritySandbox, setLongTaskRuntime, resolveSecuritySandboxConfig, resolveLongTaskRuntimeConfig, SECURITY_SANDBOX_PROFILE_DEFAULTS, getConfigPath, loadConfig, exportToMarkdown, exportToHtml, defaultExportFilename, setCompaction, gateGuard, getCircuitState, getContextBreakdown, snapshotManager, installRemoteSkill, listInstalledSkills, uninstallSkill, getLoadedPlugins, PLUGIN_DIR, diagnosticsStore, skillScoreStore, installRemotePlugin, listInstalledPlugins, uninstallPlugin, fetchRegistry, searchRegistry, findInRegistry, readLatestTraceEvents, buildSecurityAssessmentLedger, formatSecurityLedgerAnchor, evaluateSecurityOperatorStep, formatSecurityOperatorDecision, readSecurityAssessmentLedger, updateSecurityAssessmentLedger, writeSecurityAssessmentLedger, resetSecurityAssessmentLedger, verifySecurityFinding, applySecurityVerification, buildAttackGraphFromFindings, formatAttackGraph } from "@aurict/core"
+import { ProviderRegistry, createOpenAICompatiblePlugin, SessionManager, mcpManager, loadCustomAgents, memoryStore, getAllSessionAgents, pinStore, setApiKey, setDefault, setCustomProvider, removeCustomProvider, setSecuritySandbox, setLongTaskRuntime, resolveSecuritySandboxConfig, resolveLongTaskRuntimeConfig, SECURITY_SANDBOX_PROFILE_DEFAULTS, getConfigPath, loadConfig, exportToMarkdown, exportToHtml, defaultExportFilename, setCompaction, gateGuard, getCircuitState, getContextBreakdown, snapshotManager, installRemoteSkill, listInstalledSkills, uninstallSkill, getLoadedPlugins, PLUGIN_DIR, diagnosticsStore, skillScoreStore, installRemotePlugin, listInstalledPlugins, uninstallPlugin, fetchRegistry, searchRegistry, findInRegistry, readLatestTraceEvents, buildSecurityAssessmentLedger, formatSecurityLedgerAnchor, evaluateSecurityOperatorStep, formatSecurityOperatorDecision, readSecurityAssessmentLedger, updateSecurityAssessmentLedger, writeSecurityAssessmentLedger, resetSecurityAssessmentLedger, verifySecurityFinding, applySecurityVerification, buildAttackGraphFromFindings, formatAttackGraph, compact, estimateTokens } from "@aurict/core"
 import type { ModelInfo, SecurityAssessmentLedger, SecurityDistilledFinding } from "@aurict/core"
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs"
 import { spawnSync } from "child_process"
 import { resolve, join } from "path"
 import { THEMES, THEME_NAMES, BRAND_PALETTE_IDS, isBrandTheme } from "../utils/theme.js"
-import type { CommandDef, CommandResult, PickerItem } from "./types.js"
+import type { CommandDef, CommandContext, CommandResult, PickerItem } from "./types.js"
 import { CURRENT_VERSION } from "../util/update-check.js"
 import { proofCommands } from "./proof-commands.js"
 import { flightCommands } from "./flight-commands.js"
@@ -52,6 +52,51 @@ function ensureLine(path: string, line: string): boolean {
   const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : ""
   writeFileSync(path, `${existing}${prefix}${line}\n`, "utf8")
   return true
+}
+
+// /compact now — gerçek core history üzerinden kalite-korumalı manuel compaction.
+// Display mesajları yerine ctx.history (CoreMessage[]) kullanılır; otomatik
+// compaction'la aynı compact() router'ını çağırır (transient retry + kalite
+// muhafızı dahil); 120s'lik katı toplam timeout ve cancel desteği compact()
+// içinde gelir. restoreSession live history'yi compacted sonulla değiştirir.
+async function runCompactNow(
+  ctx:  CommandContext,
+  cfg:  ReturnType<typeof loadConfig>["compaction"],
+): Promise<CommandResult> {
+  const history = ctx.history
+  if (!history || history.length < 2) {
+    return { type: "error", message: "Not enough conversation to compact yet." }
+  }
+  const compactionConfig = {
+    contextLimit: ctx.contextWindow || 200_000,
+    maxOutput:    8_192,
+    tailTurns:    cfg?.tailTurns ?? 2,
+    strategy:     (cfg?.strategy ?? "balanced") as "aggressive" | "balanced" | "conservative",
+    provider:     ctx.provider,
+    model:        ctx.model,
+    workdir:      ctx.workdir,
+    sessionId:    ctx.sessionId,
+  }
+  const before = estimateTokens(history, ctx.model)
+  ctx.addSystemMsg("⏳ Compacting context…")
+  try {
+    const compacted = await compact(history, compactionConfig)
+    const after = estimateTokens(compacted, ctx.model)
+    // restoreSession role/content (string) bekler; CoreMessage content array
+    // olabilir (multimodal) — compaction sonrası özet düz metindir ama tail'de
+    // orijinal mesajlar array kalabilir, bu yüzden güvenli coerce uygula.
+    const restored = compacted.map((message) => ({
+      role:   (message.role === "assistant" ? "assistant" : "user") as "user" | "assistant",
+      content: typeof message.content === "string"
+        ? message.content
+        : JSON.stringify(message.content),
+    })) as Array<{ role: "user" | "assistant"; content: string }>
+    ctx.restoreSession(restored)
+    return { type: "text", content: `✓ Compact done: ${before} → ${after} tokens (manual).` }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    return { type: "error", message: `Compaction failed: ${detail}` }
+  }
 }
 
 export function mergeModelLists(base: ModelInfo[], remote: ModelInfo[]): ModelInfo[] {
@@ -1953,9 +1998,9 @@ const commands: CommandDef[] = [
   {
     name:        "compact",
     aliases:     ["cmp"],
-    description: "View or set compaction strategy",
-    usage:       "/compact [tailturns <N> | strategy <aggressive|balanced|conservative>]",
-    handler: (args, ctx): CommandResult => {
+    description: "View or set compaction strategy, or compact now",
+    usage:       "/compact [now | tailturns <N> | strategy <aggressive|balanced|conservative>]",
+    handler: (args, ctx): CommandResult | Promise<CommandResult> => {
       const sub = args[0]?.toLowerCase()
       const cfg  = loadConfig(ctx.workdir).compaction
 
@@ -1964,6 +2009,13 @@ const commands: CommandDef[] = [
           type:    "text",
           content: `Compaction settings:\n  tailTurns: ${cfg?.tailTurns ?? 2} (default: 2)\n  strategy:  ${cfg?.strategy ?? "balanced"}`,
         }
+      }
+
+      // /compact now — manuel compaction. Kalite düşürülmez: otomatik compaction'la
+      // AYNI compact() router'ını ve gerçek core history'yi kullanır; cancel/timeout
+      // (120s) desteklidir; sonucu restoreSession ile live history'e yazar.
+      if (sub === "now") {
+        return runCompactNow(ctx, cfg)
       }
 
       if (sub === "tailturns" || sub === "turns") {
@@ -1982,7 +2034,7 @@ const commands: CommandDef[] = [
         return { type: "text", content: `✓ strategy set to ${s}` }
       }
 
-      return { type: "error", message: `Unknown subcommand. Try: tailturns <N>, strategy <s>` }
+      return { type: "error", message: `Unknown subcommand. Try: now, tailturns <N>, strategy <s>` }
     },
   },
 

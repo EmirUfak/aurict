@@ -34,6 +34,10 @@ export interface CommandContext {
   model:            string
   effort?:          number
   workdir:          string
+  /** Canlı core konuşma geçmişi (CoreMessage[]). /compact now gibi komutların
+   *  kaliteyi düşürmeden gerçek compaction yapabilmesi için display mesajları
+   *  yerine bu kullanılır. */
+  history:          CoreMessage[]
   skills:           string[]
   currentTheme:     string
   isUndercover:     boolean
@@ -95,4 +99,4 @@ export interface CommandContext {
   stopRemoteSession:  () => void
   remoteConnected:    boolean
 }
-import type { ContextUsage } from "@aurict/core"
+import type { ContextUsage, CoreMessage } from "@aurict/core"

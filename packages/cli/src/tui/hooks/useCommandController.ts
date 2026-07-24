@@ -27,6 +27,7 @@ export function useCommandController(params: AppCommandParams) {
     model: params.model,
     workdir: params.workdir,
     ...(params.effort !== undefined ? { effort: params.effort } : {}),
+    history: params.history,
     skills: params.skillNames,
     currentTheme: params.themeName,
     isUndercover: params.isUndercover,

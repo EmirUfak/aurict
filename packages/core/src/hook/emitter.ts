@@ -2,6 +2,37 @@ import type { HookName, HookPayloads } from "./types.js"
 
 export type HookOutcome = "success" | "error" | "timeout" | "cancelled"
 
+/**
+ * Bir hook handler promise'ini katı bir timeout'a karşı yarıştırır. Süre dolarsa
+ * veya handler hata fırlatırsa `undefined` döner (handler atlanır) — çağıran chain'e
+ * önceki payload ile devam eder. Hook'lar asla agent akışını koesmemeli.
+ */
+function raceHookWithTimeout<T>(
+  promise:  Promise<T>,
+  timeoutMs: number,
+  name:     string,
+): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (value: T | undefined) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const timer = setTimeout(() => {
+      console.warn(`[aurict] hook '${name}' timed out after ${timeoutMs}ms — skipped`)
+      finish(undefined)
+    }, timeoutMs)
+    promise
+      .then((value) => finish(value))
+      .catch((error) => {
+        console.warn(`[aurict] hook '${name}' failed — skipped`, error)
+        finish(undefined)
+      })
+  })
+}
+
 export type HookHandler<N extends HookName> = (
   payload: HookPayloads[N],
 ) => HookPayloads[N] | Promise<HookPayloads[N]>
@@ -72,11 +103,29 @@ class HookEmitter {
     }
   }
 
-  async emit<N extends HookName>(name: N, payload: HookPayloads[N]): Promise<HookPayloads[N]> {
+  async emit<N extends HookName>(
+    name: N,
+    payload: HookPayloads[N],
+    opts: { timeoutMs?: number } = {},
+  ): Promise<HookPayloads[N]> {
     const list = this.handlers.get(name) ?? []
     let current: HookPayloads[N] = payload
     for (const { handler } of list) {
-      current = await handler(current) as HookPayloads[N]
+      if (!opts.timeoutMs) {
+        // Varsayılan davranış: handler'ı düz await et (geriye uyumlu).
+        current = await handler(current) as HookPayloads[N]
+        continue
+      }
+      // Süre-sınırlı mod: bir handler asılı kalırsaCompaction kritik
+      // yolunu bloklamasın — zaman aşımında logla ve o handler'ı atla,
+      // chain'e önceki `current` ile devam et. Hook'lar observability amaçlıdır,
+      // asla agent akışını kesmemeli (outcome handler'larla aynı felsefe).
+      const raced = await raceHookWithTimeout(
+        Promise.resolve().then(() => handler(current)),
+        opts.timeoutMs,
+        String(name),
+      )
+      if (raced !== undefined) current = raced as HookPayloads[N]
     }
     return current
   }

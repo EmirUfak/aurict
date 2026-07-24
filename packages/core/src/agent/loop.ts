@@ -209,6 +209,9 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     workdir,
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(msgThreshold !== undefined ? { messageCountThreshold: msgThreshold } : {}),
+    // Faz A: ESC/iptal compaction'a kadar yayılır; compaction 120s'lik katı
+    // toplam timeout'a tabidir (kalite düşürülmez — yalnızca sonsuz asılmayı engeller).
+    ...(opts.signal ? { signal: opts.signal } : {}),
   }
   const baseContextUsageInput = {
     providerId: providerName,
@@ -235,6 +238,12 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
   }
   messages = microCompactOldToolResults(messages, compCfgFull)
 
+  // Faz D: bu turn'de compaction oldu mu? True ise turn sonundaki per-turn
+  // memory extraction atlanır — compaction öncesi extractAndStoreMemories zaten
+  // kaybolacak bellekleri çekip kaydetti; per-turn extraction duplicate iş ve
+  // utility model rate-limit'i compaction ile yarıştırır.
+  let didCompactThisTurn = false
+
   const exceedsHistoryLimit = isOverflow(messages, compCfgFull)
   const exceedsMessageLimit = isOverflowByMessages(messages, compCfgFull)
   if (exceedsHistoryLimit || exceedsMessageLimit) {
@@ -242,8 +251,10 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     extractAndStoreMemories(providerName, modelId, messages, workdir, utilityModel)
       .catch(() => metrics.recordError("memory_extract"))
     const before = measureContextUsage(messages, baseContextUsageInput)
+    opts.onPhase?.("compacting")
     const compacted = await compact(messages, compCfgFull)
     messages  = compacted
+    didCompactThisTurn = true
     reportCompaction(exceedsHistoryLimit ? "history_limit" : "message_limit", before, measureContextUsage(messages, baseContextUsageInput))
   }
 
@@ -473,8 +484,10 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
       ...compCfgFull,
       contextLimit: compCfgFull.contextLimit - contextReserve,
     }
+    opts.onPhase?.("compacting")
     const compacted = await compact(messages, effectiveCompactionConfig)
     messages = compacted
+    didCompactThisTurn = true
     reportCompaction("effective_context_limit", effectiveContextUsage, measureContextUsage(messages, contextUsageInput))
   }
 
@@ -581,6 +594,7 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
         if (reserve >= fallbackUsage.compactionThreshold) {
           throw new Error(`Fallback model '${attemptModelId}' cannot fit the active system prompt and tool schemas.`)
         }
+        opts.onPhase?.("compacting")
         attemptConversationMessages = await compact(attemptConversationMessages, {
           contextLimit: attemptModelInfo.contextWindow - reserve,
           maxOutput: attemptModelInfo.maxOutput,
@@ -590,7 +604,9 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
           model: attemptModelId,
           workdir,
           ...(sessionId !== undefined ? { sessionId } : {}),
+          ...(opts.signal ? { signal: opts.signal } : {}),
         })
+        didCompactThisTurn = true
       }
     }
     let attemptMessages: CoreMessage[] = attemptConversationMessages
@@ -1124,8 +1140,11 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
 
   // ─── Faz 3: Per-turn memory extraction ──────────────────────────────────────
   // Her turn sonunda memory extraction yap (fire-and-forget)
-  // Compaction'dan daha sık çalışır, sadece son birkaç mesaja bakar
-  if (fullText && messages.length >= 2) {
+  // Compaction'dan daha sık çalışır, sadece son birkaç mesaja bakar.
+  // Faz D: bu turn compaction yaptıysa atla — compaction öncesi
+  // extractAndStoreMemories zaten kaybolacak bellekleri çekip kaydetti;
+  // per-turn extraction duplicate iş + utility model rate-limit çekişmesi.
+  if (fullText && messages.length >= 2 && !didCompactThisTurn) {
     extractPerTurnMemories(
       usedProviderName,
       usedModelId,
