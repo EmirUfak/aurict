@@ -88,7 +88,7 @@ export function assertTargetAllowed(target: SecurityTarget, config: OmniConfig |
   }
 }
 
-export async function runSecurityRecon(targetInput: string, config: OmniConfig): Promise<SecurityRunResult> {
+export async function runSecurityRecon(targetInput: string, config: OmniConfig, signal?: AbortSignal): Promise<SecurityRunResult> {
   const target = parseSecurityTarget(targetInput)
   assertTargetAllowed(target, config)
   return securityPolicyManager.run({
@@ -96,6 +96,7 @@ export async function runSecurityRecon(targetInput: string, config: OmniConfig):
     target,
     config,
     workdir: process.cwd(),
+    ...(signal ? { signal } : {}),
     fn: async () => {
       const profile = resolveSecuritySandboxConfig(config).profile
       const checks: SecurityFinding[] = []
@@ -112,7 +113,7 @@ export async function runSecurityRecon(targetInput: string, config: OmniConfig):
       })
 
       const url = target.url ?? new URL(`https://${target.host}`)
-      const headers = await fetchHeaders(url).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }))
+      const headers = await fetchHeaders(url, signal).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }))
       artifacts["http"] = headers
       checks.push({
         id: "http-reachability",
@@ -124,7 +125,7 @@ export async function runSecurityRecon(targetInput: string, config: OmniConfig):
       })
 
       if ((target.url?.protocol ?? "https:") === "https:") {
-        const tls = await inspectTls(target.host, target.port ?? 443).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }))
+        const tls = await inspectTls(target.host, target.port ?? 443, signal).catch((err) => ({ error: err instanceof Error ? err.message : String(err) }))
         artifacts["tls"] = tls
         checks.push({
           id: "tls-certificate",
@@ -140,7 +141,7 @@ export async function runSecurityRecon(targetInput: string, config: OmniConfig):
   })
 }
 
-export async function runWebBaselineScan(targetInput: string, config: OmniConfig): Promise<SecurityRunResult> {
+export async function runWebBaselineScan(targetInput: string, config: OmniConfig, signal?: AbortSignal): Promise<SecurityRunResult> {
   const target = parseSecurityTarget(targetInput)
   assertTargetAllowed(target, config)
   return securityPolicyManager.run({
@@ -148,10 +149,11 @@ export async function runWebBaselineScan(targetInput: string, config: OmniConfig
     target,
     config,
     workdir: process.cwd(),
+    ...(signal ? { signal } : {}),
     fn: async () => {
       const profile = resolveSecuritySandboxConfig(config).profile
       const url = target.url ?? new URL(`https://${target.host}`)
-      const headersResult = await fetchHeaders(url)
+      const headersResult = await fetchHeaders(url, signal)
       const headers = normalizeHeaders(headersResult.headers)
       const checks: SecurityFinding[] = []
 
@@ -309,7 +311,7 @@ function formatDnsSummary(dns: Awaited<ReturnType<typeof collectDns>>): string {
   return `${parts.join(", ")} record(s).`
 }
 
-async function fetchHeaders(url: URL): Promise<{ status: number; statusText: string; headers: Record<string, string>; finalUrl: string }> {
+async function fetchHeaders(url: URL, parentSignal?: AbortSignal): Promise<{ status: number; statusText: string; headers: Record<string, string>; finalUrl: string }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 15_000)
   try {
@@ -317,7 +319,7 @@ async function fetchHeaders(url: URL): Promise<{ status: number; statusText: str
       method: "HEAD",
       redirect: "follow",
       headers: { "User-Agent": "Aurict-Security/0.1" },
-      signal: controller.signal,
+      signal: parentSignal ? AbortSignal.any([controller.signal, parentSignal]) : controller.signal,
     })
     const headers: Record<string, string> = {}
     res.headers.forEach((value, key) => { headers[key] = value })
@@ -327,7 +329,7 @@ async function fetchHeaders(url: URL): Promise<{ status: number; statusText: str
   }
 }
 
-function inspectTls(host: string, port: number): Promise<{ subject: string; issuer: string; validFrom: string; validTo: string; fingerprint256?: string }> {
+function inspectTls(host: string, port: number, parentSignal?: AbortSignal): Promise<{ subject: string; issuer: string; validFrom: string; validTo: string; fingerprint256?: string }> {
   return new Promise((resolve, reject) => {
     const socket = tlsConnect({ host, port, servername: host, rejectUnauthorized: false, timeout: 10_000 }, () => {
       const cert = socket.getPeerCertificate()
@@ -349,6 +351,12 @@ function inspectTls(host: string, port: number): Promise<{ subject: string; issu
       reject(new Error("TLS connection timed out"))
     })
     socket.on("error", reject)
+    const onAbort = () => {
+      socket.destroy()
+      reject(parentSignal?.reason ?? new Error("TLS inspection aborted"))
+    }
+    if (parentSignal?.aborted) onAbort()
+    else parentSignal?.addEventListener("abort", onAbort, { once: true })
   })
 }
 

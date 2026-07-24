@@ -48,7 +48,7 @@ import type { ToolOutcome } from "../runtime/contracts.js"
 import { taskManager } from "../task/manager.js"
 import { selectTools } from "../tool/capability-router.js"
 import { adaptedToolResultArtifact, adaptedToolResultPresentation, buildAITools as buildRoutedAITools, formatAdaptedToolResult, listEligibleAIToolIds } from "./tool-adapter.js"
-import { withRetry as runWithRetry } from "./provider-errors.js"
+import { withRetry as runWithRetry, parseProviderError } from "./provider-errors.js"
 import { buildTaskContext } from "../context/builder.js"
 import { createFirstResponseDeadline } from "./first-response-deadline.js"
 import { appendAnthropicDynamicContext, buildPromptCacheLayout, withAnthropicHistoryBreakpoint } from "./prompt-cache-layout.js"
@@ -67,6 +67,7 @@ import { isAgentFeatureEnabled } from "./runtime-features.js"
 export { withRetry, parseProviderError } from "./provider-errors.js"
 
 const PROVIDER_FIRST_RESPONSE_TIMEOUT_MS = 45_000
+const PROVIDER_IDLE_RESPONSE_TIMEOUT_MS = 240_000
 
 async function runAgentEngine(opts: AgentRunOptions): Promise<AgentFinishResult> {
   const workdir = opts.workdir ?? process.cwd()
@@ -657,6 +658,7 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     const responseDeadline = createFirstResponseDeadline({
       enabled: useStreamAttempt,
       timeoutMs: PROVIDER_FIRST_RESPONSE_TIMEOUT_MS,
+      idleTimeoutMs: PROVIDER_IDLE_RESPONSE_TIMEOUT_MS,
       ...(opts.signal ? { parentSignal: opts.signal } : {}),
     })
     opts.onPhase?.("waiting_for_provider")
@@ -672,6 +674,18 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
         const thinkOpts = attemptPlugin.buildThinkingOptions(attemptModelId, effectiveEffort)
         return thinkOpts ? { providerOptions: thinkOpts } : {}
       })() : {})
+    }
+    if (sessionId) {
+      recordRunTrace(workdir, sessionId, "provider_request", {
+        provider: attemptProviderId,
+        model: attemptModelId,
+        streaming: useStreamAttempt,
+        toolIds: Object.keys(attemptAiTools),
+        toolCount: Object.keys(attemptAiTools).length,
+        systemChars: attemptSystem.length,
+        messageCount: attemptMessages.length,
+        estimatedContextTokens: effectiveContextUsage.effectiveTokens,
+      }).catch(() => metrics.recordError("provider_request_trace"))
     }
 
     // Calibrate only against single-step/no-tool requests below. Tool-driven
@@ -885,18 +899,30 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
   const fallbackEnabled = !!(cfg.fallback?.enabled && (cfg.fallback.providers?.length ?? 0) > 0)
 
   let attemptResult: AttemptResult
-  if (fallbackEnabled) {
-    const { result, provider: resolvedProvider, switchedFrom } =
-      await fallbackRuntime.execute(providerName, (attemptPlugin) => runOneAttempt(attemptPlugin.id))
-    attemptResult = result
-    if (switchedFrom) {
-      opts.onProviderFallback?.(switchedFrom, resolvedProvider, {
-        fromModel: modelId,
-        toModel: attemptResult.modelId,
-      })
+  try {
+    if (fallbackEnabled) {
+      const { result, provider: resolvedProvider, switchedFrom } =
+        await fallbackRuntime.execute(providerName, (attemptPlugin) => runOneAttempt(attemptPlugin.id))
+      attemptResult = result
+      if (switchedFrom) {
+        opts.onProviderFallback?.(switchedFrom, resolvedProvider, {
+          fromModel: modelId,
+          toModel: attemptResult.modelId,
+        })
+      }
+    } else {
+      attemptResult = await runWithRetry(() => runOneAttempt(providerName))
     }
-  } else {
-    attemptResult = await runWithRetry(() => runOneAttempt(providerName))
+  } catch (error) {
+    if (sessionId) {
+      recordRunTrace(workdir, sessionId, "provider_error", {
+        provider: providerName,
+        model: modelId,
+        diagnostic: parseProviderError(error),
+        selectedToolIds,
+      }).catch(() => metrics.recordError("provider_error_trace"))
+    }
+    throw error
   }
 
   const { fullText, breakdown, finishReason, newMessages, turnStatus, providerId: usedProviderName, modelId: usedModelId } = attemptResult

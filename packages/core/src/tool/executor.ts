@@ -24,6 +24,7 @@ import { schedulePostEditTsc } from "../verification/post-edit-scheduler.js";
 import { isAgentFeatureEnabled } from "../agent/runtime-features.js";
 import { runLanguageChecks } from "../verification/language-runners.js";
 import { loadConfig } from "../config/config.js";
+import { grantExternalFilesystemPath, hasExternalFilesystemGrant, isOutsideWorkspace } from "../security/filesystem-grants.js";
 import { progressTracker, getToolProgressMessage } from "../util/progress.js";
 import { prefetchManager, extractPrefetchHints } from "../util/prefetch.js";
 import {
@@ -124,6 +125,39 @@ export async function executeTool(
     return { output: "", error: `[${def.id}] invalid args: ${issues}` };
   }
   const args: Record<string, unknown> = parseResult.data;
+  const externalFilesystemPath = filesystemPathForTool(def.id, args);
+  if (externalFilesystemPath && isOutsideWorkspace(ctx.workdir, externalFilesystemPath) && !hasExternalFilesystemGrant(ctx.workdir, ctx.sessionId, externalFilesystemPath)) {
+    if (ctx.isSubagent) {
+      return { output: "", error: `External filesystem access for '${externalFilesystemPath}' requires direct user approval and cannot be auto-approved for a subagent.` };
+    }
+    const id = crypto.randomUUID();
+    ExecutorEvents.emit({
+      type: "permission_ask",
+      request: {
+        id,
+        tool: def.id,
+        pattern: externalFilesystemPath,
+        level: "warning",
+        reason: "This file is outside the working directory. Grant access only if you trust this path.",
+        summary: "Access a file outside the working directory",
+        permissionSummary: "Access a file outside the working directory",
+      },
+    });
+    const response = await waitForPermission(id, ctx);
+    if (response.decision === "deny") {
+      return { output: "", error: `External filesystem access denied by user: ${externalFilesystemPath}` };
+    }
+    try {
+      grantExternalFilesystemPath(
+        ctx.workdir,
+        ctx.sessionId,
+        externalFilesystemPath,
+        response.decision === "allow_directory" ? "directory" : "path",
+      );
+    } catch (error) {
+      return { output: "", error: `External filesystem access denied: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  }
   const skillPolicyDecision = isToolAllowedByActiveSkillPolicy(
     ctx.sessionId,
     def.id,
@@ -1085,6 +1119,12 @@ function isDestructiveOutsideWorkdir(
 
 function usesShellFileReader(command: string): boolean {
   return /(?:^|[;&|]\s*)(?:(?:command|env|time)\s+)*(?:cat|head|tail|less|more|grep|rg)\b/.test(command)
+}
+
+function filesystemPathForTool(toolId: string, args: Record<string, unknown>): string | undefined {
+  if (!["read", "write", "edit", "read_image", "grep", "glob"].includes(toolId)) return undefined;
+  const path = toolId === "glob" ? args["cwd"] : args["path"];
+  return typeof path === "string" && path ? path : undefined;
 }
 
 function verificationPathsForSession(ctx: ToolContext, args: Record<string, unknown>): string[] {

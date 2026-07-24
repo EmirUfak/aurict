@@ -215,9 +215,22 @@ export class ConcurrencyLimiter {
   /**
    * Task'ı çalıştır — slot varsa hemen, yoksa queue'ya ekle.
    */
-  async run<T>(fn: () => Promise<T>): Promise<T> {
+  async run<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     if (this.running >= this.maxConcurrent) {
-      await new Promise<void>(resolve => this.queue.push(resolve))
+      await new Promise<void>((resolve, reject) => {
+        const queued = () => {
+          signal?.removeEventListener("abort", onAbort)
+          resolve()
+        }
+        const onAbort = () => {
+          const index = this.queue.indexOf(queued)
+          if (index >= 0) this.queue.splice(index, 1)
+          reject(signal?.reason ?? new Error("Concurrency queue wait aborted"))
+        }
+        if (signal?.aborted) return onAbort()
+        signal?.addEventListener("abort", onAbort, { once: true })
+        this.queue.push(queued)
+      })
     }
 
     this.running++

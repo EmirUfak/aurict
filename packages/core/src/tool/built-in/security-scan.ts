@@ -33,13 +33,14 @@ HTTP metadata collection. Docker-backed scan types run only through fixed comman
     securityCapability: "active",
     permissionSummary: "Controlled baseline security scan against an allowlisted target",
   },
+  timeoutMs: 200_000,
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
     const target = String(args["target"] ?? "")
     const scanType = String(args["scan_type"] ?? "web_baseline")
     try {
       const config = loadConfig(ctx.workdir)
       if (scanType === "web_baseline") {
-        const result = await runWebBaselineScan(target, config)
+        const result = await runWebBaselineScan(target, config, ctx.signal)
         const security = distillSecurityRunResult(result, "web_baseline")
         return {
           output: formatSecurityDistillationForModel(security),

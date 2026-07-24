@@ -103,6 +103,7 @@ export async function runSecurityDockerTool(req: SecurityDockerRunRequest): Prom
     target,
     config: req.config,
     workdir: req.workdir,
+    signal: req.signal,
     fn: async () => {
       const security = resolveSecuritySandboxConfig(req.config)
       const image = security.image

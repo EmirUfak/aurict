@@ -80,8 +80,9 @@ export async function startPolicySandboxedProcess(
   args: string[],
   workdir: string,
   env?: Record<string, string>,
+  processOptions?: { ownerSessionId?: string },
 ) {
-  return ptyManager.create(command, args, workdir, policyEnv(env), { inheritEnv: false })
+  return ptyManager.create(command, args, workdir, policyEnv(env), { inheritEnv: false, ...processOptions })
 }
 
 /**
@@ -93,7 +94,8 @@ export async function startDockerSandboxedProcess(
   args: string[],
   workdir: string,
   env?: Record<string, string>,
-  config?: SandboxConfig
+  config?: SandboxConfig,
+  processOptions?: { ownerSessionId?: string },
 ) {
   const image = config?.image || "node:20-slim"
   const netFlag = config?.network === false ? "--network=none" : ""
@@ -124,7 +126,7 @@ export async function startDockerSandboxedProcess(
   dockerArgs.push(command, ...args)
 
   // Bunu normal ptyManager üzerinden Docker çalıştıracak şekilde sarmalıyoruz
-  return ptyManager.create("docker", dockerArgs, workdir, {})
+  return ptyManager.create("docker", dockerArgs, workdir, {}, processOptions)
 }
 
 export const startSandboxedProcess = startDockerSandboxedProcess

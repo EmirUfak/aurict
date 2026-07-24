@@ -167,6 +167,7 @@ class SecurityPolicyManager {
     config: OmniConfig
     workdir: string
     fn: () => Promise<T>
+    signal?: AbortSignal
   }): Promise<T> {
     const security = this.assertActionAllowed(opts.action, opts.target, opts.config)
     const policy = SECURITY_ACTION_POLICIES[opts.action]
@@ -246,7 +247,7 @@ class SecurityPolicyManager {
         })
         throw err
       }
-    })
+    }, opts.signal)
   }
 
   assertActionAllowed(action: SecurityAction, target: SecurityTarget, config: OmniConfig): ResolvedSecuritySandboxConfig {

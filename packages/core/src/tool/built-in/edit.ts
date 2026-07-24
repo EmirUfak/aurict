@@ -3,7 +3,7 @@ import { readFile, stat, writeFile } from "fs/promises"
 import { resolve, relative } from "path"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 import { snapshotManager } from "../../snapshot/snapshot.js"
-import { resolveWithinWorkspace } from "../../security/path-boundary.js"
+import { resolveAuthorizedFilesystemPath } from "../../security/filesystem-grants.js"
 import { createUnifiedFileDiff } from "../file-diff.js"
 
 const MAX_EDIT_FILE_BYTES = 5_000_000
@@ -43,7 +43,7 @@ export const editTool: ToolDef = {
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
     let filePath: string
     try {
-      filePath = await resolveWithinWorkspace(ctx.workdir, String(args["path"] ?? ""))
+      filePath = await resolveAuthorizedFilesystemPath(ctx.workdir, ctx.sessionId, String(args["path"] ?? ""))
     } catch (error) {
       return { output: "", error: `Security: ${error instanceof Error ? error.message : String(error)}` }
     }

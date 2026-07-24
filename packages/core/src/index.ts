@@ -224,6 +224,21 @@ export { readDecisions }      from "./project-context/decisions.js"
 export { diagnosticsStore }   from "./diagnostics/store.js"
 export type { DiagnosticsEntry } from "./diagnostics/store.js"
 
+// CodeGraph — semantic graph extractor (LLM-free)
+export {
+  loadGraphData,
+  loadGraphSummary,
+  loadGraphForViewer,
+  isGraphReady,
+  CODEGRAPH_DB_PATH,
+  type GraphJson,
+  type GraphNode,
+  type GraphEdge,
+  type GraphSummary,
+  type NodeKind,
+  type EdgeKind,
+} from "./project-context/semantic-graph.js"
+
 // ── Recipe system ──────────────────────────────────────────────────────────────
 export { runRecipe, parseRecipeFile }    from "./recipe/runner.js"
 export type { RecipeDef, RecipeStep, RecipeRunOptions, RecipeRunResult } from "./recipe/types.js"

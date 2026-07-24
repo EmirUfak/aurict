@@ -3,7 +3,7 @@ import { writeFile, mkdir, readFile } from "fs/promises"
 import { resolve, dirname, relative } from "path"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 import { snapshotManager } from "../../snapshot/snapshot.js"
-import { resolveWithinWorkspace } from "../../security/path-boundary.js"
+import { resolveAuthorizedFilesystemPath } from "../../security/filesystem-grants.js"
 import { createUnifiedFileDiff } from "../file-diff.js"
 
 async function takeSnapshotBestEffort(filePath: string, scope: string): Promise<void> {
@@ -28,7 +28,7 @@ export const writeTool: ToolDef = {
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
     let filePath: string
     try {
-      filePath = await resolveWithinWorkspace(ctx.workdir, String(args["path"] ?? ""), { allowMissing: true })
+      filePath = await resolveAuthorizedFilesystemPath(ctx.workdir, ctx.sessionId, String(args["path"] ?? ""), { allowMissing: true })
     } catch (error) {
       return { output: "", error: `Security: ${error instanceof Error ? error.message : String(error)}` }
     }

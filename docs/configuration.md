@@ -310,7 +310,9 @@ Aurict runs Docker-backed scans with restrictive Docker flags: `--cap-drop=ALL`,
 `--security-opt=no-new-privileges`, `--read-only`, resource limits, a read-only
 workspace mount, and a scoped `.aurict/security/runs/<run-id>/` output mount.
 The runner enforces target allowlists, per-target rate limits, and profile
-concurrency limits before starting Docker.
+concurrency limits before starting Docker. Queued scans observe cancellation,
+and baseline/Docker scans share the tool abort signal so a cancelled or timed-out
+security run does not later start from the queue.
 
 ---
 

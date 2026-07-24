@@ -2,6 +2,7 @@ import { z }                      from "zod"
 import { resolve, join, relative } from "path"
 import { readdir }                 from "node:fs/promises"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
+import { resolveAuthorizedFilesystemPath } from "../../security/filesystem-grants.js"
 
 const MAX_FILES  = 2_000
 const TIMEOUT_MS = 15_000
@@ -66,7 +67,12 @@ export const globTool: ToolDef = {
   }),
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
     const pattern   = String(args["pattern"] ?? "**/*")
-    const searchDir = resolve(ctx.workdir, String(args["cwd"] ?? "."))
+    let searchDir: string
+    try {
+      searchDir = await resolveAuthorizedFilesystemPath(ctx.workdir, ctx.sessionId, String(args["cwd"] ?? "."))
+    } catch (error) {
+      return { output: "", error: `Security: ${error instanceof Error ? error.message : String(error)}` }
+    }
 
     // Start walking from the deepest non-glob prefix directory for speed.
     const base    = staticBase(pattern)

@@ -13,6 +13,7 @@ export interface FirstResponseDeadline {
 export function createFirstResponseDeadline(options: {
   enabled: boolean
   timeoutMs: number
+  idleTimeoutMs?: number
   parentSignal?: AbortSignal
 }): FirstResponseDeadline {
   if (!options.enabled) {
@@ -27,22 +28,35 @@ export function createFirstResponseDeadline(options: {
 
   const controller = new AbortController()
   let armed = true
-  const timer = setTimeout(() => {
-    armed = false
-    controller.abort(new Error("Provider did not start responding in time."))
-  }, options.timeoutMs)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const arm = (timeoutMs: number, message: string) => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      armed = false
+      controller.abort(new Error(message))
+    }, timeoutMs)
+  }
+  arm(options.timeoutMs, "Provider did not start responding in time.")
   const signal = options.parentSignal
     ? AbortSignal.any([options.parentSignal, controller.signal])
     : controller.signal
   const disarm = () => {
     if (!armed) return
     armed = false
-    clearTimeout(timer)
+    if (timer) clearTimeout(timer)
   }
 
   return {
     signal,
-    markResponse: disarm,
+    markResponse: () => {
+      if (!armed) return
+      const idleTimeoutMs = options.idleTimeoutMs
+      if (idleTimeoutMs && idleTimeoutMs > 0) {
+        arm(idleTimeoutMs, "Provider stopped making progress before the response completed.")
+      } else {
+        disarm()
+      }
+    },
     dispose: disarm,
     isArmed: () => armed,
   }

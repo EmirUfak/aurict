@@ -8,6 +8,7 @@ import type { CommandDef, CommandResult, PickerItem } from "./types.js"
 import { CURRENT_VERSION } from "../util/update-check.js"
 import { proofCommands } from "./proof-commands.js"
 import { flightCommands } from "./flight-commands.js"
+import { visualCommands } from "./visual-commands.js"
 
 function formatRelativeTime(ts: number): string {
   const delta = Math.max(0, Date.now() - ts)
@@ -229,7 +230,7 @@ const commands: CommandDef[] = [
         "Session & History":   ["status", "history", "diffs", "session", "sessions", "clear", "fork", "branch", "undo", "rewind", "replay", "checkpoints", "proof", "flight"],
         "Agents & AI":         ["agent", "agents", "coordinator", "autopilot", "undercover", "background", "btw"],
         "Context & Memory":    ["pin", "memory", "ctx", "trace", "compact", "worktree"],
-        "Tools & Integration": ["commit", "watch", "unwatch", "mcp", "security", "skill", "plugin", "editor", "template", "protect", "unprotect", "design", "adr", "diag", "skill-scores"],
+        "Tools & Integration": ["commit", "watch", "unwatch", "mcp", "security", "skill", "plugin", "editor", "template", "protect", "unprotect", "design", "adr", "diag", "skill-scores", "visual"],
         "Info & Misc":         ["help", "cost", "export", "share", "stash", "crashes", "exit", "pet", "name", "companion"],
       }
       const cmdMap = new Map(commands.map(c => [c.name, c]))
@@ -249,6 +250,7 @@ const commands: CommandDef[] = [
 
   ...proofCommands,
   ...flightCommands,
+  ...visualCommands,
 
   // ── /models ───────────────────────────────────────────────────────────────
   {

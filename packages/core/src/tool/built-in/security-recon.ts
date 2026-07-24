@@ -22,11 +22,12 @@ exploit payloads, brute force, or port sweeps.`,
     securityCapability: "active",
     permissionSummary: "Controlled security reconnaissance against an allowlisted target",
   },
+  timeoutMs: 200_000,
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
     const target = String(args["target"] ?? "")
     try {
       const config = loadConfig(ctx.workdir)
-      const result = await runSecurityRecon(target, config)
+      const result = await runSecurityRecon(target, config, ctx.signal)
       if (args["include_ports"] === true) {
         const portResult = await runSecurityDockerTool({
           action: "nmap_top",

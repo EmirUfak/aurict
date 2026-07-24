@@ -21,4 +21,11 @@ describe("first response deadline", () => {
     await Bun.sleep(10)
     expect(deadline.signal.aborted).toBe(false)
   })
+
+  it("aborts a response that starts but then stops making progress", async () => {
+    const deadline = createFirstResponseDeadline({ enabled: true, timeoutMs: 20, idleTimeoutMs: 5 })
+    deadline.markResponse()
+    await Bun.sleep(10)
+    expect(deadline.signal.aborted).toBe(true)
+  })
 })
