@@ -62,16 +62,15 @@ export function MultilineInput({ value, onChange, onSubmit, onQueue, disabled, h
     }
   }, [lines])
 
-  // Update the input box's absolute on-screen bounds when content changes.
-  // Mouse click/release events need absolute terminal coordinates; we only
-  // need to re-measure when lines or cursor change (i.e. the box may have
-  // resized or repositioned), not on every Ink render tick.
+  // Update the input box's absolute on-screen bounds after every render
+  // — needed so click/release events (absolute terminal coordinates from
+  // mouse.ts) can be converted to a local row/col.
   useLayoutEffect(() => {
     if (!boxRef.current) return
     const pos  = measureAbsolutePosition(boxRef.current)
     const size = measureElement(boxRef.current)
     boundsRef.current = { row: pos.row, col: pos.col, width: size.width, height: size.height }
-  }, [lines, cursor]) // eslint-disable-line react-hooks/exhaustive-deps
+  })
 
   useMouseEvents((e) => {
     if (disabled) return
