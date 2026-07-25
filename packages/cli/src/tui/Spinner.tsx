@@ -4,8 +4,6 @@ import { useTheme } from "../utils/theme.js"
 import { motionEnabled } from "./design-system/motion.js"
 
 const FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
-const FRAME_MS = 120
-
 const GLIMMER_MS = 60
 
 const VERBS: Record<string, string> = {
@@ -68,25 +66,29 @@ interface Props {
 export const Spinner = memo(function Spinner({ activeTool }: Props) {
   const theme = useTheme()
 
-  const [frame,   setFrame]   = useState(0)
-  const [glimmer, setGlimmer] = useState(0)
-  const [elapsed, setElapsed] = useState(0)
+  // Single combined tick state: frame counter increments every GLIMMER_MS (the
+  // shortest interval). Derived values are computed during render — no extra
+  // setState calls per tick, so Ink only redraws once per tick instead of 3×.
+  const [tick, setTick] = useState(0)
+  const startRef        = useRef(Date.now())
+  const verbLenRef      = useRef(0)
 
-  const startRef  = useRef(Date.now())
   const verbLabel = activeTool ? (VERBS[activeTool] ?? "Working") : "Thinking"
+  verbLenRef.current = verbLabel.length
+
+  // Derive per-render values from the single tick counter
+  const frame   = Math.floor(tick / 2) % FRAMES.length                    // updates every ~120ms
+  const glimmer = tick % (verbLenRef.current + 4)                          // updates every ~60ms
+  const elapsed = Date.now() - startRef.current
 
   useEffect(() => {
     startRef.current = Date.now()
-    setElapsed(0)
+    setTick(0)
     const canMove = motionEnabled()
-    const frameTimer   = canMove ? setInterval(() => setFrame(f => (f + 1) % FRAMES.length), FRAME_MS) : null
-    const glimmerTimer = canMove ? setInterval(() => setGlimmer(g => (g + 1) % (verbLabel.length + 4)), GLIMMER_MS) : null
-    const elapsedTimer = setInterval(() => setElapsed(Date.now() - startRef.current), 500)
-    return () => {
-      if (frameTimer)   clearInterval(frameTimer)
-      if (glimmerTimer) clearInterval(glimmerTimer)
-      clearInterval(elapsedTimer)
-    }
+    // One timer at the finest granularity (GLIMMER_MS = 60ms).
+    // Elapsed is read from Date.now() on each render — no separate 500ms timer needed.
+    const timer = setInterval(() => setTick(n => n + 1), canMove ? GLIMMER_MS : 500)
+    return () => clearInterval(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTool])
 

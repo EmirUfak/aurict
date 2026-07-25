@@ -103,6 +103,10 @@ export function splitCoalescedKeys(chunk: string): string[] | null {
 }
 
 const pendingReads: string[] = []
+// Guard against unbounded growth: if a terminal or multiplexer (e.g. tmux on
+// Kali) floods the queue with coalesced escape sequences, real keystrokes
+// would never be reached. 64 items is far more than any legitimate burst.
+const PENDING_READS_MAX = 64
 const _origStdinRead = process.stdin.read.bind(process.stdin)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ;(process.stdin as any).read = (size?: number): unknown => {
@@ -119,7 +123,8 @@ const _origStdinRead = process.stdin.read.bind(process.stdin)
   if (!clean) return null
   const tokens = splitCoalescedKeys(clean)
   if (tokens) {
-    pendingReads.push(...tokens.slice(1))
+    const spare = PENDING_READS_MAX - pendingReads.length
+    if (spare > 1) pendingReads.push(...tokens.slice(1, spare))
     return tokens[0]!
   }
   return clean
@@ -131,7 +136,7 @@ const _origStdinRead = process.stdin.read.bind(process.stdin)
  * any handler in Ink 5's readable-mode consumption.)
  */
 export function injectInput(sequence: string): void {
-  pendingReads.push(sequence)
+  if (pendingReads.length < PENDING_READS_MAX) pendingReads.push(sequence)
   process.stdin.emit("readable")
 }
 
