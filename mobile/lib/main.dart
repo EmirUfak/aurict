@@ -26,6 +26,7 @@ import 'remote/mobile_remote_models.dart';
 import 'remote/mobile_remote_runtime.dart';
 
 import 'agent/mobile_artifact_index_store.dart';
+import 'ui/widgets/error_retry_widget.dart';
 
 void main() {
   runZonedGuarded(
@@ -1792,6 +1793,11 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
                           );
                         }
                         Widget buildBubble(_StreamingSnapshot? snapshot) {
+                          final effectiveError =
+                              snapshot?.error ?? message.error;
+                          final isLastAssistant =
+                              index == _messages.length - 1 &&
+                              message.role == ChatRole.assistant;
                           return AssistantBubble(
                             text: snapshot?.text ?? message.text,
                             events: message.events,
@@ -1802,7 +1808,10 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
                             onArtifactAction: _handleArtifactAction,
                             onReport: () => _showReportSheet(index, message),
                             status: snapshot?.status ?? message.status,
-                            error: snapshot?.error ?? message.error,
+                            error: effectiveError,
+                            onRetry: effectiveError != null && isLastAssistant
+                                ? () async => _retryLastResponse()
+                                : null,
                           );
                         }
 
@@ -4503,6 +4512,7 @@ class AssistantBubble extends StatefulWidget {
     this.onReport,
     this.status,
     this.error,
+    this.onRetry,
     super.key,
   });
 
@@ -4517,6 +4527,7 @@ class AssistantBubble extends StatefulWidget {
   final VoidCallback? onReport;
   final String? status;
   final String? error;
+  final Future<void> Function()? onRetry;
 
   @override
   State<AssistantBubble> createState() => _AssistantBubbleState();
@@ -4613,9 +4624,10 @@ class _AssistantBubbleState extends State<AssistantBubble> {
             ),
           if (widget.error != null) ...[
             const SizedBox(height: 10),
-            Text(
-              widget.error!,
-              style: TextStyle(color: tokens.danger, height: 1.4, fontSize: 13),
+            ErrorRetryWidget(
+              message: 'Yanıt tamamlanamadı. Lütfen tekrar deneyin.',
+              technicalDetail: widget.error,
+              onRetry: widget.onRetry,
             ),
           ],
           if (widget.streamTools.isNotEmpty) ...[
