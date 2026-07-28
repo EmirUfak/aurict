@@ -46,20 +46,32 @@ Actions:
 
     if (action === "stdin" || action === "output" || action === "kill") {
       const sid = String(args["sessionId"])
-      const session = ptyManager.get(sid)
-      if (!session) return { output: "", error: `Session not found: ${sid}` }
+      const liveSession = ptyManager.get(sid)
 
       if (action === "kill") {
+        if (!liveSession) return { output: "", error: `Session not found or already completed: ${sid}` }
         ptyManager.kill(sid)
         return { output: `Session ${sid} terminated.` }
       }
       if (action === "stdin") {
+        if (!liveSession) return { output: "", error: `Session not found or no longer running: ${sid}` }
         ptyManager.write(sid, String(args["input"]) + "\n")
         await new Promise(r => setTimeout(r, 500)) // give it time to process
+        const session = ptyManager.get(sid) ?? liveSession
         return { output: `Input sent. Current output:\n${session.outputBuffer}` }
       }
       if (action === "output") {
-        return { output: `Status: ${session.status}\nOutput:\n${session.outputBuffer}` }
+        const session = await ptyManager.readOutput(sid, ctx.workdir, ctx.sessionId)
+        if (!session) return { output: "", error: `Session not found: ${sid}` }
+        return {
+          output: [
+            `Status: ${session.status}`,
+            `Command: ${session.command} ${session.args.join(" ")}`.trim(),
+            `Working directory: ${session.cwd}`,
+            `Output (${session.outputChars} chars):`,
+            session.outputBuffer,
+          ].join("\n"),
+        }
       }
     }
 
@@ -73,11 +85,11 @@ Actions:
     let session
     try {
       if (sandbox.backend === "docker") {
-        session = await startDockerSandboxedProcess(sh.executable, [sh.flag, command], ctx.workdir, {})
+        session = await startDockerSandboxedProcess(sh.executable, [sh.flag, command], ctx.workdir, {}, undefined, { ownerSessionId: ctx.sessionId })
       } else if (sandbox.backend === "policy") {
-        session = await startPolicySandboxedProcess(sh.executable, [sh.flag, command], ctx.workdir, {})
+        session = await startPolicySandboxedProcess(sh.executable, [sh.flag, command], ctx.workdir, {}, { ownerSessionId: ctx.sessionId })
       } else {
-        session = await ptyManager.create(sh.executable, [sh.flag, command], ctx.workdir, {})
+        session = await ptyManager.create(sh.executable, [sh.flag, command], ctx.workdir, {}, { ownerSessionId: ctx.sessionId })
       }
     } catch (err) {
       return { output: "", error: `Failed to start process: ${err instanceof Error ? err.message : String(err)}` }

@@ -10,6 +10,7 @@ import type { AgentType } from "../agent/protocol.js"
 import type { PromptModuleId } from "../agent/system.js"
 import {
   dynamicPromptSection,
+  freshSessionPromptSection,
   joinPromptSections,
   resolvePromptSections,
   sessionPromptSection,
@@ -20,6 +21,7 @@ import { memoryStore } from "../memory/store.js"
 import { pinStore } from "../pin/store.js"
 import { readArchitecture } from "../project-context/architecture.js"
 import { readDecisions } from "../project-context/decisions.js"
+import { loadGraphSummary } from "../project-context/semantic-graph.js"
 import { diagnosticsStore } from "../diagnostics/store.js"
 import { loadConfig } from "../config/config.js"
 import { filterSkillDefsForSecurityCapability } from "../security/capability.js"
@@ -67,24 +69,21 @@ export async function buildSystemPromptSections(
   userText = "",
 ): Promise<ResolvedPromptSection[]> {
   const basePrompt = agentType !== undefined ? SUBAGENT_SYSTEM_PROMPT : MAIN_SYSTEM_PROMPT
-  const finalBase = [basePrompt, base].filter(Boolean).join("\n\n---\n\n")
-  const systemSection = base
-    ? dynamicPromptSection(`core_system:${agentType ?? "main"}:custom`, () => finalBase)
-    : staticPromptSection(`core_system:${agentType ?? "main"}`, () => finalBase)
-
-  // Order: project instructions → project context → core system → intent modules → pins → git → skills → memory
+  // Stable prefixes always precede turn-dependent content. Custom system text
+  // remains dynamic without sacrificing caching for the built-in core prompt.
   return resolvePromptSections([
+    staticPromptSection(`core_system:${agentType ?? "main"}`, () => basePrompt),
     sessionPromptSection("project_instructions", () => readProjectInstructions(projectDir)),
     sessionPromptSection("project_context", () => buildProjectContextSection(projectDir)),
-    systemSection,
-    dynamicPromptSection("intent_modules", () => buildPromptModuleSection(selectPromptModules(userText, agentType))),
-    dynamicPromptSection("pins", () => pinStore.toPromptSection(projectDir)),
-    dynamicPromptSection("git", () => includeGit ? buildGitSection(projectDir) : ""),
-    dynamicPromptSection("skills", async () => {
+    freshSessionPromptSection("pins", () => pinStore.toPromptSection(projectDir)),
+    freshSessionPromptSection("skills", async () => {
       const skills = await getSkillDefsForProject(projectDir)
       return skills.length > 0 ? buildSkillDefSection(skills) : ""
     }),
-    dynamicPromptSection("memory", () => buildMemorySection(projectDir)),
+    freshSessionPromptSection("memory", () => buildMemorySection(projectDir, userText)),
+    ...(base ? [dynamicPromptSection(`custom_system:${agentType ?? "main"}`, () => base)] : []),
+    dynamicPromptSection("intent_modules", () => buildPromptModuleSection(selectPromptModules(userText, agentType))),
+    dynamicPromptSection("git", () => includeGit ? buildGitSection(projectDir) : ""),
   ], projectDir)
 }
 
@@ -129,14 +128,62 @@ function buildProjectContextSection(workdir: string): string {
   const architecture  = readArchitecture(workdir)
   const decisions     = readDecisions(workdir)
   const diagnostics   = diagnosticsStore.toPromptSection(workdir)
+  const codegraph     = buildCodegraphSection(workdir)
 
-  const parts = [architecture, decisions, diagnostics].filter(Boolean)
+  const parts = [architecture, decisions, diagnostics, codegraph].filter(Boolean)
   if (parts.length === 0) return ""
 
   return [
     "# Project Context (.aurict/)",
     parts.join("\n\n"),
   ].join("\n\n")
+}
+
+/**
+ * Compact CodeGraph digest that primes the model with structural awareness
+ * even when the user never asks for a graph. Both this auto-fed digest and
+ * the interactive `/visual` 3D viewer share the same extractor
+ * (`project-context/semantic-graph.ts`), so what the model reads is what the
+ * user sees.
+ *
+ * Kept short (≈20 lines) so it never crowds skill/architecture context.
+ */
+function buildCodegraphSection(workdir: string): string {
+  let summary
+  try {
+    summary = loadGraphSummary(workdir)
+  } catch {
+    return ""  // DB read failed → silently skip, never block prompt build
+  }
+  if (!summary.ready) {
+    // Don't nag: once codegraph is set up elsewhere the section auto-appears.
+    return ""  // codegraph not initialized for this project — no graph yet
+  }
+
+  const hubLines = summary.hubs
+    .slice(0, 8)
+    .map((h) => `  - ${h.name} (${h.kind}, ${h.file}) — degree ${h.degree}`)
+    .join("\n")
+
+  const subsysLine = summary.bySubsystem
+    .slice(0, 5)
+    .map((s) => `${s.subsystem}=${s.count}`)
+    .join(", ")
+
+  const langLine = summary.byLanguage
+    .slice(0, 4)
+    .map((l) => `${l.lang}=${l.count}`)
+    .join(", ")
+
+  return [
+    `## CodeGraph — Semantic Index (auto-loaded)`,
+    `Indexed: ${summary.nodes} symbols, ${summary.edges} edges, ${summary.files} files.`,
+    `Languages: ${langLine}. Subsystems: ${subsysLine}.`,
+    `Run \`codegraph sync\` to refresh, or \`/visual\` to open the 3D viewer.`,
+    `When reasoning about dependencies, prefer \`codegraph_explore\` over grep.`,
+    `Top hubs (most-connected symbols — likely blast-radius influencers):`,
+    hubLines || `  (none)`,
+  ].filter(Boolean).join("\n")
 }
 
 /**
@@ -188,9 +235,9 @@ export function buildGitSection(workdir: string): string {
   } catch { return "" }
 }
 
-function buildMemorySection(workdir: string): string {
+function buildMemorySection(workdir: string, query: string): string {
   try {
-    const memories = memoryStore.getRelevant(workdir, 15, 600)
+    const memories = memoryStore.getRelevant(workdir, 15, 600, query)
     if (!memories.length) return ""
 
     const lines = memories.map((m) => `[${m.category}] ${m.content}`)
@@ -200,7 +247,10 @@ function buildMemorySection(workdir: string): string {
       "",
       ...lines,
     ].join("\n")
-  } catch { return "" }
+  } catch (error) {
+    console.warn(`[aurict] relevant memory lookup failed for ${workdir}`, error)
+    return ""
+  }
 }
 
 function loadCustomSkillDefs(projectDir: string): SkillDef[] {

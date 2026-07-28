@@ -88,7 +88,19 @@ Default: 2. Conservative strategy adds 2 extra turns; aggressive subtracts 1.
 
 ## Circuit breaker
 
-If compaction fails 3 times in a row (LLM call errors), the circuit breaker opens and compaction is skipped for 60 seconds. This prevents infinite retry loops on provider errors.
+If compaction's summarizer LLM call fails 3 times in a row (each after its own transient retry — see below), the circuit breaker opens. While open, Aurict fails **loud** with an actionable message rather than silently degrading summary quality: the summarizer model is likely rate-limited or down — wait a moment and retry, or point the compaction utility model at a different provider. This prevents infinite retry loops on persistent provider outages while **never** substituting a low-quality heuristic summary.
+
+### Transient retry (quality-preserving)
+
+Before a failure counts toward the circuit breaker, Aurict retries the summarizer call up to 3 times on transient errors only (`429`, `503`, `502`, `overload`, `unavailable`, `timeout`, network errors). A `Retry-After` hint, when the provider sends one, is honoured. Overlays are cancelled immediately (never retried) so ESC stays responsive. Because most "could not compact" failures are transient, this makes the circuit-open path rare in practice.
+
+### Hard timeout & cancel
+
+Each compaction LLM call runs under a strict **120-second total** deadline and is wired to the session's abort signal. This only prevents an infinite hang — it never shortens a legitimately long summary (120 s is generous, by design). Pressing cancel aborts compaction in-flight.
+
+### Summary quality guardian
+
+After the summary is produced, Aurict verifies it contains the required sections (`MODIFIED_FILES`, `DECISIONS`, `ERRORS`, `CURRENT_STATE`, `NEXT_STEPS` for session; `MODIFIED_FILES`, `COMMANDS_RUN`, `ERRORS_FIXED`, `CURRENT_STATE` for snip). If any are missing, a single targeted retry re-asks for the full structured summary. This structurally prevents the common failure mode where a vague summary drops specific values — so summaries hold up better than a one-shot summary alone.
 
 ---
 

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Aurict · /visual — Semantic 3D Graph</title>
+<style>
+  :root {
+    --bg: #0b0c10;
+    --panel: rgba(20, 22, 30, 0.72);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --text: #e7ecf3;
+    --dim: #8b94a7;
+    --accent: #7c5cff;
+    --accent-2: #2bd4a3;
+    --warn: #ff5c79;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+  #app { position: fixed; inset: 0; }
+  #viewport { position: absolute; inset: 0; cursor: grab; }
+  #viewport:active { cursor: grabbing; }
+
+  /* Header bar */
+  #header {
+    position: absolute; top: 12px; left: 12px; right: 12px;
+    display: flex; align-items: center; gap: 14px;
+    pointer-events: none; z-index: 10;
+  }
+  #title {
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.04em;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    padding: 8px 12px; border-radius: 8px; backdrop-filter: blur(6px);
+    pointer-events: auto;
+  }
+  #title strong { color: var(--accent-2); }
+  #search {
+    flex: 1; max-width: 420px;
+    pointer-events: auto;
+    position: relative;
+  }
+  #search input {
+    width: 100%; padding: 8px 12px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    color: var(--text); border-radius: 8px; font-family: var(--mono); font-size: 13px;
+    backdrop-filter: blur(6px); outline: none;
+  }
+  #search input:focus { border-color: var(--accent); }
+  #search ul {
+    position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+    max-height: 280px; overflow-y: auto; list-style: none; padding: 0;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 8px; backdrop-filter: blur(6px); z-index: 20;
+  }
+  #search li {
+    padding: 6px 12px; cursor: pointer; font-family: var(--mono); font-size: 12px;
+    display: flex; justify-content: space-between; gap: 10px;
+  }
+  #search li:hover, #search li.active { background: rgba(124, 92, 255, 0.18); }
+  #search li .kind { color: var(--dim); font-size: 11px; }
+
+  /* Stats pill */
+  #stats {
+    pointer-events: auto;
+    font-family: var(--mono); font-size: 12px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    padding: 8px 12px; border-radius: 8px; backdrop-filter: blur(6px);
+    display: flex; gap: 14px; color: var(--dim);
+  }
+  #stats span strong { color: var(--text); }
+
+  /* Sidebar (selected node details) */
+  #sidebar {
+    position: absolute; top: 60px; right: 12px; bottom: 12px;
+    width: 340px; max-width: calc(100vw - 24px);
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 14px 16px; backdrop-filter: blur(10px);
+    overflow-y: auto; z-index: 10;
+    transform: translateX(360px); transition: transform 0.25s ease;
+    font-size: 13px;
+  }
+  #sidebar.open { transform: translateX(0); }
+  #sidebar h3 { margin: 0 0 4px; font-size: 14px; font-family: var(--mono); word-break: break-all; }
+  #sidebar .kind-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-family: var(--mono); font-size: 11px; color: var(--bg); background: var(--accent-2); margin-bottom: 8px; }
+  #sidebar .file { color: var(--dim); font-family: var(--mono); font-size: 11px; word-break: break-all; margin-bottom: 10px; }
+  #sidebar section { margin-top: 12px; }
+  #sidebar h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); }
+  #sidebar ul { margin: 0; padding: 0; list-style: none; }
+  #sidebar li { padding: 4px 0; font-family: var(--mono); font-size: 12px; color: var(--text); border-bottom: 1px solid var(--panel-border); }
+  #sidebar li:last-child { border-bottom: none; }
+  #sidebar li.clickable { cursor: pointer; }
+  #sidebar li.clickable:hover { color: var(--accent); }
+  #sidebar li .arrow { color: var(--dim); margin: 0 4px; }
+  #sidebar .close { position: absolute; top: 10px; right: 12px; cursor: pointer; color: var(--dim); font-size: 18px; }
+  #sidebar .close:hover { color: var(--text); }
+
+  /* Loading overlay */
+  #loader {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 10px; background: var(--bg); z-index: 100;
+    transition: opacity 0.4s ease;
+  }
+  #loader.hidden { opacity: 0; pointer-events: none; }
+  #loader .ring { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(124, 92, 255, 0.25); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+  #loader .msg { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Empty-state hint */
+  #hint {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    font-family: var(--mono); font-size: 13px; color: var(--dim);
+    background: var(--panel); border: 1px solid var(--panel-border); padding: 12px 18px;
+    border-radius: 10px; backdrop-filter: blur(8px); text-align: center; max-width: 460px;
+    z-index: 30; display: none;
+  }
+  #hint code { color: var(--accent-2); }
+
+  /* Footer help bar */
+  #help {
+    position: absolute; bottom: 12px; left: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    background: var(--panel); border: 1px solid var(--panel-border);
+    padding: 6px 10px; border-radius: 8px; backdrop-filter: blur(6px);
+    z-index: 10; line-height: 1.7;
+  }
+  #help kbd { background: rgba(255,255,255,0.06); border: 1px solid var(--panel-border); border-radius: 3px; padding: 1px 5px; font-family: inherit; color: var(--text); }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="viewport"></canvas>
+
+  <div id="header">
+    <div id="title"><strong>Aurict</strong> · /visual</div>
+    <div id="search">
+      <input type="text" id="search-input" placeholder="Search symbols… (start typing)" autocomplete="off" spellcheck="false" />
+      <ul id="search-results" hidden></ul>
+    </div>
+    <div id="stats"><span>nodes <strong id="stat-nodes">—</strong></span><span>edges <strong id="stat-edges">—</strong></span><span>files <strong id="stat-files">—</strong></span></div>
+  </div>
+
+  <aside id="sidebar">
+    <span class="close" id="sidebar-close">×</span>
+    <h3 id="node-name">—</h3>
+    <span class="kind-badge" id="node-kind">—</span>
+    <div class="file" id="node-file">—</div>
+    <section>
+      <h4>Calls (<span id="calls-count">0</span>)</h4>
+      <ul id="node-calls"></ul>
+    </section>
+    <section>
+      <h4>Called-by (<span id="callers-count">0</span>)</h4>
+      <ul id="node-callers"></ul>
+    </section>
+    <section>
+      <h4>References &amp; Imports</h4>
+      <ul id="node-refs"></ul>
+    </section>
+  </aside>
+
+  <div id="hint">No CodeGraph index found for this project. Run <code>codegraph init</code> and refresh, or wait for the index to be built.</div>
+
+  <div id="loader">
+    <div class="ring"></div>
+    <div class="msg" id="loader-msg">Loading semantic graph…</div>
+  </div>
+
+  <div id="help">
+    <kbd>drag</kbd> rotate · <kbd>scroll</kbd> zoom · <kbd>right-drag</kbd> pan · <kbd>click</kbd> inspect · <kbd>Esc</kbd> clear
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three":         "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="/viewer/main.js"></script>
+</body>
+</html>

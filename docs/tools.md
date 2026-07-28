@@ -24,6 +24,10 @@ Read a file or a line range within a file.
 
 **Permission:** always-allow (safe)
 
+Paths outside the workspace require a separate, direct user approval. An approval
+may cover one path or one external directory for the current session; it never
+permits sensitive credential, device, or system paths, and symlink escapes are rejected.
+
 ---
 
 ### `write`
@@ -79,6 +83,10 @@ The command is classified by a bash analyzer before execution:
 Shell file readers such as `cat`, `head`, `tail`, `grep`, and `rg` require explicit approval because they bypass the dedicated `read`/`grep` tools' workspace and symlink checks. Subagents must use the dedicated tools.
 
 `run` waits up to 3 seconds. Longer commands are moved to the background and return a session ID.
+Their command summary, status, and complete output are retained under
+`.aurict/processes/`, so `bash(action="output")` also works after the process
+has completed and been released from memory. Shell access outside the workspace
+remains a separate command approval; a file grant does not broaden shell access.
 
 ---
 

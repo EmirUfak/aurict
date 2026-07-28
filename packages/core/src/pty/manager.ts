@@ -2,6 +2,9 @@
 // Bun.spawn ile gerçek process yönetimi.
 // node-pty gibi binary bağımlılığı yok — Bun native API kullanıyoruz.
 
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises"
+import { join } from "node:path"
+
 const MAX_BUFFER  = 2 * 1024 * 1024 // 2 MB ring buffer
 const MAX_SESSION = 20               // maksimum eş zamanlı session
 
@@ -15,15 +18,21 @@ export interface PtySession {
   outputBuffer: string
   exitCode?:   number | undefined
   startedAt:   number
+  outputChars: number
+  ownerSessionId: string
 }
 
 interface InternalSession extends PtySession {
   proc: ReturnType<typeof Bun.spawn>
   readPromise: Promise<void>
+  outputPath: string
+  metadataPath: string
+  writeChain: Promise<void>
 }
 
 interface PtyCreateOptions {
   inheritEnv?: boolean
+  ownerSessionId?: string
 }
 
 class PtyManager {
@@ -47,6 +56,9 @@ class PtyManager {
 
     const id = crypto.randomUUID()
     const effectiveCwd = cwd ?? process.cwd()
+    const outputPath = sessionOutputPath(effectiveCwd, id)
+    const metadataPath = sessionMetadataPath(effectiveCwd, id)
+    await mkdir(sessionDirectory(effectiveCwd), { recursive: true })
 
     const proc = Bun.spawn([command, ...args], {
       cwd:   effectiveCwd,
@@ -67,13 +79,21 @@ class PtyManager {
       status:       "running",
       outputBuffer: "",
       startedAt:    Date.now(),
+      outputChars:  0,
+      ownerSessionId: options.ownerSessionId ?? "anonymous",
       proc,
       readPromise:  Promise.resolve(),
+      outputPath,
+      metadataPath,
+      writeChain: Promise.resolve(),
     }
+    await this.persistMetadata(session)
 
     // stdout + stderr okuma
     const appendOutput = (chunk: string) => {
       session.outputBuffer += chunk
+      session.outputChars += chunk.length
+      session.writeChain = session.writeChain.then(() => appendFile(session.outputPath, chunk, "utf8"))
       // Ring buffer: 2MB aşıldıysa başından kes
       if (session.outputBuffer.length > MAX_BUFFER) {
         session.outputBuffer = session.outputBuffer.slice(
@@ -105,8 +125,11 @@ class PtyManager {
       const code = await proc.exited
       session.status   = "exited"
       session.exitCode = code
+      await session.writeChain
+      await this.persistMetadata(session)
     }).catch(() => {
       session.status = "exited"
+      void this.persistMetadata(session)
     })
 
     this.sessions.set(id, session)
@@ -128,6 +151,7 @@ class PtyManager {
     if (!s) return
     try { s.proc.kill() } catch { /* sessiz kapat */ }
     s.status = "exited"
+    void this.persistMetadata(s)
   }
 
   /** Session bilgisini döndür */
@@ -143,8 +167,10 @@ class PtyManager {
 
   /** Sonlanmış session'ları temizle */
   cleanup(): void {
-    for (const [id, s] of this.sessions) {
-      if (s.status === "exited") this.sessions.delete(id)
+    // Release only in-memory process handles. Completed sessions remain
+    // addressable through their durable metadata and output files.
+    for (const [id, session] of this.sessions) {
+      if (session.status === "exited") this.sessions.delete(id)
     }
   }
 
@@ -177,19 +203,68 @@ class PtyManager {
     return result
   }
 
+  async readOutput(id: string, cwd: string, ownerSessionId?: string): Promise<PtySession | undefined> {
+    const live = this.sessions.get(id)
+    if (live) {
+      if (ownerSessionId && live.ownerSessionId !== ownerSessionId) return undefined
+      await live.writeChain
+      const output = await readFile(live.outputPath, "utf8").catch(() => live.outputBuffer)
+      return { ...this.toPublic(live), outputBuffer: output }
+    }
+    if (!isSessionId(id)) return undefined
+    try {
+      const raw = await readFile(sessionMetadataPath(cwd, id), "utf8")
+      const parsed = JSON.parse(raw) as PtySession
+      if (ownerSessionId && parsed.ownerSessionId !== ownerSessionId) return undefined
+      const output = await readFile(sessionOutputPath(cwd, id), "utf8").catch(() => "")
+      return { ...parsed, outputBuffer: output }
+    } catch {
+      return undefined
+    }
+  }
+
+  private async persistMetadata(s: InternalSession): Promise<void> {
+    const record: PtySession = this.toPublic(s)
+    await writeFile(s.metadataPath, JSON.stringify(record), "utf8")
+  }
+
   private toPublic(s: InternalSession): PtySession {
     return {
       id:           s.id,
       pid:          s.pid,
       command:      s.command,
-      args:         s.args,
+      args:         s.args.map(redactCommandArgument),
       cwd:          s.cwd,
       status:       s.status,
       outputBuffer: s.outputBuffer,
       exitCode:     s.exitCode,
       startedAt:    s.startedAt,
+      outputChars:  s.outputChars,
+      ownerSessionId: s.ownerSessionId,
     }
   }
 }
 
 export const ptyManager = new PtyManager()
+
+function sessionDirectory(cwd: string): string {
+  return join(cwd, ".aurict", "processes")
+}
+
+function sessionOutputPath(cwd: string, id: string): string {
+  return join(sessionDirectory(cwd), `${id}.log`)
+}
+
+function sessionMetadataPath(cwd: string, id: string): string {
+  return join(sessionDirectory(cwd), `${id}.json`)
+}
+
+function isSessionId(value: string): boolean {
+  return /^[a-f0-9-]{36}$/i.test(value)
+}
+
+function redactCommandArgument(value: string): string {
+  return value
+    .replace(/((?:api[_-]?key|token|secret|password)\s*[=:]\s*)[^\s"']+/gi, "$1[REDACTED]")
+    .replace(/(Authorization:\s*Bearer\s+)[^\s"']+/gi, "$1[REDACTED]")
+}

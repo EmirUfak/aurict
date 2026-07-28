@@ -34,6 +34,10 @@ export interface CommandContext {
   model:            string
   effort?:          number
   workdir:          string
+  /** Canlı core konuşma geçmişi (CoreMessage[]). /compact now gibi komutların
+   *  kaliteyi düşürmeden gerçek compaction yapabilmesi için display mesajları
+   *  yerine bu kullanılır. */
+  history:          CoreMessage[]
   skills:           string[]
   currentTheme:     string
   isUndercover:     boolean
@@ -89,9 +93,10 @@ export interface CommandContext {
   openDesign:        (brief?: string) => void
   /** Prints an intermediate progress message for long-running commands (adds a system message to the transcript). */
   addSystemMsg:      (content: string) => void
+  copyText:          (content: string) => void
   /** Starts/stops the WebRTC remote-control session for phone pairing. */
   startRemoteSession: () => void
   stopRemoteSession:  () => void
   remoteConnected:    boolean
 }
-import type { ContextUsage } from "@aurict/core"
+import type { ContextUsage, CoreMessage } from "@aurict/core"

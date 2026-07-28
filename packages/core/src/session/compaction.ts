@@ -1,8 +1,9 @@
 import { generateText } from "ai"
 import { readFile }     from "fs/promises"
-import type { CoreMessage } from "ai"
+import type { CoreMessage, LanguageModelV1 } from "ai"
 import { ProviderRegistry }   from "../provider/registry.js"
-import { countTokens }        from "../provider/tokenizer.js"
+import { countMessageTokens, countTokens, tokenizableMessageText } from "../provider/tokenizer.js"
+import { calibratedTokenEstimate } from "../provider/token-calibration.js"
 import { hooks }              from "../hook/emitter.js"
 import {
   smartCompact,
@@ -12,72 +13,22 @@ import {
   extractFilePaths,
 } from "./context-compactor.js"
 import { resolveWithinWorkspace } from "../security/path-boundary.js"
-
-// ─── Faz 3: Error Chain Detection ─────────────────────────────────────────────
-export interface ErrorChain {
-  error: string      // orijinal hata mesajı (verbatim)
-  fix: string        // nasıl çözüldüğü
-  files: string[]    // ilgili dosyalar
-  lesson: string     // LLM'e özet
-}
-
-/**
- * Messages içindeki error→fix çiftlerini tespit eder.
- * Compaction sırasında bu zincirler korunur.
- */
-export function extractErrorChains(messages: CoreMessage[]): ErrorChain[] {
-  const chains: ErrorChain[] = []
-  let currentError: string | null = null
-  let errorFiles: string[] = []
-  let errorMsgStart = -1
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i]!
-    const text = extractText(msg)
-
-    // Error detection (sadece tool result'ta, assistant'ın "I see the error" gibi mesajlarında değil)
-    if (/error|failed|exception|cannot find|unable to/i.test(text)) {
-      if (msg.role === "tool") {
-        currentError = text.slice(0, 500)
-        errorFiles = extractFilePaths(text)
-        errorMsgStart = i
-      }
-    }
-
-    // Fix detection (assistant mesajında, error'dan sonra)
-    // "fixed" kelimesi tek başına yeterli değil, "fixed the" veya "fixed by" gibi kalıplar ara
-    if (currentError && msg.role === "assistant" && i > errorMsgStart) {
-      if (/fixed the|fixed by|resolved the|solved the|now works|corrected the/i.test(text)) {
-        chains.push({
-          error: currentError,
-          fix: text.slice(0, 500),
-          files: errorFiles,
-          lesson: `Error "${currentError.slice(0, 100)}..." was fixed by: ${text.slice(0, 200)}`,
-        })
-        currentError = null
-        errorFiles = []
-        errorMsgStart = -1
-      }
-    }
-  }
-
-  return chains
-}
-
-/**
- * Error chain'leri summary'ye ekler.
- * Compaction sonrası agent bu hataları tekrarlamaz.
- */
-export function addProtectedErrors(summary: string, chains: ErrorChain[]): string {
-  if (chains.length === 0) return summary
-
-  const section = [
-    "\n\n[PROTECTED ERROR CHAINS — DO NOT FORGET]",
-    ...chains.slice(0, 5).map((c, i) => `${i + 1}. ${c.lesson}`),
-  ].join("\n")
-
-  return summary + section
-}
+import { clearToolMessageResults } from "./tool-message-compaction.js"
+import { addProtectedErrors, extractErrorChains } from "./compaction-errors.js"
+import { buildBoundedSummaryTranscript, SUMMARY_SYSTEM_PROMPT } from "./summary-input.js"
+import {
+  extractProtectedContextFacts,
+  formatProtectedContextFacts,
+  injectProtectedFacts,
+  PROTECTED_FACTS_MARKER,
+} from "./protected-context.js"
+export {
+  extractProtectedContextFacts,
+  formatProtectedContextFacts,
+  PROTECTED_FACTS_MARKER,
+  type ProtectedContextFacts,
+} from "./protected-context.js"
+export { addProtectedErrors, extractErrorChains, type ErrorChain } from "./compaction-errors.js"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 export const COMPACTION_BUFFER     = 20_000
@@ -87,7 +38,155 @@ export const PRUNE_MINIMUM         = 20_000
 export const PRUNE_PROTECT         = 40_000
 export const DEFAULT_MSG_THRESHOLD =    100
 export const TOOL_RESULT_CLEARED_MESSAGE = "[Old tool result content cleared]"
-export const PROTECTED_FACTS_MARKER = "[Protected context facts]"
+/**
+ * Compaction'ın LLM özetleme çağrısı için katı toplam süre üst sınırı.
+ * Kalite her zaman öncelikli olduğu için geniş tutulur (kullanıcı onayı);
+ * tek işlevi sonsuza asılı kalmayı önlemek ve ESC ile iptale izin vermektir.
+ */
+export const COMPACTION_TOTAL_TIMEOUT_MS = 120_000
+/** Compaction sırasında bir hook handler'ın asılı kalmasına izin verilen maksimum süre. */
+export const COMPACTION_HOOK_TIMEOUT_MS = 5_000
+
+// ─── Abort / timeout yardımcıları ─────────────────────────────────────────────
+// İsteğe bağlı bir parent signal (kullanıcı ESC'si) ile katı bir toplam timeout'u
+// tek AbortSignal'de birleştirir. Önemli: SESSION/edyto özet kalitesi düşürülmez;
+// bu yalnızca sonsuz asılmayı engeller.
+export interface CompactionDeadline {
+  signal:   AbortSignal
+  dispose:  () => void
+}
+
+export function createCompactionDeadline(
+  parentSignal: AbortSignal | undefined,
+  timeoutMs:    number = COMPACTION_TOTAL_TIMEOUT_MS,
+): CompactionDeadline {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const onParentAbort = () => controller.abort()
+
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      controller.abort()
+      clearTimeout(timer)
+      return { signal: controller.signal, dispose: () => {} }
+    }
+    parentSignal.addEventListener("abort", onParentAbort, { once: true })
+  }
+
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      clearTimeout(timer)
+      if (parentSignal) parentSignal.removeEventListener("abort", onParentAbort)
+    },
+  }
+}
+
+// ─── Transient retry + özet kalite muhafızı ─────────────────────────────────
+// Kalite ASLA düşürülmez: transient (429/503/timeout/network) hatalarda kısa
+// backoff'la yeniden denenir, böylece circuit-breaker gerçek kesintiler dışında
+// neredeyse hiç açılmaz → "compact edilemiyor" semptomu kaybolur. Circuit'e
+// yalnızca NİHAÎ başarısızlık +1 yazar.
+const COMPACTION_MAX_ATTEMPTS = 3
+const COMPACTION_RETRYABLE =
+  /429|rate.?limit|too.?many|503|502|overload|unavailable|ECONNREFUSED|ENOTFOUND|network|timeout|fetch failed|EAI_AGAIN|socket hang up/i
+
+function parseCompactionRetryAfter(message: string): number | undefined {
+  const match = message.match(/retry.{0,10}after[:\s]+(\d+)/i)
+  return match ? Number(match[1]) * 1_000 : undefined
+}
+
+function sleepWithSignal(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(new Error("aborted")); return }
+    const onAbort = () => { cleanup(); reject(new Error("aborted")) }
+    const cleanup = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", onAbort)
+    }
+    const timer = setTimeout(() => { cleanup(); resolve() }, ms)
+    signal?.addEventListener("abort", onAbort, { once: true })
+  })
+}
+
+/**
+ * Compaction özetleme çağrısını transient hatalara dayanıklı çalıştırır.
+ * ESC/iptal gelirse asla retry etmeden hemen fırlatır. Circuit kaydı burada
+ * YAPILMAZ — caller try/catch'inde nihai sonucu circuit'e yazar.
+ */
+export async function runSummaryWithRetry(
+  model:     LanguageModelV1,
+  system:    string,
+  prompt:    string,
+  maxTokens: number,
+  cfg:       Pick<CompactionConfig, "signal" | "retryBaseDelayMs">,
+): Promise<string> {
+  const baseDelay = cfg.retryBaseDelayMs ?? 4_000
+  let lastError: unknown
+  for (let attempt = 0; attempt < COMPACTION_MAX_ATTEMPTS; attempt++) {
+    if (cfg.signal?.aborted) throw new ContextCompactionError("Compaction aborted by user.")
+    try {
+      const { text } = await generateText({
+        model,
+        system,
+        messages: [{ role: "user", content: prompt }],
+        maxTokens,
+        ...(cfg.signal ? { abortSignal: cfg.signal } : {}),
+      })
+      return text
+    } catch (error) {
+      lastError = error
+      if (cfg.signal?.aborted) throw new ContextCompactionError("Compaction aborted by user.")
+      const msg = error instanceof Error ? error.message : String(error)
+      if (!COMPACTION_RETRYABLE.test(msg)) throw error       // transient değil: bırak
+      if (attempt === COMPACTION_MAX_ATTEMPTS - 1) throw error // son deneme tükendi
+      const delay = parseCompactionRetryAfter(msg) ?? (baseDelay * (attempt + 1))
+      try {
+        await sleepWithSignal(delay, cfg.signal)
+      } catch {
+        throw new ContextCompactionError("Compaction aborted by user.")
+      }
+    }
+  }
+  throw lastError
+}
+
+/** Özetin zorunlu yapısal bölümleri eksikse tek bir hedefli retry ister. */
+export const SESSION_REQUIRED_SECTIONS =
+  ["MODIFIED_FILES", "DECISIONS", "ERRORS", "CURRENT_STATE", "NEXT_STEPS"] as const
+export const SNIP_REQUIRED_SECTIONS =
+  ["MODIFIED_FILES", "COMMANDS_RUN", "ERRORS_FIXED", "CURRENT_STATE"] as const
+
+export function missingSections(summary: string, required: readonly string[]): string[] {
+  const upper = summary.toUpperCase()
+  return required.filter(section => !upper.includes(section))
+}
+
+export async function ensureStructuredSummary(
+  summary:    string,
+  required:   readonly string[],
+  model:      LanguageModelV1,
+  system:     string,
+  basePrompt: string,
+  maxTokens:  number,
+  cfg:        Pick<CompactionConfig, "signal" | "retryBaseDelayMs">,
+): Promise<string> {
+  const missing = missingSections(summary, required)
+  if (missing.length === 0) return summary
+  if (cfg.signal?.aborted) return summary
+  const retryPrompt = [
+    basePrompt,
+    "",
+    `Your previous summary omitted these required sections: ${missing.join(", ")}.`,
+    `Re-summarize and include ALL of: ${required.join(", ")}.`,
+    "Copy file paths and error messages VERBATIM. Do not omit any required section.",
+  ].join("\n")
+  try {
+    return await runSummaryWithRetry(model, system, retryPrompt, maxTokens, cfg)
+  } catch {
+    return summary // guardian retry başarısızsa eldeki en iyi özetle devam et
+  }
+}
 
 export type CompactionStrategy = "aggressive" | "balanced" | "conservative"
 
@@ -102,6 +201,17 @@ export interface CompactionConfig {
   sessionId?:             string
   strategy?:              CompactionStrategy
   messageCountThreshold?: number
+  utilityProvider?:       string
+  utilityModel?:          string
+  utilityMaxInputTokens?: number
+  utilityMaxOutputTokens?: number
+  /** Kullanıcı iptali (ESC) — Sarkmada compaction dahil her şey iptal olsun. */
+  signal?:                AbortSignal
+  /** Compaction'ın LLM özetleme çağrısı için katı toplam üst sınır. */
+  timeoutMs?:             number
+  /** Transient hatalarda retry backoff'unun taban gecikmesi (ms). Test edilebilirlik
+   *  ve ince-ayar için açılmıştır; üretimde varsayılan 4000ms'dir. */
+  retryBaseDelayMs?:      number
 }
 
 export class ContextCompactionError extends Error {
@@ -180,14 +290,12 @@ export function splitTailTurns(messages: CoreMessage[], turns: number): { head: 
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 export function estimateTokens(messages: CoreMessage[], modelId?: string, tokenizerEncoding?: string): number {
-  return messages.reduce((sum, m) => {
-    const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content)
-    return sum + countTokens(text, modelId, tokenizerEncoding) + 4
-  }, 0)
+  return messages.reduce((sum, message) => sum + countMessageTokens(message, modelId, tokenizerEncoding), 0)
 }
 
 export interface EffectiveContextOptions {
   modelId: string
+  providerId?: string
   tokenizerEncoding?: string
   systemPrompt?: string
   toolSchemaReserveTokens?: number
@@ -210,12 +318,18 @@ export function estimateEffectiveContextTokens(
     + systemTokens
     + (options.toolSchemaReserveTokens ?? 0)
     + (options.attachmentReserveTokens ?? 0)
-  return Math.ceil(raw * (options.safetyMargin ?? 1.15))
+  return Math.ceil(
+    calibratedTokenEstimate(options.providerId, options.modelId, raw) * (options.safetyMargin ?? 1.15),
+  )
 }
 
 export function isOverflow(messages: CoreMessage[], cfg: CompactionConfig): boolean {
   const usable = cfg.contextLimit - cfg.maxOutput - COMPACTION_BUFFER
-  return estimateTokens(messages, cfg.model, cfg.tokenizerEncoding) >= usable
+  return calibratedTokenEstimate(
+    cfg.provider,
+    cfg.model,
+    estimateTokens(messages, cfg.model, cfg.tokenizerEncoding),
+  ) >= usable
 }
 
 export function isOverflowByMessages(messages: CoreMessage[], cfg: CompactionConfig): boolean {
@@ -229,21 +343,13 @@ export interface ContextBreakdown {
   percentUsed: number
 }
 
-export interface ProtectedContextFacts {
-  files: string[]
-  errors: string[]
-  verification: string[]
-  decisions: string[]
-  nextSteps: string[]
-}
-
 export function getContextBreakdown(messages: CoreMessage[], contextWindow: number, modelId?: string, tokenizerEncoding?: string): ContextBreakdown {
   const byRole: Record<string, number> = {}
   const withTokens: Array<{ preview: string; tokens: number; role: string }> = []
 
   for (const msg of messages) {
-    const text   = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
-    const tokens = countTokens(text, modelId, tokenizerEncoding) + 4
+    const text   = tokenizableMessageText(msg)
+    const tokens = countMessageTokens(msg, modelId, tokenizerEncoding)
     byRole[msg.role] = (byRole[msg.role] ?? 0) + tokens
     withTokens.push({ preview: text.slice(0, 60).replace(/\n/g, " "), tokens, role: msg.role })
   }
@@ -277,72 +383,13 @@ export function microCompactOldToolResults(
   const compacted = messages.map((message, index) => {
     if (message.role !== "tool" || keep.has(index)) return message
     changed = true
-    return { ...message, content: TOOL_RESULT_CLEARED_MESSAGE as never } as CoreMessage
+    return clearToolMessageResults(message, TOOL_RESULT_CLEARED_MESSAGE)
   })
 
   if (!changed) return messages
 
   const protectedFacts = formatProtectedContextFacts(extractProtectedContextFacts(messages))
   return protectedFacts ? injectProtectedFacts(compacted, protectedFacts) : compacted
-}
-
-export function extractProtectedContextFacts(messages: CoreMessage[]): ProtectedContextFacts {
-  const files = new Set<string>()
-  const errors: string[] = []
-  const verification: string[] = []
-  const decisions: string[] = []
-  const nextSteps: string[] = []
-
-  for (const message of messages) {
-    const text = extractText(message)
-    for (const file of extractFilePaths(text)) files.add(file)
-    collectMatchingLines(text, /\b(error|failed|exception|cannot find|typeerror|syntaxerror|enoent)\b/i, errors, 6)
-    collectMatchingLines(text, /\b(tsc|typecheck|test|lint|playwright|vitest|bun test|passed|failed|✓|0 fail)\b/i, verification, 8)
-    collectMatchingLines(text, /\b(decided|decision|chose|selected|we will|we'll|karar|seçtik|uygulayacağız)\b/i, decisions, 6)
-    collectMatchingLines(text, /\b(next step|remaining|todo|still need|not verified|kalan|sıradaki|henüz|devam)\b/i, nextSteps, 6)
-  }
-
-  return {
-    files: [...files].slice(0, 12),
-    errors,
-    verification,
-    decisions,
-    nextSteps,
-  }
-}
-
-export function formatProtectedContextFacts(facts: ProtectedContextFacts): string {
-  const sections = [
-    facts.files.length ? `FILES:\n${facts.files.map((item) => `- ${item}`).join("\n")}` : "",
-    facts.verification.length ? `VERIFICATION:\n${facts.verification.map((item) => `- ${item}`).join("\n")}` : "",
-    facts.errors.length ? `ERRORS:\n${facts.errors.map((item) => `- ${item}`).join("\n")}` : "",
-    facts.decisions.length ? `DECISIONS:\n${facts.decisions.map((item) => `- ${item}`).join("\n")}` : "",
-    facts.nextSteps.length ? `NEXT_STEPS:\n${facts.nextSteps.map((item) => `- ${item}`).join("\n")}` : "",
-  ].filter(Boolean)
-
-  return sections.length ? `${PROTECTED_FACTS_MARKER}\n${sections.join("\n\n")}` : ""
-}
-
-function injectProtectedFacts(messages: CoreMessage[], protectedFacts: string): CoreMessage[] {
-  if (messages.some((message) => extractText(message).includes(PROTECTED_FACTS_MARKER))) return messages
-  const firstNonSystem = messages.findIndex((message) => message.role !== "system")
-  const insertAt = firstNonSystem === -1 ? messages.length : firstNonSystem
-  const factMessages: CoreMessage[] = [
-    { role: "user", content: PROTECTED_FACTS_MARKER },
-    { role: "assistant", content: protectedFacts },
-  ]
-  return [...messages.slice(0, insertAt), ...factMessages, ...messages.slice(insertAt)]
-}
-
-function collectMatchingLines(text: string, pattern: RegExp, target: string[], limit: number): void {
-  if (target.length >= limit) return
-  for (const rawLine of text.split(/\r?\n/)) {
-    if (target.length >= limit) return
-    const line = rawLine.trim()
-    if (line.length < 8 || !pattern.test(line)) continue
-    const compact = line.replace(/\s+/g, " ").slice(0, 220)
-    if (!target.includes(compact)) target.push(compact)
-  }
 }
 
 // ─── Strategy 1: microCompact ─────────────────────────────────────────────────
@@ -385,18 +432,28 @@ async function snipCompact(
     return `[${m.role}]: ${text}`
   }).join("\n\n")
 
-  const plugin = ProviderRegistry.get(cfg.provider)
-  const model  = plugin.getModel(cfg.model)
+  const utilityProvider = cfg.utilityProvider ?? cfg.provider
+  const utilityModel = cfg.utilityModel ?? cfg.model
+  const plugin = ProviderRegistry.get(utilityProvider)
+  const model  = plugin.getModel(utilityModel)
+
+  const snipPrompt =
+    `These are tool operations from a coding session. Extract the following — copy file paths and error messages VERBATIM, do not paraphrase:\n\n` +
+    `MODIFIED_FILES: list every file path that was read, written, or edited\n` +
+    `COMMANDS_RUN: list bash commands and their outcomes (success/fail/error)\n` +
+    `ERRORS_FIXED: bugs found and how they were resolved (include exact error messages)\n` +
+    `CURRENT_STATE: one sentence on where the task stands now\n\n` +
+    `Tool operations:\n\n${toolContext}`
+  const snipMaxTokens = Math.min(cfg.utilityMaxOutputTokens ?? 1_200, 800)
 
   let snipSummary: string
   try {
-    const { text } = await generateText({
-      model,
-      messages: [
-        { role: "user", content: `These are tool operations from a coding session. Extract the following — copy file paths and error messages VERBATIM, do not paraphrase:\n\nMODIFIED_FILES: list every file path that was read, written, or edited\nCOMMANDS_RUN: list bash commands and their outcomes (success/fail/error)\nERRORS_FIXED: bugs found and how they were resolved (include exact error messages)\nCURRENT_STATE: one sentence on where the task stands now\n\nTool operations:\n\n${toolContext}` },
-      ],
-    })
-    snipSummary = text
+    snipSummary = await runSummaryWithRetry(model, SUMMARY_SYSTEM_PROMPT, snipPrompt, snipMaxTokens, cfg)
+    // Kalite muhafızı: zorunlu bölümler eksikse tek hedefli retry (Claude'dan daha iyi).
+    snipSummary = await ensureStructuredSummary(
+      snipSummary, SNIP_REQUIRED_SECTIONS,
+      model, SUMMARY_SYSTEM_PROMPT, snipPrompt, snipMaxTokens, cfg,
+    )
   } catch (error) {
     cbRecordFailure(cfg)
     throw new ContextCompactionError("Context compaction could not summarize tool activity.", error)
@@ -431,8 +488,12 @@ async function sessionCompact(
   const tailTurns = Math.max(1, (cfg.tailTurns ?? DEFAULT_TAIL_TURNS) + tailBonus)
 
   const { head, tail } = splitTailTurns(messages, tailTurns)
-  const budget = Math.max(0, estimateTokens(head, cfg.model, cfg.tokenizerEncoding) - PRUNE_MINIMUM)
-  const pruned = smartCompact(head, budget)
+  const transcript = buildBoundedSummaryTranscript(
+    head,
+    cfg.utilityMaxInputTokens ?? 24_000,
+    cfg.utilityModel ?? cfg.model,
+    cfg.tokenizerEncoding,
+  )
 
   const summaryPrompt = cfg.strategy === "aggressive"
     ? [
@@ -461,19 +522,22 @@ async function sessionCompact(
         "Preserve all specific values: line numbers, error codes, variable names, config keys.",
       ].join("\n")
 
-  const plugin = ProviderRegistry.get(cfg.provider)
-  const model  = plugin.getModel(cfg.model)
+  const utilityProvider = cfg.utilityProvider ?? cfg.provider
+  const utilityModel = cfg.utilityModel ?? cfg.model
+  const plugin = ProviderRegistry.get(utilityProvider)
+  const model  = plugin.getModel(utilityModel)
+
+  const sessionPrompt = `${summaryPrompt}\n\nBounded session transcript:\n\n${transcript}`
+  const sessionMaxTokens = cfg.utilityMaxOutputTokens ?? 1_200
 
   let summary: string
   try {
-    const { text } = await generateText({
-      model,
-      messages: [
-        ...pruned,
-        { role: "user", content: summaryPrompt },
-      ],
-    })
-    summary = text
+    summary = await runSummaryWithRetry(model, SUMMARY_SYSTEM_PROMPT, sessionPrompt, sessionMaxTokens, cfg)
+    // Kalite muhafızı: yapısal bölümler eksikse tek hedefli retry (Claude'dan daha iyi).
+    summary = await ensureStructuredSummary(
+      summary, SESSION_REQUIRED_SECTIONS,
+      model, SUMMARY_SYSTEM_PROMPT, sessionPrompt, sessionMaxTokens, cfg,
+    )
   } catch (error) {
     cbRecordFailure(cfg)
     throw new ContextCompactionError("Context compaction could not summarize the earlier conversation.", error)
@@ -533,7 +597,12 @@ export async function compact(
   cfg:      CompactionConfig,
 ): Promise<CoreMessage[]> {
   if (cbIsOpen(cfg)) {
-    throw new ContextCompactionError("Context compaction is temporarily unavailable after repeated summary failures.")
+    throw new ContextCompactionError(
+      "Context compaction is temporarily unavailable after repeated summary failures. " +
+      "The summarizer model is likely rate-limited or down. Wait a moment and retry your " +
+      "message, or point the compaction utility model at a different provider. " +
+      "(kalite düşürülmedi — gerçek kesintide fail-loud.)",
+    )
   }
 
   const usable   = cfg.contextLimit - cfg.maxOutput - COMPACTION_BUFFER
@@ -543,28 +612,38 @@ export async function compact(
 
   const tokensBefore = current
   const sid = cfg.sessionId ?? "unknown"
-  await hooks.emit("v1.compact.before", { sessionId: sid, tokenCount: tokensBefore })
+  await hooks.emit("v1.compact.before", { sessionId: sid, tokenCount: tokensBefore }, { timeoutMs: COMPACTION_HOOK_TIMEOUT_MS })
+
+  // Parent signal (ESC) + katı toplam timeout'u tek AbortSignal'de birleştir.
+  // Önemli: kalite düşürülmez — bu yalnızca sonsuz asılmayı ve iptali yönetir;
+  // gerçek LLM özeti yine üretilir (120 saniyeye kadar beklenebilir).
+  const deadline  = createCompactionDeadline(cfg.signal, cfg.timeoutMs)
+  const boundedCfg: CompactionConfig = { ...cfg, signal: deadline.signal }
 
   let result: CoreMessage[] | undefined
-  // Küçük taşma (<8% of context): microCompact dene, yetersizse session'a geç
-  if (overflow < cfg.contextLimit * 0.08) {
-    const micro = microCompact(messages, usable, cfg.model, cfg.tokenizerEncoding)
-    if (estimateTokens(micro, cfg.model, cfg.tokenizerEncoding) <= usable) {
-      result = micro
-    } else {
+  try {
+    // Küçük taşma (<8% of context): microCompact dene, yetersizse session'a geç
+    if (overflow < cfg.contextLimit * 0.08) {
+      const micro = microCompact(messages, usable, cfg.model, cfg.tokenizerEncoding)
+      if (estimateTokens(micro, cfg.model, cfg.tokenizerEncoding) <= usable) {
+        result = micro
+      } else {
+      }
     }
+
+    // Tool output ağırlıklı (>55%): snipCompact
+    if (!result && health.toolOutputPct > 0.55) result = await snipCompact(messages, boundedCfg)
+
+    // Varsayılan: tam session compaction
+    if (!result) result = await sessionCompact(messages, boundedCfg)
+
+    const tokensAfter = estimateTokens(result, cfg.model, cfg.tokenizerEncoding)
+
+    await hooks.emit("v1.session.compact", { sessionId: sid, tokensBefore, tokensAfter }, { timeoutMs: COMPACTION_HOOK_TIMEOUT_MS })
+    await hooks.emit("v1.compact.after",   { sessionId: sid, tokensBefore, tokensAfter }, { timeoutMs: COMPACTION_HOOK_TIMEOUT_MS })
+
+    return result
+  } finally {
+    deadline.dispose()
   }
-
-  // Tool output ağırlıklı (>55%): snipCompact
-  if (!result && health.toolOutputPct > 0.55) result = await snipCompact(messages, cfg)
-
-  // Varsayılan: tam session compaction
-  if (!result) result = await sessionCompact(messages, cfg)
-
-  const tokensAfter = estimateTokens(result, cfg.model, cfg.tokenizerEncoding)
-
-  await hooks.emit("v1.session.compact", { sessionId: sid, tokensBefore, tokensAfter })
-  await hooks.emit("v1.compact.after",   { sessionId: sid, tokensBefore, tokensAfter })
-
-  return result
 }

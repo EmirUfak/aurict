@@ -3,7 +3,7 @@ import { readFile } from "fs/promises"
 import { resolve, dirname } from "path"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 import { semanticCache } from "../semantic-cache.js"
-import { resolveWithinWorkspace } from "../../security/path-boundary.js"
+import { resolveAuthorizedFilesystemPath } from "../../security/filesystem-grants.js"
 
 const MAX_CHARS = 100_000
 
@@ -55,7 +55,7 @@ export const readTool: ToolDef = {
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
     let filePath: string
     try {
-      filePath = await resolveWithinWorkspace(ctx.workdir, String(args["path"] ?? ""))
+      filePath = await resolveAuthorizedFilesystemPath(ctx.workdir, ctx.sessionId, String(args["path"] ?? ""))
     } catch (error) {
       return { output: "", error: `Security: ${error instanceof Error ? error.message : String(error)}` }
     }

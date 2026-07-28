@@ -2,6 +2,7 @@ import { z } from "zod"
 import { resolve, join, relative, basename } from "path"
 import { readdir, stat } from "node:fs/promises"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
+import { resolveAuthorizedFilesystemPath } from "../../security/filesystem-grants.js"
 
 const MAX_MATCHES   = 200
 const MAX_FILE_SIZE = 2_000_000   // 2MB - buyuk/uretilmis dosyalari atla
@@ -55,7 +56,12 @@ export const grepTool: ToolDef = {
   }),
   async execute(args, ctx: ToolContext): Promise<ExecuteResult> {
     const pattern       = String(args["pattern"] ?? "")
-    const searchPath    = resolve(ctx.workdir, String(args["path"] ?? "."))
+    let searchPath: string
+    try {
+      searchPath = await resolveAuthorizedFilesystemPath(ctx.workdir, ctx.sessionId, String(args["path"] ?? "."))
+    } catch (error) {
+      return { output: "", error: `Security: ${error instanceof Error ? error.message : String(error)}` }
+    }
     const globPattern   = String(args["glob"] ?? "**/*")
     const caseSensitive = args["case_sensitive"] === true
 
