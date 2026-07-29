@@ -128,6 +128,11 @@ Supports Claude, Llama, and Titan models through AWS Bedrock.
 **Provider ID:** `opencode`  
 **Env var:** `OPENCODE_API_KEY`
 
+OpenCode uses the AI SDK's OpenAI-compatible transport. For reasoning models
+such as MiMo, Aurict preserves the provider's `reasoning_content` beside an
+assistant tool call when sending the following tool result. This is required for
+valid multi-step tool conversations, including the Security agent.
+
 ---
 
 ## Switching models at runtime

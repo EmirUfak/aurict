@@ -1,6 +1,6 @@
 /* eslint-disable import/no-unresolved -- Bun provides this test module at runtime. */
 import { afterEach, describe, expect, it } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createFinanceStore } from '../src/main/finance-store.js';
@@ -49,5 +49,41 @@ describe('desktop finance store', () => {
     expect(audited.status).toBe('complete');
     expect(audited.audit?.sources).toHaveLength(1);
     expect(store.listResearch()[0]?.status).toBe('complete');
+  });
+
+  it('persists a Finance Desk conversation, its audit, and a failed turn state', () => {
+    const userData = mkdtempSync(path.join(tmpdir(), 'aurict-finance-'));
+    created.push(userData);
+    const store = createFinanceStore(() => userData);
+    const conversation = store.createConversation();
+    const withQuestion = store.appendConversationMessage(conversation.id, {
+      id: 'question', role: 'user', content: 'TRSYKFK72716 için getiri nedir?', createdAt: 1,
+    });
+    const withAudit = store.recordConversationAudit(conversation.id, {
+      summary: 'Calculator-backed result.', dataAsOf: '2026-07-25T00:00:00.000Z',
+      sources: [{ title: 'BIST', url: 'https://www.borsaistanbul.com', accessedAt: '2026-07-25T01:00:00.000Z' }], assumptions: ['Illustrative'], uncertainties: ['Rate changes'],
+    });
+    const complete = store.completeConversation(conversation.id, {
+      id: 'answer', role: 'assistant', content: '', createdAt: 2,
+      blocks: [{ type: 'tool', id: 'calculator-1', tool: 'calculator', argsSummary: '1 + 1', pending: false, result: '2', durationMs: 3 }, { type: 'text', content: 'Sonuç 2.' }],
+    });
+    const failed = store.failConversation(conversation.id, 'Provider unavailable');
+
+    expect(withQuestion.title).toContain('TRSYKFK72716');
+    expect(withAudit.audit?.sources[0]?.title).toBe('BIST');
+    expect(complete.status).toBe('complete');
+    expect(failed.status).toBe('failed');
+    expect(store.listConversations()[0]?.messages).toHaveLength(3);
+  });
+
+  it('imports legacy research records without deleting their source file', () => {
+    const userData = mkdtempSync(path.join(tmpdir(), 'aurict-finance-'));
+    created.push(userData);
+    const legacyPath = path.join(userData, 'finance-research.json');
+    writeFileSync(legacyPath, JSON.stringify([{ id: 'legacy-1', question: 'Eski araştırma', createdAt: 1, status: 'complete' }]), 'utf8');
+    const store = createFinanceStore(() => userData);
+
+    expect(store.listConversations()[0]).toMatchObject({ id: 'legacy-1', title: 'Eski araştırma', status: 'complete' });
+    expect(store.listResearch()[0]?.question).toBe('Eski araştırma');
   });
 });

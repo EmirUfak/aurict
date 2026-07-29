@@ -1,51 +1,79 @@
-import { execSync } from "child_process"
+import { execFileSync } from "node:child_process"
 
 type NotifyLevel = "info" | "success" | "error"
 
+export interface NotificationPayload {
+  title: string
+  body: string
+  level: NotifyLevel
+}
+
 function platform(): "mac" | "linux" | "other" {
   if (process.platform === "darwin") return "mac"
-  if (process.platform === "linux")  return "linux"
+  if (process.platform === "linux") return "linux"
   return "other"
 }
 
-function sendNative(title: string, body: string, level: NotifyLevel): void {
+/** Native notifications are opt-in because terminal prompts may be sensitive. */
+export function nativeNotificationsEnabled(): boolean {
+  return process.env["AURICT_NATIVE_NOTIFICATIONS"] === "1"
+}
+
+function sendNative(payload: NotificationPayload): boolean {
   try {
     if (platform() === "mac") {
-      const icon = level === "error" ? "⚠️" : "✓"
-      execSync(
-        `osascript -e 'display notification "${body.replace(/"/g, "'")}" with title "${icon} ${title}"'`,
-        { stdio: "ignore", timeout: 3000 }
-      )
-    } else if (platform() === "linux") {
-      const urgency = level === "error" ? "critical" : "normal"
-      execSync(
-        `notify-send -u ${urgency} "Aurict: ${title}" "${body.replace(/"/g, "'")}"`,
-        { stdio: "ignore", timeout: 3000 }
-      )
+      const escapedTitle = payload.title.replaceAll("\\", "\\\\").replaceAll('"', '\\"')
+      const escapedBody = payload.body.replaceAll("\\", "\\\\").replaceAll('"', '\\"')
+      execFileSync("osascript", [
+        "-e",
+        `display notification "${escapedBody}" with title "Aurict: ${escapedTitle}"`,
+      ], { stdio: "ignore", timeout: 3_000 })
+      return true
     }
-  } catch { /* bildirim çalışmazsa sessizce geç */ }
+    if (platform() === "linux") {
+      execFileSync("notify-send", [
+        "-u", "normal",
+        "-t", "5000",
+        `Aurict: ${payload.title}`,
+        payload.body,
+      ], { stdio: "ignore", timeout: 3_000 })
+      return true
+    }
+    return false
+  } catch (error) {
+    console.warn("[aurict] native notification failed", error)
+    return false
+  }
 }
 
-/**
- * Kullanıcıya bildirim gönder.
- * Terminal bell her zaman çalınır. Native bildirim platform'a göre.
- */
-export function notify(title: string, body = "", level: NotifyLevel = "info"): void {
-  // Terminal bell — her platformda çalışır, terminal focus'daysa duyulur
+export function notify(payload: NotificationPayload): boolean {
   process.stdout.write("\x07")
-  // Native OS bildirimi
-  sendNative(title, body || title, level)
+  return nativeNotificationsEnabled() ? sendNative(payload) : false
 }
 
-export function notifyTaskDone(prompt: string, durationMs: number): void {
-  const dur = durationMs >= 60_000
+export function taskCompletionNotification(durationMs: number): NotificationPayload {
+  const duration = durationMs >= 60_000
     ? `${Math.round(durationMs / 60_000)}m`
-    : `${Math.round(durationMs / 1000)}s`
-  const short = prompt.slice(0, 60) + (prompt.length > 60 ? "…" : "")
-  notify("Task completed", `${short} (${dur})`, "success")
+    : `${Math.round(durationMs / 1_000)}s`
+  return {
+    title: "Task completed",
+    body: `Open Aurict terminal to review the result (${duration}).`,
+    level: "success",
+  }
 }
 
-export function notifyError(prompt: string): void {
-  const short = prompt.slice(0, 60) + (prompt.length > 60 ? "…" : "")
-  notify("Task failed", short, "error")
+export function taskFailureNotification(): NotificationPayload {
+  return {
+    title: "Task needs attention",
+    body: "Open Aurict terminal to review the error.",
+    level: "error",
+  }
+}
+
+export function notifyTaskDone(_prompt: string, durationMs: number): void {
+  notify(taskCompletionNotification(durationMs))
+}
+
+export function notifyError(_prompt: string): void {
+  notify(taskFailureNotification())
 }

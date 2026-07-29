@@ -80,6 +80,8 @@ Provider and runtime events normalize into `TranscriptMessage` and `TranscriptBl
 - Provider/runtime failures render once as a short diagnosis, original first-line detail, and concrete recovery action. Authentication, rate limit, context, connection, and cancellation failures have specific guidance.
 - Permission requests use one compact inline decision surface immediately above the composer. Risk and execution scope are textual rather than decorative gauges, and dangerous actions still default to deny.
 - Direct permission keys are `y` (allow once), `n` (deny), and for shell requests `e` (edit). Arrow/Enter selection and Escape denial remain available.
+- Permission requests show the core gate's 60-second deadline. Response, timeout, abort, and cancellation all settle the same gate and remove the exact queued prompt, so a timed-out request cannot leave a stale input layer behind.
+- Synthesized mouse/navigation input is bounded to 64 entries. Physical stdin is read first, keeping Enter and Ctrl+C responsive after long sessions or terminal event bursts.
 - The permission surface uses the same responsive horizontal inset and frame width as the composer. Routine requests expose a horizontal `Allow once` / `Always allow` / `Deny` decision strip; dangerous requests omit persistent approval. The specialized granular-patch flow retains file selection and is contract-tested on narrow terminals.
 
 ## Phase 6 production hardening
@@ -145,9 +147,11 @@ Theme and palette selections are user preferences. Every picker, slash-command, 
 
 - Leaving the alternate screen prints a bounded plain-text copy of the last three conversation turns into normal terminal scrollback. `/export clipboard`, `Ctrl+Y`, and `Alt+Y` provide full-transcript, last-response, and last-code-block copy paths; clipboard writes include an OSC 52 path for SSH and terminal multiplexers.
 - `Ctrl+F` searches within the current conversation and jumps using projected row offsets; `Ctrl+Shift+F` retains cross-session search. Composer undo/redo stores at most 30 complete input snapshots and never splits grapheme clusters.
-- Terminal focus drives attention behavior. While unfocused, completed turns and permission requests emit BEL plus OSC 9 notifications; OSC 0 titles expose ready, running, and permission state and are sanitized before output.
+- OSC 0 titles expose ready, running, and permission state and are sanitized before output. Desktop OSC 9 overlays are disabled by default; set `AURICT_TERMINAL_NOTIFICATIONS=1` to opt in. Native `notify-send`/macOS notifications separately require `AURICT_NATIVE_NOTIFICATIONS=1`.
+- Agents with required tools (including Security) are blocked locally when the selected model's tool support is missing or heuristic-only. The terminal directs the user to `/models`; no incompatible provider request is sent.
 - Stable transcript projection is cached by message identity and terminal width. App rendering does not synchronously enumerate subagent sessions unless its session dependencies change.
 - Tool presentation metadata travels from core execution to the transcript artifact. Verification status, changed files, and failures therefore render without reparsing localized stdout; regex summarization remains only for legacy persisted events and tools without structured metadata.
+- Exact repeated assistant progress sentences are projected once around tool activity while every raw block remains available to provider history and diagnostics.
 - Paused output reports both unseen message count and semantic kind, such as `verify failed`, `response`, or `tool result`. Cancelling an active turn records `Turn cancelled — session state preserved.` so the user can distinguish cancellation from a stalled provider.
 
 ## Final polish contract

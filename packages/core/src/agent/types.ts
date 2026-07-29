@@ -26,6 +26,14 @@ export type AgentRunPhase = "preparing_context" | "resolving_model" | "compactin
 export interface ContextUsage {
   /** Tokens in persisted conversation messages only. */
   historyTokens: number
+  /** Tokenized system and repository context before calibration/safety margin. */
+  systemTokens?: number
+  /** Tokenized schemas for the tools selected for this request. */
+  toolSchemaTokens?: number
+  /** Attachment reserve not already represented in persisted messages. */
+  attachmentTokens?: number
+  /** Calibration and safety allowance added above the raw prompt estimate. */
+  safetyMarginTokens?: number
   /** History plus system prompt, tools, attachments, and safety margin. */
   effectiveTokens: number
   contextWindow: number
@@ -38,6 +46,7 @@ export interface CompactionEvent {
   reason: "history_limit" | "message_limit" | "effective_context_limit"
   before: ContextUsage
   after: ContextUsage
+  reclaimedTokens: number
 }
 
 export interface AgentRunOptions {
@@ -66,6 +75,8 @@ export interface AgentRunOptions {
   stream?:      boolean
   attachments?:    Attachment[]   // multimodal dosya ekleri
   toolsOverride?:  string[]       // set ise sadece bu tool'lar etkin (session agent kısıtlaması)
+  /** Dynamic routing uygulanırken de mutlaka görünür kalacak araçlar. */
+  requiredToolIds?: string[]
   continuation?:   AgentContinuationOptions
   runtime?:        RuntimeExecutionOptions
   taskContext?:    TaskContext
@@ -118,6 +129,8 @@ export interface AgentFinishResult {
   tokens:       TokenBreakdown
   sessionId?:   string
   newMessages:  CoreMessage[]
+  /** Replacement history before this turn's response when compaction committed. */
+  compactedMessages?: CoreMessage[]
   /** Context estimate for the next request, not billable request usage. */
   contextUsage: ContextUsage
   finishReason?: string

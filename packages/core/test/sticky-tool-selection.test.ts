@@ -20,4 +20,14 @@ describe("sticky tool selection", () => {
       maxVisible: 4,
     })).toEqual(["read"])
   })
+
+  it("reserves required tools before dynamic routing candidates", () => {
+    expect(mergeStickyToolSelection({
+      current: ["read", "grep"],
+      previous: ["write"],
+      required: ["market_data", "calculator"],
+      available: ["read", "grep", "write", "market_data", "calculator"],
+      maxVisible: 2,
+    })).toEqual(["market_data", "calculator"])
+  })
 })

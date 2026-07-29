@@ -4,26 +4,23 @@ When a conversation approaches the model's context limit, Aurict automatically c
 
 ## When compaction triggers
 
-Two independent conditions can trigger compaction:
+Compaction starts before the provider's hard limit. Aurict first calculates the
+safe request threshold as `context window - maximum output - 20,000 safety
+tokens`, then starts a checkpoint at 70% of that threshold once history contains
+at least 8,000 estimated tokens.
 
 | Condition | Default | Config key |
 |-----------|---------|-----------|
-| Token count approaches context limit | 80% of limit | automatic |
+| Effective prompt reaches the proactive threshold | 70% of the safe request threshold | automatic |
 | Message count exceeds threshold | 100 messages | `compaction.messageCountThreshold` |
 
 ---
 
 ## Compaction strategies
 
-Three strategies are available. Set via `/config set compaction.strategy <strategy>`.
-
-### `micro` (automatic, fastest)
-
-Used when the overflow is small (< 8% of context limit). No LLM call — heuristic-only.
-
-- Removes messages with very low importance scores
-- Uses `smartCompact` to stay within budget
-- Falls through to `session` if still overflowing
+Aurict chooses between two checkpoint paths. The configured
+`aggressive`, `balanced`, or `conservative` setting adjusts their output length
+and retained tail; set it via `/config set compaction.strategy <strategy>`.
 
 ### `snip` (for tool-heavy sessions)
 
@@ -38,6 +35,8 @@ CURRENT_STATE: one sentence on where the task stands
 ```
 
 Conversation messages are preserved; only tool call/result pairs are summarized.
+If this result does not meet the target token budget, Aurict retries with a full
+session checkpoint before committing anything.
 
 ### `session` (default)
 
@@ -59,10 +58,13 @@ After summarization, files mentioned in the summary are re-injected with their c
 ## Strategy selection logic
 
 ```
-overflow < 8% of context  →  try micro first, fall to session if needed
 tool output > 55%          →  snip
 otherwise                  →  session
 ```
+
+Aurict does not heuristically delete conversation history at a compaction
+boundary. The summary is produced by the active conversation model; compaction
+never silently switches to a cheaper or different model.
 
 The `strategy` config setting adjusts behavior within each path:
 
@@ -88,7 +90,7 @@ Default: 2. Conservative strategy adds 2 extra turns; aggressive subtracts 1.
 
 ## Circuit breaker
 
-If compaction's summarizer LLM call fails 3 times in a row (each after its own transient retry — see below), the circuit breaker opens. While open, Aurict fails **loud** with an actionable message rather than silently degrading summary quality: the summarizer model is likely rate-limited or down — wait a moment and retry, or point the compaction utility model at a different provider. This prevents infinite retry loops on persistent provider outages while **never** substituting a low-quality heuristic summary.
+If compaction's summarizer LLM call fails 3 times in a row (each after its own transient retry — see below), the circuit breaker opens. While open, Aurict fails **loud** with an actionable message rather than silently degrading summary quality: the active model is likely rate-limited or down, so wait a moment and retry. This prevents infinite retry loops on persistent provider outages while **never** substituting a low-quality heuristic summary or another model.
 
 ### Transient retry (quality-preserving)
 
@@ -96,11 +98,36 @@ Before a failure counts toward the circuit breaker, Aurict retries the summarize
 
 ### Hard timeout & cancel
 
-Each compaction LLM call runs under a strict **120-second total** deadline and is wired to the session's abort signal. This only prevents an infinite hang — it never shortens a legitimately long summary (120 s is generous, by design). Pressing cancel aborts compaction in-flight.
+Each compaction operation runs under a strict **45-second total** deadline and is wired to the session's abort signal. Pressing cancel aborts compaction in-flight and leaves the original conversation unchanged.
 
 ### Summary quality guardian
 
 After the summary is produced, Aurict verifies it contains the required sections (`MODIFIED_FILES`, `DECISIONS`, `ERRORS`, `CURRENT_STATE`, `NEXT_STEPS` for session; `MODIFIED_FILES`, `COMMANDS_RUN`, `ERRORS_FIXED`, `CURRENT_STATE` for snip). If any are missing, a single targeted retry re-asks for the full structured summary. This structurally prevents the common failure mode where a vague summary drops specific values — so summaries hold up better than a one-shot summary alone.
+
+---
+
+## Lossless checkpoint archive
+
+Before any summarized messages are replaced, Aurict stores their exact transcript
+under `.aurict/tool-results/<session>/` and places its
+`tool-output:<sha256>` handle in the summary. The `read_tool_output` tool can
+retrieve that source later. A deterministic ledger also preserves exact file
+paths, prior tool-output handles, error chains, and verification lines.
+
+The replacement is transactional: Aurict commits the new history only after the
+required sections pass validation and the result is both smaller than the
+original and below the target budget. On timeout, cancellation, provider error,
+invalid structure, or insufficient reduction, the original history remains
+active.
+
+Repeated checkpoints are hierarchical: a later checkpoint summarizes the prior
+validated checkpoint plus newer turns while retaining the older source archive
+handle.
+
+Automatic continuation instructions are internal control messages. They are not
+rendered as user messages, added to command history, or retained in persistent
+conversation history, including when a continuation turn crosses a compaction
+boundary.
 
 ---
 
@@ -110,7 +137,7 @@ After `session` compaction, file paths mentioned in the summary are resolved and
 
 - Up to 3 files
 - Up to 4 000 chars per file
-- Files that don't exist on disk are skipped silently
+- Unsafe or unreadable paths are skipped with a diagnostic warning
 
 This ensures the model immediately has the relevant source code in context after a compaction boundary.
 
@@ -148,11 +175,15 @@ Force a compaction at any time:
 
 ## Viewing context usage
 
-The context bar in the status bar shows current usage:
+On wide terminals, the context bar shows exact estimated counts and percentage:
 
 ```
-ctx ████████░░ 156k / 200k
+ctx 94,041/128,000 (73%)
 ```
+
+Compaction notices separately show history, system prompt, tool schemas,
+attachments, safety margin, effective before/after values, and the exact number
+of reclaimed estimated tokens. `/ctx` uses the same integer formatting.
 
 Color coding:
 - Green: < 60% used

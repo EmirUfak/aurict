@@ -138,6 +138,14 @@ export function useAppLifecycle(params: Params): void {
     }),
     [],
   );
+  useEffect(
+    () => PermissionGate.onSettled(({ id }) => {
+      params.setPermissionQueue(queue =>
+        queue.filter(request => request.id !== id),
+      );
+    }),
+    [],
+  );
   useEffect(() => {
     getSkillsForProject(params.workdir)
       .then((skills) => params.setSkillNames(skills.map((skill) => skill.id)))
@@ -251,7 +259,4 @@ export function useAppLifecycle(params: Params): void {
       });
     return () => cleanup?.();
   }, [params.workdir]);
-  useEffect(() => {
-    params.loadingRef.current = params.loading;
-  }, [params.loading]);
 }

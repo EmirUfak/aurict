@@ -48,7 +48,7 @@ const PACKS: Record<ToolCapability, string[]> = {
   document: ["document_extract", "render_pdf", "pptx", "chart", "mermaid"],
   source_control: ["git", "git_context", "diff_view", "svn", "perforce", "worktree"],
   security: ["security_recon", "security_scan", "security_report", "security_verify", "security_attack_graph", "security_log_analyze", "security_threat_model", "track_variable_taint", "jwt_decode"],
-  finance: ["finance_calculate", "market_data"],
+  finance: ["calculator", "market_data"],
   data: ["jq", "structured_data", "regex_test", "chart"],
 }
 

@@ -13,6 +13,8 @@ interface Props {
   queueLength: number;
 }
 
+export const PERMISSION_UI_TIMEOUT_SECONDS = 60;
+
 /** Keeps permission decisions in the conversation flow, directly above the composer. */
 export function InlinePermissionPane({ request, onDecide, queueLength }: Props) {
   const theme = useTheme();
@@ -22,6 +24,11 @@ export function InlinePermissionPane({ request, onDecide, queueLength }: Props) 
   return (
     <Box flexDirection="column" marginBottom={1}>
       <PermissionPrompt request={request} onDecide={onDecide} />
+      <Box paddingLeft={inset + 2}>
+        <Text color={theme.textDim}>
+          Enter confirm · Esc deny · Ctrl+C cancel turn · {PERMISSION_UI_TIMEOUT_SECONDS}s deadline
+        </Text>
+      </Box>
       {queueLength > 1 && (
         <Box paddingLeft={inset + 2}>
           <Text color={theme.textDim}>

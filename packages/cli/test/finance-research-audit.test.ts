@@ -21,4 +21,15 @@ describe('finance research audit parsing', () => {
     expect(audit.sources).toEqual([])
     expect(audit.warning).toContain('did not provide')
   })
+
+  it('rejects non-web source URLs before the renderer can link to them', () => {
+    const audit = parseFinanceResearchAudit([
+      '```finance-audit',
+      '{"summary":"Unsafe source.","sources":[{"title":"Bad","url":"javascript:alert(1)"}],"assumptions":[],"uncertainties":[]}',
+      '```',
+    ].join('\n'))
+
+    expect(audit.sources).toEqual([])
+    expect(audit.warning).toContain('No valid source URLs')
+  })
 })

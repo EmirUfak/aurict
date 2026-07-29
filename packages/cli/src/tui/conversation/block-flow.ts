@@ -82,3 +82,26 @@ export function coalesceInterruptedAssistantBlocks(blocks: TranscriptBlock[]): F
   if (deferred) output.push(deferred);
   return output;
 }
+
+function repeatSignature(block: TextBlock): string | null {
+  const content = block.content.replace(/\s+/gu, " ").trim();
+  if (content.length < 12 || content.includes("```")) return null;
+  return content;
+}
+
+/**
+ * Some tool-capable models repeat the same progress sentence before every
+ * tool call. Keep the first visible occurrence while retaining every raw block
+ * in the message state for provider history and diagnostics.
+ */
+export function collapseRepeatedAssistantText(flow: FlowBlock[]): FlowBlock[] {
+  const seen = new Set<string>();
+  return flow.filter(entry => {
+    if (entry.block.type !== "text") return true;
+    const signature = repeatSignature(entry.block);
+    if (!signature) return true;
+    if (seen.has(signature)) return false;
+    seen.add(signature);
+    return true;
+  });
+}

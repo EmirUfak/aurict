@@ -15,6 +15,16 @@ function validDate(value: unknown): value is string {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value))
 }
 
+function validSourceUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 function fallback(text: string, warning: string): FinanceResearchAuditPayload {
   return {
     summary: text.replace(/```finance-audit[\s\S]*?```/i, '').trim().slice(0, 1_000) || 'Research response completed without a structured audit record.',
@@ -42,12 +52,7 @@ export function parseFinanceResearchAudit(text: string, accessedAt = new Date().
   const sources = Array.isArray(value.sources) ? value.sources.flatMap((source) => {
     if (typeof source !== 'object' || source === null || Array.isArray(source)) return []
     const candidate = source as Record<string, unknown>
-    if (typeof candidate.title !== 'string' || typeof candidate.url !== 'string') return []
-    try {
-      new URL(candidate.url)
-    } catch {
-      return []
-    }
+    if (typeof candidate.title !== 'string' || !validSourceUrl(candidate.url)) return []
     return [{
       title: candidate.title,
       url: candidate.url,

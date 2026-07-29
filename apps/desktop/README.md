@@ -72,22 +72,43 @@ Preview HTML runs in a sandboxed iframe with a restrictive CSP. It cannot use
 the Electron bridge, local filesystem, arbitrary network connections, forms,
 or nested frames; Google Fonts is the sole allowed external resource.
 
-## Finance calculation foundation
+## Finance Desk
 
-The Finance Desk runs deterministic decimal calculations for NPV, IRR, XIRR
-(Actual/365 fixed), CAGR, DCF, amortization schedules, fixed-coupon bond
-metrics, and full bond yield-shock repricing. The renderer sends a narrow
-request to the Bun sidecar; it never implements financial math itself.
+Finance is a separate, persistent conversation surface, not a hand-off to the
+workspace chat. Each local Finance Desk conversation keeps its messages, tool
+trail, latest audit, status, and timestamps. The left rail creates, resumes,
+and removes local finance conversations; workspace sessions remain separate.
+Finance Desk follows the desktop application's English interface language.
 
-Every successful result is saved locally with its exact inputs, formula
-version, precision, assumptions, warnings, and calculation timestamp. The
-History tab keeps these calculation records separate from finance research
-requests. A research response must finish with a structured audit record; its
-source URLs, publication/access dates, data-as-of date, assumptions, and
-uncertainties are retained locally. Missing or malformed audit records are
-explicitly marked **needs review** rather than treated as complete. The agent can use the same local
-`finance_calculate` tool when a finance research request needs deterministic
-math; this is analytical output, not personalized financial advice.
+The built-in `finance` agent reserves `market_data` and `calculator` on every
+Finance Desk turn. It determines and explains the formula itself, then uses
+`calculator` for every non-trivial numeric step; there is no financial-formula
+tool. `market_data` supplies BIST/TLREF data when appropriate. This is
+analytical output, not personalized financial advice.
+
+Every response must finish with a structured audit record. Its HTTP(S) source
+URLs, publication/access dates, data-as-of date, assumptions, and
+uncertainties are retained locally and displayed in the Integrity panel.
+Missing, malformed, or source-less audits are explicitly marked **needs
+review** rather than treated as complete. Failed and cancelled turns remain
+visible instead of staying in a pending state.
+
+Finance responses render Markdown headings, lists, formulas, and tables as
+readable desktop elements. Their trailing `finance-audit` record is presented
+as an expandable methodology, assumptions, and uncertainty panel rather than
+raw JSON.
+
+The former manual Calculate tab is intentionally not presented. Historical
+deterministic-calculation records remain readable through the compatibility
+store, while legacy research records are imported into Finance Desk on first
+open without deleting the old local data file.
+
+## Browser sign-in fallback
+
+Remote account sign-in keeps the device approval link and code visible in
+Settings while approval is pending. If the system cannot open a browser, both
+values remain selectable and have copy controls so approval can continue in
+another browser or device.
 
 Failed Design Studio artifacts retain their brief, selected system, error, and
 immutable revisions. Open a failed artifact and use **retry generation** to
@@ -130,10 +151,11 @@ Operations Desk, confirm the composer remains at the bottom, a response
 follows the latest turn while the reader is at the bottom, and manually
 scrolling upward stops that follow until **latest ↓** is chosen. For Design Studio, exercise workflow
 matching, reference-image selection, refresh, a failed artifact retry, and
-Escape dismissal of its sandboxed preview. For Finance Desk, exercise a
-research template, a calculation reset, copying an exact calculation record,
-newest-history selection, and confirmation before deleting local research or
-calculation records.
+Escape dismissal of its sandboxed preview. For Finance Desk, create a
+conversation, submit a sourced research question, ask a follow-up, verify the
+tool trail and Integrity panel, reopen the local conversation, interrupt one
+request, and confirm deletion. Confirm that none of these actions changes the
+active workspace session.
 
 **Auto-allow safe commands** is enabled by default for a new installation.
 Confirm that low-risk Aurict data requests proceed without a modal while

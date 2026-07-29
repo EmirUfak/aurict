@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { FinanceCalculationEntry, FinanceCalculationResult, FinanceResearchAudit, FinanceResearchEntry } from '../shared/ipc-types.js';
+import type { FinanceCalculationEntry, FinanceCalculationResult, FinanceConversation, FinanceConversationMessage, FinanceMessageBlock, FinanceResearchAudit, FinanceResearchEntry } from '../shared/ipc-types.js';
 
 type UserDataPath = () => string;
 
@@ -44,6 +44,39 @@ function isResearchAudit(value: unknown): value is FinanceResearchAudit {
     && value.uncertainties.every((item) => typeof item === 'string');
 }
 
+function isMessageBlock(value: unknown): value is FinanceMessageBlock {
+  if (!isRecord(value) || (value.type !== 'text' && value.type !== 'tool')) return false;
+  if (value.type === 'text') return typeof value.content === 'string';
+  return typeof value.id === 'string'
+    && typeof value.tool === 'string'
+    && typeof value.argsSummary === 'string'
+    && typeof value.pending === 'boolean'
+    && (value.result === undefined || typeof value.result === 'string')
+    && (value.durationMs === undefined || typeof value.durationMs === 'number');
+}
+
+function isConversationMessage(value: unknown): value is FinanceConversationMessage {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && (value.role === 'user' || value.role === 'assistant' || value.role === 'error')
+    && typeof value.content === 'string'
+    && typeof value.createdAt === 'number'
+    && (value.blocks === undefined || (Array.isArray(value.blocks) && value.blocks.every(isMessageBlock)));
+}
+
+function isConversation(value: unknown): value is FinanceConversation {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.title === 'string'
+    && typeof value.createdAt === 'number'
+    && typeof value.updatedAt === 'number'
+    && (value.status === 'active' || value.status === 'complete' || value.status === 'needs-review' || value.status === 'failed' || value.status === 'cancelled')
+    && Array.isArray(value.messages)
+    && value.messages.every(isConversationMessage)
+    && (value.audit === undefined || isResearchAudit(value.audit))
+    && (value.error === undefined || typeof value.error === 'string');
+}
+
 function isCalculationResult(value: unknown): value is FinanceCalculationResult {
   if (!isRecord(value) || typeof value.calculation !== 'string' || !CALCULATION_KINDS.has(value.calculation)) return false;
   if (typeof value.formulaVersion !== 'string' || typeof value.calculatedAt !== 'string' || !isRecord(value.precision)) return false;
@@ -78,8 +111,87 @@ function writeEntries<T>(filePath: string, entries: T[]): void {
 export function createFinanceStore(userDataPath: UserDataPath) {
   const researchPath = () => path.join(userDataPath(), 'finance-research.json');
   const calculationsPath = () => path.join(userDataPath(), 'finance-calculations.json');
+  const conversationsPath = () => path.join(userDataPath(), 'finance-conversations.json');
+
+  const migrateResearch = (): FinanceConversation[] => {
+    if (existsSync(conversationsPath())) return readEntries(conversationsPath(), 'finance conversations', isConversation);
+    const legacy = readEntries(researchPath(), 'finance research history', isResearchEntry);
+    if (legacy.length === 0) return [];
+    const conversations = legacy.map((entry): FinanceConversation => ({
+      id: entry.id,
+      title: entry.question.slice(0, 80) || 'Imported research',
+      createdAt: entry.createdAt,
+      updatedAt: entry.completedAt ?? entry.createdAt,
+      status: entry.status === 'researching' ? 'active' : entry.status,
+      messages: [
+        { id: `${entry.id}:question`, role: 'user', content: entry.question, createdAt: entry.createdAt },
+        ...(entry.audit ? [{ id: `${entry.id}:summary`, role: 'assistant' as const, content: entry.audit.summary, createdAt: entry.completedAt ?? entry.createdAt }] : []),
+      ],
+      ...(entry.audit ? { audit: entry.audit } : {}),
+    }));
+    writeEntries(conversationsPath(), conversations);
+    return conversations;
+  };
+
+  const updateConversation = (id: string, updater: (current: FinanceConversation) => FinanceConversation): FinanceConversation => {
+    const entries = migrateResearch();
+    const current = entries.find((entry) => entry.id === id);
+    if (!current) throw new Error(`Finance conversation not found: ${id}`);
+    const next = updater(current);
+    writeEntries(conversationsPath(), entries.map((entry) => entry.id === id ? next : entry));
+    return next;
+  };
 
   return {
+    listConversations(): FinanceConversation[] {
+      return migrateResearch().sort((a, b) => b.updatedAt - a.updatedAt);
+    },
+    createConversation(): FinanceConversation {
+      const now = Date.now();
+      const entry: FinanceConversation = { id: randomUUID(), title: 'New finance research', createdAt: now, updatedAt: now, status: 'active', messages: [] };
+      writeEntries(conversationsPath(), [entry, ...migrateResearch()]);
+      return entry;
+    },
+    appendConversationMessage(id: string, message: FinanceConversationMessage): FinanceConversation {
+      if (!isConversationMessage(message)) throw new Error('Cannot save malformed finance conversation message');
+      return updateConversation(id, (current) => {
+        const withoutError = { ...current };
+        delete withoutError.error;
+        return {
+          ...withoutError,
+          title: current.messages.length === 0 && message.role === 'user' ? message.content.trim().slice(0, 80) || current.title : current.title,
+          status: 'active',
+          messages: [...current.messages, message],
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    completeConversation(id: string, message: FinanceConversationMessage): FinanceConversation {
+      if (!isConversationMessage(message) || message.role !== 'assistant') throw new Error('Finance completion must contain an assistant message');
+      return updateConversation(id, (current) => ({
+        ...current,
+        status: current.audit?.warning ? 'needs-review' : 'complete',
+        messages: [...current.messages, message],
+        updatedAt: Date.now(),
+      }));
+    },
+    failConversation(id: string, message: string, cancelled = false): FinanceConversation {
+      const normalized = message.trim() || 'Finance research failed.';
+      return updateConversation(id, (current) => ({
+        ...current,
+        status: cancelled ? 'cancelled' : 'failed',
+        error: normalized,
+        messages: [...current.messages, { id: randomUUID(), role: 'error', content: normalized, createdAt: Date.now() }],
+        updatedAt: Date.now(),
+      }));
+    },
+    removeConversation(id: string): boolean {
+      const entries = migrateResearch();
+      const next = entries.filter((entry) => entry.id !== id);
+      if (next.length === entries.length) return false;
+      writeEntries(conversationsPath(), next);
+      return true;
+    },
     listResearch(): FinanceResearchEntry[] {
       return readEntries(researchPath(), 'finance research history', isResearchEntry).sort((a, b) => b.createdAt - a.createdAt);
     },
@@ -104,6 +216,15 @@ export function createFinanceStore(userDataPath: UserDataPath) {
       };
       writeEntries(researchPath(), entries.map((candidate) => candidate.id === id ? entry : candidate));
       return entry;
+    },
+    recordConversationAudit(id: string, audit: FinanceResearchAudit): FinanceConversation {
+      if (!isResearchAudit(audit)) throw new Error('Cannot save malformed finance conversation audit');
+      return updateConversation(id, (current) => ({
+        ...current,
+        status: audit.warning ? 'needs-review' : 'active',
+        audit,
+        updatedAt: Date.now(),
+      }));
     },
     removeResearch(id: string): boolean {
       const entries = this.listResearch();

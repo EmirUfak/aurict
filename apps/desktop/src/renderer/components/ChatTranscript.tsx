@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { AssistantBlock, DisplayMessage } from '../types.js';
+import { MarkdownMessage } from './MarkdownMessage.js';
 
 interface Props {
   messages: DisplayMessage[];
@@ -27,7 +28,7 @@ function CopyMessageButton({ message }: { message: DisplayMessage }) {
 }
 
 function AssistantBlockView({ block }: { block: AssistantBlock }) {
-  if (block.type === 'text') return <div style={textStyle}>{block.content}</div>;
+  if (block.type === 'text') return <MarkdownMessage content={block.content} />;
   return <div style={toolCardStyle}><div style={toolHeaderStyle}><div style={toolLabelStyle}>{block.tool} · {block.argsSummary}</div><div style={{ ...toolStatusStyle, color: block.pending ? 'var(--accent)' : 'var(--text-subtle)' }}>{block.pending ? 'running…' : block.durationMs !== undefined ? `${block.durationMs}ms` : 'done'}</div></div>{block.result && <div style={toolResultStyle}>{block.result}</div>}</div>;
 }
 
@@ -37,7 +38,6 @@ const assistantHeadingStyle: React.CSSProperties = { display: 'flex', alignItems
 const brandStyle: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--accent)' };
 const pulseStyle: React.CSSProperties = { width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' };
 const copyStyle: React.CSSProperties = { minHeight: 20, marginLeft: 'auto', padding: '0 3px', color: 'var(--text-subtle)', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10.5 };
-const textStyle: React.CSSProperties = { fontFamily: 'var(--font-serif)', fontSize: 15.5, lineHeight: 1.62, color: 'var(--text-muted)', marginBottom: 10, whiteSpace: 'pre-wrap' };
 const toolCardStyle: React.CSSProperties = { background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: 8, overflow: 'hidden', marginBottom: 10 };
 const toolHeaderStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '9px 14px' };
 const toolLabelStyle: React.CSSProperties = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text-muted)' };

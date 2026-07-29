@@ -56,7 +56,7 @@ import { securityVerifyTool }     from "./built-in/security-verify.js"
 import { securityAttackGraphTool } from "./built-in/security-attack-graph.js"
 import { securityLogAnalyzeTool }  from "./built-in/security-log-analyze.js"
 import { securityThreatModelTool } from "./built-in/security-threat-model.js"
-import { financeCalculateTool } from "./built-in/finance.js"
+import { calculatorTool } from "./built-in/calculator.js"
 import { marketDataTool } from "./built-in/market-data.js"
 import { legalSearchTool } from "./built-in/legal-search.js"
 import { documentExtractTool } from "./built-in/document-extract.js"
@@ -93,7 +93,7 @@ for (const t of [
   uiInspectTool, browserTool,
   securityReconTool, securityScanTool, securityReportTool, securityVerifyTool,
   securityAttackGraphTool, securityLogAnalyzeTool, securityThreatModelTool,
-  financeCalculateTool,
+  calculatorTool,
   marketDataTool,
   legalSearchTool,
   documentExtractTool,

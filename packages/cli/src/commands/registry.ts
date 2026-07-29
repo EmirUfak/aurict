@@ -57,7 +57,7 @@ function ensureLine(path: string, line: string): boolean {
 // /compact now — gerçek core history üzerinden kalite-korumalı manuel compaction.
 // Display mesajları yerine ctx.history (CoreMessage[]) kullanılır; otomatik
 // compaction'la aynı compact() router'ını çağırır (transient retry + kalite
-// muhafızı dahil); 120s'lik katı toplam timeout ve cancel desteği compact()
+// muhafızı dahil); 45s'lik katı toplam timeout ve cancel desteği compact()
 // içinde gelir. restoreSession live history'yi compacted sonulla değiştirir.
 async function runCompactNow(
   ctx:  CommandContext,
@@ -2013,7 +2013,7 @@ const commands: CommandDef[] = [
 
       // /compact now — manuel compaction. Kalite düşürülmez: otomatik compaction'la
       // AYNI compact() router'ını ve gerçek core history'yi kullanır; cancel/timeout
-      // (120s) desteklidir; sonucu restoreSession ile live history'e yazar.
+      // (45s) desteklidir; sonucu restoreSession ile live history'e yazar.
       if (sub === "now") {
         return runCompactNow(ctx, cfg)
       }
@@ -2106,8 +2106,8 @@ const commands: CommandDef[] = [
         : "  (no cache health sample yet)"
 
       function fmtK(n: number) {
-        if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
-        return String(n)
+        return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 })
+          .format(Math.max(0, Math.round(n)))
       }
 
       return {

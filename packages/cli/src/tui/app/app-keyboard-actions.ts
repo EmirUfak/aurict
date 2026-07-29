@@ -1,4 +1,4 @@
-import { PlanGate } from "@aurict/core";
+import { PermissionGate, PlanGate } from "@aurict/core";
 import type {
   AppKeyboardParams,
   PrimaryOverlayTarget,
@@ -7,7 +7,17 @@ import type {
 export function closeFocusedLayer(params: AppKeyboardParams): boolean {
   const overlay = params.overlay;
   switch (params.focusLayer) {
-    case "permission":
+    case "permission": {
+      const request = params.permission;
+      if (request) {
+        PermissionGate.respond(request.id, "deny");
+        params.setPermissionQueue((queue) =>
+          queue.filter((item) => item.id !== request.id),
+        );
+        params.addSystemMsg(`Permission denied: ${request.tool}`);
+      }
+      return true;
+    }
     case "question":
     case "picker":
     case "prompt":

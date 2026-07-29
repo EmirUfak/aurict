@@ -50,7 +50,11 @@ function shortDir(workdir: string, max: number): string {
 
 function contextState(tokens: number, window = 200_000) {
   const ratio = tokens > 0 ? Math.min(1, tokens / window) : 0;
-  return { ratio, label: tokens > 0 ? `${Math.round(ratio * 100)}%` : "—" };
+  const percent = tokens > 0 ? `${Math.round(ratio * 100)}%` : "—";
+  const exact = tokens > 0
+    ? `${Math.round(tokens).toLocaleString("en-US")}/${Math.round(window).toLocaleString("en-US")} (${percent})`
+    : "—";
+  return { ratio, percent, exact };
 }
 
 function proofState(proof: CompletionProof | undefined, semantic: ReturnType<typeof useSemanticTheme>) {
@@ -109,7 +113,7 @@ export function SessionHeader(props: SessionHeaderProps) {
             {wide && (props.bgTaskCount ?? 0) > 0 && <Text color={semantic.status.info}>bg {props.bgTaskCount} {glyph("statusTiny")} </Text>}
             <Text color={theme.accentAlt}>{tiny ? "" : `${short(props.provider, compact ? 8 : 10)}/`}{short(shortModel(props.model), tiny ? 10 : compact ? 12 : 22)} </Text>
             <Text color={theme.borderDim}>{glyph("separator")} </Text>
-            <Text color={contextColor}>ctx {context.label}</Text>
+            <Text color={contextColor}>ctx {wide ? context.exact : context.percent}</Text>
           </HStack>
         </HStack>
         {!compact && (

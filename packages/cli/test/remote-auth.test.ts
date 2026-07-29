@@ -211,6 +211,10 @@ describe("auth — device login orchestration", () => {
       expect(user.email).toBe("a@b.com")
       expect(pollCount).toBe(1)
       expect(events.map((e) => e.phase)).toEqual(["starting", "waiting", "approved"])
+      expect(events.slice(1)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ verificationUriComplete: "https://aurict.com/activate?code=ABCD-1234", userCode: "ABCD-1234" }),
+      ]))
+      expect(events.slice(1).every((event) => event.verificationUriComplete === "https://aurict.com/activate?code=ABCD-1234" && event.userCode === "ABCD-1234")).toBe(true)
       const stored = readStoredTokens()
       expect(stored?.accessToken).toBe("at_1")
       expect(stored?.userEmail).toBe("a@b.com")

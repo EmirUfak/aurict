@@ -53,8 +53,10 @@ type DeviceLoginPollResult = DeviceLoginPollPending | DeviceLoginPollApproved
 export type RemoteLoginPhase = "starting" | "waiting" | "polling" | "approved" | "denied" | "expired" | "error"
 
 export interface RemoteLoginEvent {
-  phase:   RemoteLoginPhase
-  message: string
+  phase:                    RemoteLoginPhase
+  message:                  string
+  verificationUriComplete?: string
+  userCode?:                string
 }
 
 export async function startDeviceLogin(): Promise<DeviceLoginStart> {
@@ -83,7 +85,12 @@ function sleep(ms: number): Promise<void> {
 export async function loginWithBrowser(onEvent?: (event: RemoteLoginEvent) => void): Promise<{ id: string; email: string }> {
   onEvent?.({ phase: "starting", message: "Requesting device code…" })
   const start = await startDeviceLogin()
-  onEvent?.({
+  const emit = (event: Omit<RemoteLoginEvent, 'verificationUriComplete' | 'userCode'>): void => onEvent?.({
+    ...event,
+    verificationUriComplete: start.verificationUriComplete,
+    userCode: start.userCode,
+  })
+  emit({
     phase:   "waiting",
     message: `Open ${start.verificationUriComplete} and approve — code ${start.userCode} (also approvable from the mobile app).`,
   })
@@ -104,16 +111,16 @@ export async function loginWithBrowser(onEvent?: (event: RemoteLoginEvent) => vo
       if (error instanceof RemoteApiError && error.code === "network_error") {
         consecutiveNetworkErrors++
         if (consecutiveNetworkErrors < MAX_CONSECUTIVE_NETWORK_ERRORS) {
-          onEvent?.({ phase: "polling", message: "Connection hiccup — retrying…" })
+          emit({ phase: "polling", message: "Connection hiccup — retrying…" })
           continue
         }
-        onEvent?.({ phase: "error", message: error.message })
+        emit({ phase: "error", message: error.message })
         throw error
       }
       if (error instanceof RemoteApiError) {
-        if (error.code === "access_denied") onEvent?.({ phase: "denied", message: "Login was denied." })
-        else if (error.code === "device_login_expired") onEvent?.({ phase: "expired", message: "Login code expired." })
-        else onEvent?.({ phase: "error", message: error.message })
+        if (error.code === "access_denied") emit({ phase: "denied", message: "Login was denied." })
+        else if (error.code === "device_login_expired") emit({ phase: "expired", message: "Login code expired." })
+        else emit({ phase: "error", message: error.message })
       }
       throw error
     }
@@ -126,13 +133,13 @@ export async function loginWithBrowser(onEvent?: (event: RemoteLoginEvent) => vo
         userEmail:    result.user.email,
       }
       writeStoredTokens(tokens)
-      onEvent?.({ phase: "approved", message: `Signed in as ${result.user.email}.` })
+      emit({ phase: "approved", message: `Signed in as ${result.user.email}.` })
       return { id: result.user.id, email: result.user.email }
     }
     if (result.intervalSeconds) intervalMs = Math.max(1000, result.intervalSeconds * 1000)
-    onEvent?.({ phase: "polling", message: "Waiting for approval…" })
+    emit({ phase: "polling", message: "Waiting for approval…" })
   }
-  onEvent?.({ phase: "expired", message: "Login timed out." })
+  emit({ phase: "expired", message: "Login timed out." })
   throw new RemoteApiError("device_login_timeout", "Device login timed out waiting for approval.", "client")
 }
 

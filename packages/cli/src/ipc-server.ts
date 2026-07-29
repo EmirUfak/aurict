@@ -75,7 +75,7 @@ async function resolveBackendAccessToken(signal: AbortSignal): Promise<string | 
 }
 
 interface ChatAttachment { path: string; content?: string }
-interface ChatSubmitPayload { turnId: string; text: string; attachments?: ChatAttachment[]; agentId?: string; artifactId?: string; artifactIntent?: "create" | "iterate" | "promote"; displayText?: string; financeResearchId?: string }
+interface ChatSubmitPayload { turnId: string; text: string; attachments?: ChatAttachment[]; agentId?: string; artifactId?: string; artifactIntent?: "create" | "iterate" | "promote"; displayText?: string; financeResearchId?: string; financeHistory?: Array<{ role: "user" | "assistant"; content: string }> }
 interface CustomProviderDef { name: string; baseUrl: string; apiKey: string; defaultModel: string }
 
 type SidecarCommand =
@@ -145,7 +145,7 @@ type SidecarMessage =
   | { type: "memory:remove-result"; ok: boolean }
   | { type: "memory:clear-result"; removed: number }
   | { type: "finance:calculate-result"; result?: ReturnType<typeof runFinanceCalculation>; error?: string }
-  | { type: "remote:status"; status: string; message: string; email?: string; sessionId?: string }
+  | { type: "remote:status"; status: string; message: string; email?: string; sessionId?: string; verificationUriComplete?: string; userCode?: string }
 
 function send(msg: SidecarMessage): void {
   process.stdout.write(JSON.stringify(msg) + "\n")
@@ -238,7 +238,8 @@ export async function runIpcServer(workdir: string): Promise<void> {
       : ""
     const userMessage: CoreMessage = { role: "user", content: payload.text + artifactContext }
     const historyMessage: CoreMessage = { role: "user", content: payload.displayText?.trim() || payload.text }
-    const nextHistory = [...history, userMessage]
+    const financeHistory = payload.financeHistory?.map((message): CoreMessage => ({ role: message.role, content: message.content }))
+    const nextHistory = [...(financeHistory ?? history), userMessage]
 
     // Matches App.tsx's handleSubmit: the session agent (omni by default, or
     // whichever mode the composer's agent selector picked) supplies the base
@@ -268,6 +269,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
         workdir,
         sessionId,
         backendAccessTokenResolver: resolveBackendAccessToken,
+        ...(payload.financeResearchId ? { requiredToolIds: ['market_data', 'calculator'] } : {}),
         ...(agentDef.system ? { system: agentDef.system } : {}),
         messages: nextHistory,
         runtime: { profile: "desktop-sidecar" },
@@ -294,7 +296,13 @@ export async function runIpcServer(workdir: string): Promise<void> {
         onPhase: (phase) => send({ type: "chat:event", event: { type: "phase", turnId: payload.turnId, phase } }),
         onEvent: (runtimeEvent) => send({ type: "chat:event", event: { type: "runtime:event", turnId: payload.turnId, runtimeEvent } }),
         onFinish: (result) => {
-          history.push(historyMessage, ...result.newMessages)
+          if (!payload.financeResearchId) {
+            if (result.compactedMessages) {
+              history.splice(0, history.length, ...result.compactedMessages, ...result.newMessages)
+            } else {
+              history.push(historyMessage, ...result.newMessages)
+            }
+          }
           if (payload.artifactId && payload.artifactIntent !== "promote") {
             try {
               designArtifactStore.captureRevision(payload.artifactId, result.text)
@@ -348,7 +356,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
         void (async () => {
           try {
             if (cmd.action === 'login') {
-              await loginWithBrowser((event) => send({ type: 'remote:status', status: event.phase, message: event.message }))
+              await loginWithBrowser((event) => send({ type: 'remote:status', status: event.phase, message: event.message, ...(event.verificationUriComplete ? { verificationUriComplete: event.verificationUriComplete } : {}), ...(event.userCode ? { userCode: event.userCode } : {}) }))
               await publishRemoteStatus()
               return
             }

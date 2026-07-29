@@ -12,7 +12,10 @@ import {
 import type { CoreMessage } from "@aurict/core";
 import { RemoteEventTypes } from "../../remote/event-codec.js";
 import { clearDraft } from "../../util/draft.js";
-import { AUTO_CONTINUE_PROMPT } from "../auto-continue.js";
+import {
+  AUTO_CONTINUE_PROMPT,
+  stopAutoContinueAfterFailure,
+} from "../auto-continue.js";
 import { addComposerItem, takeComposerItem } from "../composer-queue.js";
 import { presentTranscriptError } from "../conversation/error-presentation.js";
 import { buildAgentCompletionHandlers } from "../app/agent-completion-handlers.js";
@@ -55,7 +58,9 @@ export function useAgentSubmit(params: AgentSubmitParams) {
       }));
       return;
     }
-    const prepared = await prepareUserInput(rawText, params.workdir);
+    const prepared = autoContinueSubmit
+      ? { text: rawText, attachments: [], warnings: [] }
+      : await prepareUserInput(rawText, params.workdir);
     for (const warning of prepared.warnings) params.addSystemMsg(`⚠ ${warning}`);
     const text = prepared.text;
     const turnAttachments = [...params.attachments, ...prepared.attachments];
@@ -63,8 +68,10 @@ export function useAgentSubmit(params: AgentSubmitParams) {
     if (!text && turnAttachments.length === 0) return;
     const continuationDefaults = readContinuationDefaults(params);
 
-    params.setCommandHistory((previous) => [...previous, text]);
-    updateFirstMessageTitle(params, text);
+    if (!autoContinueSubmit) {
+      params.setCommandHistory((previous) => [...previous, text]);
+      updateFirstMessageTitle(params, text);
+    }
     params.setStreamingError(null);
     params.setTurnSkillNames([]);
     params.setRunActivity("preparing_context");
@@ -79,11 +86,19 @@ export function useAgentSubmit(params: AgentSubmitParams) {
     const userMessage: CoreMessage = { role: "user", content: text };
     params.setMessages((previous) => [
       ...previous,
-      { role: "user", content: text, timestamp: Date.now(), id: crypto.randomUUID() },
+      ...(!autoContinueSubmit
+        ? [{ role: "user" as const, content: text, timestamp: Date.now(), id: crypto.randomUUID() }]
+        : []),
       { role: "assistant", content: "", pending: true, timestamp: Date.now(), id: crypto.randomUUID() },
     ]);
     const newHistory = [...params.historyRef.current, userMessage];
-    const context: AgentTurnContext = { params, text, startTime, newHistory };
+    const context: AgentTurnContext = {
+      params,
+      text,
+      startTime,
+      newHistory,
+      internalContinuation: autoContinueSubmit,
+    };
 
     try {
       const agent = getSessionAgent(params.activeAgent, params.workdir);
@@ -163,6 +178,9 @@ function updateFirstMessageTitle(params: AgentSubmitParams, text: string): void 
 
 function handleTurnError(context: AgentTurnContext, error: unknown): void {
   const { params, text, startTime, newHistory } = context;
+  params.autoContinueRef.current = stopAutoContinueAfterFailure(
+    params.autoContinueRef.current,
+  );
   if (params.streamTimerRef.current) clearTimeout(params.streamTimerRef.current);
   params.streamTimerRef.current = null;
   const partialText = params.streamTextRef.current;
@@ -203,8 +221,8 @@ function handleTurnError(context: AgentTurnContext, error: unknown): void {
     });
     return next;
   });
-  if (Date.now() - startTime > 15_000) notifyError(text);
-  if (!params.extractedRef.current && newHistory.length >= 4) {
+  if (Date.now() - startTime > 15_000 && !context.internalContinuation) notifyError(text);
+  if (!context.internalContinuation && !params.extractedRef.current && newHistory.length >= 4) {
     params.extractedRef.current = true;
     void extractAndStoreMemories(
       params.provider,

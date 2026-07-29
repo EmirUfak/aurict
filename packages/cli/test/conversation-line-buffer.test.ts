@@ -185,6 +185,28 @@ describe("conversation line buffer", () => {
     ])
   })
 
+  it("shows repeated tool-step commentary once without mutating raw blocks", () => {
+    const rawBlocks: NonNullable<DisplayMessage["blocks"]> = [
+      { type: "text", content: "Önemli bulgular!" },
+      { type: "tool", id: "one", tool: "read", args: "a.ts", pending: false },
+      { type: "text", content: "Önemli   bulgular!" },
+      { type: "tool", id: "two", tool: "grep", args: "pattern", pending: false },
+      { type: "text", content: "Önemli bulgular!" },
+      { type: "text", content: "Müthiş bulgular: escalation vector confirmed." },
+    ]
+    const lines = buildTranscriptLines([{
+      id: "repeated-commentary",
+      role: "assistant",
+      content: "",
+      blocks: rawBlocks,
+    }], 100, null, null, null)
+    const visible = lines.map(line => line.text)
+
+    expect(visible.filter(line => line === "Önemli bulgular!")).toHaveLength(1)
+    expect(visible).toContain("Müthiş bulgular: escalation vector confirmed.")
+    expect(rawBlocks).toHaveLength(6)
+  })
+
   it("keeps tool detail identity while repairing the observed mid-sentence split", () => {
     const lines = buildTranscriptLines([{
       id: "assistant",

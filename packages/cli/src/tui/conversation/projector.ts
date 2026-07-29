@@ -1,7 +1,10 @@
 import { glyph, terminalText } from "../terminal-glyphs.js";
 import { activityLabel, type RunActivity } from "../run-status.js";
 import type { TranscriptMessage, TranscriptBlock } from "./types.js";
-import { coalesceInterruptedAssistantBlocks } from "./block-flow.js";
+import {
+  coalesceInterruptedAssistantBlocks,
+  collapseRepeatedAssistantText,
+} from "./block-flow.js";
 import { resolveLivePresentation } from "./live-state.js";
 import { groupAdjacentToolBlocks } from "./tool-grouping.js";
 import { isMarkdownHeading, isMarkdownListItem, proseLayout, standaloneSectionTitle } from "./readability.js";
@@ -172,7 +175,7 @@ function projectMessage(rows: TranscriptRow[], message: TranscriptMessage, index
   if (message.reasoningContent) rows.push({ id: `${id}:thinking`, segments: [{ text: thinkingSummary(message.reasoningContent), tone: "thinking", italic: true }], detailId: `${id}:thinking` });
   if (message.blocks?.length) {
     const displayBlocks = message.role === "assistant"
-      ? coalesceInterruptedAssistantBlocks(message.blocks)
+      ? collapseRepeatedAssistantText(coalesceInterruptedAssistantBlocks(message.blocks))
       : message.blocks.map((block, sourceIndex) => ({ block, sourceIndex }));
     const groupedBlocks = groupAdjacentToolBlocks(displayBlocks, toolGroupKey);
     let previousKind: TranscriptBlock["type"] | "error" | undefined;

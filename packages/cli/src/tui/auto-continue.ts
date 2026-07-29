@@ -7,7 +7,7 @@ import {
 } from "@aurict/core"
 
 export const AUTO_CONTINUE_PROMPT =
-  "Continue from where you stopped. Do not wait for me; keep working until the original task is complete, blocked by a required user decision, or limited by the environment."
+  "Resume the original task from the current state. Take the next necessary action, then reassess whether the task is complete. Stop if it is complete or a user decision is required."
 
 export interface ContinuationSignal {
   text: string
@@ -24,4 +24,10 @@ export function hasOpenTasks(tasks: Task[]): boolean {
 
 export function shouldAutoContinue(signal: ContinuationSignal): boolean {
   return shouldContinueAgentRun(signal as CoreContinuationSignal)
+}
+
+export function stopAutoContinueAfterFailure(
+  state: { count: number },
+): { needed: false; count: number } {
+  return { needed: false, count: state.count }
 }

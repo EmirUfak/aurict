@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test"
-import { shouldAutoContinue, stalledMidTask } from "../src/tui/auto-continue.js"
+import {
+  AUTO_CONTINUE_PROMPT,
+  shouldAutoContinue,
+  stalledMidTask,
+  stopAutoContinueAfterFailure,
+} from "../src/tui/auto-continue.js"
 import type { Task } from "@aurict/core"
 
 const openTask: Task = {
@@ -10,6 +15,12 @@ const openTask: Task = {
 }
 
 describe("auto-continue detection", () => {
+  it("uses a measured internal continuation instruction", () => {
+    expect(AUTO_CONTINUE_PROMPT).toContain("Take the next necessary action")
+    expect(AUTO_CONTINUE_PROMPT).not.toContain("Do not")
+    expect(AUTO_CONTINUE_PROMPT).not.toContain("keep working until")
+  })
+
   it("detects unfinished prose that announces the next action", () => {
     expect(stalledMidTask("I found the issue. Next, I will update the parser")).toBe(true)
     expect(stalledMidTask("Şimdi testleri çalıştıracağım.")).toBe(true)
@@ -60,5 +71,16 @@ describe("auto-continue detection", () => {
       newMessageCount: 1,
       tasks: [openTask],
     })).toBe(false)
+  })
+
+  it("clears stale automatic continuation state after a failed turn", () => {
+    expect(stopAutoContinueAfterFailure({
+      needed: true,
+      count: 2,
+      prompt: "continue stale work",
+    })).toEqual({
+      needed: false,
+      count: 2,
+    })
   })
 })

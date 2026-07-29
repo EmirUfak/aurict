@@ -91,7 +91,7 @@ export async function runWorkerRequest(request: WorkerRequest, port: WorkerRunti
       if (batchText) finalText = finalText ? `${finalText}\n\n${batchText}` : batchText
       totalInput += result.tokens.input
       totalOutput += result.tokens.output
-      messages = [...messages, ...result.newMessages]
+      messages = [...(result.compactedMessages ?? messages), ...result.newMessages]
       stepsUsed += batchToolCalls
 
       const incoming = port.drainInbox()

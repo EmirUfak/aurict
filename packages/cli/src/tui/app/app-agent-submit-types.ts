@@ -92,4 +92,5 @@ export interface AgentTurnContext {
   text: string;
   startTime: number;
   newHistory: CoreMessage[];
+  internalContinuation: boolean;
 }

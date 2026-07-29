@@ -73,5 +73,6 @@ describe("onFocusChange — event dispatch via stdin", () => {
     process.stdin.off("data", dataListener)
     unsub()
     expect(seen.join("")).toBe("plain text")
+    expect(process.stdin.isPaused()).toBe(true)
   })
 })

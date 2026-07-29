@@ -2,8 +2,12 @@ import { streamText, generateText } from "ai"
 import type { CoreMessage, ToolSet } from "ai"
 import { ProviderRegistry } from "../provider/registry.js"
 import { resolveModelInfo } from "../provider/models-fetch.js"
+import {
+  decideModelToolCapability,
+  requiredToolCapabilityError,
+} from "../provider/model-tool-capability.js"
 import { SessionManager } from "../session/manager.js"
-import { isOverflow, isOverflowByMessages, compact, DEFAULT_TAIL_TURNS, estimateEffectiveContextTokens, microCompactOldToolResults } from "../session/compaction.js"
+import { isOverflow, isOverflowByMessages, compact, COMPACTION_BUFFER, DEFAULT_TAIL_TURNS, estimateEffectiveContextTokens } from "../session/compaction.js"
 import { buildSystemPromptSections } from "../skill/injector.js"
 import { attachmentToAIContent } from "../util/attachments.js"
 import { createThinkTagFilter } from "../util/think-tag-filter.js"
@@ -19,7 +23,11 @@ import { ModelRouter } from "../provider/router.js"
 import { metrics } from "../util/metrics.js"
 import { extractText } from "../session/context-compactor.js"
 import type { AgentRunOptions, AgentFinishResult, TokenBreakdown } from "./types.js"
-import { measureContextUsage } from "./context-usage.js"
+import {
+  measureContextUsage,
+  shouldProactivelyCompact,
+  targetEffectiveTokens,
+} from "./context-usage.js"
 import { analyzePromptSections } from "./prompt-diagnostics.js"
 import { recordPromptCacheHealth } from "./prompt-cache-health.js"
 import { getPromptCacheControl, isPromptCachingEnabled } from "./prompt-cache-control.js"
@@ -187,6 +195,12 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
   // varsayımı yerine gerçek ya da bilgiye dayalı bir context/output tahmini var.
   opts.onPhase?.("resolving_model")
   const modelInfo = await resolveModelInfo(plugin, providerName, modelId)
+  const modelToolCapability = decideModelToolCapability(modelInfo)
+  const hasToolSupport = modelToolCapability.supported
+  const requiredToolError = requiredToolCapabilityError(modelInfo, modelToolCapability)
+  if (requiredToolError && (opts.toolsOverride?.length || opts.requiredToolIds?.length)) {
+    throw new Error(requiredToolError)
+  }
   const utilityModel = featureEnabled("utility_model")
     ? resolveUtilityModel(cfg, providerName, modelId)
     : {
@@ -201,15 +215,18 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     strategy,
     provider:              providerName,
     model:                 modelId,
-    utilityProvider:       utilityModel.provider,
-    utilityModel:          utilityModel.model,
-    utilityMaxInputTokens: utilityModel.maxInputTokens,
-    utilityMaxOutputTokens: utilityModel.maxOutputTokens,
+    // Compaction always uses the active conversation model. A configured
+    // utility model remains available to memory extraction and housekeeping,
+    // but never receives conversation checkpoints implicitly.
+    utilityProvider:       providerName,
+    utilityModel:          modelId,
+    utilityMaxInputTokens: 24_000,
+    utilityMaxOutputTokens: Math.min(1_200, modelInfo.maxOutput),
     tokenizerEncoding,
     workdir,
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(msgThreshold !== undefined ? { messageCountThreshold: msgThreshold } : {}),
-    // Faz A: ESC/iptal compaction'a kadar yayılır; compaction 120s'lik katı
+    // Faz A: ESC/iptal compaction'a kadar yayılır; compaction 45s'lik katı
     // toplam timeout'a tabidir (kalite düşürülmez — yalnızca sonsuz asılmayı engeller).
     ...(opts.signal ? { signal: opts.signal } : {}),
   }
@@ -225,7 +242,12 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     before: ReturnType<typeof measureContextUsage>,
     after: ReturnType<typeof measureContextUsage>,
   ) => {
-    const event = { reason, before, after }
+    const event = {
+      reason,
+      before,
+      after,
+      reclaimedTokens: Math.max(0, before.effectiveTokens - after.effectiveTokens),
+    }
     opts.onCompaction?.(event)
     if (sessionId) {
       recordRunTrace(workdir, sessionId, "context_compaction", {
@@ -236,13 +258,12 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
       }).catch(() => metrics.recordError("context_compaction_trace"))
     }
   }
-  messages = microCompactOldToolResults(messages, compCfgFull)
-
   // Faz D: bu turn'de compaction oldu mu? True ise turn sonundaki per-turn
   // memory extraction atlanır — compaction öncesi extractAndStoreMemories zaten
   // kaybolacak bellekleri çekip kaydetti; per-turn extraction duplicate iş ve
   // utility model rate-limit'i compaction ile yarıştırır.
   let didCompactThisTurn = false
+  let historyWasCompacted = false
 
   const exceedsHistoryLimit = isOverflow(messages, compCfgFull)
   const exceedsMessageLimit = isOverflowByMessages(messages, compCfgFull)
@@ -255,11 +276,10 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     const compacted = await compact(messages, compCfgFull)
     messages  = compacted
     didCompactThisTurn = true
+    historyWasCompacted = true
     reportCompaction(exceedsHistoryLimit ? "history_limit" : "message_limit", before, measureContextUsage(messages, baseContextUsageInput))
   }
 
-  // supportsTools: false olan modeller tool API'si desteklemez — boş geç
-  const hasToolSupport   = modelInfo.supportsTools !== false
   const failureTracker   = new Map<string, number>()
   const recentReads      = new Map<string, number>()
   const toolCallIndexRef = { current: 0 }
@@ -297,9 +317,30 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
   const routedToolIds = dynamicToolRouting
     ? toolSelection.selectedToolIds
     : toolsOverride ?? availableToolIds
+  const orchestrationMode = cfg.orchestration?.mode ?? "auto"
+  const coordinatorActive = opts.coordinatorMode === false || orchestrationMode === "off"
+    ? false
+    : opts.coordinatorMode === true || orchestrationMode === "always"
+      ? true
+      : shouldInjectCoordinatorPrompt(
+          lastUserText,
+          assessComplexity({
+            text: lastUserText,
+            ...(resumedTaskContext?.objective ? { objective: resumedTaskContext.objective } : {}),
+            hasAttachments: !!opts.attachments,
+          }).level,
+        )
+  if (coordinatorActive && requiredToolError) {
+    throw new Error(requiredToolError)
+  }
+  const requiredToolIds = [
+    ...(opts.requiredToolIds ?? []),
+    ...(coordinatorActive ? ["subagent"] : []),
+  ]
   const selectedToolIds = mergeStickyToolSelection({
     current: routedToolIds,
     ...(resumedState?.activeToolIds ? { previous: resumedState.activeToolIds } : {}),
+    ...(requiredToolIds.length ? { required: requiredToolIds } : {}),
     available: availableToolIds,
     ...(toolsOverride ? { allowed: toolsOverride } : {}),
     maxVisible: cfg.toolRouting?.maxVisible ?? 32,
@@ -308,7 +349,11 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     toolIds: selectedToolIds,
     capabilities: dynamicToolRouting ? toolSelection.capabilities : ["all"],
     omittedCount: availableToolIds.length - selectedToolIds.length,
-    reason: dynamicToolRouting ? toolSelection.reason : "dynamic tool routing disabled",
+    reason: !hasToolSupport
+      ? modelToolCapability.reason === "unverified"
+        ? `Tool calling disabled: '${modelId}' has no verified tool capability metadata.`
+        : `Tool calling disabled: '${modelId}' declares no tool support.`
+      : dynamicToolRouting ? toolSelection.reason : "dynamic tool routing disabled",
   })
 
   // --- Proactive file injection: dosya adları user mesajında geçiyorsa önceden inject et ---
@@ -399,21 +444,10 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     })
   }
 
-  // ─── Faz 3A: Coordinator prompt — karmaşıklık-kapılı ────────────────────────
-  // Önceden CLI'de (App.tsx) coordinatorMode=true iken HER turn'e opts.system
-  // üzerinden giriyordu; bu hem gereksiz maliyet hem de opts.system her zaman
-  // dolu olduğu için TÜM core system bloğunun cache dışı kalmasına yol açıyordu
-  // (buildSystemPromptSections: base truthy → dynamicPromptSection). Artık
-  // sadece "complex" seviye veya çok-boyutlu/broad-scan istekte enjekte edilir;
-  // orchestration.mode: "off" hiç, "always" eski davranış (geriye dönük uyum).
-  const orchestrationMode = cfg.orchestration?.mode ?? "auto"
-  const coordinatorActive = opts.coordinatorMode === false
-    ? false  // kullanıcı /coordinator ile tamamen kapattı — config'e bakılmaksızın hiç enjekte etme
-    : orchestrationMode === "off"
-      ? false
-      : orchestrationMode === "always"
-        ? true
-        : shouldInjectCoordinatorPrompt(lastUserText, complexity.level)
+  // ─── Faz 3A: Coordinator prompt ─────────────────────────────────────────────
+  // CLI'deki açık "multi-agent" anahtarı gerçek bir kullanıcı tercihi olarak
+  // her turda coordinator'ı ve subagent aracını etkinleştirir. Çağıran taraf
+  // açık bir tercih vermediyse auto modu karmaşıklık kapısını kullanır.
   if (coordinatorActive) {
     runtimeSystemSections.push({ name: "coordinator", cache: "dynamic", content: getCoordinatorSystemPrompt() })
     // agentPool.active best-effort — asla turu çökertmemeli (ör. testlerde/edge-case'lerde mock/eksik olabilir)
@@ -475,20 +509,32 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     attachmentReserveTokens,
   }
   const effectiveContextUsage = measureContextUsage(messages, contextUsageInput)
-  if (effectiveContextUsage.effectiveTokens >= effectiveContextUsage.compactionThreshold) {
+  if (shouldProactivelyCompact(effectiveContextUsage)) {
     const contextReserve = Math.max(0, effectiveContextUsage.effectiveTokens - effectiveContextUsage.historyTokens)
     if (contextReserve >= effectiveContextUsage.compactionThreshold) {
       throw new Error("The system prompt and enabled tools exceed this model's available context window. Choose a model with a larger context window or reduce active tools.")
     }
+    const targetHistoryTokens = Math.max(
+      1_000,
+      targetEffectiveTokens(effectiveContextUsage) - contextReserve,
+    )
     const effectiveCompactionConfig = {
       ...compCfgFull,
-      contextLimit: compCfgFull.contextLimit - contextReserve,
+      contextLimit: targetHistoryTokens + compCfgFull.maxOutput + COMPACTION_BUFFER,
     }
     opts.onPhase?.("compacting")
     const compacted = await compact(messages, effectiveCompactionConfig)
     messages = compacted
     didCompactThisTurn = true
-    reportCompaction("effective_context_limit", effectiveContextUsage, measureContextUsage(messages, contextUsageInput))
+    historyWasCompacted = true
+    const compactedUsage = measureContextUsage(messages, contextUsageInput)
+    if (compactedUsage.effectiveTokens >= compactedUsage.compactionThreshold) {
+      throw new Error(
+        `Context checkpoint did not fit the provider budget (${compactedUsage.effectiveTokens} >= ` +
+        `${compactedUsage.compactionThreshold}). The original request was not sent.`,
+      )
+    }
+    reportCompaction("effective_context_limit", effectiveContextUsage, compactedUsage)
   }
 
   interface AttemptResult {
@@ -499,6 +545,11 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     providerId:   string
     modelId:      string
     turnStatus?:  TurnStatus
+    compaction?: {
+      messages: CoreMessage[]
+      before: ReturnType<typeof measureContextUsage>
+      after: ReturnType<typeof measureContextUsage>
+    }
   }
 
   // attemptIndex>0 olan her çağrı bir retry veya fallback denemesidir — önceki
@@ -529,7 +580,15 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     const attemptModelInfo = attemptProviderId === providerName
       ? modelInfo
       : await resolveModelInfo(attemptPlugin, attemptProviderId, attemptModelId)
-    const attemptHasToolSupport = attemptModelInfo?.supportsTools !== false
+    const attemptToolCapability = decideModelToolCapability(attemptModelInfo)
+    const attemptHasToolSupport = attemptToolCapability.supported
+    const attemptRequiredToolError = requiredToolCapabilityError(
+      attemptModelInfo,
+      attemptToolCapability,
+    )
+    if (attemptRequiredToolError && (opts.toolsOverride?.length || requiredToolIds.length)) {
+      throw new Error(attemptRequiredToolError)
+    }
     let attemptToolCallHappened = false
     const attemptOutcomes = new Map<string, ToolOutcome[]>()
     const completedAttemptOutcomes: ToolOutcome[] = []
@@ -568,6 +627,7 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     // cache dışı kalır. Dış kapsamdaki `messages` hiç mutasyona uğramaz — her
     // attempt kendi system-wrap'li mesaj kopyasını kurar.
     let attemptConversationMessages: CoreMessage[] = messages
+    let attemptCompaction: AttemptResult["compaction"]
     if (attemptProviderId !== providerName) {
       const fallbackUsageInput = {
         providerId: attemptProviderId,
@@ -606,7 +666,11 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
           ...(sessionId !== undefined ? { sessionId } : {}),
           ...(opts.signal ? { signal: opts.signal } : {}),
         })
-        didCompactThisTurn = true
+        attemptCompaction = {
+          messages: attemptConversationMessages,
+          before: fallbackUsage,
+          after: measureContextUsage(attemptConversationMessages, fallbackUsageInput),
+        }
       }
     }
     let attemptMessages: CoreMessage[] = attemptConversationMessages
@@ -698,6 +762,8 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
         streaming: useStreamAttempt,
         toolIds: Object.keys(attemptAiTools),
         toolCount: Object.keys(attemptAiTools).length,
+        toolSupport: attemptToolCapability.reason,
+        toolSupportSource: attemptToolCapability.source ?? "unknown",
         systemChars: attemptSystem.length,
         messageCount: attemptMessages.length,
         estimatedContextTokens: effectiveContextUsage.effectiveTokens,
@@ -907,6 +973,7 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
       fullText, breakdown, finishReason, newMessages,
       providerId: attemptProviderId, modelId: attemptModelId,
       ...(turnStatus ? { turnStatus } : {}),
+      ...(attemptCompaction ? { compaction: attemptCompaction } : {}),
     }
   }
 
@@ -936,12 +1003,33 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
         model: modelId,
         diagnostic: parseProviderError(error),
         selectedToolIds,
+        toolSupport: modelToolCapability.reason,
+        toolSupportSource: modelToolCapability.source ?? "unknown",
       }).catch(() => metrics.recordError("provider_error_trace"))
     }
     throw error
   }
 
-  const { fullText, breakdown, finishReason, newMessages, turnStatus, providerId: usedProviderName, modelId: usedModelId } = attemptResult
+  const {
+    fullText,
+    breakdown,
+    finishReason,
+    newMessages,
+    turnStatus,
+    providerId: usedProviderName,
+    modelId: usedModelId,
+  } = attemptResult
+  let committedCompactedMessages = historyWasCompacted ? messages : undefined
+  if (attemptResult.compaction) {
+    didCompactThisTurn = true
+    historyWasCompacted = true
+    committedCompactedMessages = attemptResult.compaction.messages
+    reportCompaction(
+      "effective_context_limit",
+      attemptResult.compaction.before,
+      attemptResult.compaction.after,
+    )
+  }
 
   if (sessionId !== undefined && fullText) {
     // usedProviderName/usedModelId: fallback devredeyse gerçekten çalışan provider/model
@@ -1076,6 +1164,9 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
     text:      fullText,
     tokens:    breakdown,
     newMessages,
+    ...(historyWasCompacted && committedCompactedMessages
+      ? { compactedMessages: committedCompactedMessages }
+      : {}),
     contextUsage,
     continuation,
     completionGate,

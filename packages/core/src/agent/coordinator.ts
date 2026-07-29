@@ -1,14 +1,10 @@
 import type { AgentInfo } from "./pool.js"
 import type { TaskComplexity } from "../provider/router.js"
 
-// ── Faz 3A: karmaşıklık-kapılı injection ──────────────────────────────────────
-// Coordinator promptu (~4KB) önceden HER turn'e giriyordu (App.tsx'te
-// coordinatorMode default true) — bu hem "2+2 kaç" gibi trivial turn'lerde
-// gereksiz maliyet hem de opts.system her zaman dolu olduğundan tüm core system
-// bloğunun dynamic (cache dışı) sayılmasına yol açıyordu (bkz. skill/injector.ts
-// buildSystemPromptSections: base truthy ise dynamicPromptSection kullanılıyor).
-// Bu regex, coordinator.ts'in kendi prompt metnindeki "Trigger patterns" bölümünü
-// (2+ boyut, "review the whole project" vb.) kod tarafında yaklaşık olarak yakalar.
+// ── Faz 3A: auto-mode karmaşıklık kapısı ───────────────────────────────────────
+// Çağıran taraf coordinatorMode için açık bir tercih vermediyse bu regex,
+// coordinator promptundaki çok-boyutlu / broad-scan kalıplarını yaklaşık olarak
+// yakalar. Açık true/false tercihi loop.ts içinde bu auto kararın önüne geçer.
 const DIMENSION_WORD_RE = /\b(security|performance|architecture|quality|testing|documentation)\b/gi
 const BROAD_SCAN_RE = /\b(analy[sz]e|audit|scan|review)\b[^.?!]{0,40}\b(whole|entire|all|codebase|project|system)\b/i
 const FIND_ALL_RE = /\bfind all\b/i
@@ -70,7 +66,18 @@ Read the request and pick one:
 
 ---
 
-### Trigger patterns that ALWAYS require subagents
+### Coordinator-mode delegation contract
+
+When Coordinator Mode is enabled, use subagents for meaningful independent
+work instead of performing the whole investigation in the main agent. The main
+agent owns scoping, integration, conflict resolution, edits that combine
+results, and final verification.
+
+Delegate immediately when the request has two or more independent workstreams.
+Do not read the full set of relevant files in the main agent before delegating;
+collect only enough scope information to write precise worker prompts.
+
+### Trigger patterns that require subagents
 
 Spawn immediately (do NOT start reading files yourself) when the request:
 - Mentions 2+ independent dimensions: "security, performance, architecture" → one agent per
@@ -95,9 +102,12 @@ Before spawning, run ONE glob to measure scope:
 \`\`\`
 glob("**/*.ts") → count
 \`\`\`
-- < 20 files → direct is fine
-- 20–100 files → 2–4 subagents
-- 100+ files → full delegation
+- < 20 files → 1–2 focused subagents for independent workstreams
+- 20–100 files → 2–4 focused subagents
+- 100+ files → broad delegation with non-overlapping ownership
+
+File count controls the number of workers; it never cancels delegation for a
+multi-dim or broad-scan request.
 
 ---
 
@@ -165,7 +175,9 @@ Synthesis rules:
 ---
 
 ### When to go direct
-Single file. Single bug. Single question. < 5 tool calls. → Do it yourself, no overhead.`
+Single file, single bug, or single question with no independent workstream →
+do it directly. A multi-dimensional request is not a direct task merely
+because the repository is small.`
 }
 
 // ── Active worker context ─────────────────────────────────────────────────────

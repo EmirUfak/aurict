@@ -11,6 +11,10 @@
  */
 
 import { useEffect, useRef } from "react"
+import {
+  physicalInputFirst,
+  TerminalInputQueue,
+} from "./event-system/terminal-input-queue.js"
 import { registerTerminalMode } from "./event-system/terminal-modes.js"
 
 export type MouseButton = "left" | "right" | "middle" | "scroll-up" | "scroll-down"
@@ -102,13 +106,12 @@ export function splitCoalescedKeys(chunk: string): string[] | null {
   return tokens
 }
 
-const pendingReads: string[] = []
+const pendingReads = new TerminalInputQueue()
 const _origStdinRead = process.stdin.read.bind(process.stdin)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ;(process.stdin as any).read = (size?: number): unknown => {
-  if (pendingReads.length > 0) return pendingReads.shift()!
   const raw = _origStdinRead(size)
-  if (raw === null || raw === undefined) return raw
+  if (raw === null || raw === undefined) return physicalInputFirst(raw, pendingReads)
   const str = typeof raw === "string" ? raw : String(raw)
   if (enabled) parseMouseEvents(str)
   const clean = stripAndDispatchFocus(
@@ -116,10 +119,10 @@ const _origStdinRead = process.stdin.read.bind(process.stdin)
       .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, "")  // SGR mouse events
       .replace(/\x1b\[M[\s\S]{3}/g, "")          // X10 mouse events
   )
-  if (!clean) return null
+  if (!clean) return pendingReads.shift() ?? null
   const tokens = splitCoalescedKeys(clean)
   if (tokens) {
-    pendingReads.push(...tokens.slice(1))
+    pendingReads.pushMany(tokens.slice(1))
     return tokens[0]!
   }
   return clean
@@ -170,6 +173,9 @@ export function onFocusChange(handler: FocusHandler): () => void {
     if (focusHandlers.size === 0 && focusModeCleanup) {
       focusModeCleanup()
       focusModeCleanup = null
+    }
+    if (focusHandlers.size === 0 && process.stdin.listenerCount("data") === 0) {
+      process.stdin.pause()
     }
   }
 }

@@ -8,6 +8,8 @@ export interface ModelInfo {
   supportsTools:    boolean
   supportsVision:   boolean
   supportsThinking?: boolean   // models.dev reasoning flag veya manuel
+  /** Whether tool support came from an explicit catalog, metadata, or heuristic. */
+  toolSupportSource?: "declared" | "metadata" | "inferred"
 }
 
 /**

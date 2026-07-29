@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { SetStateAction } from "react";
 import crypto from "node:crypto";
 import {
   agentPool,
@@ -38,6 +39,7 @@ interface AppStateOptions {
 }
 
 export function useAppState(options: AppStateOptions) {
+  const loadingRef = useRef(false);
   const [provider, setProviderState] = useState(options.initialProvider);
   const [model, setModelState] = useState(options.initialModel);
   const [effort, setEffort] = useState<number>();
@@ -52,7 +54,12 @@ export function useAppState(options: AppStateOptions) {
     ]);
   }, []);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoadingState] = useState(false);
+  const setLoading = useCallback((action: SetStateAction<boolean>) => {
+    const next = typeof action === "function" ? action(loadingRef.current) : action;
+    loadingRef.current = next;
+    setLoadingState(next);
+  }, []);
   const [permissionQueue, setPermissionQueue] = useState<PermissionRequest[]>([]);
   const [question, setQuestion] = useState<QuestionRequest | null>(null);
   const [picker, setPicker] = useState<PickerRequest | null>(null);
@@ -120,7 +127,6 @@ export function useAppState(options: AppStateOptions) {
   const btwFrameRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const skipSubmitRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const loadingRef = useRef(false);
   const autoContinueRef = useRef<AutoContinueState>({ needed: false, count: 0 });
   const autoContinueSubmittingRef = useRef(false);
   const remoteRuntimeRef = useRef<CliRemoteRuntime | null>(null);

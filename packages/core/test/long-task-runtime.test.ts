@@ -53,7 +53,9 @@ describe("long task runtime", () => {
 
     expect(decision.shouldContinue).toBe(true)
     expect(decision.reason).toBe("verification_pending")
+    expect(decision.nudge).toContain("Take the next necessary action")
     expect(decision.nudge).toContain("passing verification is missing")
+    expect(decision.nudge).not.toContain("Do not summarize yet")
   })
 
   it("does not continue in shadow mode but reports the reason", () => {
@@ -168,8 +170,8 @@ describe("long task runtime", () => {
     expect(isTaskContinuationTurn("version bump yap")).toBe(true)
   })
 
-  // Faz 2.4 — tekrarlayan başarısızlıkta nudge'a "maximum reasoning" notu eklenir
-  it("escalateReasoning=true iken nudge'a maximum reasoning notu ekler", () => {
+  // Faz 2.4 — tekrarlayan başarısızlıkta nudge'a strateji değişikliği notu eklenir
+  it("escalateReasoning=true iken nudge'a ölçülü bir strateji değişikliği notu ekler", () => {
     const ledger = buildTaskLedger({
       objective: "fix tests",
       workingSet: workingSetWithChangedFile(),
@@ -186,8 +188,9 @@ describe("long task runtime", () => {
     })
 
     expect(decision.shouldContinue).toBe(true)
-    expect(decision.nudge).toContain("maximum reasoning")
     expect(decision.nudge).toContain("failed repeatedly")
+    expect(decision.nudge).toContain("choose a different strategy")
+    expect(decision.nudge).not.toContain("maximum reasoning")
   })
 
   it("escalateReasoning verilmediğinde (varsayılan) nudge'da eskalasyon notu olmaz", () => {
@@ -205,7 +208,7 @@ describe("long task runtime", () => {
       budget: { previousContinuations: 0 },
     })
 
-    expect(decision.nudge).not.toContain("maximum reasoning")
+    expect(decision.nudge).not.toContain("failed repeatedly")
   })
 })
 

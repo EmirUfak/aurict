@@ -44,7 +44,19 @@ function hasSection(diag: PromptDiagnostics | undefined, name: string): boolean 
 describe("runAgent — Faz 3A coordinator karmaşıklık-kapılı enjeksiyon", () => {
   beforeEach(() => {
     streamCallCount = 0
-    ProviderRegistry.register(createMockProvider({ id: "mock-coord-provider", defaultModel: "model-a" }))
+    ProviderRegistry.register(createMockProvider({
+      id: "mock-coord-provider",
+      defaultModel: "model-a",
+      models: [{
+        id: "model-a",
+        name: "Coordinator Test Model",
+        contextWindow: 128_000,
+        maxOutput: 8_000,
+        supportsTools: true,
+        supportsVision: false,
+        supportsThinking: false,
+      }],
+    }))
   })
 
   it("kısa/basit bir prompt için (varsayılan auto mode) coordinator enjekte edilmez", async () => {
@@ -66,14 +78,37 @@ describe("runAgent — Faz 3A coordinator karmaşıklık-kapılı enjeksiyon", (
   it("çok-boyutlu bir prompt için (varsayılan auto mode) coordinator enjekte edilir", async () => {
     const { dir, cleanup } = createTempDir()
     let diagnostics: PromptDiagnostics | undefined
+    let selectedTools: string[] = []
     try {
       await runAgent({
         provider: "mock-coord-provider",
         workdir: dir,
         messages: [{ role: "user", content: "analyze this for security, performance and architecture" }],
         onPromptDiagnostics: (d) => { diagnostics = d },
+        onToolSelection: (selection) => { selectedTools = selection.toolIds },
       })
       expect(hasSection(diagnostics, "coordinator")).toBe(true)
+      expect(selectedTools).toContain("subagent")
+    } finally {
+      cleanup()
+    }
+  })
+
+  it("coordinatorMode:true açık kullanıcı tercihi olarak basit promptta da coordinator ve subagent aracını etkinleştirir", async () => {
+    const { dir, cleanup } = createTempDir()
+    let diagnostics: PromptDiagnostics | undefined
+    let selectedTools: string[] = []
+    try {
+      await runAgent({
+        provider: "mock-coord-provider",
+        workdir: dir,
+        messages: [{ role: "user", content: "hi" }],
+        coordinatorMode: true,
+        onPromptDiagnostics: (d) => { diagnostics = d },
+        onToolSelection: (selection) => { selectedTools = selection.toolIds },
+      })
+      expect(hasSection(diagnostics, "coordinator")).toBe(true)
+      expect(selectedTools).toContain("subagent")
     } finally {
       cleanup()
     }

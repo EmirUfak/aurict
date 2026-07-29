@@ -7,7 +7,7 @@
  * transient hatalarda yeniden deneme yapılır, iptal anında fırlatılır, özet zorunlu
  * bölümleri içermiyorsa tek hedefli retry istenir.
  */
-import { describe, it, expect, beforeEach, mock } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test"
 
 // --- `ai` mock: generateText'i bir kuyruktan döndür/throwla ----------------
 let generateTextQueue: Array<{ text?: string; error?: Error }> = []
@@ -35,7 +35,10 @@ const {
   SESSION_REQUIRED_SECTIONS,
   SNIP_REQUIRED_SECTIONS,
   ContextCompactionError,
+  compact,
+  estimateTokens,
 } = await import("../src/session/compaction.js")
+const { ProviderRegistry } = await import("../src/provider/registry.js")
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dummyModel = {} as any
@@ -45,6 +48,41 @@ beforeEach(() => {
   generateTextCalls = 0
   generateTextArgs = []
 })
+
+const registeredProviders: string[] = []
+afterEach(() => {
+  for (const providerId of registeredProviders.splice(0)) {
+    ProviderRegistry.unregister(providerId)
+  }
+})
+
+function registerCompactionProvider(providerId: string, modelCalls: string[]): void {
+  ProviderRegistry.register({
+    id: providerId,
+    name: "Compaction Test Provider",
+    sdkType: "openai-compatible",
+    supportsStreaming: true,
+    defaultModel: () => "active-model",
+    listModels: () => [],
+    getModel: (modelId: string) => {
+      modelCalls.push(modelId)
+      return dummyModel
+    },
+    tokenizerEncoding: () => "cl100k_base",
+    buildThinkingOptions: () => null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any)
+  registeredProviders.push(providerId)
+}
+
+function longConversation() {
+  return [
+    { role: "user", content: `Initial task ${"requirement ".repeat(1_200)}` },
+    { role: "assistant", content: `Investigation ${"finding ".repeat(1_200)}` },
+    { role: "user", content: "Latest instruction must remain verbatim." },
+    { role: "assistant", content: "Latest response." },
+  ] as const
+}
 
 describe("missingSections", () => {
   it("returns empty when all required sections are present", () => {
@@ -205,5 +243,62 @@ describe("ContextCompactionError", () => {
     expect(err.name).toBe("ContextCompactionError")
     expect(err.message).toBe("wrapper")
     expect(err.cause).toBe(cause)
+  })
+})
+
+describe("transactional same-model compaction", () => {
+  it("uses the active model even when a different utility model is configured", async () => {
+    const providerId = `compaction-active-${crypto.randomUUID()}`
+    const modelCalls: string[] = []
+    registerCompactionProvider(providerId, modelCalls)
+    generateTextQueue = [{
+      text: [
+        "MODIFIED_FILES: packages/core/src/session/compaction.ts",
+        "DECISIONS: same active model",
+        "ERRORS: none",
+        "CURRENT_STATE: verified",
+        "NEXT_STEPS: none",
+      ].join("\n"),
+    }]
+    const original = longConversation()
+
+    const result = await compact([...original], {
+      contextLimit: 100_000,
+      maxOutput: 8_000,
+      tailTurns: 1,
+      provider: providerId,
+      model: "active-model",
+      utilityProvider: "must-not-be-used",
+      utilityModel: "other-model",
+      sessionId: crypto.randomUUID(),
+    })
+
+    expect(modelCalls).toEqual(["active-model"])
+    expect(estimateTokens(result, "active-model"))
+      .toBeLessThan(estimateTokens([...original], "active-model"))
+    expect(result.at(-2)?.content).toBe("Latest instruction must remain verbatim.")
+  })
+
+  it("rejects an invalid summary without mutating the original history", async () => {
+    const providerId = `compaction-invalid-${crypto.randomUUID()}`
+    registerCompactionProvider(providerId, [])
+    generateTextQueue = [
+      { text: "MODIFIED_FILES: one.ts" },
+      { text: "MODIFIED_FILES: still incomplete" },
+    ]
+    const original = [...longConversation()]
+    const snapshot = structuredClone(original)
+
+    await expect(compact(original, {
+      contextLimit: 100_000,
+      maxOutput: 8_000,
+      tailTurns: 1,
+      provider: providerId,
+      model: "active-model",
+      sessionId: crypto.randomUUID(),
+      retryBaseDelayMs: 1,
+    })).rejects.toThrow("could not summarize")
+
+    expect(original).toEqual(snapshot)
   })
 })

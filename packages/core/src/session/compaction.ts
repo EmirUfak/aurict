@@ -1,14 +1,11 @@
-import { generateText } from "ai"
 import { readFile }     from "fs/promises"
-import type { CoreMessage, LanguageModelV1 } from "ai"
+import type { CoreMessage } from "ai"
 import { ProviderRegistry }   from "../provider/registry.js"
 import { countMessageTokens, countTokens, tokenizableMessageText } from "../provider/tokenizer.js"
 import { calibratedTokenEstimate } from "../provider/token-calibration.js"
 import { hooks }              from "../hook/emitter.js"
 import {
-  smartCompact,
   measureContextHealth,
-  importanceScore,
   extractText,
   extractFilePaths,
 } from "./context-compactor.js"
@@ -16,6 +13,25 @@ import { resolveWithinWorkspace } from "../security/path-boundary.js"
 import { clearToolMessageResults } from "./tool-message-compaction.js"
 import { addProtectedErrors, extractErrorChains } from "./compaction-errors.js"
 import { buildBoundedSummaryTranscript, SUMMARY_SYSTEM_PROMPT } from "./summary-input.js"
+import { createContextCheckpoint, formatContextCheckpoint } from "./context-checkpoint.js"
+import {
+  COMPACTION_TOTAL_TIMEOUT_MS,
+  createCompactionDeadline,
+  ensureStructuredSummary,
+  getCircuitState,
+  isCompactionCircuitOpen,
+  missingSections,
+  recordCompactionFailure,
+  recordCompactionSuccess,
+  runSummaryWithRetry,
+  SESSION_REQUIRED_SECTIONS,
+  SNIP_REQUIRED_SECTIONS,
+} from "./compaction-runtime.js"
+import {
+  ContextCompactionError,
+  type CompactionConfig,
+  type CompactionStrategy,
+} from "./compaction-contract.js"
 import {
   extractProtectedContextFacts,
   formatProtectedContextFacts,
@@ -29,248 +45,33 @@ export {
   type ProtectedContextFacts,
 } from "./protected-context.js"
 export { addProtectedErrors, extractErrorChains, type ErrorChain } from "./compaction-errors.js"
+export {
+  COMPACTION_TOTAL_TIMEOUT_MS,
+  createCompactionDeadline,
+  ensureStructuredSummary,
+  getCircuitState,
+  missingSections,
+  runSummaryWithRetry,
+  SESSION_REQUIRED_SECTIONS,
+  SNIP_REQUIRED_SECTIONS,
+  type CBState,
+  type CBStatus,
+  type CompactionDeadline,
+} from "./compaction-runtime.js"
+export {
+  ContextCompactionError,
+  type CompactionConfig,
+  type CompactionStrategy,
+} from "./compaction-contract.js"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 export const COMPACTION_BUFFER     = 20_000
 export const TOOL_OUTPUT_MAX_CHARS =  2_000
 export const DEFAULT_TAIL_TURNS    =      2
-export const PRUNE_MINIMUM         = 20_000
-export const PRUNE_PROTECT         = 40_000
 export const DEFAULT_MSG_THRESHOLD =    100
 export const TOOL_RESULT_CLEARED_MESSAGE = "[Old tool result content cleared]"
-/**
- * Compaction'ın LLM özetleme çağrısı için katı toplam süre üst sınırı.
- * Kalite her zaman öncelikli olduğu için geniş tutulur (kullanıcı onayı);
- * tek işlevi sonsuza asılı kalmayı önlemek ve ESC ile iptale izin vermektir.
- */
-export const COMPACTION_TOTAL_TIMEOUT_MS = 120_000
 /** Compaction sırasında bir hook handler'ın asılı kalmasına izin verilen maksimum süre. */
 export const COMPACTION_HOOK_TIMEOUT_MS = 5_000
-
-// ─── Abort / timeout yardımcıları ─────────────────────────────────────────────
-// İsteğe bağlı bir parent signal (kullanıcı ESC'si) ile katı bir toplam timeout'u
-// tek AbortSignal'de birleştirir. Önemli: SESSION/edyto özet kalitesi düşürülmez;
-// bu yalnızca sonsuz asılmayı engeller.
-export interface CompactionDeadline {
-  signal:   AbortSignal
-  dispose:  () => void
-}
-
-export function createCompactionDeadline(
-  parentSignal: AbortSignal | undefined,
-  timeoutMs:    number = COMPACTION_TOTAL_TIMEOUT_MS,
-): CompactionDeadline {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  const onParentAbort = () => controller.abort()
-
-  if (parentSignal) {
-    if (parentSignal.aborted) {
-      controller.abort()
-      clearTimeout(timer)
-      return { signal: controller.signal, dispose: () => {} }
-    }
-    parentSignal.addEventListener("abort", onParentAbort, { once: true })
-  }
-
-  return {
-    signal: controller.signal,
-    dispose: () => {
-      clearTimeout(timer)
-      if (parentSignal) parentSignal.removeEventListener("abort", onParentAbort)
-    },
-  }
-}
-
-// ─── Transient retry + özet kalite muhafızı ─────────────────────────────────
-// Kalite ASLA düşürülmez: transient (429/503/timeout/network) hatalarda kısa
-// backoff'la yeniden denenir, böylece circuit-breaker gerçek kesintiler dışında
-// neredeyse hiç açılmaz → "compact edilemiyor" semptomu kaybolur. Circuit'e
-// yalnızca NİHAÎ başarısızlık +1 yazar.
-const COMPACTION_MAX_ATTEMPTS = 3
-const COMPACTION_RETRYABLE =
-  /429|rate.?limit|too.?many|503|502|overload|unavailable|ECONNREFUSED|ENOTFOUND|network|timeout|fetch failed|EAI_AGAIN|socket hang up/i
-
-function parseCompactionRetryAfter(message: string): number | undefined {
-  const match = message.match(/retry.{0,10}after[:\s]+(\d+)/i)
-  return match ? Number(match[1]) * 1_000 : undefined
-}
-
-function sleepWithSignal(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) { reject(new Error("aborted")); return }
-    const onAbort = () => { cleanup(); reject(new Error("aborted")) }
-    const cleanup = () => {
-      clearTimeout(timer)
-      signal?.removeEventListener("abort", onAbort)
-    }
-    const timer = setTimeout(() => { cleanup(); resolve() }, ms)
-    signal?.addEventListener("abort", onAbort, { once: true })
-  })
-}
-
-/**
- * Compaction özetleme çağrısını transient hatalara dayanıklı çalıştırır.
- * ESC/iptal gelirse asla retry etmeden hemen fırlatır. Circuit kaydı burada
- * YAPILMAZ — caller try/catch'inde nihai sonucu circuit'e yazar.
- */
-export async function runSummaryWithRetry(
-  model:     LanguageModelV1,
-  system:    string,
-  prompt:    string,
-  maxTokens: number,
-  cfg:       Pick<CompactionConfig, "signal" | "retryBaseDelayMs">,
-): Promise<string> {
-  const baseDelay = cfg.retryBaseDelayMs ?? 4_000
-  let lastError: unknown
-  for (let attempt = 0; attempt < COMPACTION_MAX_ATTEMPTS; attempt++) {
-    if (cfg.signal?.aborted) throw new ContextCompactionError("Compaction aborted by user.")
-    try {
-      const { text } = await generateText({
-        model,
-        system,
-        messages: [{ role: "user", content: prompt }],
-        maxTokens,
-        ...(cfg.signal ? { abortSignal: cfg.signal } : {}),
-      })
-      return text
-    } catch (error) {
-      lastError = error
-      if (cfg.signal?.aborted) throw new ContextCompactionError("Compaction aborted by user.")
-      const msg = error instanceof Error ? error.message : String(error)
-      if (!COMPACTION_RETRYABLE.test(msg)) throw error       // transient değil: bırak
-      if (attempt === COMPACTION_MAX_ATTEMPTS - 1) throw error // son deneme tükendi
-      const delay = parseCompactionRetryAfter(msg) ?? (baseDelay * (attempt + 1))
-      try {
-        await sleepWithSignal(delay, cfg.signal)
-      } catch {
-        throw new ContextCompactionError("Compaction aborted by user.")
-      }
-    }
-  }
-  throw lastError
-}
-
-/** Özetin zorunlu yapısal bölümleri eksikse tek bir hedefli retry ister. */
-export const SESSION_REQUIRED_SECTIONS =
-  ["MODIFIED_FILES", "DECISIONS", "ERRORS", "CURRENT_STATE", "NEXT_STEPS"] as const
-export const SNIP_REQUIRED_SECTIONS =
-  ["MODIFIED_FILES", "COMMANDS_RUN", "ERRORS_FIXED", "CURRENT_STATE"] as const
-
-export function missingSections(summary: string, required: readonly string[]): string[] {
-  const upper = summary.toUpperCase()
-  return required.filter(section => !upper.includes(section))
-}
-
-export async function ensureStructuredSummary(
-  summary:    string,
-  required:   readonly string[],
-  model:      LanguageModelV1,
-  system:     string,
-  basePrompt: string,
-  maxTokens:  number,
-  cfg:        Pick<CompactionConfig, "signal" | "retryBaseDelayMs">,
-): Promise<string> {
-  const missing = missingSections(summary, required)
-  if (missing.length === 0) return summary
-  if (cfg.signal?.aborted) return summary
-  const retryPrompt = [
-    basePrompt,
-    "",
-    `Your previous summary omitted these required sections: ${missing.join(", ")}.`,
-    `Re-summarize and include ALL of: ${required.join(", ")}.`,
-    "Copy file paths and error messages VERBATIM. Do not omit any required section.",
-  ].join("\n")
-  try {
-    return await runSummaryWithRetry(model, system, retryPrompt, maxTokens, cfg)
-  } catch {
-    return summary // guardian retry başarısızsa eldeki en iyi özetle devam et
-  }
-}
-
-export type CompactionStrategy = "aggressive" | "balanced" | "conservative"
-
-export interface CompactionConfig {
-  contextLimit:           number
-  maxOutput:              number
-  tailTurns:              number
-  provider:               string
-  model:                  string
-  tokenizerEncoding?:     string
-  workdir?:               string
-  sessionId?:             string
-  strategy?:              CompactionStrategy
-  messageCountThreshold?: number
-  utilityProvider?:       string
-  utilityModel?:          string
-  utilityMaxInputTokens?: number
-  utilityMaxOutputTokens?: number
-  /** Kullanıcı iptali (ESC) — Sarkmada compaction dahil her şey iptal olsun. */
-  signal?:                AbortSignal
-  /** Compaction'ın LLM özetleme çağrısı için katı toplam üst sınır. */
-  timeoutMs?:             number
-  /** Transient hatalarda retry backoff'unun taban gecikmesi (ms). Test edilebilirlik
-   *  ve ince-ayar için açılmıştır; üretimde varsayılan 4000ms'dir. */
-  retryBaseDelayMs?:      number
-}
-
-export class ContextCompactionError extends Error {
-  constructor(message: string, cause?: unknown) {
-    super(message, cause === undefined ? undefined : { cause })
-    this.name = "ContextCompactionError"
-  }
-}
-
-// ─── Circuit Breaker ──────────────────────────────────────────────────────────
-const CB_MAX_FAILURES = 3
-const CB_RESET_MS     = 60_000
-
-export type CBStatus = "closed" | "open" | "half-open"
-export interface CBState { status: CBStatus; failures: number; lastFailAt: number }
-
-const circuitStates = new Map<string, CBState>()
-
-function circuitKey(cfg: Pick<CompactionConfig, "provider" | "model" | "sessionId">): string {
-  return `${cfg.provider}\0${cfg.model}\0${cfg.sessionId ?? "anonymous"}`
-}
-
-function circuitState(cfg: Pick<CompactionConfig, "provider" | "model" | "sessionId">): CBState {
-  const key = circuitKey(cfg)
-  const existing = circuitStates.get(key)
-  if (existing) return existing
-  const created: CBState = { status: "closed", failures: 0, lastFailAt: 0 }
-  circuitStates.set(key, created)
-  return created
-}
-
-export function getCircuitState(
-  cfg: Pick<CompactionConfig, "provider" | "model" | "sessionId"> = { provider: "unknown", model: "unknown" },
-): Readonly<CBState> {
-  return { ...circuitState(cfg) }
-}
-
-function cbRecordSuccess(cfg: CompactionConfig): void {
-  const cb = circuitState(cfg)
-  cb.failures = 0
-  cb.status = "closed"
-}
-
-function cbRecordFailure(cfg: CompactionConfig): void {
-  const cb = circuitState(cfg)
-  cb.failures++
-  cb.lastFailAt = Date.now()
-  if (cb.failures >= CB_MAX_FAILURES) cb.status = "open"
-}
-
-function cbIsOpen(cfg: CompactionConfig): boolean {
-  const cb = circuitState(cfg)
-  if (cb.status === "closed") return false
-  if (cb.status === "open" && Date.now() - cb.lastFailAt >= CB_RESET_MS) {
-    cb.status = "half-open"
-    return false
-  }
-  return cb.status === "open"
-}
 
 export function splitTailTurns(messages: CoreMessage[], turns: number): { head: CoreMessage[]; tail: CoreMessage[] } {
   if (turns <= 0 || messages.length === 0) return { head: messages, tail: [] }
@@ -392,24 +193,7 @@ export function microCompactOldToolResults(
   return protectedFacts ? injectProtectedFacts(compacted, protectedFacts) : compacted
 }
 
-// ─── Strategy 1: microCompact ─────────────────────────────────────────────────
-// Hiç LLM çağrısı yok. Küçük taşmalar için hızlı heuristik kırpma.
-function microCompact(messages: CoreMessage[], targetBudget: number, modelId?: string, tokenizerEncoding?: string): CoreMessage[] {
-  const annotated = messages.map((msg, idx) => ({
-    msg,
-    score:  importanceScore(msg, messages, idx),
-    tokens: countTokens(extractText(msg), modelId, tokenizerEncoding) + 4,
-  }))
-
-  // Önce: skor < 20 olan mesajları sil (çok düşük önem)
-  const filtered = annotated.filter((a) => a.score >= 20)
-
-  // Ardından: kalan bütçe için smartCompact ile kırp
-  const budget = Math.max(PRUNE_MINIMUM, targetBudget)
-  return smartCompact(filtered.map((a) => a.msg), budget)
-}
-
-// ─── Strategy 2: snipCompact ─────────────────────────────────────────────────
+// ─── Strategy 1: snipCompact ─────────────────────────────────────────────────
 // Tool output ağırlıklı konuşmalar için. Bir LLM çağrısıyla araç bölümlerini özetler.
 async function snipCompact(
   messages: CoreMessage[],
@@ -418,6 +202,7 @@ async function snipCompact(
   const tailBonus  = (cfg.strategy === "conservative" ? 2 : cfg.strategy === "aggressive" ? -1 : 0)
   const tailTurns  = Math.max(1, (cfg.tailTurns ?? DEFAULT_TAIL_TURNS) + tailBonus)
   const { head, tail } = splitTailTurns(messages, tailTurns)
+  const checkpoint = await createContextCheckpoint(head, cfg)
 
   // Araç mesajlarını toplu özetle
   const toolMessages = head.filter((m) => m.role === "tool" || (m.role === "assistant" && (
@@ -432,10 +217,8 @@ async function snipCompact(
     return `[${m.role}]: ${text}`
   }).join("\n\n")
 
-  const utilityProvider = cfg.utilityProvider ?? cfg.provider
-  const utilityModel = cfg.utilityModel ?? cfg.model
-  const plugin = ProviderRegistry.get(utilityProvider)
-  const model  = plugin.getModel(utilityModel)
+  const plugin = ProviderRegistry.get(cfg.provider)
+  const model  = plugin.getModel(cfg.model)
 
   const snipPrompt =
     `These are tool operations from a coding session. Extract the following — copy file paths and error messages VERBATIM, do not paraphrase:\n\n` +
@@ -443,7 +226,7 @@ async function snipCompact(
     `COMMANDS_RUN: list bash commands and their outcomes (success/fail/error)\n` +
     `ERRORS_FIXED: bugs found and how they were resolved (include exact error messages)\n` +
     `CURRENT_STATE: one sentence on where the task stands now\n\n` +
-    `Tool operations:\n\n${toolContext}`
+    `Tool operations:\n\n${toolContext}\n\n${checkpoint.ledger}`
   const snipMaxTokens = Math.min(cfg.utilityMaxOutputTokens ?? 1_200, 800)
 
   let snipSummary: string
@@ -454,8 +237,12 @@ async function snipCompact(
       snipSummary, SNIP_REQUIRED_SECTIONS,
       model, SUMMARY_SYSTEM_PROMPT, snipPrompt, snipMaxTokens, cfg,
     )
+    const missing = missingSections(snipSummary, SNIP_REQUIRED_SECTIONS)
+    if (missing.length > 0) {
+      throw new Error(`Compaction summary failed quality validation: ${missing.join(", ")}`)
+    }
   } catch (error) {
-    cbRecordFailure(cfg)
+    recordCompactionFailure(cfg)
     throw new ContextCompactionError("Context compaction could not summarize tool activity.", error)
   }
 
@@ -470,15 +257,14 @@ async function snipCompact(
   const compacted: CoreMessage[] = [
     ...conversation,
     { role: "user",      content: "[Tool operations summary]" },
-    { role: "assistant", content: snipSummary },
+    { role: "assistant", content: `${snipSummary}\n\n${formatContextCheckpoint(checkpoint)}` },
     ...tail,
   ]
 
-  cbRecordSuccess(cfg)
   return compacted
 }
 
-// ─── Strategy 3: sessionCompact ──────────────────────────────────────────────
+// ─── Strategy 2: sessionCompact ──────────────────────────────────────────────
 // Tam özet. Yapısal prompt + post-compact dosya re-injection + boundary marker.
 async function sessionCompact(
   messages: CoreMessage[],
@@ -488,10 +274,11 @@ async function sessionCompact(
   const tailTurns = Math.max(1, (cfg.tailTurns ?? DEFAULT_TAIL_TURNS) + tailBonus)
 
   const { head, tail } = splitTailTurns(messages, tailTurns)
+  const checkpoint = await createContextCheckpoint(head, cfg)
   const transcript = buildBoundedSummaryTranscript(
     head,
     cfg.utilityMaxInputTokens ?? 24_000,
-    cfg.utilityModel ?? cfg.model,
+    cfg.model,
     cfg.tokenizerEncoding,
   )
 
@@ -522,12 +309,11 @@ async function sessionCompact(
         "Preserve all specific values: line numbers, error codes, variable names, config keys.",
       ].join("\n")
 
-  const utilityProvider = cfg.utilityProvider ?? cfg.provider
-  const utilityModel = cfg.utilityModel ?? cfg.model
-  const plugin = ProviderRegistry.get(utilityProvider)
-  const model  = plugin.getModel(utilityModel)
+  const plugin = ProviderRegistry.get(cfg.provider)
+  const model  = plugin.getModel(cfg.model)
 
-  const sessionPrompt = `${summaryPrompt}\n\nBounded session transcript:\n\n${transcript}`
+  const sessionPrompt =
+    `${summaryPrompt}\n\nDeterministic ledger:\n${checkpoint.ledger}\n\nBounded session transcript:\n\n${transcript}`
   const sessionMaxTokens = cfg.utilityMaxOutputTokens ?? 1_200
 
   let summary: string
@@ -538,8 +324,12 @@ async function sessionCompact(
       summary, SESSION_REQUIRED_SECTIONS,
       model, SUMMARY_SYSTEM_PROMPT, sessionPrompt, sessionMaxTokens, cfg,
     )
+    const missing = missingSections(summary, SESSION_REQUIRED_SECTIONS)
+    if (missing.length > 0) {
+      throw new Error(`Compaction summary failed quality validation: ${missing.join(", ")}`)
+    }
   } catch (error) {
-    cbRecordFailure(cfg)
+    recordCompactionFailure(cfg)
     throw new ContextCompactionError("Context compaction could not summarize the earlier conversation.", error)
   }
 
@@ -578,7 +368,12 @@ async function sessionCompact(
   // Boundary marker: compaction noktasını izlenebilir kıl
   const boundaryId = crypto.randomUUID().slice(0, 8)
   const fullSummary = (scratchpadSection ? scratchpadSection + "\n\n" : "")
-    + summary + (protectedFacts ? `\n\n${protectedFacts}` : "") + fileBlocks.join("") + errorSection + `\n\n[COMPACT:${boundaryId}]`
+    + summary
+    + `\n\n${formatContextCheckpoint(checkpoint)}`
+    + (protectedFacts ? `\n\n${protectedFacts}` : "")
+    + fileBlocks.join("")
+    + errorSection
+    + `\n\n[COMPACT:${boundaryId}]`
 
   const compacted: CoreMessage[] = [
     { role: "user",      content: "[Summary of previous conversation]" },
@@ -586,7 +381,6 @@ async function sessionCompact(
     ...tail,
   ]
 
-  cbRecordSuccess(cfg)
   return compacted
 }
 
@@ -596,52 +390,58 @@ export async function compact(
   messages: CoreMessage[],
   cfg:      CompactionConfig,
 ): Promise<CoreMessage[]> {
-  if (cbIsOpen(cfg)) {
+  if (isCompactionCircuitOpen(cfg)) {
     throw new ContextCompactionError(
       "Context compaction is temporarily unavailable after repeated summary failures. " +
-      "The summarizer model is likely rate-limited or down. Wait a moment and retry your " +
-      "message, or point the compaction utility model at a different provider. " +
-      "(kalite düşürülmedi — gerçek kesintide fail-loud.)",
+      "The active model is likely rate-limited or down. The original context is unchanged; " +
+      "wait a moment and retry.",
     )
   }
 
   const usable   = cfg.contextLimit - cfg.maxOutput - COMPACTION_BUFFER
   const current  = estimateTokens(messages, cfg.model, cfg.tokenizerEncoding)
-  const overflow = current - usable
   const health   = measureContextHealth(messages)
 
   const tokensBefore = current
   const sid = cfg.sessionId ?? "unknown"
   await hooks.emit("v1.compact.before", { sessionId: sid, tokenCount: tokensBefore }, { timeoutMs: COMPACTION_HOOK_TIMEOUT_MS })
 
-  // Parent signal (ESC) + katı toplam timeout'u tek AbortSignal'de birleştir.
-  // Önemli: kalite düşürülmez — bu yalnızca sonsuz asılmayı ve iptali yönetir;
-  // gerçek LLM özeti yine üretilir (120 saniyeye kadar beklenebilir).
+  // Parent signal (ESC) + bounded same-model checkpoint deadline.
   const deadline  = createCompactionDeadline(cfg.signal, cfg.timeoutMs)
   const boundedCfg: CompactionConfig = { ...cfg, signal: deadline.signal }
 
   let result: CoreMessage[] | undefined
+  let usedSessionSummary = false
   try {
-    // Küçük taşma (<8% of context): microCompact dene, yetersizse session'a geç
-    if (overflow < cfg.contextLimit * 0.08) {
-      const micro = microCompact(messages, usable, cfg.model, cfg.tokenizerEncoding)
-      if (estimateTokens(micro, cfg.model, cfg.tokenizerEncoding) <= usable) {
-        result = micro
-      } else {
-      }
-    }
-
-    // Tool output ağırlıklı (>55%): snipCompact
-    if (!result && health.toolOutputPct > 0.55) result = await snipCompact(messages, boundedCfg)
+    // Tool output ağırlıklı (>55%): snipCompact. Heuristic-only history pruning
+    // is intentionally avoided: every lossy boundary first receives a local
+    // source archive and a same-model, quality-checked checkpoint.
+    if (health.toolOutputPct > 0.55) result = await snipCompact(messages, boundedCfg)
 
     // Varsayılan: tam session compaction
-    if (!result) result = await sessionCompact(messages, boundedCfg)
+    if (!result) {
+      result = await sessionCompact(messages, boundedCfg)
+      usedSessionSummary = true
+    }
 
-    const tokensAfter = estimateTokens(result, cfg.model, cfg.tokenizerEncoding)
+    let tokensAfter = estimateTokens(result, cfg.model, cfg.tokenizerEncoding)
+    if (tokensAfter > usable && !usedSessionSummary) {
+      result = await sessionCompact(messages, boundedCfg)
+      usedSessionSummary = true
+      tokensAfter = estimateTokens(result, cfg.model, cfg.tokenizerEncoding)
+    }
+    if (tokensAfter > usable || tokensAfter >= tokensBefore) {
+      recordCompactionFailure(cfg)
+      throw new ContextCompactionError(
+        `Compaction did not meet its token budget (${tokensBefore} -> ${tokensAfter}, target ${usable}). ` +
+        "The original context is unchanged.",
+      )
+    }
 
     await hooks.emit("v1.session.compact", { sessionId: sid, tokensBefore, tokensAfter }, { timeoutMs: COMPACTION_HOOK_TIMEOUT_MS })
     await hooks.emit("v1.compact.after",   { sessionId: sid, tokensBefore, tokensAfter }, { timeoutMs: COMPACTION_HOOK_TIMEOUT_MS })
 
+    recordCompactionSuccess(cfg)
     return result
   } finally {
     deadline.dispose()

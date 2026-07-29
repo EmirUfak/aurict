@@ -109,4 +109,57 @@ describe("PermissionGate.wait", () => {
     expect(res.decision).toBe("deny")
     expect(PermissionGate.hasPending()).toBe(false)
   })
+
+  it("reports timeout settlement so clients can remove stale prompts", async () => {
+    PermissionGate.cancelPending()
+    const settlements: Array<{ id: string; reason: string }> = []
+    const off = PermissionGate.onSettled(settlement => settlements.push(settlement))
+
+    try {
+      await PermissionGate.wait("ui-timeout", { timeoutMs: 10 })
+      expect(settlements).toContainEqual(expect.objectContaining({
+        id: "ui-timeout",
+        reason: "timeout",
+      }))
+      expect(PermissionGate.hasPending("ui-timeout")).toBe(false)
+    } finally {
+      off()
+    }
+  })
+
+  it("reports cancellation settlement exactly once", async () => {
+    PermissionGate.cancelPending()
+    const settlements: Array<{ id: string; reason: string }> = []
+    const off = PermissionGate.onSettled(settlement => settlements.push(settlement))
+    const wait = PermissionGate.wait("cancel-test", { timeoutMs: 1_000 })
+
+    try {
+      PermissionGate.cancelPending()
+      await wait
+      expect(settlements.filter(item => item.id === "cancel-test")).toEqual([
+        expect.objectContaining({ reason: "cancel" }),
+      ])
+    } finally {
+      off()
+    }
+  })
+
+  it("settles even when a UI listener throws", async () => {
+    PermissionGate.cancelPending()
+    const originalError = console.error
+    console.error = () => {}
+    const off = PermissionGate.onSettled(() => {
+      throw new Error("broken UI listener")
+    })
+
+    try {
+      const wait = PermissionGate.wait("listener-error", { timeoutMs: 1_000 })
+      PermissionGate.respond("listener-error", "allow_once")
+      await expect(wait).resolves.toEqual({ decision: "allow_once" })
+      expect(PermissionGate.hasPending("listener-error")).toBe(false)
+    } finally {
+      off()
+      console.error = originalError
+    }
+  })
 })

@@ -161,7 +161,11 @@ continued by the agent with the `read_tool_output` handle shown in the result.
 
 Setting `maxChars` globally or per tool disables adaptive sizing for that scope.
 
-Housekeeping calls such as compaction summaries and memory extraction use an economy model when the provider exposes one. Pin this route when cost or data-boundary policy requires an explicit model:
+Memory extraction may use an economy model when the provider exposes one.
+Compaction is intentionally excluded: it always uses the active conversation
+provider and model so a checkpoint cannot silently change models. Pin the
+utility route when memory-extraction cost or data-boundary policy requires an
+explicit model:
 
 ```json
 {

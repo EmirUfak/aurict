@@ -72,7 +72,10 @@ export async function runRecipe(opts: RecipeRunOptions): Promise<RecipeRunResult
           },
         })
 
-        conversationHistory = [...conversationHistory, ...finish.newMessages]
+        conversationHistory = [
+          ...(finish.compactedMessages ?? conversationHistory),
+          ...finish.newMessages,
+        ]
         opts.onStepFinish?.(i, step, stepOutput)
         results.push({ index: i, name: stepName, output: stepOutput })
       } catch (err) {

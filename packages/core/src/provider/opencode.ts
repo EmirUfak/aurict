@@ -1,8 +1,9 @@
-import { createOpenAI } from "@ai-sdk/openai"
-import type { LanguageModel } from "ai"
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
+import { wrapLanguageModel, type LanguageModel } from "ai"
 import { ProviderPlugin, thinkingOptionsForSDK, type ModelInfo } from "./plugin.js"
 import { getCachedModels } from "./models-fetch.js"
 import { providerEnv } from "./credentials.js"
+import { openAICompatibleReasoningMiddleware } from "./openai-compatible-reasoning.js"
 
 // opencode.ai Zen/Go — OpenAI-uyumlu endpoint, Anthropic modelleri proxy'ler
 export class OpenCodePlugin extends ProviderPlugin {
@@ -12,14 +13,18 @@ export class OpenCodePlugin extends ProviderPlugin {
 
   private get client() {
     const key = providerEnv("OPENCODE_API_KEY")
-    return createOpenAI({
+    return createOpenAICompatible({
+      name: "opencode",
       ...(key !== undefined ? { apiKey: key } : {}),
       baseURL: "https://opencode.ai/zen/v1",
     })
   }
 
   getModel(modelId: string): LanguageModel {
-    return this.client(modelId) as LanguageModel
+    return wrapLanguageModel({
+      model: this.client(modelId),
+      middleware: openAICompatibleReasoningMiddleware,
+    }) as LanguageModel
   }
 
   defaultModel(): string {
@@ -36,6 +41,7 @@ export class OpenCodePlugin extends ProviderPlugin {
       { id: "gpt-5.4",           name: "GPT-5.4",            contextWindow: 128_000,   maxOutput: 16_384,  supportsTools: true, supportsVision: true, supportsThinking: false },
       { id: "gpt-5.4-mini",      name: "GPT-5.4 Mini",       contextWindow: 128_000,   maxOutput: 16_384,  supportsTools: true, supportsVision: true, supportsThinking: false },
       { id: "gemini-3-flash",    name: "Gemini 3 Flash",     contextWindow: 1_048_576, maxOutput: 8_192,   supportsTools: true, supportsVision: true, supportsThinking: false },
+      { id: "mimo-v2.5-free",    name: "MiMo V2.5 Free",     contextWindow: 200_000,   maxOutput: 32_000,  supportsTools: true, toolSupportSource: "declared", supportsVision: true, supportsThinking: true },
     ]
   }
 

@@ -1,4 +1,4 @@
-const CONTINUATION_PROMPT_RE = /\bcontinue (?:the task|from where)|do not summarize yet|keep working until\b/i
+const CONTINUATION_PROMPT_RE = /\bcontinue (?:the task|from where)|resume the original task|take the next necessary action|do not summarize yet|keep working until\b/i
 
 const ACTION_RE = /\b(?:continue|proceed|resume|finish|complete|implement|fix|repair|update|change|modify|refactor|apply|run|test|verify|build|deploy|install|bump|commit)\b/i
 

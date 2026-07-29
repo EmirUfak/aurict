@@ -7,7 +7,7 @@ import type { TaskContext } from "../src/context/types.js"
 describe("capability tool routing", () => {
   const available = [
     "read", "grep", "edit", "bash", "verify", "websearch", "git",
-    "security_scan", "finance_calculate", "document_extract", "mcp_acme_query",
+    "security_scan", "calculator", "document_extract", "mcp_acme_query",
   ]
 
   it("keeps the core surface and activates intent packs without exceeding the limit", () => {

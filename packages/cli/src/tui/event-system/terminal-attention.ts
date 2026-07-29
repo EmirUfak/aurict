@@ -18,6 +18,10 @@ export function terminalNotificationSequence(message: string): string {
   return `\x07\x1b]9;${label}\x07`;
 }
 
+export function terminalNotificationsEnabled(): boolean {
+  return process.env["AURICT_TERMINAL_NOTIFICATIONS"] === "1";
+}
+
 export function writeTerminalTitle(
   title: string,
   state: TerminalAttentionState,
@@ -31,6 +35,6 @@ export function notifyTerminal(
   message: string,
   write: TerminalWriter = (value) => process.stdout.write(value),
 ): void {
-  if (!process.stdout.isTTY) return;
+  if (!process.stdout.isTTY || !terminalNotificationsEnabled()) return;
   write(terminalNotificationSequence(message));
 }

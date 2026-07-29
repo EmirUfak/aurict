@@ -133,12 +133,18 @@ async function fetchFromEndpoint(url: string, apiKey: string, options: RemoteMod
     return await Promise.all(descriptors.map(async (model) => {
       const meta = await fetchModelMeta(model.id).catch(() => null)
       const guessed = guessCapabilities(model.id)
+      const toolSupportSource = meta?.tools !== undefined
+        ? "metadata" as const
+        : model.supportsTools !== undefined
+          ? "declared" as const
+          : "inferred" as const
       return {
         id:             model.id,
         name:           model.name ?? model.id,
         contextWindow:  meta?.contextWindow ?? model.contextWindow ?? guessContextWindow(model.id),
         maxOutput:      meta?.maxOutput     ?? model.maxOutput ?? guessMaxOutput(model.id),
         supportsTools:  meta?.tools         ?? model.supportsTools ?? guessed.supportsTools,
+        toolSupportSource,
         supportsVision: meta?.vision        ?? model.supportsVision ?? guessed.supportsVision,
         ...(meta?.reasoning !== undefined
           ? { supportsThinking: meta.reasoning }
@@ -183,10 +189,16 @@ export async function resolveModelInfo(
   modelId:    string,
 ): Promise<ModelInfo> {
   const staticInfo = plugin.listModels().find((m) => m.id === modelId)
-  if (staticInfo) return staticInfo
+  if (staticInfo) return {
+    ...staticInfo,
+    toolSupportSource: staticInfo.toolSupportSource ?? "declared",
+  }
 
   const cachedInfo = findCachedModelInfo(providerId, modelId)
-  if (cachedInfo) return cachedInfo
+  if (cachedInfo) return {
+    ...cachedInfo,
+    toolSupportSource: cachedInfo.toolSupportSource ?? "inferred",
+  }
 
   const meta = await fetchModelMeta(modelId).catch(() => null)
   const guessed = guessCapabilities(modelId)
@@ -196,6 +208,7 @@ export async function resolveModelInfo(
     contextWindow:  meta?.contextWindow ?? guessContextWindow(modelId),
     maxOutput:      meta?.maxOutput     ?? guessMaxOutput(modelId),
     supportsTools:  meta?.tools         ?? guessed.supportsTools,
+    toolSupportSource: meta?.tools !== undefined ? "metadata" : "inferred",
     supportsVision: meta?.vision        ?? guessed.supportsVision,
     ...(meta?.reasoning !== undefined ? { supportsThinking: meta.reasoning } : {}),
   }

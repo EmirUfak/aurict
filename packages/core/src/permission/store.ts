@@ -125,15 +125,37 @@ export const PermissionStore = {
 }
 
 // TUI → executor köprüsü: ask kararlarını bekler
-type ResponseResolver = (response: PermissionResponse) => void
+export type PermissionSettlementReason = "response" | "timeout" | "abort" | "cancel"
+export interface PermissionSettlement {
+  id: string
+  response: PermissionResponse
+  reason: PermissionSettlementReason
+}
+
+type SettlementListener = (settlement: PermissionSettlement) => void
+type ResponseResolver = (
+  response: PermissionResponse,
+  reason?: PermissionSettlementReason,
+) => void
 interface PendingPermission {
   resolve: ResponseResolver
 }
 const pending = new Map<string, PendingPermission>()
 const earlyResponses = new Map<string, PermissionResponse>()
+const settlementListeners = new Set<SettlementListener>()
 
 function normalizeResponse(response: PermissionDecision | PermissionResponse): PermissionResponse {
   return typeof response === "string" ? { decision: response } : response
+}
+
+function emitSettlement(settlement: PermissionSettlement): void {
+  for (const listener of settlementListeners) {
+    try {
+      listener(settlement)
+    } catch (error) {
+      console.error("[aurict] permission settlement listener failed", error)
+    }
+  }
 }
 
 export const PermissionGate = {
@@ -143,6 +165,11 @@ export const PermissionGate = {
       const early = earlyResponses.get(id)
       if (early) {
         earlyResponses.delete(id)
+        emitSettlement({
+          id,
+          response: early,
+          reason: "response",
+        })
         resolve(early)
         return
       }
@@ -150,23 +177,36 @@ export const PermissionGate = {
       let settled = false
       let timer: ReturnType<typeof setTimeout> | undefined
 
-      const finish = (response: PermissionResponse) => {
+      const finish = (
+        response: PermissionResponse,
+        reason: PermissionSettlementReason = "response",
+      ) => {
         if (settled) return
         settled = true
         if (timer) clearTimeout(timer)
         opts.signal?.removeEventListener("abort", onAbort)
         pending.delete(id)
         resolve(response)
+        emitSettlement({ id, response, reason })
       }
-      const onAbort = () => finish({ decision: "deny" })
+      const onAbort = () => finish({ decision: "deny" }, "abort")
 
       if (opts.signal?.aborted) {
-        resolve({ decision: "deny" })
+        const response = { decision: "deny" } as const
+        resolve(response)
+        emitSettlement({
+          id,
+          response,
+          reason: "abort",
+        })
         return
       }
       opts.signal?.addEventListener("abort", onAbort, { once: true })
       if (opts.timeoutMs && opts.timeoutMs > 0) {
-        timer = setTimeout(() => finish({ decision: "deny" }), opts.timeoutMs)
+        timer = setTimeout(
+          () => finish({ decision: "deny" }, "timeout"),
+          opts.timeoutMs,
+        )
       }
 
       pending.set(id, {
@@ -180,20 +220,25 @@ export const PermissionGate = {
     const entry = pending.get(id)
     const response = normalizeResponse(decision)
     if (entry) {
-      entry.resolve(response)
+      entry.resolve(response, "response")
     } else {
       earlyResponses.set(id, response)
     }
   },
 
-  hasPending(): boolean {
-    return pending.size > 0
+  hasPending(id?: string): boolean {
+    return id === undefined ? pending.size > 0 : pending.has(id)
+  },
+
+  onSettled(listener: SettlementListener): () => void {
+    settlementListeners.add(listener)
+    return () => settlementListeners.delete(listener)
   },
 
   // Abort / Ctrl+C sırasında çağrılır — bekleyen tüm izin isteklerini reddet
   cancelPending(): void {
     for (const entry of pending.values()) {
-      entry.resolve({ decision: "deny" })
+      entry.resolve({ decision: "deny" }, "cancel")
     }
     pending.clear()
     earlyResponses.clear()

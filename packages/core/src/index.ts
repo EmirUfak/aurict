@@ -5,12 +5,18 @@ export { coreAssetDir, coreStateDir, coreStatePath, ensureCoreStateDir, legacyCo
 
 export { calculateAmortization, calculateBondMetrics, calculateBondYieldShock, calculateCagr, calculateDcf, calculateInternalRateOfReturn, calculateNetPresentValue, calculateXirr, cashFlowsFromAmounts, datedCashFlowsFromAmounts, financeCalculationKinds, runFinanceCalculation, FinanceCalculationError } from "./finance/index.js"
 export type { AmortizationInput, BondInput, CagrInput, CashFlow, DatedCashFlow, DcfInput, DecimalInput, FinanceCalculationKind, FinanceCalculationRequest, FinanceResult, FinanceWarning, InternalRateOfReturnInput, NetPresentValueInput, XirrInput, YieldShockInput } from "./finance/index.js"
-export { financeCalculateTool } from "./tool/built-in/finance.js"
+export { calculatorTool } from "./tool/built-in/calculator.js"
 
 export { taskCreateTool, taskUpdateTool, taskCompleteTool } from "./tool/built-in/dag-tasks.js"
 export { planEnterTool, planVerifyTool } from "./tool/built-in/plan.js"
 export { subagentTool } from "./tool/built-in/subagent.js"
 export { ProviderPlugin, type ModelInfo } from "./provider/plugin.js"
+export {
+  decideModelToolCapability,
+  requiredToolCapabilityError,
+  type ToolCapabilityDecision,
+  type ToolCapabilityReason,
+} from "./provider/model-tool-capability.js"
 export { ProviderRegistry } from "./provider/registry.js"
 export { PUBLIC_PRODUCT_CATALOG } from "./marketing/public-catalog.js"
 export type { PublicProvider } from "./marketing/public-catalog.js"

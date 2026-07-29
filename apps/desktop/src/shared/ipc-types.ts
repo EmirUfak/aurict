@@ -22,6 +22,7 @@ export interface ChatSubmitPayload {
   artifactIntent?: 'create' | 'iterate' | 'promote';
   displayText?: string;
   financeResearchId?: string;
+  financeHistory?: SessionMessage[];
 }
 
 export type ChatTurnEvent = { turnId: string } & (
@@ -124,7 +125,7 @@ export interface SidecarStatus {
   connected: boolean;
   message?: string;
 }
-export interface RemoteStatus { status: string; message: string; email?: string; sessionId?: string; }
+export interface RemoteStatus { status: string; message: string; email?: string; sessionId?: string; verificationUriComplete?: string; userCode?: string; }
 
 export type UserType = 'general' | 'developer' | 'product' | 'designer' | 'operator' | 'finance';
 export type ExperienceLayout = 'home' | 'developer' | 'product' | 'design' | 'operations' | 'finance';
@@ -168,6 +169,31 @@ export interface FinanceResearchAudit {
   assumptions: string[];
   uncertainties: string[];
   warning?: string;
+}
+
+export type FinanceConversationStatus = 'active' | 'complete' | 'needs-review' | 'failed' | 'cancelled';
+
+export type FinanceMessageBlock =
+  | { type: 'text'; content: string }
+  | { type: 'tool'; id: string; tool: string; argsSummary: string; pending: boolean; result?: string; durationMs?: number };
+
+export interface FinanceConversationMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'error';
+  content: string;
+  createdAt: number;
+  blocks?: FinanceMessageBlock[];
+}
+
+export interface FinanceConversation {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  status: FinanceConversationStatus;
+  messages: FinanceConversationMessage[];
+  audit?: FinanceResearchAudit;
+  error?: string;
 }
 
 export type FinanceCalculationKind =
@@ -356,6 +382,12 @@ export interface AurictWindowApi {
     reset(): Promise<void>;
   };
   finance: {
+    listConversations(): Promise<FinanceConversation[]>;
+    createConversation(): Promise<FinanceConversation>;
+    removeConversation(id: string): Promise<boolean>;
+    appendConversationMessage(id: string, message: FinanceConversationMessage): Promise<FinanceConversation>;
+    completeConversation(id: string, message: FinanceConversationMessage): Promise<FinanceConversation>;
+    failConversation(id: string, message: string, cancelled?: boolean): Promise<FinanceConversation>;
     listResearch(): Promise<FinanceResearchEntry[]>;
     createResearch(question: string): Promise<FinanceResearchEntry>;
     removeResearch(id: string): Promise<boolean>;
@@ -464,4 +496,4 @@ export type SidecarMessage =
   | { type: 'memory:remove-result'; ok: boolean }
   | { type: 'memory:clear-result'; removed: number }
   | { type: 'finance:calculate-result'; result?: FinanceCalculationResult; error?: string }
-  | { type: 'remote:status'; status: string; message: string; email?: string; sessionId?: string };
+  | { type: 'remote:status'; status: string; message: string; email?: string; sessionId?: string; verificationUriComplete?: string; userCode?: string };

@@ -21,15 +21,17 @@ function parseRetryAfter(message: string): number | undefined {
 }
 
 export function parseProviderError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error)
+  const raw = sanitizeProviderDiagnostic(error instanceof Error ? error.message : String(error))
   const api = error as { statusCode?: number; url?: string; responseBody?: unknown }
   const status = typeof api?.statusCode === "number" ? api.statusCode : undefined
-  const body = typeof api?.responseBody === "string"
-    ? api.responseBody.slice(0, 600)
-    : api?.responseBody !== undefined ? JSON.stringify(api.responseBody).slice(0, 600) : ""
+  const body = sanitizeProviderDiagnostic(
+    typeof api?.responseBody === "string"
+      ? api.responseBody
+      : api?.responseBody !== undefined ? JSON.stringify(api.responseBody) : "",
+  ).slice(0, 600)
   const detail = [
     status !== undefined ? `HTTP ${status}` : null,
-    api?.url ? `endpoint: ${api.url}` : null,
+    api?.url ? `endpoint: ${sanitizeProviderDiagnostic(api.url)}` : null,
     body ? `response: ${body}` : null,
   ].filter(Boolean).join("\n")
 
@@ -47,4 +49,18 @@ export function parseProviderError(error: unknown): string {
   if (/503|502|overload|unavailable/i.test(raw)) return "Provider temporarily unavailable — retry or switch provider."
   if (/ECONNREFUSED|ENOTFOUND|network|timeout/i.test(raw)) return "Network error — check your connection."
   return [raw, detail].filter(Boolean).join("\n")
+}
+
+export function sanitizeProviderDiagnostic(value: string): string {
+  return value
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
+    .replace(/\b(?:sk|key|token)-[A-Za-z0-9_-]{8,}\b/gi, "[REDACTED]")
+    .replace(
+      /("(?:api[_-]?key|authorization|access[_-]?token|refresh[_-]?token|password)"\s*:\s*)"[^"]*"/gi,
+      '$1"[REDACTED]"',
+    )
+    .replace(
+      /\b((?:api[_-]?key|authorization|access[_-]?token|refresh[_-]?token|password)\s*[=:]\s*)[^\s,;]+/gi,
+      "$1[REDACTED]",
+    )
 }

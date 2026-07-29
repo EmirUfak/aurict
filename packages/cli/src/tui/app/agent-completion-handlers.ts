@@ -5,17 +5,14 @@ import {
 } from "@aurict/core";
 import type { AgentRunOptions, CoreMessage } from "@aurict/core";
 import type { DisplayMessage } from "../conversation/types.js";
+import { contextLimitNotice, formatCompactionEvent } from "../context-usage-format.js";
 import type { AgentTurnContext } from "./app-agent-submit-types.js";
+import { resolvePersistentTurnHistory } from "./agent-history.js";
 
 type CompletionHandlers = Pick<
   AgentRunOptions,
   "onCompaction" | "onProviderFallback" | "onFinish"
 >;
-
-function formatTokens(value: number): string {
-  if (value < 1_000) return String(value);
-  return `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}k`;
-}
 
 export function buildAgentCompletionHandlers(
   context: AgentTurnContext,
@@ -26,9 +23,7 @@ export function buildAgentCompletionHandlers(
       params.setWasCompacted(true);
       setTimeout(() => params.setWasCompacted(false), 8_000);
       params.setContextUsage(event.after);
-      params.addSystemMsg(
-        `Context compacted: ${formatTokens(event.before.effectiveTokens)} → ${formatTokens(event.after.effectiveTokens)} tokens (${event.reason.replaceAll("_", " ")}).`,
-      );
+      params.addSystemMsg(formatCompactionEvent(event));
       params.extractedRef.current = false;
     },
     onProviderFallback: (fromProvider, toProvider) => {
@@ -63,22 +58,27 @@ function finishTurn(
   }));
   params.setContextUsage(result.contextUsage);
   if (result.contextUsage.effectiveTokens >= result.contextUsage.compactionThreshold) {
-    params.addSystemMsg(
-      "Context limit reached — earlier context will be compacted before the next request.",
-    );
+    params.addSystemMsg(contextLimitNotice(result.contextUsage));
   }
+  const updatedHistory = resolvePersistentTurnHistory({
+    currentHistory: params.historyRef.current,
+    submittedHistory: newHistory,
+    ...(result.compactedMessages ? { compactedMessages: result.compactedMessages } : {}),
+    newMessages: result.newMessages,
+    internalContinuation: context.internalContinuation,
+    submittedPrompt: text,
+  }) as CoreMessage[];
   const duration = Date.now() - startTime;
-  if (duration > 15_000) notifyTaskDone(text, duration);
+  if (duration > 15_000 && !context.internalContinuation) notifyTaskDone(text, duration);
   if (!params.extractedRef.current) {
     params.extractedRef.current = true;
     void extractAndStoreMemories(
       params.provider,
       params.model,
-      [...newHistory, ...result.newMessages],
+      updatedHistory,
       params.workdir,
     ).catch(() => metrics.recordError("memory_extract"));
   }
-  const updatedHistory = [...newHistory, ...result.newMessages] as CoreMessage[];
   params.historyRef.current = updatedHistory;
   params.setHistory(updatedHistory);
   params.setMessages((previous) => mergeFinishedAssistantMessage(

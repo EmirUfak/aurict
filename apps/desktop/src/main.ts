@@ -36,6 +36,7 @@ import type {
   FontPair,
   FinanceCalculationRequest,
   FinanceCalculationResult,
+  FinanceConversationMessage,
   ArtifactInfo,
   RemoteStatus,
 } from './shared/ipc-types.js';
@@ -284,7 +285,7 @@ function handleSidecarMessage(msg: SidecarMessage): void {
         artifactStore.register(msg.event.artifact as ArtifactInfo & { path: string });
       }
       if (msg.event.type === 'finance-research-audit') {
-        financeStore.recordResearchAudit(msg.event.researchId, msg.event.audit);
+        financeStore.recordConversationAudit(msg.event.researchId, msg.event.audit);
       }
       mainWindow?.webContents.send('chat:event', msg.event);
       return;
@@ -685,6 +686,12 @@ ipcMain.handle('onboarding:save', (_e, profile: UserProfile) => {
   desktopStores.saveOnboarding(normalized);
 });
 ipcMain.handle('onboarding:reset', () => desktopStores.resetOnboarding());
+ipcMain.handle('finance:conversations:list', () => financeStore.listConversations());
+ipcMain.handle('finance:conversations:create', () => financeStore.createConversation());
+ipcMain.handle('finance:conversations:remove', (_e, id: string) => financeStore.removeConversation(id));
+ipcMain.handle('finance:conversations:append-message', (_e, id: string, message: FinanceConversationMessage) => financeStore.appendConversationMessage(id, message));
+ipcMain.handle('finance:conversations:complete', (_e, id: string, message: FinanceConversationMessage) => financeStore.completeConversation(id, message));
+ipcMain.handle('finance:conversations:fail', (_e, id: string, message: string, cancelled?: boolean) => financeStore.failConversation(id, message, cancelled));
 ipcMain.handle('finance:research:list', () => financeStore.listResearch());
 ipcMain.handle('finance:research:create', (_e, question: string) => financeStore.createResearch(question));
 ipcMain.handle('finance:research:remove', (_e, id: string) => financeStore.removeResearch(id));

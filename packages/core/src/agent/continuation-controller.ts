@@ -97,7 +97,8 @@ function continueDecision(reason: LongTaskContinuationReason, input: EvaluateLon
 
 function buildNudge(reason: LongTaskContinuationReason, ledger: TaskLedger, escalateReasoning?: boolean): string {
   const parts = [
-    "Continue the task. Do not summarize yet.",
+    "Resume the original task from the current verified state.",
+    "Take the next necessary action, then reassess whether the task is complete.",
     `Current phase: ${ledger.phase}.`,
   ]
   if (reason === "verification_pending") {
@@ -117,7 +118,7 @@ function buildNudge(reason: LongTaskContinuationReason, ledger: TaskLedger, esca
   if (ledger.verification.status !== "none") parts.push(`Verification: ${ledger.verification.status}`)
   if (ledger.lastToolError) parts.push(`Last error: ${ledger.lastToolError.message.slice(0, 240)}`)
   if (escalateReasoning) {
-    parts.push("The previous approach failed repeatedly. Use maximum reasoning effort and try a fundamentally different strategy — do not repeat what already failed.")
+    parts.push("The previous approach failed repeatedly. Reassess the evidence and choose a different strategy before retrying.")
   }
   return parts.join("\n")
 }

@@ -53,10 +53,14 @@ aurict --coordinator
 
 In coordinator mode:
 1. The main agent receives your request
-2. It breaks the task into subtasks
-3. Each subtask is dispatched to the appropriate worker type
+2. The `subagent` tool remains available even when dynamic tool routing is enabled
+3. Independent workstreams are dispatched to the appropriate worker types in parallel
 4. Worker results flow back to the coordinator
 5. The coordinator synthesizes the final response
+
+A single-file bug or one indivisible question can still run directly. File
+count only controls how many workers are useful; it does not disable delegation
+for a multi-dimensional or whole-codebase request.
 
 ---
 

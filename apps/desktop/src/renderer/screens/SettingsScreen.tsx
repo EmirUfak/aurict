@@ -222,11 +222,26 @@ function WorkspaceSettings({ workspace, error, onChooseWorkspace }: { workspace:
 
 function RemoteControlSettings() {
   const [status, setStatus] = useState<RemoteStatus>({ status: 'loading', message: 'Checking remote control status…' });
+  const [copied, setCopied] = useState<'link' | 'code' | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
   useEffect(() => {
     window.aurict.remote.action('status');
     return window.aurict.remote.onStatus(setStatus);
   }, []);
   const active = status.status === 'connected' || status.status === 'waitingForPhone' || status.status === 'creatingSession';
+  const approval = status.verificationUriComplete && status.userCode
+    ? { link: status.verificationUriComplete, code: status.userCode }
+    : null;
+  const copyApprovalValue = (kind: 'link' | 'code', value: string) => {
+    setCopyError(null);
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(kind);
+      window.setTimeout(() => setCopied(null), 1_800);
+    }).catch((reason: unknown) => {
+      console.error(`Failed to copy remote approval ${kind}`, reason);
+      setCopyError('Could not copy automatically. Select the value and copy it manually.');
+    });
+  };
   return <section style={{ marginBottom: 32 }} aria-labelledby="remote-heading">
     <div id="remote-heading" style={sectionHeading}>account & remote control</div>
     <div style={{ padding: 16, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
@@ -238,9 +253,26 @@ function RemoteControlSettings() {
         {active && <button type="button" className="aur-button" onClick={() => window.aurict.remote.action('stop')}>stop remote session</button>}
         {status.email && <button type="button" className="aur-button" onClick={() => window.aurict.remote.action('logout')}>sign out</button>}
       </div>
+      {approval && <div style={approvalPanelStyle}>
+        <div style={approvalHeadingStyle}>Complete sign-in on any device</div>
+        <p style={approvalBodyStyle}>If a browser did not open, copy this link into any browser and enter the code below.</p>
+        <CopyableApprovalValue label="Approval link" value={approval.link} copied={copied === 'link'} onCopy={() => copyApprovalValue('link', approval.link)} />
+        <CopyableApprovalValue label="Device code" value={approval.code} copied={copied === 'code'} onCopy={() => copyApprovalValue('code', approval.code)} />
+        {copyError && <div role="alert" className="aur-inline-error" style={{ marginTop: 10 }}>{copyError}</div>}
+      </div>}
       <p style={{ margin: '14px 0 0', fontFamily: 'var(--font-mono)', fontSize: 10.5, lineHeight: 1.5, color: 'var(--text-subtle)' }}>Browser approval creates a desktop-specific device identity. Remote control uses WebRTC; prompts and approvals travel directly between your devices, not through the signaling backend.</p>
     </div>
   </section>;
+}
+
+function CopyableApprovalValue({ label, value, copied, onCopy }: { label: string; value: string; copied: boolean; onCopy: () => void }) {
+  return <label style={{ display: 'grid', gap: 5, marginTop: 12 }}>
+    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.04em', color: 'var(--text-subtle)', textTransform: 'uppercase' }}>{label}</span>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+      <input readOnly value={value} aria-label={label} onFocus={(event) => event.currentTarget.select()} style={approvalValueStyle} />
+      <button type="button" className="aur-button" onClick={onCopy}>{copied ? 'copied' : 'copy'}</button>
+    </div>
+  </label>;
 }
 
 function AppearanceSettings({ profile, onUpdateProfile }: Pick<Props, 'profile' | 'onUpdateProfile'>) {
@@ -303,3 +335,7 @@ function SettingSelect({ label, value, disabled, onChange, options }: { label: s
 }
 
 const appearanceGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 };
+const approvalPanelStyle: React.CSSProperties = { marginTop: 16, padding: 13, background: 'var(--bg-deep)', border: '1px solid var(--border-strong)', borderRadius: 7 };
+const approvalHeadingStyle: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--text)', fontWeight: 600 };
+const approvalBodyStyle: React.CSSProperties = { margin: '6px 0 0', fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.5, color: 'var(--text-muted)' };
+const approvalValueStyle: React.CSSProperties = { flex: 1, minWidth: 0, padding: '7px 8px', color: 'var(--text)', background: 'var(--control-bg)', border: '1px solid var(--border-strong)', borderRadius: 6, fontFamily: 'var(--font-mono)', fontSize: 11.5 };

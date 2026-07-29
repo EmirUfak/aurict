@@ -764,15 +764,21 @@ export async function executeTool(
   // --- Post-process: error hints + output truncation ---
   if (result.error) {
     result = { ...result, error: analyzeToolError(def.id, result.error) };
-  } else if (result.output) {
+  }
+  if (result.output) {
     const truncCfg = resolveTruncationConfig(def.id, ctx.truncation, ctx.contextWindow);
-    if (result.output.length > truncCfg.maxChars) {
+    const promptMaxChars = Math.min(truncCfg.maxChars, 8_000);
+    if (result.output.length > promptMaxChars) {
       const stored = await storeToolOutputArtifact({
         workdir: ctx.workdir,
         sessionId: ctx.sessionId,
         output: result.output,
       });
-      const preview = truncateOutput(result.output, truncCfg, def.id);
+      const preview = truncateOutput(
+        result.output,
+        { ...truncCfg, maxChars: promptMaxChars },
+        def.id,
+      );
       result = {
         ...result,
         output: `${preview}\n\n[full output: ${stored.handle} · ${stored.chars} chars; continue with read_tool_output]`,

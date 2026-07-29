@@ -17,6 +17,7 @@ type StreamHandlers = Pick<
   | "onSkillsActivated"
   | "onPromptDiagnostics"
   | "onPromptCacheHealth"
+  | "onToolSelection"
   | "onPhase"
 >;
 
@@ -266,6 +267,11 @@ export function buildAgentStreamHandlers(context: AgentTurnContext): StreamHandl
     onSkillsActivated: (skills) => params.setTurnSkillNames(skills.map((skill) => skill.id)),
     onPromptDiagnostics: params.setPromptDiagnostics,
     onPromptCacheHealth: params.setPromptCacheHealth,
+    onToolSelection: (selection) => {
+      if (selection.reason.startsWith("Tool calling disabled:")) {
+        params.addSystemMsg(`⚠ ${selection.reason}`);
+      }
+    },
     onPhase: params.setRunActivity,
   };
 }

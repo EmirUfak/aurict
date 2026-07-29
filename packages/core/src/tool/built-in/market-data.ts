@@ -9,7 +9,7 @@ type BondListResponse = { total: number; items: unknown[] }
 export const marketDataTool: ToolDef = {
   id: 'market_data',
   description:
-    "Fetch real Turkish bond market data (BIST tahvil/bono) from Aurict's bonds service — issuer, maturity, yield, prices, and the TLREF index. This tool only fetches data; it never calculates. If the user's question requires a calculation (yield, present value, amortization), pass the numbers this tool returns into `finance_calculate` — never compute by hand. If the response is empty or the user isn't authenticated, say so honestly and don't repeat the exact same query — ask the user for a different ISIN/issuer or report that no data is available.",
+    "Fetch real Turkish bond market data (BIST tahvil/bono) from Aurict's bonds service — issuer, maturity, yield, prices, and the TLREF index. This tool only fetches data; it never calculates. If a response needs arithmetic, construct and state the applicable formula, then use `calculator` for every numeric step — never compute by hand. If the response is empty or the user isn't authenticated, say so honestly and don't repeat the exact same query — ask the user for a different ISIN/issuer or report that no data is available.",
   parameters: z.object({
     action: z.enum(actions).describe(
       "'list' searches bonds by issuer; 'detail' fetches one bond by ISIN; 'tlref_latest' fetches the latest TLREF index value.",

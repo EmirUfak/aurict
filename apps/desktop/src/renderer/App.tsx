@@ -108,7 +108,7 @@ export function App() {
             : <HomeScreen chat={chat} userType={onboarding.profile.userType} />)}
       {screen === 'extensions' && <ExtensionsScreen />}
       {screen === 'design' && <DesignScreen chat={chat} onLaunched={() => setScreen('main')} userType={onboarding.profile.userType} />}
-      {screen === 'finance' && <FinanceScreen chat={chat} onLaunched={() => setScreen('main')} />}
+      {screen === 'finance' && <FinanceScreen />}
       {screen === 'memory' && <MemoryScreen />}
       {screen === 'settings' && onboarding.profile && <SettingsScreen profile={onboarding.profile} onUpdateProfile={onboarding.update} onResetOnboarding={onboarding.reset} workspace={workdir.workdir} workspaceError={workdir.error} onChooseWorkspace={workdir.choose} />}
 
