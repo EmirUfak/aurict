@@ -12,6 +12,7 @@ import 'agent/mobile_agent_runtime.dart';
 import 'agent/mobile_chat_stream.dart';
 import 'agent/mobile_chat_history_store.dart';
 import 'agent/mobile_diagnostics.dart';
+import 'agent/mobile_lifecycle_coordinator.dart';
 import 'agent/mobile_document_picker.dart';
 import 'agent/mobile_feedback_report.dart';
 import 'agent/mobile_html_pdf_tools.dart';
@@ -169,6 +170,21 @@ class _AppShellState extends State<AppShell> {
   final _visitedSections = <AppSection>{AppSection.chat};
   late MobileRemoteRuntime _remoteRuntime;
   var _remoteRuntimeReady = false;
+  late final MobileLifecycleCoordinator _lifecycleCoordinator =
+      MobileLifecycleCoordinator(
+        onEnterBackground: () {
+          if (_remoteRuntimeReady) _remoteRuntime.pauseForBackground();
+        },
+        onEnterForeground: () {
+          if (_remoteRuntimeReady) _remoteRuntime.resumeFromBackground();
+        },
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycleCoordinator.attach();
+  }
 
   @override
   void didChangeDependencies() {
@@ -181,6 +197,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    _lifecycleCoordinator.detach();
     _drawerAnimationTimer?.cancel();
     if (_remoteRuntimeReady) {
       _remoteRuntime.dispose();
@@ -803,17 +820,27 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   final _streamingSnapshot = ValueNotifier<_StreamingSnapshot?>(null);
   int _lastSnapshotWriteMs = 0;
   String? _activeThreadId;
+  // Aynı sohbet için ardışık writeThread çağrılarını çağrıldıkları sırayla
+  // seri hale getirir; böylece daha önce başlayıp geç biten bir yazım, daha
+  // sonra başlayıp erken biten (daha yeni) bir yazımın üzerine yazamaz.
+  Future<void> _historyWriteChain = Future<void>.value();
   var _scrollPending = false;
   var _isStreaming = false;
   var _userPinnedScroll = false;
   var _showJumpToLatest = false;
   var _historyLoaded = false;
   var _historyQuery = '';
+  late final MobileLifecycleCoordinator _lifecycleCoordinator =
+      MobileLifecycleCoordinator(
+        onEnterBackground: _handleAppEnterBackground,
+        onEnterForeground: () {},
+      );
 
   @override
   void initState() {
     super.initState();
     _loadHistory();
+    _lifecycleCoordinator.attach();
   }
 
   @override
@@ -936,7 +963,7 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
           : '${normalized.substring(0, 56)}...',
       updatedAt: DateTime.now(),
     );
-    await _historyStore.writeThread(
+    await _persistThreadSnapshot(
       MobileChatThreadSnapshot(
         meta: updatedMeta,
         messages: snapshot.messages,
@@ -1505,18 +1532,75 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     );
   }
 
-  void _persistMessages({bool writeHistory = true}) {
+  // Uygulama arka plana geçerken çağrılır. Devam eden bir stream varsa,
+  // o ana kadar biriken metin/reasoning/tool durumunu (_streamingSnapshot)
+  // kalıcı _messages listesine işler. Bu sayede stream devam etsin ya da
+  // OS süreci öldürsün, yarım yanıt kaybolmaz veya boş assistant mesajına
+  // dönüşmez. Stream'in kendisi İPTAL EDİLMEZ; yalnızca o ana kadarki
+  // ilerleme kaydedilir.
+  void _checkpointStreamingMessage() {
+    final snapshot = _streamingSnapshot.value;
+    if (!_isStreaming || snapshot == null) return;
+    final index = _messages.lastIndexWhere(
+      (message) => message.role == ChatRole.assistant,
+    );
+    if (index == -1) return;
+    _messages[index] = _messages[index].copyWith(
+      text: snapshot.text.isEmpty ? null : snapshot.text,
+      reasoning: snapshot.reasoning.isEmpty ? null : snapshot.reasoning,
+      streamTools: snapshot.tools,
+      artifacts: snapshot.artifacts,
+      status: snapshot.status,
+      error: snapshot.error,
+    );
+  }
+
+  // Bekleyen (debounce'ta bekleyen) bir disk yazımı varsa, beklemeden hemen
+  // uygular. Arka plana geçişte kullanılır — 650ms'lik debounce penceresi
+  // içinde process öldürülürse bekleyen yazım kaybolabilir.
+  void _flushPendingHistoryWriteImmediately() {
+    _historyWriteDebounce?.cancel();
+    _historyWriteDebounce = null;
+    final pending = _pendingHistoryWrite;
+    _pendingHistoryWrite = null;
+    if (pending != null && pending.isNotEmpty) {
+      unawaited(_writeActiveThread(pending));
+    }
+  }
+
+  // STAB-02: uygulama inactive/paused/detached olduğunda tetiklenir.
+  // Sırasıyla: (1) devam eden stream varsa ilerlemeyi _messages'a işler,
+  // (2) tüm durumu gecikmeden (debounce beklemeden) diske yazar.
+  void _handleAppEnterBackground() {
+    _checkpointStreamingMessage();
+    _persistMessages(forceImmediate: true);
+    _flushPendingHistoryWriteImmediately();
+  }
+
+  void _persistMessages({
+    bool writeHistory = true,
+    bool forceImmediate = false,
+  }) {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
-    if (!writeHistory && _isStreaming && nowMs - _lastSnapshotWriteMs < 250) {
+    if (!forceImmediate &&
+        !writeHistory &&
+        _isStreaming &&
+        nowMs - _lastSnapshotWriteMs < 250) {
       return;
     }
     _lastSnapshotWriteMs = nowMs;
+    final trimmedMessages = _messages.length > 120
+        ? _messages.sublist(_messages.length - 120)
+        : _messages;
     final encodedMessages = [
-      for (final message in _messages.take(120)) _encodeChatEntry(message),
+      for (final message in trimmedMessages) _encodeChatEntry(message),
     ];
     _chatSnapshot.value = jsonEncode(encodedMessages);
     if (writeHistory && encodedMessages.isNotEmpty) {
-      _scheduleHistoryWrite(encodedMessages, immediate: !_isStreaming);
+      _scheduleHistoryWrite(
+        encodedMessages,
+        immediate: forceImmediate || !_isStreaming,
+      );
     }
   }
 
@@ -1546,9 +1630,19 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
   Future<void> _writeActiveThread(
     List<Map<String, Object?>> encodedMessages,
   ) async {
+    // Yeni sohbet kimliğini ilk asenkron kayıt tamamlanmadan ÖNCE, herhangi
+    // bir await'ten geçmeden senkron olarak sabitle. Aksi halde hızlı
+    // ardışık gönderimlerde her çağrı _activeThreadId hâlâ null görüp
+    // kendi thread id'sini üretir ve birden fazla yanlış thread oluşur.
     final now = DateTime.now();
+    final isNewThread = _activeThreadId == null;
     final id =
         _activeThreadId ?? 'chat-${now.microsecondsSinceEpoch.toString()}';
+    if (isNewThread) {
+      if (!mounted) return;
+      setState(() => _activeThreadId = id);
+    }
+
     MobileChatThreadMeta? existing;
     for (final thread in _threads) {
       if (thread.id == id) {
@@ -1567,13 +1661,16 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
       provider: providerSession.selectedProvider,
       model: providerSession.selectedModel,
     );
-    await _historyStore.writeThread(
+    final documents = MobileDocumentContextScope.of(context).documents;
+
+    await _persistThreadSnapshot(
       MobileChatThreadSnapshot(
         meta: meta,
         messages: encodedMessages,
-        documents: MobileDocumentContextScope.of(context).documents,
+        documents: documents,
       ),
     );
+
     unawaited(
       _artifactIndexStore.upsertThreadArtifacts(
         threadId: id,
@@ -1584,11 +1681,33 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
     );
     if (!mounted) return;
     setState(() {
-      _activeThreadId = id;
       _threads
         ..removeWhere((thread) => thread.id == id)
         ..insert(0, meta);
     });
+  }
+
+  // Aynı sohbet için başlayan yazımları çağrıldıkları sırayla diske uygular.
+  // Bir kuyruk (chain) üzerinden serileştirildiği için, önce çağrılan bir
+  // yazım her zaman disk üzerinde sonra çağrılan (daha yeni) bir yazımdan
+  // önce tamamlanır ve onun üzerine yazamaz. Hatalar yutulmaz: diagnostics'e
+  // kaydedilir ve çağırana (caller'a) görünür biçimde geri iletilir.
+  Future<void> _persistThreadSnapshot(MobileChatThreadSnapshot snapshot) {
+    final completer = Completer<void>();
+    _historyWriteChain = _historyWriteChain.then((_) async {
+      try {
+        await _historyStore.writeThread(snapshot);
+        if (!completer.isCompleted) completer.complete();
+      } catch (error, stack) {
+        mobileDiagnostics.record(
+          error,
+          stackTrace: stack,
+          source: 'chat_history_write',
+        );
+        if (!completer.isCompleted) completer.completeError(error, stack);
+      }
+    });
+    return completer.future;
   }
 
   String _threadTitle() {
@@ -1726,6 +1845,7 @@ class _ChatScreenState extends State<ChatScreen> with RestorationMixin {
 
   @override
   void dispose() {
+    _lifecycleCoordinator.detach();
     _streamSubscription?.cancel();
     _streamFlushTimer?.cancel();
     _historyWriteDebounce?.cancel();
