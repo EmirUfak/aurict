@@ -46,8 +46,10 @@ describe("durable command sessions", () => {
     const started = await bashTool.execute({ action: "background", command: "printf bash-output" }, context)
     const sessionId = /Session ID: ([a-f0-9-]+)/i.exec(started.output)?.[1]
     expect(sessionId).toBeDefined()
+    if (!sessionId) throw new Error("Background command did not return a session ID")
 
-    await Bun.sleep(25)
+    const finished = await ptyManager.wait(sessionId, 5_000)
+    expect(finished.timedOut).not.toBe(true)
     ptyManager.cleanup()
     const output = await bashTool.execute({ action: "output", sessionId }, context)
     expect(output.output).toContain("bash-output")
