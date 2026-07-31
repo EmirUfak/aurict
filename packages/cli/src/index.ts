@@ -78,14 +78,14 @@ async function resolveBackendAccessToken(signal?: AbortSignal): Promise<string |
 
 // --version
 if (flags.version) {
-  console.log("Aurict v1.2.13")
+  console.log("Aurict v1.2.14")
   process.exit(0)
 }
 
 // --help
 if (flags.help && subCmd !== "run-agent") {
   console.log(`
-Aurict v1.2.13 — Terminal AI assistant
+Aurict v1.2.14 — Terminal AI assistant
 
 Usage:
   aurict [options]
