@@ -47,6 +47,10 @@ class MobileRemoteRuntime extends ChangeNotifier {
   final MobileRemoteEventLedger _ledger = MobileRemoteEventLedger();
 
   Timer? _heartbeatTimer;
+  // Uygulama arka plana geçtiğinde heartbeat durdurulur; geri dönüşte
+  // yalnızca arka plana geçerken bağlantı hâlâ 'connected' idiyse ve
+  // heartbeat gerçekten aktifken tekrar başlatılır.
+  bool _heartbeatPausedForBackground = false;
   MobileRemoteStatus _status = MobileRemoteStatus.signedOut;
   MobileRemoteProtocol? _protocol;
   MobileDeviceIdentity? _identity;
@@ -293,6 +297,26 @@ class MobileRemoteRuntime extends ChangeNotifier {
   void _stopHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
+  }
+
+  /// Uygulama arka plana geçtiğinde çağrılır. Arka planda heartbeat isteği
+  /// gönderilmemesi için timer'ı durdurur; yalnızca durdurma anında gerçekten
+  /// aktif bir heartbeat varsa bunu hatırlar (böylece resume'da yalnızca
+  /// gerçekten kesintiye uğramış bir heartbeat geri başlatılır).
+  void pauseForBackground() {
+    _heartbeatPausedForBackground = _heartbeatTimer != null;
+    _stopHeartbeat();
+  }
+
+  /// Uygulama ön plana döndüğünde çağrılır. Bağlantı hâlâ 'connected'
+  /// durumundaysa TEK bir heartbeat timer ile devam eder (_startHeartbeat
+  /// zaten önce mevcut timer'ı durdurur, bu yüzden çoğaltma oluşmaz).
+  void resumeFromBackground() {
+    final shouldResume = _heartbeatPausedForBackground;
+    _heartbeatPausedForBackground = false;
+    if (shouldResume && _status == MobileRemoteStatus.connected) {
+      _startHeartbeat();
+    }
   }
 
   void _fail(Object error) {
