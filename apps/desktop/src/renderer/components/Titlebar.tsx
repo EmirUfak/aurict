@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ExperienceLayout, SidecarStatus, UserType } from '../../shared/ipc-types.js';
 import { navigationFor, type Screen } from '../experience/navigation.js';
 
@@ -17,6 +17,21 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
   const [status, setStatus] = useState<SidecarStatus>({ connected: false, message: 'connecting' });
   const [compactNav, setCompactNav] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close the More menu when clicking anywhere outside it (the menu button
+  // itself already toggles it via onClick, so we only need to handle
+  // "elsewhere" clicks here).
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [moreOpen]);
 
   useEffect(() => {
     void window.aurict.runtime.getStatus().then(setStatus).catch((error) => setStatus({ connected: false, message: String(error) }));
@@ -85,7 +100,7 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
             {item.label}
           </button>
         ))}
-        {overflowNavigation.length > 0 && <div className="aur-titlebar-more">
+        {overflowNavigation.length > 0 && <div className="aur-titlebar-more" ref={moreMenuRef}>
           <button type="button" aria-expanded={moreOpen} aria-haspopup="menu" onClick={() => setMoreOpen((open) => !open)} style={navButtonStyle(false)}>More</button>
           {moreOpen && <div role="menu" className="aur-titlebar-more-menu">{overflowNavigation.map((item) => <button key={item.id} type="button" role="menuitem" aria-current={screen === item.id ? 'page' : undefined} onClick={() => { onNavigate(item.id); setMoreOpen(false); }}>{item.label}</button>)}</div>}
         </div>}
