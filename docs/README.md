@@ -27,6 +27,7 @@ Detailed product references:
 - [Providers](providers.md) — Anthropic, OpenAI, OpenRouter, Google, Ollama, Azure, Bedrock, xAI, OpenCode
 - [Skills & Project Detection](skills.md) — automatic context injection, custom skills
 - [Multi-Agent Mode](multi-agent.md) — coordinator, worker types, agent pool, custom agents
+- [Hive Public Client Plan](hive-client-plan.md) — planned paid organization collaboration boundary for terminal CLI and Hoprel desktop
 - [Recipes](recipes.md) — automated multi-step workflows via YAML/JSON recipe files
 
 ## Advanced

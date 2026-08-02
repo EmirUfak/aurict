@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { BrandMark } from "@/components/BrandMark"
 import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
 import { LocaleSwitcher } from "@/components/LocaleSwitcher"
@@ -27,7 +27,18 @@ const PRODUCT_LINKS = [
 ]
 
 const ECOSYSTEM_LINKS = [
-  { href: "https://mobile.aurict.com", label: "aurict mobile" },
+  {
+    href: "https://mobile.aurict.com",
+    label: "aurict mobile",
+    descriptionEn: "Aurict companion · mobile workspace",
+    descriptionTr: "Aurict companion · mobil çalışma alanı",
+  },
+  {
+    href: "https://decision.aurict.com",
+    label: "Decision Engine / MicroTarget",
+    descriptionEn: "Aurict sub-product · on-device decisions",
+    descriptionTr: "Aurict alt ürünü · cihaz içi kararlar",
+  },
 ]
 
 type MenuName = "product" | "ecosystem" | null
@@ -38,6 +49,7 @@ export function Nav() {
   const [activeMenu, setActiveMenu] = useState<MenuName>(null)
   const navRef = useRef<HTMLElement>(null)
   const t = useTranslations("Nav")
+  const tr = useLocale() === "tr"
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12)
@@ -112,8 +124,11 @@ export function Nav() {
               <div className={styles.ecosystemPanel}>
                 <span className={styles.panelLabel}>connected surface</span>
                 {ECOSYSTEM_LINKS.map((link) => (
-                  <a className={styles.ecosystemLink} href={link.href} key={link.href} onClick={closeMenus}>
-                    <span>{link.label}</span>
+                  <a className={styles.ecosystemLink} href={link.href} key={link.href} onClick={closeMenus} rel="noopener noreferrer" target="_blank">
+                    <span className={styles.ecosystemLinkText}>
+                      <strong>{link.label}</strong>
+                      <small>{tr ? link.descriptionTr : link.descriptionEn}</small>
+                    </span>
                     <span aria-hidden="true">↗</span>
                   </a>
                 ))}
@@ -148,7 +163,15 @@ export function Nav() {
             {PRODUCT_LINKS.map((link) => <Link href={link.href} key={link.href} onClick={closeMenus}>{t(link.key)}</Link>)}
           </DrawerGroup>
           <DrawerGroup label={t("ecosystem")}>
-            {ECOSYSTEM_LINKS.map((link) => <a href={link.href} key={link.href} onClick={closeMenus}>{link.label}</a>)}
+            {ECOSYSTEM_LINKS.map((link) => (
+              <a className={styles.drawerEcosystemLink} href={link.href} key={link.href} onClick={closeMenus} rel="noopener noreferrer" target="_blank">
+                <span className={styles.ecosystemLinkText}>
+                  <strong>{link.label}</strong>
+                  <small>{tr ? link.descriptionTr : link.descriptionEn}</small>
+                </span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            ))}
           </DrawerGroup>
           <DrawerGroup label={t("site")}>
             {SITE_LINKS.map((link) => <Link href={link.href} key={link.href} onClick={closeMenus}>{t(link.key)}</Link>)}

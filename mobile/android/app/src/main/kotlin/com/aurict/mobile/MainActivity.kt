@@ -377,8 +377,26 @@ class MainActivity : FlutterActivity() {
             result.error("bad_args", "writeThread requires id and payload.", null)
             return
         }
-        File(chatHistoryDir(), "${safeFileName(id)}.json").writeText(payload)
-        result.success(null)
+        try {
+            val dir = chatHistoryDir()
+            val target = File(dir, "${safeFileName(id)}.json")
+            // Geçici dosya + atomik taşıma: yazım yarıda kesilirse (ör. process
+            // kill, disk hatası) mevcut geçerli dosya bozulmadan kalır.
+            val tempFile = File.createTempFile("chat_history_", ".tmp", dir)
+            tempFile.writeText(payload)
+            if (!tempFile.renameTo(target)) {
+                // Bazı dosya sistemlerinde rename hedef üzerine yazamayabilir;
+                // hedefi silip tekrar dene.
+                target.delete()
+                if (!tempFile.renameTo(target)) {
+                    tempFile.delete()
+                    throw IllegalStateException("Atomic rename failed for thread $id")
+                }
+            }
+            result.success(null)
+        } catch (error: Throwable) {
+            result.error("write_failed", "writeThread failed: ${error.message}", null)
+        }
     }
 
     private fun deleteChatThread(arguments: Any?, result: MethodChannel.Result) {
