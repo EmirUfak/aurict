@@ -22,10 +22,13 @@ the active workspace is also the sidecar's current working directory.
 bun run --cwd apps/desktop package
 ```
 
-The package command first compiles `packages/cli/src/index.ts` into a native
-Bun sidecar and copies the design catalog into `apps/desktop/resources/`.
+The package command first compiles `apps/desktop/src/sidecar-entry.ts` into a
+native Bun sidecar and copies the design catalog into `apps/desktop/resources/`.
 Electron Forge places both beside the packaged application. Generated resource
 files are ignored by Git.
+
+The desktop entry starts the JSON-lines server directly. It must not import the
+terminal UI entry because the terminal input layer owns and patches stdin.
 
 The repository uses Bun's isolated workspace installs. Its root `bunfig.toml`
 publicly hoists `@tanstack/virtual-core` so Vite can bundle the renderer's

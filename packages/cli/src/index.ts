@@ -143,6 +143,14 @@ if (subCmd === "run-agent") {
 
 migrateLegacyCoreState()
 
+// Desktop IPC owns stdin. Enter its dedicated bootstrap before importing Ink
+// or the terminal UI, whose input layer intentionally patches stdin globally.
+if (flags.ipcServer) {
+  const { runDesktopSidecar } = await import("./desktop-sidecar.js")
+  await runDesktopSidecar(workdir)
+  process.exit(0)
+}
+
 profileCheckpoint("prefetch_started")
 const [reactMod, inkMod] = await Promise.all([
   import("react"),
@@ -175,76 +183,17 @@ const core = coreMod
 const {
   runAgent,
   ProviderRegistry,
-  createOpenAICompatiblePlugin,
   mcpManager,
   loadPlugins,
   runRecipe,
   parseRecipeFile,
-  loadConfig: loadOmniConfig,
-  loadApiKeyFromKeystore,
 } = core
 mcpManagerRef = mcpManager
 profileCheckpoint("core_symbols_destructured")
 
-const omniCfg = loadOmniConfig(workdir)
-profileCheckpoint("omni_config_loaded")
-const PROVIDER_ENV_MAP: Record<string, string[]> = {
-  anthropic:  ["ANTHROPIC_API_KEY"],
-  openai:     ["OPENAI_API_KEY"],
-  openrouter: ["OPENROUTER_API_KEY"],
-  google:     ["GOOGLE_GENERATIVE_AI_API_KEY"],
-  opencode:   ["OPENCODE_API_KEY"],
-  xai:        ["XAI_API_KEY"],
-  azure:      ["AZURE_OPENAI_API_KEY"],
-  bedrock:    ["AWS_ACCESS_KEY_ID"],
-  ollama:     [],
-  nvidia:     ["NVIDIA_API_KEY"],
-  zai:        ["ZAI_API_KEY"],
-  alibaba:    ["DASHSCOPE_API_KEY"],
-}
-for (const [provider, val] of Object.entries(omniCfg.providers ?? {})) {
-  if (!val.apiKey) continue
-  const envVars = PROVIDER_ENV_MAP[provider] ?? [`${provider.toUpperCase()}_API_KEY`]
-  for (const envVar of envVars) {
-    if (!process.env[envVar]) process.env[envVar] = val.apiKey
-  }
-  if (provider === "azure" && val.baseUrl && !process.env["AZURE_OPENAI_ENDPOINT"]) {
-    process.env["AZURE_OPENAI_ENDPOINT"] = val.baseUrl
-  }
-}
-
-for (const [provider, envVars] of Object.entries(PROVIDER_ENV_MAP)) {
-  if (envVars.length === 0) continue
-  const anyEnvSet = envVars.some((v) => Boolean(process.env[v]))
-  if (anyEnvSet) continue
-  const keystoreKey = await loadApiKeyFromKeystore(provider)
-  if (!keystoreKey) continue
-  for (const v of envVars) if (!process.env[v]) process.env[v] = keystoreKey
-}
-profileCheckpoint("keystore_resolved")
-
-// User-added custom providers (no-code path via /providers) — register them
-// before the TUI renders so they show up in /providers immediately.
-for (const [id, def] of Object.entries(omniCfg.customProviders ?? {})) {
-  ProviderRegistry.register(createOpenAICompatiblePlugin({
-    id,
-    name:         def.name,
-    baseURL:      def.baseUrl,
-    getApiKey:    () => def.apiKey,
-    defaultModel: def.defaultModel,
-    models:       [{ id: def.defaultModel, name: def.defaultModel, contextWindow: 128_000, maxOutput: 8_000, supportsTools: true, supportsVision: false }],
-    modelsEndpoint: `${def.baseUrl.replace(/\/+$/, "")}/models`,
-  }))
-}
-
-// ─── --ipc-server: Bun sidecar mode for apps/desktop ────────────────────────
-// No TUI/Ink — a JSON-lines protocol over stdio instead. See ipc-server.ts.
-// Placed after config/keystore/custom-provider resolution above, so the
-// sidecar sees the exact same resolved API keys the TUI path would.
-if (flags.ipcServer) {
-  const { runIpcServer } = await import("./ipc-server.js")
-  await runIpcServer(workdir)
-}
+const { initializeConfiguredProviders } = await import("./provider-setup.js")
+await initializeConfiguredProviders(workdir)
+profileCheckpoint("provider_config_resolved")
 
 // ─── aurict run <recipe.yaml> ────────────────────────────────────────────────
 if (subCmd === "run") {
