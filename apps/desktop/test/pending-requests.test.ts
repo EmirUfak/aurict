@@ -1,6 +1,6 @@
 /* eslint-disable import/no-unresolved -- Bun provides this test module at runtime. */
 import { describe, expect, it } from 'bun:test';
-import { rejectNext, rejectQueue,   requestFromSidecar, resolveNext, type PendingQueue } from '../src/main/pending-requests.js';
+import { rejectNext, rejectQueue,   requestFromSidecar, resolveById, resolveNext, type PendingQueue } from '../src/main/pending-requests.js';
 
 describe('desktop sidecar request lifecycle', () => {
   it('settles a queued request and removes its timeout', async () => {
@@ -56,6 +56,36 @@ describe('desktop sidecar request lifecycle', () => {
     const queue: PendingQueue<string> = [];
     expect(() => resolveNext(queue, 'unexpected')).not.toThrow();
     expect(() => rejectNext(queue, new Error('unexpected'))).not.toThrow();
+    expect(queue).toHaveLength(0);
+  });
+
+  it('resolves the correct request when responses arrive out of order (requestId correlation)', async () => {
+    const queue: PendingQueue<string> = [];
+    let firstId = '';
+    let secondId = '';
+    const first = requestFromSidecar(queue, 'First', (id) => { firstId = id; }, 5_000);
+    const second = requestFromSidecar(queue, 'Second', (id) => { secondId = id; }, 5_000);
+
+    // İkinci istek, birinciden ÖNCE cevaplanıyor (ters sıra)
+    resolveById(queue, secondId, 'second-answer');
+    resolveById(queue, firstId, 'first-answer');
+
+    await expect(first).resolves.toBe('first-answer');
+    await expect(second).resolves.toBe('second-answer');
+  });
+
+  it('does not resolve another request when the response ID is unknown or duplicate', async () => {
+    const queue: PendingQueue<string> = [];
+    let realId = '';
+    const request = requestFromSidecar(queue, 'Real request', (id) => { realId = id; }, 5_000);
+
+    resolveById(queue, 'not-a-real-id', 'ignored');
+    expect(queue).toHaveLength(1);
+
+    resolveById(queue, realId, 'correct-answer');
+    await expect(request).resolves.toBe('correct-answer');
+
+    resolveById(queue, realId, 'duplicate-answer');
     expect(queue).toHaveLength(0);
   });
 });

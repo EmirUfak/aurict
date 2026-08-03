@@ -27,7 +27,7 @@ import type {
   RemoteStatus,
 } from './shared/ipc-types.js';
 import { createFinanceStore } from './main/finance-store.js';
-import { createPendingRequestRegistry, rejectNext, rejectQueue, requestFromSidecar, resolveNext } from './main/pending-requests.js';
+import { createPendingRequestRegistry, rejectQueue, requestFromSidecar, resolveById, rejectById } from './main/pending-requests.js';
 import { createDesktopStores, isDirectory } from './main/desktop-stores.js';
 import { markChangedFiles, readFileTree, resolveWithinRoot } from './main/workspace-files.js';
 import { createArtifactStore } from './main/artifact-store.js';
@@ -238,6 +238,8 @@ function rejectPendingRequests(error: Error): void {
   rejectQueue(pending.financeCalculations, error);
 }
 
+// Responses are matched to their request by requestId (resolveById/
+// rejectById), not by arrival order — see pending-requests.ts.
 function handleSidecarMessage(msg: SidecarMessage): void {
   restartAttempts = 0;
   if (!runtimeStatus.connected) setRuntimeStatus({ connected: true });
@@ -262,108 +264,96 @@ function handleSidecarMessage(msg: SidecarMessage): void {
       mainWindow?.webContents.send('permission:request', msg.request);
       return;
     case 'provider:list-result':
-      resolveNext(pending.providerList, msg.providers);
+      resolveById(pending.providerList, msg.requestId, msg.providers);
       return;
     case 'session:list-result':
-      resolveNext(pending.sessionList, msg.sessions);
+      resolveById(pending.sessionList, msg.requestId, msg.sessions);
       return;
     case 'session:select-result':
-      resolveNext(pending.sessionSelect, msg.messages);
+      resolveById(pending.sessionSelect, msg.requestId, msg.messages);
       return;
     case 'session:new-result':
-      resolveNext(pending.sessionNew, msg.id);
+      resolveById(pending.sessionNew, msg.requestId, msg.id);
       return;
     case 'session:rename-result':
-      resolveNext(pending.sessionRename, { id: msg.id, title: msg.title });
+      resolveById(pending.sessionRename, msg.requestId, { id: msg.id, title: msg.title });
       return;
     case 'session:archive-result':
-      resolveNext(pending.sessionArchive, { id: msg.id, archived: msg.archived });
+      resolveById(pending.sessionArchive, msg.requestId, { id: msg.id, archived: msg.archived });
       return;
     case 'session:branch-result':
-      resolveNext(pending.sessionBranch, { id: msg.id, messages: msg.messages });
+      resolveById(pending.sessionBranch, msg.requestId, { id: msg.id, messages: msg.messages });
       return;
     case 'session:search-result':
-      resolveNext(pending.sessionSearch, msg.results);
+      resolveById(pending.sessionSearch, msg.requestId, msg.results);
       return;
     case 'session:delete-result':
-      resolveNext(pending.sessionDelete, { wasActive: msg.wasActive });
+      resolveById(pending.sessionDelete, msg.requestId, { wasActive: msg.wasActive });
       return;
     case 'skills:list-result':
-      resolveNext(pending.skillsList, msg.skills);
+      resolveById(pending.skillsList, msg.requestId, msg.skills);
       return;
     case 'model:list-result':
-      resolveNext(pending.modelList, msg.models);
+      resolveById(pending.modelList, msg.requestId, msg.models);
       return;
     case 'model:list-error':
-      rejectNext(pending.modelList, new Error(msg.message));
+      rejectById(pending.modelList, msg.requestId, new Error(msg.message));
       return;
     case 'model:current-result':
-      resolveNext(pending.modelCurrent, { providerId: msg.providerId, modelId: msg.modelId });
+      resolveById(pending.modelCurrent, msg.requestId, { providerId: msg.providerId, modelId: msg.modelId });
       return;
     case 'agents:list-result':
-      resolveNext(pending.agentsList, msg.agents);
+      resolveById(pending.agentsList, msg.requestId, msg.agents);
       return;
     case 'skills:install-result':
-      resolveNext(pending.skillsInstall, msg.result);
+      resolveById(pending.skillsInstall, msg.requestId, msg.result);
       return;
     case 'skills:uninstall-result':
-      resolveNext(pending.skillsUninstall, msg.ok);
+      resolveById(pending.skillsUninstall, msg.requestId, msg.ok);
       return;
     case 'design:list-systems-result':
-      resolveNext(pending.designSystems, msg.systems);
+      resolveById(pending.designSystems, msg.requestId, msg.systems);
       return;
     case 'design:list-skills-result':
-      resolveNext(pending.designSkills, msg.skills);
+      resolveById(pending.designSkills, msg.requestId, msg.skills);
       return;
     case 'design:match-result':
-      resolveNext(pending.designMatch, msg.match);
+      resolveById(pending.designMatch, msg.requestId, msg.match);
       return;
     case 'design:build-prompt-result':
-      resolveNext(pending.designBuildPrompt, { prompt: msg.prompt, outputDir: msg.outputDir });
+      resolveById(pending.designBuildPrompt, msg.requestId, { prompt: msg.prompt, outputDir: msg.outputDir });
       return;
     case 'design:artifact:list-result':
-      resolveNext(pending.designArtifactList, msg.artifacts);
+      resolveById(pending.designArtifactList, msg.requestId, msg.artifacts);
       return;
     case 'design:artifact:create-result':
-      resolveNext(pending.designArtifactCreate, msg.result);
+      resolveById(pending.designArtifactCreate, msg.requestId, msg.result);
       return;
     case 'design:artifact:retry-result':
-      resolveNext(pending.designArtifactRetry, msg.result);
+      resolveById(pending.designArtifactRetry, msg.requestId, msg.result);
       return;
     case 'memory:list-result':
-      resolveNext(pending.memoryList, msg.memories);
+      resolveById(pending.memoryList, msg.requestId, msg.memories);
       return;
     case 'memory:add-result':
-      resolveNext(pending.memoryAdd, msg.memory);
+      resolveById(pending.memoryAdd, msg.requestId, msg.memory);
       return;
     case 'memory:remove-result':
-      resolveNext(pending.memoryRemove, msg.ok);
+      resolveById(pending.memoryRemove, msg.requestId, msg.ok);
       return;
     case 'memory:clear-result':
-      resolveNext(pending.memoryClear, msg.removed);
+      resolveById(pending.memoryClear, msg.requestId, msg.removed);
       return;
     case 'finance:calculate-result': {
-      if (pending.financeCalculations.length === 0) {
-        console.error('[aurict] received an unexpected finance calculation result');
-        return;
-      }
       if (msg.error) {
-        const entry = pending.financeCalculations.shift();
-        if (entry) {
-          clearTimeout(entry.timeout);
-          entry.reject(new Error(msg.error));
-        }
+        rejectById(pending.financeCalculations, msg.requestId, new Error(msg.error));
         return;
       }
       if (!msg.result) {
-        const entry = pending.financeCalculations.shift();
-        if (entry) {
-          clearTimeout(entry.timeout);
-          entry.reject(new Error('Finance runtime returned no calculation result'));
-        }
+        rejectById(pending.financeCalculations, msg.requestId, new Error('Finance runtime returned no calculation result'));
         return;
       }
-      resolveNext(pending.financeCalculations, msg.result);
+      resolveById(pending.financeCalculations, msg.requestId, msg.result);
       return;
     }
   }
@@ -450,7 +440,7 @@ ipcMain.on('permission:respond', (_e, { id, decision }: { id: string; decision: 
   }
 });
 ipcMain.handle('provider:list', () => {
-  return requestFromSidecar(pending.providerList, 'Provider list', () => sendToSidecar({ type: 'provider:list' }));
+  return requestFromSidecar(pending.providerList, 'Provider list', (requestId) => sendToSidecar({ type: 'provider:list', requestId }));
 });
 ipcMain.handle('provider:set-key', (_e, { providerId, apiKey }: { providerId: string; apiKey: string }) => {
   sendToSidecar({ type: 'provider:set-key', providerId, apiKey });
@@ -459,78 +449,78 @@ ipcMain.handle('provider:set-custom', (_e, { id, def }: { id: string; def: Custo
   sendToSidecar({ type: 'provider:set-custom', id, def });
 });
 ipcMain.handle('session:list', () => {
-  return requestFromSidecar(pending.sessionList, 'Session list', () => sendToSidecar({ type: 'session:list' }));
+  return requestFromSidecar(pending.sessionList, 'Session list', (requestId) => sendToSidecar({ type: 'session:list', requestId }));
 });
 ipcMain.handle('session:select', (_e, { id }: { id: string }) => {
-  return requestFromSidecar(pending.sessionSelect, 'Session history', () => sendToSidecar({ type: 'session:select', id }));
+  return requestFromSidecar(pending.sessionSelect, 'Session history', (requestId) => sendToSidecar({ type: 'session:select', id, requestId }));
 });
 ipcMain.handle('session:new', () => {
-  return requestFromSidecar(pending.sessionNew, 'New session', () => sendToSidecar({ type: 'session:new' }));
+  return requestFromSidecar(pending.sessionNew, 'New session', (requestId) => sendToSidecar({ type: 'session:new', requestId }));
 });
 ipcMain.handle('session:rename', (_e, { id, title }: { id: string; title: string }) => {
-  return requestFromSidecar(pending.sessionRename, 'Session rename', () => sendToSidecar({ type: 'session:rename', id, title }));
+  return requestFromSidecar(pending.sessionRename, 'Session rename', (requestId) => sendToSidecar({ type: 'session:rename', id, title, requestId }));
 });
 ipcMain.handle('session:archive', (_e, { id, archived }: { id: string; archived: boolean }) => {
-  return requestFromSidecar(pending.sessionArchive, 'Session archive', () => sendToSidecar({ type: 'session:archive', id, archived }));
+  return requestFromSidecar(pending.sessionArchive, 'Session archive', (requestId) => sendToSidecar({ type: 'session:archive', id, archived, requestId }));
 });
-ipcMain.handle('session:branch', (_e, id: string) => requestFromSidecar(pending.sessionBranch, 'Session branch', () => sendToSidecar({ type: 'session:branch', id })));
-ipcMain.handle('session:search', (_e, query: string) => requestFromSidecar(pending.sessionSearch, 'Session search', () => sendToSidecar({ type: 'session:search', query })));
+ipcMain.handle('session:branch', (_e, id: string) => requestFromSidecar(pending.sessionBranch, 'Session branch', (requestId) => sendToSidecar({ type: 'session:branch', id, requestId })));
+ipcMain.handle('session:search', (_e, query: string) => requestFromSidecar(pending.sessionSearch, 'Session search', (requestId) => sendToSidecar({ type: 'session:search', query, requestId })));
 ipcMain.handle('session:delete', (_e, id: string) => {
-  return requestFromSidecar(pending.sessionDelete, 'Delete session', () => sendToSidecar({ type: 'session:delete', id }));
+  return requestFromSidecar(pending.sessionDelete, 'Delete session', (requestId) => sendToSidecar({ type: 'session:delete', id, requestId }));
 });
 ipcMain.handle('skills:list', () => {
-  return requestFromSidecar(pending.skillsList, 'Skill list', () => sendToSidecar({ type: 'skills:list' }));
+  return requestFromSidecar(pending.skillsList, 'Skill list', (requestId) => sendToSidecar({ type: 'skills:list', requestId }));
 });
 ipcMain.handle('provider:models', (_e, providerId: string) => {
-  return requestFromSidecar(pending.modelList, 'Model list', () => sendToSidecar({ type: 'model:list', providerId }));
+  return requestFromSidecar(pending.modelList, 'Model list', (requestId) => sendToSidecar({ type: 'model:list', providerId, requestId }));
 });
 ipcMain.handle('provider:current-model', () => {
-  return requestFromSidecar(pending.modelCurrent, 'Current model', () => sendToSidecar({ type: 'model:get-current' }));
+  return requestFromSidecar(pending.modelCurrent, 'Current model', (requestId) => sendToSidecar({ type: 'model:get-current', requestId }));
 });
 ipcMain.handle('provider:select-model', (_e, { providerId, modelId }: { providerId: string; modelId: string }) => {
   sendToSidecar({ type: 'model:select', providerId, modelId });
 });
 ipcMain.handle('agents:list', () => {
-  return requestFromSidecar(pending.agentsList, 'Agent list', () => sendToSidecar({ type: 'agents:list' }));
+  return requestFromSidecar(pending.agentsList, 'Agent list', (requestId) => sendToSidecar({ type: 'agents:list', requestId }));
 });
 ipcMain.handle('skills:install', (_e, url: string) => {
-  return requestFromSidecar(pending.skillsInstall, 'Skill installation', () => sendToSidecar({ type: 'skills:install', url }), 30_000);
+  return requestFromSidecar(pending.skillsInstall, 'Skill installation', (requestId) => sendToSidecar({ type: 'skills:install', url, requestId }), 30_000);
 });
 ipcMain.handle('skills:uninstall', (_e, id: string) => {
-  return requestFromSidecar(pending.skillsUninstall, 'Skill removal', () => sendToSidecar({ type: 'skills:uninstall', id }));
+  return requestFromSidecar(pending.skillsUninstall, 'Skill removal', (requestId) => sendToSidecar({ type: 'skills:uninstall', id, requestId }));
 });
 ipcMain.handle('design:list-systems', () => {
-  return requestFromSidecar(pending.designSystems, 'Design systems', () => sendToSidecar({ type: 'design:list-systems' }));
+  return requestFromSidecar(pending.designSystems, 'Design systems', (requestId) => sendToSidecar({ type: 'design:list-systems', requestId }));
 });
 ipcMain.handle('design:list-skills', () => {
-  return requestFromSidecar(pending.designSkills, 'Design skills', () => sendToSidecar({ type: 'design:list-skills' }));
+  return requestFromSidecar(pending.designSkills, 'Design skills', (requestId) => sendToSidecar({ type: 'design:list-skills', requestId }));
 });
 ipcMain.handle('design:match', (_e, brief: string) => {
-  return requestFromSidecar(pending.designMatch, 'Design matching', () => sendToSidecar({ type: 'design:match', brief }));
+  return requestFromSidecar(pending.designMatch, 'Design matching', (requestId) => sendToSidecar({ type: 'design:match', brief, requestId }));
 });
 ipcMain.handle('design:build-prompt', (_e, spec: { brief: string; systemId: string; skillId: string }) => {
-  return requestFromSidecar(pending.designBuildPrompt, 'Design prompt', () => sendToSidecar({ type: 'design:build-prompt', ...spec }));
+  return requestFromSidecar(pending.designBuildPrompt, 'Design prompt', (requestId) => sendToSidecar({ type: 'design:build-prompt', ...spec, requestId }));
 });
 ipcMain.handle('design:artifact:list', () => {
-  return requestFromSidecar(pending.designArtifactList, 'Design artifacts', () => sendToSidecar({ type: 'design:artifact:list' }));
+  return requestFromSidecar(pending.designArtifactList, 'Design artifacts', (requestId) => sendToSidecar({ type: 'design:artifact:list', requestId }));
 });
 ipcMain.handle('design:artifact:create', (_e, spec: { brief: string; systemId: string; skillId: string; title?: string }) => {
-  return requestFromSidecar(pending.designArtifactCreate, 'Design artifact', () => sendToSidecar({ type: 'design:artifact:create', ...spec }), 30_000);
+  return requestFromSidecar(pending.designArtifactCreate, 'Design artifact', (requestId) => sendToSidecar({ type: 'design:artifact:create', ...spec, requestId }), 30_000);
 });
 ipcMain.handle('design:artifact:retry', (_e, id: string) => {
-  return requestFromSidecar(pending.designArtifactRetry, 'Design retry', () => sendToSidecar({ type: 'design:artifact:retry', id }), 30_000);
+  return requestFromSidecar(pending.designArtifactRetry, 'Design retry', (requestId) => sendToSidecar({ type: 'design:artifact:retry', id, requestId }), 30_000);
 });
 ipcMain.handle('memory:list', () => {
-  return requestFromSidecar(pending.memoryList, 'Memory list', () => sendToSidecar({ type: 'memory:list' }));
+  return requestFromSidecar(pending.memoryList, 'Memory list', (requestId) => sendToSidecar({ type: 'memory:list', requestId }));
 });
 ipcMain.handle('memory:add', (_e, data: { content: string; category: MemoryCategory; scope: MemoryScope }) => {
-  return requestFromSidecar(pending.memoryAdd, 'Save memory', () => sendToSidecar({ type: 'memory:add', ...data }));
+  return requestFromSidecar(pending.memoryAdd, 'Save memory', (requestId) => sendToSidecar({ type: 'memory:add', ...data, requestId }));
 });
 ipcMain.handle('memory:remove', (_e, id: string) => {
-  return requestFromSidecar(pending.memoryRemove, 'Remove memory', () => sendToSidecar({ type: 'memory:remove', id }));
+  return requestFromSidecar(pending.memoryRemove, 'Remove memory', (requestId) => sendToSidecar({ type: 'memory:remove', id, requestId }));
 });
 ipcMain.handle('memory:clear', (_e, scope?: MemoryScope) => {
-  return requestFromSidecar(pending.memoryClear, 'Clear memory', () => sendToSidecar({ type: 'memory:clear', ...(scope ? { scope } : {}) }));
+  return requestFromSidecar(pending.memoryClear, 'Clear memory', (requestId) => sendToSidecar({ type: 'memory:clear', ...(scope ? { scope } : {}), requestId }));
 });
 
 // ── Files/workdir IPC (Faz 4) — handled directly in main, no sidecar needed ──
@@ -637,6 +627,10 @@ ipcMain.handle('artifact:export', async (_event, id: string) => {
   return true;
 });
 ipcMain.handle('runtime:retry', () => {
+  // Ignore retry while a restart is already underway — otherwise rapid
+  // repeated clicks (or an accidental double-click) could kill/respawn
+  // the sidecar multiple times in quick succession.
+  if (runtimeStatus.message === 'starting') return runtimeStatus;
   restartAttempts = 0;
   restartSidecar();
   return runtimeStatus;
@@ -661,7 +655,7 @@ ipcMain.handle('finance:calculate', (_e, request: FinanceCalculationRequest) => 
   return requestFromSidecar(
     pending.financeCalculations,
     'Finance calculation',
-    () => sendToSidecar({ type: 'finance:calculate', request }),
+    (requestId) => sendToSidecar({ type: 'finance:calculate', request, requestId }),
     30_000,
   ).then((result) => financeStore.saveCalculation(result).result);
 });
