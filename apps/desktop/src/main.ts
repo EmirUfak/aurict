@@ -170,13 +170,13 @@ function sidecarLaunch(): { command: string; args: string[]; env: NodeJS.Process
     const executable = process.platform === 'win32' ? 'aurict-sidecar.exe' : 'aurict-sidecar';
     return {
       command: path.join(process.resourcesPath, executable),
-      args: ['--ipc-server'],
+      args: [],
       env: { ...sharedEnv, AURICT_ASSET_DIR: path.join(process.resourcesPath, 'aurict-data') },
     };
   }
   return {
     command: 'bun',
-    args: ['run', path.join(repoRoot(), 'packages', 'cli', 'src', 'index.ts'), '--ipc-server'],
+    args: ['run', path.join(repoRoot(), 'apps', 'desktop', 'src', 'sidecar-entry.ts')],
     env: sharedEnv,
   };
 }
