@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { ArtifactInfo } from '../shared/ipc-types.js';
 
@@ -14,9 +14,26 @@ export function createArtifactStore(userDataPath: () => string, workspace: () =>
     const temp = `${filePath()}.${process.pid}.tmp`;
     writeFileSync(temp, JSON.stringify(records, null, 2), 'utf8'); renameSync(temp, filePath());
   };
-  const within = (candidate: string, root: string) => {
-    const resolved = path.resolve(candidate); const base = path.resolve(root);
-    return resolved === base || resolved.startsWith(`${base}${path.sep}`);
+
+  // Uses realpathSync (not path.resolve) so containment checks follow
+  // symlinks to their real target — a symlink inside the approved root
+  // that points outside it is rejected, not just the symlink's own path.
+  // Fails closed (returns false) if either path can't be resolved at all
+  // (missing file, broken symlink), rather than throwing a raw fs error.
+  const within = (candidate: string, root: string): boolean => {
+    let resolvedRoot: string;
+    let resolvedCandidate: string;
+    try {
+      resolvedRoot = realpathSync(root);
+    } catch {
+      return false; // approved root itself missing — fail closed
+    }
+    try {
+      resolvedCandidate = realpathSync(candidate);
+    } catch {
+      return false; // candidate missing, broken symlink, etc. — fail closed
+    }
+    return resolvedCandidate === resolvedRoot || resolvedCandidate.startsWith(`${resolvedRoot}${path.sep}`);
   };
   return {
     register(record: ArtifactInfo & { path: string }) {
