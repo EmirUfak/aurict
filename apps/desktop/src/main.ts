@@ -6,24 +6,11 @@ import started from 'electron-squirrel-startup';
 import type {
   SidecarCommand,
   SidecarMessage,
-  ProviderInfo,
-  SessionInfo,
-  SessionMessage,
-  SessionSearchResult,
-  SkillInfo,
   PermissionDecision,
   CustomProviderDef,
   ChatSubmitPayload,
-  ModelInfo,
-  SessionAgentInfo,
   Policy,
-  DesignSystemInfo,
-  DesignSkillInfo,
-  DesignMatchResult,
   DesignOutputInfo,
-  DesignArtifactInfo,
-  DesignArtifactLaunch,
-  MemoryInfo,
   MemoryCategory,
   MemoryScope,
   WorkspaceInfo,
@@ -35,13 +22,12 @@ import type {
   ColorMode,
   FontPair,
   FinanceCalculationRequest,
-  FinanceCalculationResult,
   FinanceConversationMessage,
   ArtifactInfo,
   RemoteStatus,
 } from './shared/ipc-types.js';
 import { createFinanceStore } from './main/finance-store.js';
-import { rejectNext, rejectQueue, requestFromSidecar, resolveNext, type PendingQueue } from './main/pending-requests.js';
+import { createPendingRequestRegistry, rejectNext, rejectQueue, requestFromSidecar, resolveNext } from './main/pending-requests.js';
 import { createDesktopStores, isDirectory } from './main/desktop-stores.js';
 import { markChangedFiles, readFileTree, resolveWithinRoot } from './main/workspace-files.js';
 import { createArtifactStore } from './main/artifact-store.js';
@@ -122,33 +108,7 @@ function setRuntimeStatus(status: SidecarStatus): void {
   if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('runtime:status', status);
 }
 
-const pendingProviderList: PendingQueue<ProviderInfo[]> = [];
-const pendingSessionList: PendingQueue<SessionInfo[]> = [];
-const pendingSessionSelect: PendingQueue<SessionMessage[]> = [];
-const pendingSessionNew: PendingQueue<string> = [];
-const pendingSessionRename: PendingQueue<{ id: string; title: string }> = [];
-const pendingSessionArchive: PendingQueue<{ id: string; archived: boolean }> = [];
-const pendingSessionBranch: PendingQueue<{ id: string; messages: SessionMessage[] }> = [];
-const pendingSessionSearch: PendingQueue<SessionSearchResult[]> = [];
-const pendingSessionDelete: PendingQueue<{ wasActive: boolean }> = [];
-const pendingSkillsList: PendingQueue<SkillInfo[]> = [];
-const pendingModelList: PendingQueue<ModelInfo[]> = [];
-const pendingModelCurrent: PendingQueue<{ providerId: string; modelId: string }> = [];
-const pendingAgentsList: PendingQueue<SessionAgentInfo[]> = [];
-const pendingSkillsInstall: PendingQueue<{ id: string; name: string } | { error: string }> = [];
-const pendingSkillsUninstall: PendingQueue<boolean> = [];
-const pendingDesignSystems: PendingQueue<DesignSystemInfo[]> = [];
-const pendingDesignSkills: PendingQueue<DesignSkillInfo[]> = [];
-const pendingDesignMatch: PendingQueue<DesignMatchResult> = [];
-const pendingDesignBuildPrompt: PendingQueue<{ prompt: string; outputDir: string }> = [];
-const pendingDesignArtifactList: PendingQueue<DesignArtifactInfo[]> = [];
-const pendingDesignArtifactCreate: PendingQueue<DesignArtifactLaunch> = [];
-const pendingDesignArtifactRetry: PendingQueue<DesignArtifactLaunch> = [];
-const pendingMemoryList: PendingQueue<MemoryInfo[]> = [];
-const pendingMemoryAdd: PendingQueue<MemoryInfo> = [];
-const pendingMemoryRemove: PendingQueue<boolean> = [];
-const pendingMemoryClear: PendingQueue<number> = [];
-const pendingFinanceCalculations: PendingQueue<FinanceCalculationResult> = [];
+const pending = createPendingRequestRegistry();
 
 function repoRoot(): string {
   // app.getAppPath() is apps/desktop (the dir containing this package's
@@ -210,7 +170,9 @@ function spawnSidecar(): ChildProcessWithoutNullStreams {
   child.once('spawn', () => setRuntimeStatus({ connected: true }));
   child.once('error', (error) => {
     if (sidecar === child) {
+      sidecar = null;
       console.error('[aurict] sidecar failed to start', error);
+      rejectPendingRequests(new Error('Aurict runtime failed to start.'));
       setRuntimeStatus({ connected: false, message: 'sidecar failed to start' });
     }
   });
@@ -262,18 +224,18 @@ function restartSidecar(): void {
 }
 
 function rejectPendingRequests(error: Error): void {
-  rejectQueue(pendingProviderList, error); rejectQueue(pendingSessionList, error);
-  rejectQueue(pendingSessionSelect, error); rejectQueue(pendingSessionNew, error);
-  rejectQueue(pendingSessionDelete, error); rejectQueue(pendingSkillsList, error);
-  rejectQueue(pendingModelList, error); rejectQueue(pendingModelCurrent, error);
-  rejectQueue(pendingAgentsList, error); rejectQueue(pendingSkillsInstall, error);
-  rejectQueue(pendingSkillsUninstall, error); rejectQueue(pendingDesignSystems, error);
-  rejectQueue(pendingDesignSkills, error); rejectQueue(pendingDesignMatch, error);
-  rejectQueue(pendingDesignBuildPrompt, error); rejectQueue(pendingDesignArtifactList, error);
-  rejectQueue(pendingDesignArtifactCreate, error); rejectQueue(pendingDesignArtifactRetry, error);
-  rejectQueue(pendingMemoryList, error); rejectQueue(pendingMemoryAdd, error);
-  rejectQueue(pendingMemoryRemove, error); rejectQueue(pendingMemoryClear, error);
-  rejectQueue(pendingFinanceCalculations, error);
+  rejectQueue(pending.providerList, error); rejectQueue(pending.sessionList, error);
+  rejectQueue(pending.sessionSelect, error); rejectQueue(pending.sessionNew, error);
+  rejectQueue(pending.sessionDelete, error); rejectQueue(pending.skillsList, error);
+  rejectQueue(pending.modelList, error); rejectQueue(pending.modelCurrent, error);
+  rejectQueue(pending.agentsList, error); rejectQueue(pending.skillsInstall, error);
+  rejectQueue(pending.skillsUninstall, error); rejectQueue(pending.designSystems, error);
+  rejectQueue(pending.designSkills, error); rejectQueue(pending.designMatch, error);
+  rejectQueue(pending.designBuildPrompt, error); rejectQueue(pending.designArtifactList, error);
+  rejectQueue(pending.designArtifactCreate, error); rejectQueue(pending.designArtifactRetry, error);
+  rejectQueue(pending.memoryList, error); rejectQueue(pending.memoryAdd, error);
+  rejectQueue(pending.memoryRemove, error); rejectQueue(pending.memoryClear, error);
+  rejectQueue(pending.financeCalculations, error);
 }
 
 function handleSidecarMessage(msg: SidecarMessage): void {
@@ -300,108 +262,108 @@ function handleSidecarMessage(msg: SidecarMessage): void {
       mainWindow?.webContents.send('permission:request', msg.request);
       return;
     case 'provider:list-result':
-      resolveNext(pendingProviderList, msg.providers);
+      resolveNext(pending.providerList, msg.providers);
       return;
     case 'session:list-result':
-      resolveNext(pendingSessionList, msg.sessions);
+      resolveNext(pending.sessionList, msg.sessions);
       return;
     case 'session:select-result':
-      resolveNext(pendingSessionSelect, msg.messages);
+      resolveNext(pending.sessionSelect, msg.messages);
       return;
     case 'session:new-result':
-      resolveNext(pendingSessionNew, msg.id);
+      resolveNext(pending.sessionNew, msg.id);
       return;
     case 'session:rename-result':
-      resolveNext(pendingSessionRename, { id: msg.id, title: msg.title });
+      resolveNext(pending.sessionRename, { id: msg.id, title: msg.title });
       return;
     case 'session:archive-result':
-      resolveNext(pendingSessionArchive, { id: msg.id, archived: msg.archived });
+      resolveNext(pending.sessionArchive, { id: msg.id, archived: msg.archived });
       return;
     case 'session:branch-result':
-      resolveNext(pendingSessionBranch, { id: msg.id, messages: msg.messages });
+      resolveNext(pending.sessionBranch, { id: msg.id, messages: msg.messages });
       return;
     case 'session:search-result':
-      resolveNext(pendingSessionSearch, msg.results);
+      resolveNext(pending.sessionSearch, msg.results);
       return;
     case 'session:delete-result':
-      resolveNext(pendingSessionDelete, { wasActive: msg.wasActive });
+      resolveNext(pending.sessionDelete, { wasActive: msg.wasActive });
       return;
     case 'skills:list-result':
-      resolveNext(pendingSkillsList, msg.skills);
+      resolveNext(pending.skillsList, msg.skills);
       return;
     case 'model:list-result':
-      resolveNext(pendingModelList, msg.models);
+      resolveNext(pending.modelList, msg.models);
       return;
     case 'model:list-error':
-      rejectNext(pendingModelList, new Error(msg.message));
+      rejectNext(pending.modelList, new Error(msg.message));
       return;
     case 'model:current-result':
-      resolveNext(pendingModelCurrent, { providerId: msg.providerId, modelId: msg.modelId });
+      resolveNext(pending.modelCurrent, { providerId: msg.providerId, modelId: msg.modelId });
       return;
     case 'agents:list-result':
-      resolveNext(pendingAgentsList, msg.agents);
+      resolveNext(pending.agentsList, msg.agents);
       return;
     case 'skills:install-result':
-      resolveNext(pendingSkillsInstall, msg.result);
+      resolveNext(pending.skillsInstall, msg.result);
       return;
     case 'skills:uninstall-result':
-      resolveNext(pendingSkillsUninstall, msg.ok);
+      resolveNext(pending.skillsUninstall, msg.ok);
       return;
     case 'design:list-systems-result':
-      resolveNext(pendingDesignSystems, msg.systems);
+      resolveNext(pending.designSystems, msg.systems);
       return;
     case 'design:list-skills-result':
-      resolveNext(pendingDesignSkills, msg.skills);
+      resolveNext(pending.designSkills, msg.skills);
       return;
     case 'design:match-result':
-      resolveNext(pendingDesignMatch, msg.match);
+      resolveNext(pending.designMatch, msg.match);
       return;
     case 'design:build-prompt-result':
-      resolveNext(pendingDesignBuildPrompt, { prompt: msg.prompt, outputDir: msg.outputDir });
+      resolveNext(pending.designBuildPrompt, { prompt: msg.prompt, outputDir: msg.outputDir });
       return;
     case 'design:artifact:list-result':
-      resolveNext(pendingDesignArtifactList, msg.artifacts);
+      resolveNext(pending.designArtifactList, msg.artifacts);
       return;
     case 'design:artifact:create-result':
-      resolveNext(pendingDesignArtifactCreate, msg.result);
+      resolveNext(pending.designArtifactCreate, msg.result);
       return;
     case 'design:artifact:retry-result':
-      resolveNext(pendingDesignArtifactRetry, msg.result);
+      resolveNext(pending.designArtifactRetry, msg.result);
       return;
     case 'memory:list-result':
-      resolveNext(pendingMemoryList, msg.memories);
+      resolveNext(pending.memoryList, msg.memories);
       return;
     case 'memory:add-result':
-      resolveNext(pendingMemoryAdd, msg.memory);
+      resolveNext(pending.memoryAdd, msg.memory);
       return;
     case 'memory:remove-result':
-      resolveNext(pendingMemoryRemove, msg.ok);
+      resolveNext(pending.memoryRemove, msg.ok);
       return;
     case 'memory:clear-result':
-      resolveNext(pendingMemoryClear, msg.removed);
+      resolveNext(pending.memoryClear, msg.removed);
       return;
     case 'finance:calculate-result': {
-      if (pendingFinanceCalculations.length === 0) {
+      if (pending.financeCalculations.length === 0) {
         console.error('[aurict] received an unexpected finance calculation result');
         return;
       }
       if (msg.error) {
-        const pending = pendingFinanceCalculations.shift();
-        if (pending) {
-          clearTimeout(pending.timeout);
-          pending.reject(new Error(msg.error));
+        const entry = pending.financeCalculations.shift();
+        if (entry) {
+          clearTimeout(entry.timeout);
+          entry.reject(new Error(msg.error));
         }
         return;
       }
       if (!msg.result) {
-        const pending = pendingFinanceCalculations.shift();
-        if (pending) {
-          clearTimeout(pending.timeout);
-          pending.reject(new Error('Finance runtime returned no calculation result'));
+        const entry = pending.financeCalculations.shift();
+        if (entry) {
+          clearTimeout(entry.timeout);
+          entry.reject(new Error('Finance runtime returned no calculation result'));
         }
         return;
       }
-      resolveNext(pendingFinanceCalculations, msg.result);
+      resolveNext(pending.financeCalculations, msg.result);
       return;
     }
   }
@@ -488,7 +450,7 @@ ipcMain.on('permission:respond', (_e, { id, decision }: { id: string; decision: 
   }
 });
 ipcMain.handle('provider:list', () => {
-  return requestFromSidecar(pendingProviderList, 'Provider list', () => sendToSidecar({ type: 'provider:list' }));
+  return requestFromSidecar(pending.providerList, 'Provider list', () => sendToSidecar({ type: 'provider:list' }));
 });
 ipcMain.handle('provider:set-key', (_e, { providerId, apiKey }: { providerId: string; apiKey: string }) => {
   sendToSidecar({ type: 'provider:set-key', providerId, apiKey });
@@ -497,78 +459,78 @@ ipcMain.handle('provider:set-custom', (_e, { id, def }: { id: string; def: Custo
   sendToSidecar({ type: 'provider:set-custom', id, def });
 });
 ipcMain.handle('session:list', () => {
-  return requestFromSidecar(pendingSessionList, 'Session list', () => sendToSidecar({ type: 'session:list' }));
+  return requestFromSidecar(pending.sessionList, 'Session list', () => sendToSidecar({ type: 'session:list' }));
 });
 ipcMain.handle('session:select', (_e, { id }: { id: string }) => {
-  return requestFromSidecar(pendingSessionSelect, 'Session history', () => sendToSidecar({ type: 'session:select', id }));
+  return requestFromSidecar(pending.sessionSelect, 'Session history', () => sendToSidecar({ type: 'session:select', id }));
 });
 ipcMain.handle('session:new', () => {
-  return requestFromSidecar(pendingSessionNew, 'New session', () => sendToSidecar({ type: 'session:new' }));
+  return requestFromSidecar(pending.sessionNew, 'New session', () => sendToSidecar({ type: 'session:new' }));
 });
 ipcMain.handle('session:rename', (_e, { id, title }: { id: string; title: string }) => {
-  return requestFromSidecar(pendingSessionRename, 'Session rename', () => sendToSidecar({ type: 'session:rename', id, title }));
+  return requestFromSidecar(pending.sessionRename, 'Session rename', () => sendToSidecar({ type: 'session:rename', id, title }));
 });
 ipcMain.handle('session:archive', (_e, { id, archived }: { id: string; archived: boolean }) => {
-  return requestFromSidecar(pendingSessionArchive, 'Session archive', () => sendToSidecar({ type: 'session:archive', id, archived }));
+  return requestFromSidecar(pending.sessionArchive, 'Session archive', () => sendToSidecar({ type: 'session:archive', id, archived }));
 });
-ipcMain.handle('session:branch', (_e, id: string) => requestFromSidecar(pendingSessionBranch, 'Session branch', () => sendToSidecar({ type: 'session:branch', id })));
-ipcMain.handle('session:search', (_e, query: string) => requestFromSidecar(pendingSessionSearch, 'Session search', () => sendToSidecar({ type: 'session:search', query })));
+ipcMain.handle('session:branch', (_e, id: string) => requestFromSidecar(pending.sessionBranch, 'Session branch', () => sendToSidecar({ type: 'session:branch', id })));
+ipcMain.handle('session:search', (_e, query: string) => requestFromSidecar(pending.sessionSearch, 'Session search', () => sendToSidecar({ type: 'session:search', query })));
 ipcMain.handle('session:delete', (_e, id: string) => {
-  return requestFromSidecar(pendingSessionDelete, 'Delete session', () => sendToSidecar({ type: 'session:delete', id }));
+  return requestFromSidecar(pending.sessionDelete, 'Delete session', () => sendToSidecar({ type: 'session:delete', id }));
 });
 ipcMain.handle('skills:list', () => {
-  return requestFromSidecar(pendingSkillsList, 'Skill list', () => sendToSidecar({ type: 'skills:list' }));
+  return requestFromSidecar(pending.skillsList, 'Skill list', () => sendToSidecar({ type: 'skills:list' }));
 });
 ipcMain.handle('provider:models', (_e, providerId: string) => {
-  return requestFromSidecar(pendingModelList, 'Model list', () => sendToSidecar({ type: 'model:list', providerId }));
+  return requestFromSidecar(pending.modelList, 'Model list', () => sendToSidecar({ type: 'model:list', providerId }));
 });
 ipcMain.handle('provider:current-model', () => {
-  return requestFromSidecar(pendingModelCurrent, 'Current model', () => sendToSidecar({ type: 'model:get-current' }));
+  return requestFromSidecar(pending.modelCurrent, 'Current model', () => sendToSidecar({ type: 'model:get-current' }));
 });
 ipcMain.handle('provider:select-model', (_e, { providerId, modelId }: { providerId: string; modelId: string }) => {
   sendToSidecar({ type: 'model:select', providerId, modelId });
 });
 ipcMain.handle('agents:list', () => {
-  return requestFromSidecar(pendingAgentsList, 'Agent list', () => sendToSidecar({ type: 'agents:list' }));
+  return requestFromSidecar(pending.agentsList, 'Agent list', () => sendToSidecar({ type: 'agents:list' }));
 });
 ipcMain.handle('skills:install', (_e, url: string) => {
-  return requestFromSidecar(pendingSkillsInstall, 'Skill installation', () => sendToSidecar({ type: 'skills:install', url }), 30_000);
+  return requestFromSidecar(pending.skillsInstall, 'Skill installation', () => sendToSidecar({ type: 'skills:install', url }), 30_000);
 });
 ipcMain.handle('skills:uninstall', (_e, id: string) => {
-  return requestFromSidecar(pendingSkillsUninstall, 'Skill removal', () => sendToSidecar({ type: 'skills:uninstall', id }));
+  return requestFromSidecar(pending.skillsUninstall, 'Skill removal', () => sendToSidecar({ type: 'skills:uninstall', id }));
 });
 ipcMain.handle('design:list-systems', () => {
-  return requestFromSidecar(pendingDesignSystems, 'Design systems', () => sendToSidecar({ type: 'design:list-systems' }));
+  return requestFromSidecar(pending.designSystems, 'Design systems', () => sendToSidecar({ type: 'design:list-systems' }));
 });
 ipcMain.handle('design:list-skills', () => {
-  return requestFromSidecar(pendingDesignSkills, 'Design skills', () => sendToSidecar({ type: 'design:list-skills' }));
+  return requestFromSidecar(pending.designSkills, 'Design skills', () => sendToSidecar({ type: 'design:list-skills' }));
 });
 ipcMain.handle('design:match', (_e, brief: string) => {
-  return requestFromSidecar(pendingDesignMatch, 'Design matching', () => sendToSidecar({ type: 'design:match', brief }));
+  return requestFromSidecar(pending.designMatch, 'Design matching', () => sendToSidecar({ type: 'design:match', brief }));
 });
 ipcMain.handle('design:build-prompt', (_e, spec: { brief: string; systemId: string; skillId: string }) => {
-  return requestFromSidecar(pendingDesignBuildPrompt, 'Design prompt', () => sendToSidecar({ type: 'design:build-prompt', ...spec }));
+  return requestFromSidecar(pending.designBuildPrompt, 'Design prompt', () => sendToSidecar({ type: 'design:build-prompt', ...spec }));
 });
 ipcMain.handle('design:artifact:list', () => {
-  return requestFromSidecar(pendingDesignArtifactList, 'Design artifacts', () => sendToSidecar({ type: 'design:artifact:list' }));
+  return requestFromSidecar(pending.designArtifactList, 'Design artifacts', () => sendToSidecar({ type: 'design:artifact:list' }));
 });
 ipcMain.handle('design:artifact:create', (_e, spec: { brief: string; systemId: string; skillId: string; title?: string }) => {
-  return requestFromSidecar(pendingDesignArtifactCreate, 'Design artifact', () => sendToSidecar({ type: 'design:artifact:create', ...spec }), 30_000);
+  return requestFromSidecar(pending.designArtifactCreate, 'Design artifact', () => sendToSidecar({ type: 'design:artifact:create', ...spec }), 30_000);
 });
 ipcMain.handle('design:artifact:retry', (_e, id: string) => {
-  return requestFromSidecar(pendingDesignArtifactRetry, 'Design retry', () => sendToSidecar({ type: 'design:artifact:retry', id }), 30_000);
+  return requestFromSidecar(pending.designArtifactRetry, 'Design retry', () => sendToSidecar({ type: 'design:artifact:retry', id }), 30_000);
 });
 ipcMain.handle('memory:list', () => {
-  return requestFromSidecar(pendingMemoryList, 'Memory list', () => sendToSidecar({ type: 'memory:list' }));
+  return requestFromSidecar(pending.memoryList, 'Memory list', () => sendToSidecar({ type: 'memory:list' }));
 });
 ipcMain.handle('memory:add', (_e, data: { content: string; category: MemoryCategory; scope: MemoryScope }) => {
-  return requestFromSidecar(pendingMemoryAdd, 'Save memory', () => sendToSidecar({ type: 'memory:add', ...data }));
+  return requestFromSidecar(pending.memoryAdd, 'Save memory', () => sendToSidecar({ type: 'memory:add', ...data }));
 });
 ipcMain.handle('memory:remove', (_e, id: string) => {
-  return requestFromSidecar(pendingMemoryRemove, 'Remove memory', () => sendToSidecar({ type: 'memory:remove', id }));
+  return requestFromSidecar(pending.memoryRemove, 'Remove memory', () => sendToSidecar({ type: 'memory:remove', id }));
 });
 ipcMain.handle('memory:clear', (_e, scope?: MemoryScope) => {
-  return requestFromSidecar(pendingMemoryClear, 'Clear memory', () => sendToSidecar({ type: 'memory:clear', ...(scope ? { scope } : {}) }));
+  return requestFromSidecar(pending.memoryClear, 'Clear memory', () => sendToSidecar({ type: 'memory:clear', ...(scope ? { scope } : {}) }));
 });
 
 // ── Files/workdir IPC (Faz 4) — handled directly in main, no sidecar needed ──
@@ -697,7 +659,7 @@ ipcMain.handle('finance:research:create', (_e, question: string) => financeStore
 ipcMain.handle('finance:research:remove', (_e, id: string) => financeStore.removeResearch(id));
 ipcMain.handle('finance:calculate', (_e, request: FinanceCalculationRequest) => {
   return requestFromSidecar(
-    pendingFinanceCalculations,
+    pending.financeCalculations,
     'Finance calculation',
     () => sendToSidecar({ type: 'finance:calculate', request }),
     30_000,
