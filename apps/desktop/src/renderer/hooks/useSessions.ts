@@ -5,9 +5,13 @@ export function useSessions(onSelect: (messages: SessionMessage[]) => void, onNe
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SessionSearchResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
-    window.aurict.session.list().then(setSessions).catch((error) => console.error('Failed to load sessions', error));
+    window.aurict.session.list().then((next) => { setSessions(next); setError(null); }).catch((reason) => {
+      console.error('Failed to load sessions', reason);
+      setError(reason instanceof Error ? reason.message : 'Sessions could not be loaded.');
+    });
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -50,5 +54,5 @@ export function useSessions(onSelect: (messages: SessionMessage[]) => void, onNe
   }, [onSelect, refresh]);
   const search = useCallback(async (query: string) => { setSearchResults(query.trim() ? await window.aurict.session.search(query) : []); }, []);
 
-  return { sessions, activeId, refresh, select, create, remove, rename, archive, branch, search, searchResults };
+  return { sessions, activeId, error,  refresh, select, create, remove, rename, archive, branch, search, searchResults };
 }

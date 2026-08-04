@@ -3,6 +3,8 @@ import type { useChat } from '../hooks/useChat.js';
 import { useDesign } from '../hooks/useDesign.js';
 import type { ChatAttachment, UserType } from '../../shared/ipc-types.js';
 import { ModelSelector } from '../components/ModelSelector.js';
+import { useToasts, ToastRegion } from '../components/ToastRegion.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 
 const sectionHeading: React.CSSProperties = {
   fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase',
@@ -48,6 +50,8 @@ interface DesignScreenProps {
 
 export function DesignScreen({ chat, onLaunched, userType }: DesignScreenProps) {
   const design = useDesign();
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
+  useErrorToast(design.error, design.refreshOutputs, showToast);
   const [brief, setBrief] = useState('');
   const [systemId, setSystemId] = useState('');
   const [skillId, setSkillId] = useState('');
@@ -333,6 +337,7 @@ export function DesignScreen({ chat, onLaunched, userType }: DesignScreenProps) 
           </div>
         </div>
       )}
+      <ToastRegion toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

@@ -4,17 +4,20 @@ export function useWorkdir() {
   const [workdir, setWorkdir] = useState('~');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = () => window.aurict.workspace.get().then((workspace) => {
+  const load = useCallback(() => {
+    void window.aurict.workspace.get().then((workspace) => {
       setWorkdir(workspace.path);
       setError(null);
-    });
-    void load().catch((reason) => {
+    }).catch((reason) => {
       console.error('Failed to load workspace', reason);
       setError(reason instanceof Error ? reason.message : 'Workspace could not be loaded.');
     });
-    return window.aurict.workspace.onChanged((workspace) => setWorkdir(workspace.path));
   }, []);
+
+  useEffect(() => {
+    load();
+    return window.aurict.workspace.onChanged((workspace) => setWorkdir(workspace.path));
+  }, [load]);
 
   const choose = useCallback(async () => {
     try {
@@ -29,5 +32,5 @@ export function useWorkdir() {
     }
   }, []);
 
-  return { workdir, error, choose };
+  return { workdir, error, choose, reload: load };
 }

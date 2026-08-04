@@ -14,6 +14,7 @@ import { ChatTimeline } from '../components/ChatTimeline.js';
 import { ContextDrawer } from '../components/TaskActivity.js';
 import { CenterTab, PanelTab, SessionMetadata } from '../components/WorkspaceChrome.js';
 import { VirtualSessionList } from '../components/VirtualSessionList.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 const selectStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)',
   background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 5,
@@ -77,6 +78,8 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
   const [sessionTitleDraft, setSessionTitleDraft] = useState('');
   const [sessionQuery, setSessionQuery] = useState('');
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
+  useErrorToast(sessions.error, sessions.refresh, showToast);
+  useErrorToast(providers.error, providers.refresh, showToast);
   const profileCopy = PROFILE_COPY[userType === 'designer' ? 'developer' : userType];
   const activeSession = sessions.sessions.find((session) => session.id === sessions.activeId) ?? null;
 
