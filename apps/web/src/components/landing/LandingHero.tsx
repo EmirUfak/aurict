@@ -23,15 +23,15 @@ export function LandingHero() {
         <div className={styles.content}>
           <header className={styles.masthead}>
             <p className={styles.version}>{currentEditionLabel} · AGPLv3</p>
-            <p>{tr ? "masaüstü · terminal · mobil" : "desktop · terminal · mobile"}</p>
+            <p>{tr ? "masaüstü · terminal · mobil · finans" : "desktop · terminal · mobile · finance"}</p>
           </header>
           <h1>{tr ? <>İşiniz neredeyse,<br />Aurict orada.</> : <>One intelligence.<br />Every surface.</>}</h1>
           <WorkThread tr={tr} />
           <div className={styles.decisionRow}>
             <div>
               <p className={styles.summary}>{tr
-                ? "İşiniz neredeyse Aurict oradadır: Hoprel'de yerel öncelikli masaüstü çalışma alanı, terminalde kodlama, Aurict Mobile ile araştırma ve uzaktan kontrol."
-                : "Aurict brings agentic work to the surface that fits: Hoprel for a local-first desktop workspace, a native terminal runtime for code, and Aurict Mobile for research and remote control."}</p>
+                ? "İşiniz neredeyse Aurict oradadır: Hoprel'de yerel öncelikli masaüstü çalışma alanı, terminalde kodlama, Aurict Mobile ile araştırma ve uzaktan kontrol, Bondley.one ile sabit getirili piyasa zekâsı."
+                : "Aurict brings agentic work to the surface that fits: Hoprel for a local-first desktop workspace, a native terminal runtime for code, Aurict Mobile for research and remote control, and Bondley.one for fixed-income intelligence."}</p>
               <p className={styles.proof}>{tr ? "tek hesap · kendi sağlayıcılarınız · yerel bağlam · açık kontrol" : "one account · your providers · local context · explicit control"}</p>
             </div>
           <div className={styles.actions}>
