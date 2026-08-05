@@ -28,6 +28,7 @@ import type {
 } from './shared/ipc-types.js';
 import { createFinanceStore } from './main/finance-store.js';
 import { createPendingRequestRegistry, rejectQueue, requestFromSidecar, resolveById, rejectById } from './main/pending-requests.js';
+import { wireSidecarChild } from './main/sidecar-process.js';
 import { createDesktopStores, isDirectory } from './main/desktop-stores.js';
 import { markChangedFiles, readFileTree, resolveWithinRoot } from './main/workspace-files.js';
 import { createArtifactStore } from './main/artifact-store.js';
@@ -149,41 +150,30 @@ function spawnSidecar(): ChildProcessWithoutNullStreams {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
-  let buffer = '';
-  child.stdout.setEncoding('utf8');
-  child.stdout.on('data', (chunk: string) => {
-    buffer += chunk;
-    let idx: number;
-    while ((idx = buffer.indexOf('\n')) !== -1) {
-      const line = buffer.slice(0, idx).trim();
-      buffer = buffer.slice(idx + 1);
-      if (!line) continue;
+    wireSidecarChild(child, () => sidecar, {
+    onMessage: (line) => {
       try {
         handleSidecarMessage(JSON.parse(line) as SidecarMessage);
       } catch (err) {
         console.error('[aurict] malformed sidecar message:', line, err);
       }
-    }
-  });
-  child.stderr.setEncoding('utf8');
-  child.stderr.on('data', (chunk: string) => console.error('[sidecar]', chunk.trimEnd()));
-  child.once('spawn', () => setRuntimeStatus({ connected: true }));
-  child.once('error', (error) => {
-    if (sidecar === child) {
+    },
+    onStderr: (chunk) => console.error('[sidecar]', chunk.trimEnd()),
+    onSpawn: () => setRuntimeStatus({ connected: true }),
+    onError: (error) => {
       sidecar = null;
       console.error('[aurict] sidecar failed to start', error);
       rejectPendingRequests(new Error('Aurict runtime failed to start.'));
       setRuntimeStatus({ connected: false, message: 'sidecar failed to start' });
-    }
-  });
-  child.once('exit', (code, signal) => {
-    if (sidecar !== child) return;
-    sidecar = null;
-    const message = `sidecar exited (${code ?? signal ?? 'unknown'})`;
-    console.error(`[aurict] ${message}`);
-    setRuntimeStatus({ connected: false, message });
-    rejectPendingRequests(new Error(`Aurict runtime stopped before completing the request (${code ?? signal ?? 'unknown'}).`));
-    scheduleSidecarRestart();
+    },
+    onExit: (code, signal) => {
+      sidecar = null;
+      const message = `sidecar exited (${code ?? signal ?? 'unknown'})`;
+      console.error(`[aurict] ${message}`);
+      setRuntimeStatus({ connected: false, message });
+      rejectPendingRequests(new Error(`Aurict runtime stopped before completing the request (${code ?? signal ?? 'unknown'}).`));
+      scheduleSidecarRestart();
+    },
   });
 
   return child;
@@ -203,7 +193,11 @@ function startSidecar(): void {
 }
 
 function scheduleSidecarRestart(): void {
-  if (isQuitting || runtimeSuspended || restartTimer || restartAttempts >= 3) return;
+  if (isQuitting || runtimeSuspended || restartTimer) return;
+  if (restartAttempts >= 3) {
+    setRuntimeStatus({ connected: false, message: 'failed to reconnect after 3 attempts — click retry to try again' });
+    return;
+  }
   const delay = 1_000 * 2 ** restartAttempts;
   restartAttempts += 1;
   setRuntimeStatus({ connected: false, message: `reconnecting in ${Math.ceil(delay / 1_000)}s` });

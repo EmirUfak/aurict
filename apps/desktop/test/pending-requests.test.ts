@@ -1,6 +1,6 @@
 /* eslint-disable import/no-unresolved -- Bun provides this test module at runtime. */
 import { describe, expect, it } from 'bun:test';
-import { rejectNext, rejectQueue,   requestFromSidecar, resolveById, resolveNext, type PendingQueue } from '../src/main/pending-requests.js';
+import { rejectNext, rejectQueue, requestFromSidecar, resolveById, resolveNext, type PendingQueue } from '../src/main/pending-requests.js';
 
 describe('desktop sidecar request lifecycle', () => {
   it('settles a queued request and removes its timeout', async () => {
@@ -47,7 +47,7 @@ describe('desktop sidecar request lifecycle', () => {
     await expect(second).rejects.toThrow('Aurict runtime stopped before completing the request.');
     expect(queue).toHaveLength(0);
   });
-  
+
   // Guards against a stray/duplicate sidecar response (or one for a request
   // that already timed out and was removed from the queue) crashing the
   // main process — resolveNext/rejectNext should just no-op if nothing is
