@@ -99,7 +99,7 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--titlebar-muted)' }}>
             {status.connected ? 'connected' : status.message ?? 'disconnected'}
           </span>
-          {!status.connected && <button className="aur-titlebar-retry" type="button" onClick={() => { void window.aurict.runtime.retry().then(setStatus); }}>retry</button>}
+          {!status.connected && <button className="aur-titlebar-retry" type="button" onClick={() => { void window.aurict.runtime.retry(); }}>retry</button>}
         </div>
       </div>
     </div>

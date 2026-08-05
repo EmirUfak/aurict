@@ -100,7 +100,7 @@ export function App() {
       <Titlebar screen={screen} onNavigate={setScreen} workdir={workdir.workdir} onChooseWorkdir={workdir.choose} userType={onboarding.profile.userType} layout={onboarding.profile.layout} />
 
       {screen === 'main' && (onboarding.profile.layout === 'developer'
-        ? <MainScreen permission={permission} chat={chat} sessions={sessions} userType={onboarding.profile.userType} />
+        ? <MainScreen permission={permission} chat={chat} sessions={sessions} workdir={workdir} userType={onboarding.profile.userType} />
         : onboarding.profile.layout === 'product'
           ? <RoleWorkspaceScreen role="product" chat={chat} onOpenDesign={() => setScreen('design')} />
           : onboarding.profile.layout === 'operations'

@@ -15,6 +15,8 @@ import { ContextDrawer } from '../components/TaskActivity.js';
 import { CenterTab, PanelTab, SessionMetadata } from '../components/WorkspaceChrome.js';
 import { VirtualSessionList } from '../components/VirtualSessionList.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
+import type { useWorkdir } from '../hooks/useWorkdir.js';
+
 const selectStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)',
   background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 5,
@@ -40,6 +42,7 @@ interface MainScreenProps {
   permission: ReturnType<typeof usePermission>;
   chat: ReturnType<typeof useChat>;
   sessions: ReturnType<typeof useSessions>;
+  workdir: ReturnType<typeof useWorkdir>;
   userType: UserType;
 }
 
@@ -58,7 +61,7 @@ const PROFILE_COPY: Record<Exclude<UserType, 'designer'>, { empty: string; place
   finance: { empty: 'Ask Aurict to research a topic, explain a formula, or prepare a transparent calculation.', placeholder: 'Research or calculate something…' },
 };
 
-export function MainScreen({ permission, chat, sessions, userType }: MainScreenProps) {
+export function MainScreen({ permission, chat, sessions, workdir, userType }: MainScreenProps) {
   const fileTree = useFileTree();
   const providers = useProviders();
   const modelSelection = useModelSelection();
@@ -78,8 +81,10 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
   const [sessionTitleDraft, setSessionTitleDraft] = useState('');
   const [sessionQuery, setSessionQuery] = useState('');
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
-  useErrorToast(sessions.error, sessions.refresh, showToast);
+  useErrorToast(sessions.error, sessions.retryAction, showToast);
   useErrorToast(providers.error, providers.refresh, showToast);
+  useErrorToast(fileTree.error, fileTree.refresh, showToast);
+  useErrorToast(workdir.error, workdir.reload, showToast);
   const profileCopy = PROFILE_COPY[userType === 'designer' ? 'developer' : userType];
   const activeSession = sessions.sessions.find((session) => session.id === sessions.activeId) ?? null;
 
@@ -200,7 +205,7 @@ export function MainScreen({ permission, chat, sessions, userType }: MainScreenP
         <div style={{ padding: '4px 14px 8px', fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-subtle)' }}>
           sessions
         </div>
-        <div style={{ padding: '0 14px 8px' }}><input aria-label="Search session history" value={sessionQuery} onChange={(event) => { const value = event.target.value; setSessionQuery(value); void sessions.search(value); }} placeholder="search history" style={{ width: '100%', minHeight: 30, padding: '5px 7px', color: 'var(--text)', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 10.5 }} /></div>
+        <div style={{ padding: '0 14px 8px' }}><input aria-label="Search session history" value={sessionQuery} onChange={(event) => { const value = event.target.value; setSessionQuery(value); void sessions.search(value).catch((reason) => showToast(reason instanceof Error ? reason.message : 'Search failed', 'error')); }} placeholder="search history" style={{ width: '100%', minHeight: 30, padding: '5px 7px', color: 'var(--text)', background: 'var(--bg-deep)', border: '1px solid var(--border-subtle)', borderRadius: 5, fontFamily: 'var(--font-mono)', fontSize: 10.5 }} /></div>
         {sessionQuery.trim() && <div style={{ maxHeight: 132, overflowY: 'auto', padding: '0 14px 8px' }}>{sessions.searchResults.length === 0 ? <small style={{ color: 'var(--text-subtle)', fontFamily: 'var(--font-mono)' }}>No matching messages.</small> : sessions.searchResults.map((result) => <button key={result.sessionId} type="button" onClick={() => { sessions.select(result.sessionId); setSessionQuery(''); }} style={{ width: '100%', padding: '6px 0', color: 'var(--text-muted)', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10.5, textAlign: 'left' }}><b style={{ display: 'block', color: 'var(--text)' }}>{result.title ?? 'untitled session'}</b><span>{result.matchCount} matches · {result.excerpt}</span></button>)}</div>}
         <VirtualSessionList sessions={sessions.sessions} activeId={sessions.activeId} onSelect={sessions.select} onRename={(session) => { setSessionRenameId(session.id); setSessionTitleDraft(session.title ?? ''); }} onBranch={(session) => { void sessions.branch(session.id).then(() => showToast('Branched session is ready', 'success')).catch((error) => showToast(error instanceof Error ? error.message : 'Session could not be branched', 'error')); }} onArchive={(session) => { void sessions.archive(session.id, session.status !== 'archived').then(() => showToast(session.status === 'archived' ? 'Session restored' : 'Session archived', 'success')).catch((error) => showToast(error instanceof Error ? error.message : 'Session could not be updated', 'error')); }} onRemove={(session) => setConfirmAction({ title: 'Delete session?', description: `Delete ${session.title ?? 'this session'} and its local conversation history?`, confirmLabel: 'Delete session', onConfirm: () => sessions.remove(session.id) })} />
         {activeSession && <SessionMetadata session={activeSession} />}
