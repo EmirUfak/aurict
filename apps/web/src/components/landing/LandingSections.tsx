@@ -34,6 +34,7 @@ export function LandingSections() {
             </article>
             <SurfaceCard eyebrow={tr ? "yerel çalışma zamanı" : "native runtime"} title="Aurict Terminal" body={tr ? "Ajan tabanlı kodlama, çoklu ajan yürütmesi, MCP, yerel bağlam, sınırlı Project Auto ve açık onaylar için açık kaynak çalışma zamanı." : "The open-source runtime for agentic coding, multi-agent execution, MCP, local context, scoped Project Auto, and explicit approvals."} href="#install" link={tr ? "kabuğunuza kurun" : "install in your shell"} />
             <SurfaceCard eyebrow={tr ? "yoldaş" : "companion"} title="Aurict Mobile" body={tr ? "BYOK sohbeti, araştırma, belge üretimi ve masaüstü çalışmanız ilginizi gerektirdiğinde canlı uzaktan kontrol." : "BYOK chat, research, document generation, and live remote control when your desktop work needs your attention."} href="https://mobile.aurict.com" link={tr ? "Aurict Mobile'ı ziyaret et" : "visit Aurict Mobile"} external />
+            <SurfaceCard className={styles.bondley} eyebrow={tr ? "aurict alt ürünü" : "aurict sub-product"} title="Bondley.one" body={tr ? "Tahvilleri, getirileri ve spreadleri tek bir araştırma alanında buluşturur; piyasa verisini açık ve karşılaştırılabilir analizlere dönüştürür." : "Bonds, yields, and spreads in one research workspace, turning market data into clear, comparable analysis."} href="https://bondley.one" link={tr ? "Bondley'i keşfet" : "explore Bondley"} external />
           </div>
         </div>
       </section>
@@ -107,8 +108,8 @@ function SectionIntro({ body, eyebrow, title }: { body?: string; eyebrow: string
   return <div className={styles.intro}><div className={styles.eyebrow}>{eyebrow}</div><div><h2>{title}</h2>{body && <p>{body}</p>}</div></div>
 }
 
-function SurfaceCard({ body, eyebrow, external = false, href, link, title }: { body: string; eyebrow: string; external?: boolean; href: string; link: string; title: string }) {
-  return <article className={styles.surfaceCard}><div className={styles.surfaceHead}><div><span>{eyebrow}</span><h3>{title}</h3></div></div><p>{body}</p>{external ? <a href={href}>{link} <span>↗</span></a> : <Link href={href}>{link} <span>→</span></Link>}</article>
+function SurfaceCard({ body, className, eyebrow, external = false, href, link, title }: { body: string; className?: string; eyebrow: string; external?: boolean; href: string; link: string; title: string }) {
+  return <article className={`${styles.surfaceCard} ${className ?? ""}`}><div className={styles.surfaceHead}><div><span>{eyebrow}</span><h3>{title}</h3></div></div><p>{body}</p>{external ? <a href={href} rel="noopener noreferrer" target="_blank">{link} <span>↗</span></a> : <Link href={href}>{link} <span>→</span></Link>}</article>
 }
 
 function MobileFrame({ tr }: { tr: boolean }) {

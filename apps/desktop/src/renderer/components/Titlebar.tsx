@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ExperienceLayout, SidecarStatus, UserType } from '../../shared/ipc-types.js';
 import { navigationFor, type Screen } from '../experience/navigation.js';
 
@@ -17,6 +17,21 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
   const [status, setStatus] = useState<SidecarStatus>({ connected: false, message: 'connecting' });
   const [compactNav, setCompactNav] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close the More menu when clicking anywhere outside it (the menu button
+  // itself already toggles it via onClick, so we only need to handle
+  // "elsewhere" clicks here).
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [moreOpen]);
 
   useEffect(() => {
     void window.aurict.runtime.getStatus().then(setStatus).catch((error) => setStatus({ connected: false, message: String(error) }));
@@ -39,14 +54,17 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
       data-layout={layout}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
-      <div className="aur-titlebar-left" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        <div style={{ display: 'flex', gap: 7 }}>
+      <div className="aur-titlebar-left" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+        {/* Only the traffic dots need no-drag — the container itself and the
+          logo area are draggable, so the empty space after the logo (before
+          hitting the nav column) is usable for dragging too. */}
+        <div style={{ display: 'flex', gap: 7, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <TrafficDot label="Close window" color="var(--titlebar-control)" hoverColor="var(--danger)" onClick={() => window.aurict.window.close()} />
           <TrafficDot label="Minimize window" color="var(--titlebar-control)" hoverColor="var(--warning)" onClick={() => window.aurict.window.minimize()} />
           <TrafficDot label="Maximize or restore window" color="var(--titlebar-control)" hoverColor="var(--accent)" onClick={() => window.aurict.window.maximize()} />
         </div>
         <div style={{ width: 1, height: 16, background: 'var(--border-strong)', margin: '0 4px' }} />
-        <div className="aur-hoprel-lockup" style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <div className="aur-hoprel-lockup" style={{ display: 'flex', alignItems: 'center', gap: 7, WebkitAppRegion: 'drag' } as React.CSSProperties}>
           <img alt="" src="/hoprel-icon.svg" style={{ width: 25, height: 25, borderRadius: 7 }} />
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
             <span style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 600, color: 'var(--titlebar-text)', letterSpacing: '-.025em' }}>hoprel</span>
@@ -55,10 +73,13 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
         </div>
       </div>
 
+      {/* overflow toggles to 'visible' while the More menu is open — the base
+        overflow:hidden (in theme.css) clips nav buttons that exceed
+        max-width, but it was also clipping the absolutely-positioned
+        dropdown. Toggling it only while open avoids any other regression. */}
       <div
         className="aur-titlebar-nav"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
+        style={{ WebkitAppRegion: 'no-drag', overflow: moreOpen ? 'visible' : 'hidden' } as React.CSSProperties}>
         {primaryNavigation.map((item) => (
           <button
             key={item.id}
@@ -79,18 +100,39 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
             {item.label}
           </button>
         ))}
-        {overflowNavigation.length > 0 && <div className="aur-titlebar-more">
+        {overflowNavigation.length > 0 && <div className="aur-titlebar-more" ref={moreMenuRef}>
           <button type="button" aria-expanded={moreOpen} aria-haspopup="menu" onClick={() => setMoreOpen((open) => !open)} style={navButtonStyle(false)}>More</button>
           {moreOpen && <div role="menu" className="aur-titlebar-more-menu">{overflowNavigation.map((item) => <button key={item.id} type="button" role="menuitem" aria-current={screen === item.id ? 'page' : undefined} onClick={() => { onNavigate(item.id); setMoreOpen(false); }}>{item.label}</button>)}</div>}
         </div>}
       </div>
 
-      <div className="aur-titlebar-status" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      {/* Container is draggable; only the workdir button and retry button
+        (the actual interactive elements) opt out with no-drag. The
+        connection status text/dot has no onClick, so it's fine for it to
+        inherit drag from this container. */}
+      <div className="aur-titlebar-status" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
         <button
           className="aur-titlebar-workdir"
           onClick={() => { void onChooseWorkdir().catch((reason) => console.error('Workspace selection failed', reason)); }}
           title="Choose workspace"
-          style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--titlebar-muted)', background: 'transparent', border: 'none', cursor: 'pointer', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11.5,
+            color: 'var(--titlebar-muted)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            maxWidth: 280,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            // direction:rtl + textAlign:left flips which end gets the ellipsis:
+            // truncates from the START of the path instead of the end, so the
+            // most useful part (the project folder name) stays visible instead
+            // of being cut off in favor of the less useful drive/user prefix.
+            direction: 'rtl',
+            textAlign: 'left',
+            WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           {workdir}
         </button>
@@ -99,7 +141,12 @@ export function Titlebar({ screen, onNavigate, workdir, onChooseWorkdir, userTyp
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--titlebar-muted)' }}>
             {status.connected ? 'connected' : status.message ?? 'disconnected'}
           </span>
-          {!status.connected && <button className="aur-titlebar-retry" type="button" onClick={() => { void window.aurict.runtime.retry().then(setStatus); }}>retry</button>}
+          {/* Don't setStatus from retry()'s own return value — it's a
+            synchronous snapshot taken before the sidecar actually finishes
+            restarting, and can race with (and overwrite) the correct
+            'connected' state pushed later via onStatus. Fire-and-forget and
+            let the existing onStatus subscription handle the UI update. */}
+          {!status.connected && <button className="aur-titlebar-retry" type="button" onClick={() => { void window.aurict.runtime.retry(); }} style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>retry</button>}
         </div>
       </div>
     </div>
