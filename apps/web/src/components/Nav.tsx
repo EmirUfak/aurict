@@ -28,6 +28,12 @@ const PRODUCT_LINKS = [
 
 const ECOSYSTEM_LINKS = [
   {
+    href: "https://bondley.one",
+    label: "Bondley.one",
+    descriptionEn: "Aurict sub-product · fixed-income intelligence",
+    descriptionTr: "Aurict alt ürünü · sabit getirili finans zekâsı",
+  },
+  {
     href: "https://mobile.aurict.com",
     label: "aurict mobile",
     descriptionEn: "Aurict companion · mobile workspace",

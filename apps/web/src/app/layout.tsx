@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   },
 
   description:
-    "Open-source AI workspaces across Hoprel desktop, Aurict Mobile, and the terminal. Bring your own provider, keep local context, and work with explicit control.",
+    "Open-source AI workspaces across Hoprel desktop, Aurict Mobile, the terminal, and Bondley.one fixed-income intelligence. Bring your own provider, keep local context, and work with explicit control.",
 
   keywords: [
     "open source terminal agent",
@@ -31,6 +31,8 @@ export const metadata: Metadata = {
     "AI terminal assistant",
     "local-first AI workspace",
     "Hoprel desktop app",
+    "Bondley.one",
+    "fixed-income intelligence",
     "Claude Code alternative",
     "OpenCode alternative",
     "open source AI coding assistant",
@@ -64,7 +66,7 @@ export const metadata: Metadata = {
     url:         BASE_URL,
     siteName:    "Aurict",
     title:       "Aurict — Agentic Workspaces",
-    description: "Hoprel desktop, Aurict Mobile, and an open-source terminal runtime — one AI workspace across every surface.",
+    description: "Hoprel desktop, Aurict Mobile, an open-source terminal runtime, and Bondley.one fixed-income intelligence.",
     images: [
       {
         url:    "/opengraph-image",
@@ -80,7 +82,7 @@ export const metadata: Metadata = {
     site:        "@aurictdev",
     creator:     "@aurictdev",
     title:       "Aurict — Agentic Workspaces",
-    description: "Hoprel desktop, Aurict Mobile, and a terminal runtime with your providers and local context.",
+    description: "Hoprel desktop, Aurict Mobile, a terminal runtime, and Bondley.one fixed-income intelligence.",
     images:      ["/opengraph-image"],
   },
 
