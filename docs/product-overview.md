@@ -9,6 +9,7 @@ Aurict is a BYOK AI orchestration system. The terminal agent is the core product
 | Terminal CLI | Primary developer runtime | BYOK providers, typed tools, permissions, sessions, skills, MCP, hooks, local HTTP API, multi-agent workflows |
 | Web platform | Public trust and onboarding surface | Landing, docs, changelog, roadmap, manifesto, Firebase-backed auth, browser login, privacy, terms, account deletion direction |
 | Mobile app | BYOK assistant outside the terminal | Chat, research, document/PDF workflows, provider sessions, assistant-answer reporting, Android release workflow |
+| Bondley.one | Aurict fixed-income intelligence sub-product | Research workspace for bonds, yields, spreads, and comparable market analysis |
 | Backend prototype | Control-plane foundation | Account deletion and feedback report routes are kept local/private and ignored by git |
 
 ## What Aurict is optimizing for
