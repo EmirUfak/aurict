@@ -78,75 +78,81 @@ interface ChatAttachment { path: string; content?: string }
 interface ChatSubmitPayload { turnId: string; text: string; attachments?: ChatAttachment[]; agentId?: string; artifactId?: string; artifactIntent?: "create" | "iterate" | "promote"; displayText?: string; financeResearchId?: string; financeHistory?: Array<{ role: "user" | "assistant"; content: string }> }
 interface CustomProviderDef { name: string; baseUrl: string; apiKey: string; defaultModel: string }
 
+
+// requestId correlates a command with its result: the desktop side
+// generates one per request and the sidecar echoes it back unchanged.
+// Commands/results with no response (chat:submit, remote:status, etc.)
+// don't need one — only request/response pairs that go through the
+// pending-request registry do.
 type SidecarCommand =
   | { type: "chat:submit"; payload: ChatSubmitPayload }
   | { type: "chat:cancel"; turnId: string }
   | { type: "permission:respond"; id: string; decision: PermissionDecision }
-  | { type: "provider:list" }
+  | { type: "provider:list"; requestId: string }
   | { type: "provider:set-key"; providerId: string; apiKey: string }
   | { type: "provider:set-custom"; id: string; def: CustomProviderDef }
-  | { type: "session:list" }
-  | { type: "session:select"; id: string }
-  | { type: "session:new" }
-  | { type: "session:rename"; id: string; title: string }
-  | { type: "session:archive"; id: string; archived: boolean }
-  | { type: "session:branch"; id: string }
-  | { type: "session:search"; query: string }
-  | { type: "session:delete"; id: string }
-  | { type: "skills:list" }
-  | { type: "skills:install"; url: string }
-  | { type: "skills:uninstall"; id: string }
-  | { type: "model:list"; providerId: string }
-  | { type: "model:get-current" }
+  | { type: "session:list"; requestId: string }
+  | { type: "session:select"; id: string; requestId: string }
+  | { type: "session:new"; requestId: string }
+  | { type: "session:rename"; id: string; title: string; requestId: string }
+  | { type: "session:archive"; id: string; archived: boolean; requestId: string }
+  | { type: "session:branch"; id: string; requestId: string }
+  | { type: "session:search"; query: string; requestId: string }
+  | { type: "session:delete"; id: string; requestId: string }
+  | { type: "skills:list"; requestId: string }
+  | { type: "skills:install"; url: string; requestId: string }
+  | { type: "skills:uninstall"; id: string; requestId: string }
+  | { type: "model:list"; providerId: string; requestId: string }
+  | { type: "model:get-current"; requestId: string }
   | { type: "model:select"; providerId: string; modelId: string }
-  | { type: "agents:list" }
-  | { type: "design:list-systems" }
-  | { type: "design:list-skills" }
-  | { type: "design:match"; brief: string }
-  | { type: "design:build-prompt"; brief: string; systemId: string; skillId: string }
-  | { type: "design:artifact:list" }
-  | { type: "design:artifact:create"; brief: string; systemId: string; skillId: string; title?: string }
-  | { type: "design:artifact:retry"; id: string }
-  | { type: "memory:list" }
-  | { type: "memory:add"; content: string; category: Category; scope: Scope }
-  | { type: "memory:remove"; id: string }
-  | { type: "memory:clear"; scope?: Scope }
-  | { type: "finance:calculate"; request: FinanceCalculationRequest }
+  | { type: "agents:list"; requestId: string }
+  | { type: "design:list-systems"; requestId: string }
+  | { type: "design:list-skills"; requestId: string }
+  | { type: "design:match"; brief: string; requestId: string }
+  | { type: "design:build-prompt"; brief: string; systemId: string; skillId: string; requestId: string }
+  | { type: "design:artifact:list"; requestId: string }
+  | { type: "design:artifact:create"; brief: string; systemId: string; skillId: string; title?: string; requestId: string }
+  | { type: "design:artifact:retry"; id: string; requestId: string }
+  | { type: "memory:list"; requestId: string }
+  | { type: "memory:add"; content: string; category: Category; scope: Scope; requestId: string }
+  | { type: "memory:remove"; id: string; requestId: string }
+  | { type: "memory:clear"; scope?: Scope; requestId: string }
+  | { type: "finance:calculate"; request: FinanceCalculationRequest; requestId: string }
   | { type: "remote:action"; action: "login" | "start" | "stop" | "logout" | "status" }
 
 type SidecarMessage =
   | { type: "chat:event"; event: unknown }
   | { type: "permission:request"; request: PermissionRequest }
-  | { type: "provider:list-result"; providers: Array<{ id: string; name: string; hasKey: boolean }> }
-  | { type: "session:list-result"; sessions: Array<{ id: string; title: string | null; createdAt: number; updatedAt: number; status: string; parentId: string | null; turnCount: number; totalInputTokens: number; totalOutputTokens: number; totalCacheTokens: number; accumulatedCostUsd: number; provider: string | null; lastModel: string | null }> }
-  | { type: "session:select-result"; messages: Array<{ role: "user" | "assistant"; content: string }> }
-  | { type: "session:new-result"; id: string }
-  | { type: "session:rename-result"; id: string; title: string }
-  | { type: "session:archive-result"; id: string; archived: boolean }
-  | { type: "session:branch-result"; id: string; messages: Array<{ role: "user" | "assistant"; content: string }> }
-  | { type: "session:search-result"; results: Array<{ sessionId: string; title: string | null; updatedAt: number; matchCount: number; excerpt: string }> }
-  | { type: "session:delete-result"; id: string; wasActive: boolean }
-  | { type: "skills:list-result"; skills: Array<{ id: string; name: string; description: string; active: boolean; installed: boolean }> }
-  | { type: "skills:install-result"; result: { id: string; name: string } | { error: string } }
-  | { type: "skills:uninstall-result"; ok: boolean }
-  | { type: "model:list-result"; models: ModelInfo[] }
-  | { type: "model:list-error"; message: string }
-  | { type: "model:current-result"; providerId: string; modelId: string }
-  | { type: "agents:list-result"; agents: Array<{ id: string; name: string; description: string; color: string }> }
-  | { type: "design:list-systems-result"; systems: Array<{ id: string; name: string; category: string; tagline: string }> }
-  | { type: "design:list-skills-result"; skills: Array<{ id: string; name: string; description: string; mode: string }> }
-  | { type: "design:match-result"; match: { systemId: string; skillId: string; systemScore: number; skillScore: number; alternativeIds: string[] } }
-  | { type: "design:build-prompt-result"; prompt: string; outputDir: string }
-  | { type: "design:artifact:list-result"; artifacts: ReturnType<typeof designArtifactStore.list> }
-  | { type: "design:artifact:create-result"; result: { artifact: ReturnType<typeof designArtifactStore.get>; prompt: string } }
-  | { type: "design:artifact:retry-result"; result: { artifact: ReturnType<typeof designArtifactStore.get>; prompt: string } }
-  | { type: "memory:list-result"; memories: Memory[] }
-  | { type: "memory:add-result"; memory: Memory }
-  | { type: "memory:remove-result"; ok: boolean }
-  | { type: "memory:clear-result"; removed: number }
-  | { type: "finance:calculate-result"; result?: ReturnType<typeof runFinanceCalculation>; error?: string }
+  | { type: "provider:list-result"; providers: Array<{ id: string; name: string; hasKey: boolean }>; requestId: string }
+  | { type: "session:list-result"; sessions: Array<{ id: string; title: string | null; createdAt: number; updatedAt: number; status: string; parentId: string | null; turnCount: number; totalInputTokens: number; totalOutputTokens: number; totalCacheTokens: number; accumulatedCostUsd: number; provider: string | null; lastModel: string | null }>; requestId: string }
+  | { type: "session:select-result"; messages: Array<{ role: "user" | "assistant"; content: string }>; requestId: string }
+  | { type: "session:new-result"; id: string; requestId: string }
+  | { type: "session:rename-result"; id: string; title: string; requestId: string }
+  | { type: "session:archive-result"; id: string; archived: boolean; requestId: string }
+  | { type: "session:branch-result"; id: string; messages: Array<{ role: "user" | "assistant"; content: string }>; requestId: string }
+  | { type: "session:search-result"; results: Array<{ sessionId: string; title: string | null; updatedAt: number; matchCount: number; excerpt: string }>; requestId: string }
+  | { type: "session:delete-result"; id: string; wasActive: boolean; requestId: string }
+  | { type: "skills:list-result"; skills: Array<{ id: string; name: string; description: string; active: boolean; installed: boolean }>; requestId: string }
+  | { type: "skills:install-result"; result: { id: string; name: string } | { error: string }; requestId: string }
+  | { type: "skills:uninstall-result"; ok: boolean; requestId: string }
+  | { type: "model:list-result"; models: ModelInfo[]; requestId: string }
+  | { type: "model:list-error"; message: string; requestId: string }
+  | { type: "model:current-result"; providerId: string; modelId: string; requestId: string }
+  | { type: "agents:list-result"; agents: Array<{ id: string; name: string; description: string; color: string }>; requestId: string }
+  | { type: "design:list-systems-result"; systems: Array<{ id: string; name: string; category: string; tagline: string }>; requestId: string }
+  | { type: "design:list-skills-result"; skills: Array<{ id: string; name: string; description: string; mode: string }>; requestId: string }
+  | { type: "design:match-result"; match: { systemId: string; skillId: string; systemScore: number; skillScore: number; alternativeIds: string[] }; requestId: string }
+  | { type: "design:build-prompt-result"; prompt: string; outputDir: string; requestId: string }
+  | { type: "design:artifact:list-result"; artifacts: ReturnType<typeof designArtifactStore.list>; requestId: string }
+  | { type: "design:artifact:create-result"; result: { artifact: ReturnType<typeof designArtifactStore.get>; prompt: string }; requestId: string }
+  | { type: "design:artifact:retry-result"; result: { artifact: ReturnType<typeof designArtifactStore.get>; prompt: string }; requestId: string }
+  | { type: "memory:list-result"; memories: Memory[]; requestId: string }
+  | { type: "memory:add-result"; memory: Memory; requestId: string }
+  | { type: "memory:remove-result"; ok: boolean; requestId: string }
+  | { type: "memory:clear-result"; removed: number; requestId: string }
+  | { type: "finance:calculate-result"; result?: ReturnType<typeof runFinanceCalculation>; error?: string; requestId: string }
   | { type: "remote:status"; status: string; message: string; email?: string; sessionId?: string; verificationUriComplete?: string; userCode?: string }
-
+  
 function send(msg: SidecarMessage): void {
   process.stdout.write(JSON.stringify(msg) + "\n")
 }
@@ -386,7 +392,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
         PermissionGate.respond(cmd.id, cmd.decision)
         return
       case "provider:list":
-        send({ type: "provider:list-result", providers: ProviderRegistry.available() })
+        send({ type: "provider:list-result", providers: ProviderRegistry.available(), requestId: cmd.requestId })
         return
       case "provider:set-key":
         setApiKey(cmd.providerId, cmd.apiKey)
@@ -408,7 +414,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
       }
       case "session:list": {
         const sessions = SessionManager.listWithStats().map(desktopSessionMetadata)
-        send({ type: "session:list-result", sessions })
+        send({ type: "session:list-result", sessions, requestId: cmd.requestId })
         return
       }
       case "session:select": {
@@ -427,23 +433,23 @@ export async function runIpcServer(workdir: string): Promise<void> {
             messages.push({ role: part.role, content: part.content })
           }
         }
-        send({ type: "session:select-result", messages })
+        send({ type: "session:select-result", messages, requestId: cmd.requestId })
         return
       }
       case "session:new": {
         sessionId = crypto.randomUUID()
         history.length = 0
-        send({ type: "session:new-result", id: sessionId })
+        send({ type: "session:new-result", id: sessionId, requestId: cmd.requestId })
         return
       }
       case "session:rename": {
         SessionManager.rename(cmd.id, cmd.title)
-        send({ type: "session:rename-result", id: cmd.id, title: cmd.title.trim() })
+        send({ type: "session:rename-result", id: cmd.id, title: cmd.title.trim(), requestId: cmd.requestId })
         return
       }
       case "session:archive": {
         SessionManager.archive(cmd.id, cmd.archived)
-        send({ type: "session:archive-result", id: cmd.id, archived: cmd.archived })
+        send({ type: "session:archive-result", id: cmd.id, archived: cmd.archived, requestId: cmd.requestId })
         return
       }
       case "session:branch": {
@@ -451,11 +457,11 @@ export async function runIpcServer(workdir: string): Promise<void> {
         history.length = 0
         const messages: Array<{ role: "user" | "assistant"; content: string }> = []
         for (const part of SessionManager.getParts(sessionId)) if (part.role === "user" || part.role === "assistant") { history.push({ role: part.role, content: part.content } as CoreMessage); messages.push({ role: part.role, content: part.content }) }
-        send({ type: "session:branch-result", id: sessionId, messages })
+        send({ type: "session:branch-result", id: sessionId, messages, requestId: cmd.requestId })
         return
       }
       case "session:search": {
-        send({ type: "session:search-result", results: SessionManager.search(cmd.query) })
+        send({ type: "session:search-result", results: SessionManager.search(cmd.query), requestId: cmd.requestId })
         return
       }
       case "session:delete": {
@@ -465,7 +471,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
           sessionId = crypto.randomUUID()
           history.length = 0
         }
-        send({ type: "session:delete-result", id: cmd.id, wasActive })
+        send({ type: "session:delete-result", id: cmd.id, wasActive, requestId: cmd.requestId })
         return
       }
       case "skills:list": {
@@ -477,7 +483,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
             id: s.id, name: s.name, description: s.description,
             active: activeIds.has(s.id), installed: installedIds.has(s.id),
           }))
-          send({ type: "skills:list-result", skills })
+          send({ type: "skills:list-result", skills, requestId: cmd.requestId })
         })()
         return
       }
@@ -485,15 +491,15 @@ export async function runIpcServer(workdir: string): Promise<void> {
         void (async () => {
           try {
             const meta = await installRemoteSkill(cmd.url)
-            send({ type: "skills:install-result", result: { id: meta.id, name: meta.name } })
+            send({ type: "skills:install-result", result: { id: meta.id, name: meta.name }, requestId: cmd.requestId })
           } catch (err) {
-            send({ type: "skills:install-result", result: { error: err instanceof Error ? err.message : String(err) } })
+            send({ type: "skills:install-result", result: { error: err instanceof Error ? err.message : String(err) }, requestId: cmd.requestId })
           }
         })()
         return
       }
       case "skills:uninstall": {
-        send({ type: "skills:uninstall-result", ok: uninstallSkill(cmd.id) })
+        send({ type: "skills:uninstall-result", ok: uninstallSkill(cmd.id), requestId: cmd.requestId })
         return
       }
       case "model:list": {
@@ -501,22 +507,22 @@ export async function runIpcServer(workdir: string): Promise<void> {
           const provider = ProviderRegistry.get(cmd.providerId)
           try {
             const models = await listAvailableModels(provider)
-            send({ type: "model:list-result", models })
+            send({ type: "model:list-result", models, requestId: cmd.requestId })
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
             const fallbackModels = provider.listModels()
             if (fallbackModels.length > 0) {
               console.warn(`[aurict] live model refresh failed for ${cmd.providerId}; using bundled models: ${message}`)
-              send({ type: "model:list-result", models: fallbackModels })
+              send({ type: "model:list-result", models: fallbackModels, requestId: cmd.requestId })
               return
             }
-            send({ type: "model:list-error", message })
+            send({ type: "model:list-error", message, requestId: cmd.requestId })
           }
         })
         return
       }
       case "model:get-current": {
-        send({ type: "model:current-result", providerId: currentProvider, modelId: currentModel })
+        send({ type: "model:current-result", providerId: currentProvider, modelId: currentModel, requestId: cmd.requestId })
         return
       }
       case "model:select": {
@@ -530,21 +536,21 @@ export async function runIpcServer(workdir: string): Promise<void> {
         const agents = getAllSessionAgents(workdir).map((a) => ({
           id: a.id, name: a.name, description: a.description, color: a.color,
         }))
-        send({ type: "agents:list-result", agents })
+        send({ type: "agents:list-result", agents, requestId: cmd.requestId })
         return
       }
       case "design:list-systems": {
         const systems = DesignLoader.listSystems().map((s) => ({
           id: s.id, name: s.name, category: s.category, tagline: s.tagline,
         }))
-        send({ type: "design:list-systems-result", systems })
+        send({ type: "design:list-systems-result", systems, requestId: cmd.requestId })
         return
       }
       case "design:list-skills": {
         const skills = DesignLoader.listSkills().map((s) => ({
           id: s.id, name: s.name, description: s.description, mode: s.mode,
         }))
-        send({ type: "design:list-skills-result", skills })
+        send({ type: "design:list-skills-result", skills, requestId: cmd.requestId })
         return
       }
       case "design:match": {
@@ -556,6 +562,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
             systemScore: m.systemScore, skillScore: m.skillScore,
             alternativeIds: m.alternatives.map((a) => a.id),
           },
+          requestId: cmd.requestId,
         })
         return
       }
@@ -566,11 +573,11 @@ export async function runIpcServer(workdir: string): Promise<void> {
           workdir, outputSlug,
         })
         const outputDir = buildDesignOutputDir(outputSlug)
-        send({ type: "design:build-prompt-result", prompt, outputDir })
+        send({ type: "design:build-prompt-result", prompt, outputDir, requestId: cmd.requestId })
         return
       }
       case "design:artifact:list": {
-        send({ type: "design:artifact:list-result", artifacts: designArtifactStore.list(workdir) })
+        send({ type: "design:artifact:list-result", artifacts: designArtifactStore.list(workdir), requestId: cmd.requestId })
         return
       }
       case "design:artifact:create": {
@@ -593,7 +600,7 @@ export async function runIpcServer(workdir: string): Promise<void> {
           workdir,
           outputSlug: artifact.id,
         })
-        send({ type: "design:artifact:create-result", result: { artifact, prompt } })
+        send({ type: "design:artifact:create-result", result: { artifact, prompt }, requestId: cmd.requestId })
         return
       }
       case "design:artifact:retry": {
@@ -606,11 +613,11 @@ export async function runIpcServer(workdir: string): Promise<void> {
           workdir,
           outputSlug: artifact.id,
         })
-        send({ type: "design:artifact:retry-result", result: { artifact, prompt } })
+        send({ type: "design:artifact:retry-result", result: { artifact, prompt }, requestId: cmd.requestId })
         return
       }
       case "memory:list": {
-        send({ type: "memory:list-result", memories: memoryStore.list(workdir) })
+        send({ type: "memory:list-result", memories: memoryStore.list(workdir), requestId: cmd.requestId })
         return
       }
       case "memory:add": {
@@ -618,22 +625,22 @@ export async function runIpcServer(workdir: string): Promise<void> {
           content: cmd.content, category: cmd.category, scope: cmd.scope,
           source: "manual", ...(cmd.scope === "project" ? { project: workdir } : {}),
         })
-        send({ type: "memory:add-result", memory })
+        send({ type: "memory:add-result", memory, requestId: cmd.requestId })
         return
       }
       case "memory:remove": {
-        send({ type: "memory:remove-result", ok: memoryStore.remove(cmd.id) })
+        send({ type: "memory:remove-result", ok: memoryStore.remove(cmd.id), requestId: cmd.requestId })
         return
       }
       case "memory:clear": {
-        send({ type: "memory:clear-result", removed: memoryStore.clear(cmd.scope, workdir) })
+        send({ type: "memory:clear-result", removed: memoryStore.clear(cmd.scope, workdir), requestId: cmd.requestId })
         return
       }
       case "finance:calculate": {
         try {
-          send({ type: "finance:calculate-result", result: runFinanceCalculation(cmd.request) })
+          send({ type: "finance:calculate-result", result: runFinanceCalculation(cmd.request), requestId: cmd.requestId })
         } catch (error) {
-          send({ type: "finance:calculate-result", error: error instanceof Error ? error.message : String(error) })
+          send({ type: "finance:calculate-result", error: error instanceof Error ? error.message : String(error), requestId: cmd.requestId })
         }
         return
       }
