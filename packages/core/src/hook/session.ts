@@ -1,5 +1,6 @@
 import { hooks } from "./emitter.js"
 import { autoInvoker } from "../skill/auto-invoke.js"
+import { observeBackground } from "../util/background-task.js"
 
 // Programatik function hook'lar — config dosyası gerektirmez, TypeScript callback ile kayıt.
 // Her fonksiyon unregister için cleanup fonksiyon döner.
@@ -12,7 +13,7 @@ hooks.on("v1.tool.before", (payload) => {
       const skillIds = autoInvoker.check("file-edit", filePath)
       if (skillIds.length > 0) {
         // v1.context.inject hook'u ateşle — injector bu event'i dinliyor
-        hooks.emit("v1.context.inject", { skillIds }).catch(() => {})
+        observeBackground(hooks.emit("v1.context.inject", { skillIds }), "context injection hook")
       }
     }
   }

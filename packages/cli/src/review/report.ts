@@ -3,6 +3,8 @@ import type { ReviewFinding, ReviewManifest, ReviewReport, ReviewSeverity } from
 
 const SEVERITIES = new Set<ReviewSeverity>(["critical", "high", "medium", "low", "info"])
 const CONFIDENCE = new Set(["high", "medium", "low"])
+const MAX_FINDINGS = 200
+const FIELD_LIMITS = { title: 300, detail: 4_000, suggestion: 4_000 } as const
 
 function object(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value))
@@ -27,6 +29,8 @@ export function parseReviewReport(text: string, manifest: ReviewManifest): Revie
   if (!object(value) || typeof value["summary"] !== "string" || !Array.isArray(value["findings"])) {
     throw new Error("Review JSON must contain summary and findings fields.")
   }
+  if (!value["summary"].trim() || value["summary"].length > 1_000) throw new Error("Review summary is empty or too long.")
+  if (value["findings"].length > MAX_FINDINGS) throw new Error(`Review JSON exceeds the ${MAX_FINDINGS} finding limit.`)
   const findings: ReviewFinding[] = value["findings"].map((raw, index) => {
     if (!object(raw)) throw new Error(`Finding ${index + 1} is not an object.`)
     const severity = raw["severity"]
@@ -34,7 +38,9 @@ export function parseReviewReport(text: string, manifest: ReviewManifest): Revie
     const file = raw["file"]
     const line = raw["line"]
     for (const field of ["title", "detail", "suggestion"] as const) {
-      if (typeof raw[field] !== "string" || !raw[field].trim()) throw new Error(`Finding ${index + 1} has invalid ${field}.`)
+      if (typeof raw[field] !== "string" || !raw[field].trim() || raw[field].length > FIELD_LIMITS[field]) {
+        throw new Error(`Finding ${index + 1} has invalid ${field}.`)
+      }
     }
     if (typeof severity !== "string" || !SEVERITIES.has(severity as ReviewSeverity)) throw new Error(`Finding ${index + 1} has invalid severity.`)
     if (typeof confidence !== "string" || !CONFIDENCE.has(confidence)) throw new Error(`Finding ${index + 1} has invalid confidence.`)

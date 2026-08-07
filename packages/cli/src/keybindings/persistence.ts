@@ -152,10 +152,15 @@ export function saveKeybindings(
     return { ok: true, path: CONFIG_FILE }
   } catch (e) {
     // Clean up the tmp file
-    try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile) } catch {}
+    let cleanupError: string | undefined
+    try {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile)
+    } catch (error) {
+      cleanupError = error instanceof Error ? error.message : String(error)
+    }
     return {
       ok: false,
-      error: `could not write ${CONFIG_FILE}: ${(e as Error).message}`,
+      error: `could not write ${CONFIG_FILE}: ${(e as Error).message}${cleanupError ? `; temporary-file cleanup also failed: ${cleanupError}` : ""}`,
     }
   }
 }

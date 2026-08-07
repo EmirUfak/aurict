@@ -8,6 +8,11 @@ interface CacheEntry<T> {
   data: T
 }
 
+function isMissingPath(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error
+    && (error.code === "ENOENT" || error.code === "ENOTDIR"))
+}
+
 class SemanticCache {
   private cache = new Map<string, CacheEntry<any>>()
 
@@ -26,38 +31,31 @@ class SemanticCache {
         return null
       }
       return entry.data
-    } catch {
+    } catch (error) {
       this.cache.delete(filePath)
-      return null
+      if (isMissingPath(error)) return null
+      throw error
     }
   }
 
   async set<T>(filePath: string, data: T, content: string): Promise<void> {
-    try {
-      const st = await stat(filePath)
-      const hash = this.computeHash(content)
-      this.cache.set(filePath, {
-        mtimeMs: st.mtimeMs,
-        hash,
-        data,
-      })
-    } catch {}
+    const st = await stat(filePath)
+    const hash = this.computeHash(content)
+    this.cache.set(filePath, { mtimeMs: st.mtimeMs, hash, data })
   }
 
   async triggerPrefetch(filePath: string, fromDir: string): Promise<void> {
-    try {
-      const content = await Bun.file(filePath).text()
-      const importRegex = /import\s+.*?from\s+['"](\.\/|\.\.\/)(.*?)['"]/g
-      let match
-      while ((match = importRegex.exec(content)) !== null) {
-        const relativePath = match[1]! + match[2]!
-        const resolved = resolve(fromDir, relativePath)
-        const finalPath = await this.resolveExtension(resolved)
-        if (finalPath && !this.cache.has(finalPath)) {
-          this.preloadFile(finalPath).catch(() => {})
-        }
+    const content = await Bun.file(filePath).text()
+    const importRegex = /import\s+.*?from\s+['"](\.\/|\.\.\/)(.*?)['"]/g
+    let match
+    while ((match = importRegex.exec(content)) !== null) {
+      const relativePath = match[1]! + match[2]!
+      const resolved = resolve(fromDir, relativePath)
+      const finalPath = await this.resolveExtension(resolved)
+      if (finalPath && !this.cache.has(finalPath)) {
+        await this.preloadFile(finalPath)
       }
-    } catch {}
+    }
   }
 
   private async resolveExtension(basePath: string): Promise<string | null> {
@@ -67,16 +65,16 @@ class SemanticCache {
       try {
         await stat(p)
         return p
-      } catch {}
+      } catch (error) {
+        if (!isMissingPath(error)) throw error
+      }
     }
     return null
   }
 
   private async preloadFile(filePath: string): Promise<void> {
-    try {
-      const content = await Bun.file(filePath).text()
-      await this.set(filePath, content, content)
-    } catch {}
+    const content = await Bun.file(filePath).text()
+    await this.set(filePath, content, content)
   }
 
   clear(): void {

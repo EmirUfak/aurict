@@ -134,7 +134,11 @@ export async function runSecurityDockerTool(req: SecurityDockerRunRequest): Prom
       let timedOut = false
       const kill = () => {
         timedOut = true
-        try { proc.kill() } catch {}
+        try {
+          proc.kill()
+        } catch (error) {
+          console.warn(`[aurict] failed to stop security container: ${error instanceof Error ? error.message : String(error)}`)
+        }
       }
       const timer = setTimeout(kill, timeoutMs)
       const onAbort = () => kill()

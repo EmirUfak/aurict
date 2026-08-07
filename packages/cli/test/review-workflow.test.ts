@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test"
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { buildReviewManifest, buildReviewPatch } from "../src/review/manifest.js"
+import { buildReviewManifest, buildReviewPatch, buildReviewPatchChunks } from "../src/review/manifest.js"
 import { parseReviewReport } from "../src/review/report.js"
-import { runReview } from "../src/review/runner.js"
-import { listReviewSessions, readReviewSession, writeReviewSession } from "../src/review/store.js"
+import { cancelReview, runReview } from "../src/review/runner.js"
+import { listReviewSessions, readReviewSession, recoverInterruptedReviewSessions, writeReviewSession } from "../src/review/store.js"
 import type { ReviewSession } from "../src/review/types.js"
 
 const roots: string[] = []
@@ -49,6 +49,38 @@ describe("deterministic review workflow", () => {
     expect(buildReviewPatch(manifest)).toContain("export const value = 3")
   })
 
+  it("keeps unusual git paths intact and detects stale workspace scopes", () => {
+    const root = repository()
+    const unusual = "space\tname.ts"
+    writeFileSync(join(root, unusual), "export const unusual = true\n", "utf8")
+    const manifest = buildReviewManifest(root, { kind: "workspace" })
+    expect(manifest.files.some((file) => file.path === unusual)).toBe(true)
+    expect(buildReviewPatch(manifest)).toContain("unusual")
+    writeFileSync(join(root, unusual), "export const unusual = false\n", "utf8")
+    expect(() => buildReviewPatch(manifest)).toThrow("stale")
+  })
+
+  it("represents deletions and binary files without inventing changed lines", () => {
+    const root = repository()
+    rmSync(join(root, "app.ts"))
+    writeFileSync(join(root, "asset.bin"), Buffer.from([0, 1, 2, 3]))
+    const manifest = buildReviewManifest(root, { kind: "workspace" })
+    expect(manifest.files.find((file) => file.path === "app.ts")?.hunks.every((hunk) => hunk.newLines === 0)).toBe(true)
+    expect(manifest.files.find((file) => file.path === "asset.bin")?.binary).toBe(true)
+    expect(buildReviewPatch(manifest)).toContain("Binary files")
+  })
+
+  it("splits multi-file reviews deterministically without truncating a file", () => {
+    const root = repository()
+    writeFileSync(join(root, "one.ts"), `export const one = "${"a".repeat(120)}"\n`, "utf8")
+    writeFileSync(join(root, "two.ts"), `export const two = "${"b".repeat(120)}"\n`, "utf8")
+    const manifest = buildReviewManifest(root, { kind: "workspace" })
+    const chunks = buildReviewPatchChunks(manifest, 300)
+    expect(chunks).toHaveLength(2)
+    expect(chunks.join("\n")).toContain("one.ts")
+    expect(chunks.join("\n")).toContain("two.ts")
+  })
+
   it("accepts only structured findings anchored to manifest changes", () => {
     const root = repository()
     writeFileSync(join(root, "app.ts"), "export const value = 2\n", "utf8")
@@ -79,6 +111,24 @@ describe("deterministic review workflow", () => {
     expect(listReviewSessions(root).map((entry) => entry.id)).toEqual([session.id])
   })
 
+  it("recovers interrupted sessions and rejects shallow-but-invalid session data", () => {
+    const root = repository()
+    writeFileSync(join(root, "app.ts"), "export const value = 2\n", "utf8")
+    const manifest = buildReviewManifest(root, { kind: "workspace" })
+    const session: ReviewSession = {
+      version: 1, id: "review-running-123", status: "running", manifest,
+      provider: "test", model: "test", startedAt: "2026-08-07T00:00:00.000Z",
+    }
+    writeReviewSession(session)
+    expect(recoverInterruptedReviewSessions(root)).toBe(1)
+    expect(readReviewSession(root, session.id).status).toBe("interrupted")
+
+    const directory = join(root, ".aurict", "reviews")
+    mkdirSync(directory, { recursive: true })
+    writeFileSync(join(directory, "review-invalid-123.json"), JSON.stringify({ version: 1, id: "review-invalid-123", status: "completed", manifest }))
+    expect(() => readReviewSession(root, "review-invalid-123")).toThrow("Invalid review session")
+  })
+
   it("runs the read-only review path and persists validated model output", async () => {
     const root = repository()
     writeFileSync(join(root, "app.ts"), "export const value = 2\n", "utf8")
@@ -93,5 +143,43 @@ describe("deterministic review workflow", () => {
     expect(capturedTools).toEqual(["read", "glob", "grep", "lsp"])
     expect(session.status).toBe("completed")
     expect(readReviewSession(root, session.id).report?.summary).toBe("clean")
+  })
+
+  it("cancels an active review and persists its terminal status", async () => {
+    const root = repository()
+    writeFileSync(join(root, "app.ts"), "export const value = 2\n", "utf8")
+    let id = ""
+    const review = runReview({
+      workdir: root, mode: { kind: "workspace" }, provider: "test", model: "test",
+      onStarted: (session) => {
+        id = session.id
+        expect(cancelReview(session.id)).toBe(true)
+      },
+      executeAgent: async (options) => {
+        if (options.signal?.aborted) throw options.signal.reason
+        return await new Promise<{ text: string }>((_resolve, reject) => {
+          options.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true })
+        })
+      },
+    })
+    await expect(review).rejects.toThrow("cancelled")
+    expect(readReviewSession(root, id).status).toBe("cancelled")
+  })
+
+  it("times out stalled review workers and persists the failure", async () => {
+    const root = repository()
+    writeFileSync(join(root, "app.ts"), "export const value = 2\n", "utf8")
+    let id = ""
+    const review = runReview({
+      workdir: root, mode: { kind: "workspace" }, provider: "test", model: "test", timeoutMs: 5,
+      onStarted: (session) => { id = session.id },
+      executeAgent: async (options) => await new Promise<{ text: string }>((_resolve, reject) => {
+        options.signal?.addEventListener("abort", () => reject(options.signal?.reason), { once: true })
+      }),
+    })
+    await expect(review).rejects.toThrow("timed out")
+    const stored = readReviewSession(root, id)
+    expect(stored.status).toBe("failed")
+    expect(stored.error).toContain("timed out")
   })
 })

@@ -94,11 +94,13 @@ a changed new-side line (or use a file-level location).
 /review list
 /review show <id>
 /review resume <id>
+/review cancel [id]
 ```
 
 Review sessions are atomically stored in `.aurict/reviews/`. A failed or interrupted review is
-kept with its error and can be retried with `/review resume <id>`. Review workers receive only
-the existing read-only `read`, `glob`, `grep`, and `lsp` tools.
+kept with its error. Resume rejects a stale snapshot if files changed after preview. Large reviews
+are split deterministically at file boundaries, active reviews can be cancelled, and stalled workers
+time out. Review workers receive only the existing read-only `read`, `glob`, `grep`, and `lsp` tools.
 
 ### `/commit`
 AI-assisted git commit. Stages all changes, analyzes the diff, and generates a conventional commit message. Prompts for confirmation before committing.

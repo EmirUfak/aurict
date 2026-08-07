@@ -25,6 +25,7 @@ export interface ReviewManifest {
   mode: ReviewMode
   createdAt: string
   scopeHash: string
+  patchHash: string
   files: ReviewFile[]
   totals: { files: number; additions: number; deletions: number; binary: number }
 }
@@ -50,7 +51,7 @@ export interface ReviewReport {
 export interface ReviewSession {
   version: 1
   id: string
-  status: "running" | "completed" | "failed"
+  status: "running" | "completed" | "failed" | "interrupted" | "stale" | "cancelled"
   manifest: ReviewManifest
   provider: string
   model: string

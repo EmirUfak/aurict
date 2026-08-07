@@ -248,10 +248,18 @@ export async function bootstrap(cfg: AurictConfig = {}): Promise<{ defaultProvid
   }
 
   // Start the MCP servers
-  mcpManager.init(process.cwd()).catch(() => {})
+  try {
+    await mcpManager.init(process.cwd())
+  } catch (error) {
+    console.warn("[aurict] MCP startup failed", error)
+  }
 
   // Load custom tools: ~/.aurict/tools/ + .aurict/tools/
-  loadCustomTools(process.cwd()).catch(() => {})
+  try {
+    await loadCustomTools(process.cwd())
+  } catch (error) {
+    console.warn("[aurict] custom tool loading failed", error)
+  }
 
   return { defaultProvider, serverToken, localServer }
 }

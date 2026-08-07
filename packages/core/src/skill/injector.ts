@@ -459,7 +459,10 @@ export async function buildProactiveFileSection(userText: string, workdir: strin
       const ext = relative.split(".").pop() ?? ""
       sections.push(`### ${relative}\n\`\`\`${ext}\n${excerpt}${truncNote}\n\`\`\``)
       totalChars += excerpt.length
-    } catch { continue }
+    } catch (error) {
+      console.warn(`[aurict] failed to read referenced file '${resolved}'`, error)
+      continue
+    }
   }
 
   if (sections.length === 0) return ""
@@ -469,22 +472,20 @@ export async function buildProactiveFileSection(userText: string, workdir: strin
 async function resolveFileMention(mention: string, workdir: string): Promise<string | null> {
   // 1. Absolute path
   if (mention.startsWith("/")) {
-    try { if ((await Bun.file(mention).exists())) return mention } catch {}
+    if (await Bun.file(mention).exists()) return mention
     return null
   }
 
   // 2. Relative path directly under workdir
   const direct = join(workdir, mention)
-  try { if (await Bun.file(direct).exists()) return direct } catch {}
+  if (await Bun.file(direct).exists()) return direct
 
   // 3. Glob fallback — find by filename anywhere in project
   const filename = mention.split("/").pop() ?? mention
-  try {
-    const glob = new Bun.Glob("**/" + filename)
-    for await (const found of glob.scan({ cwd: workdir, absolute: true })) {
-      return found  // first match
-    }
-  } catch {}
+  const glob = new Bun.Glob("**/" + filename)
+  for await (const found of glob.scan({ cwd: workdir, absolute: true })) {
+    return found  // first match
+  }
 
   return null
 }

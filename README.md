@@ -505,10 +505,17 @@ aurict/
 bun run test
 
 # Core only
-bun test packages/core/test/*.test.ts
+bun run test:core
 
-# TUI only
-bun test packages/cli/test/*.test.tsx
+# CLI and terminal tests
+bun run test:cli
+
+# Desktop tests
+bun run test:desktop
+
+# Coverage and randomized repeat gates
+bun run test:coverage
+bun run test:stability
 
 # Single file
 bun test packages/core/test/classifier.test.ts
@@ -518,7 +525,8 @@ bun run eval -- --list
 bun run eval -- --json
 ```
 
-Test coverage includes: bash classifier, token counting, permission system, context compaction,
+Each suite runs with isolated state under the operating-system temporary directory; tests do not
+write to the user's Aurict state. Test coverage includes: bash classifier, token counting, permission system, context compaction,
 sandbox detection, agent pool, HTTP server auth, and TUI components (Spinner, Markdown,
 StatusBar, StartupBanner).
 

@@ -3,6 +3,7 @@ import { hooks }          from "../hook/emitter.js"
 import { SessionManager } from "../session/manager.js"
 import { loadConfig }     from "../config/config.js"
 import type { Session }   from "../session/types.js"
+import { observeBackground } from "../util/background-task.js"
 import type { WorkerRequest, WorkerMessage, WorkerControl, AgentType } from "./protocol.js"
 import { AGENT_TYPE_TOOLS } from "./protocol.js"
 import { agentLearner }   from "./learning.js"
@@ -89,7 +90,7 @@ class AgentPool {
   private recoverOrphanedSessions(): void {
     const running = this.listSubagentSessions().filter((s) => s.status === "running")
     for (const s of running) {
-      void SessionManager.end(s.id, "crashed").catch(() => {})
+      observeBackground(SessionManager.end(s.id, "crashed"), `orphaned session recovery for ${s.id}`)
     }
   }
 

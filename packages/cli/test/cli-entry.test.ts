@@ -87,12 +87,10 @@ async function runCli(args: string[], input?: string): Promise<{ stdout: string;
       AURICT_STATE_DIR: stateDir,
       AURICT_REMOTE_STATE_DIR: join(stateDir, "remote"),
     },
-    stdin: "pipe",
+    stdin: new Blob([input ?? ""]),
     stdout: "pipe",
     stderr: "pipe",
   })
-  processHandle.stdin.write(input ?? "")
-  processHandle.stdin.end()
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(processHandle.stdout).text(),
     new Response(processHandle.stderr).text(),
