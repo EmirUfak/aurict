@@ -27,6 +27,8 @@ const CATEGORY_BY_NAME: Record<string, CommandCategory> = {
   history: "session",
   diffs: "session",
   diff: "session",
+  review: "project",
+  rv: "project",
   branch: "session",
   fork: "session",
   checkpoints: "session",

@@ -80,6 +80,26 @@ Run, inspect, or cancel an independent worker-pool task. Background tasks use a 
 
 ## Code & Git
 
+### `/review` (alias: `/rv`)
+Preview and run a read-only, diff-scoped code review without changing Aurict's runtime or
+terminal framework. The preview deterministically records every changed file and hunk before
+the model runs. Findings must use structured JSON, reference only manifest files, and point to
+a changed new-side line (or use a file-level location).
+
+```
+/review                         # preview staged, unstaged, and untracked changes
+/review run                     # review the workspace
+/review preview --base main     # preview changes since merge-base with main
+/review run --commit abc123     # review one commit
+/review list
+/review show <id>
+/review resume <id>
+```
+
+Review sessions are atomically stored in `.aurict/reviews/`. A failed or interrupted review is
+kept with its error and can be retried with `/review resume <id>`. Review workers receive only
+the existing read-only `read`, `glob`, `grep`, and `lsp` tools.
+
 ### `/commit`
 AI-assisted git commit. Stages all changes, analyzes the diff, and generates a conventional commit message. Prompts for confirmation before committing.
 

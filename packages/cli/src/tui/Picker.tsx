@@ -3,17 +3,16 @@ import { Box, Text, useInput } from "./design-system/renderer.js"
 import type { PickerItem } from "../commands/types.js"
 import { useTheme } from "../utils/theme.js"
 import { useTerminalSize } from "./TerminalSizeContext.js"
+import { padDisplayEnd, truncateDisplayWidth } from "./terminal-text/display-width.js"
 
 const PAGE_SIZE = 10
 
 function clip(text: string, width: number): string {
-  if (text.length <= width) return text
-  if (width <= 1) return "…"
-  return `${text.slice(0, width - 1)}…`
+  return truncateDisplayWidth(text, Math.max(0, width))
 }
 
 function padClip(text: string, width: number): string {
-  return clip(text, width).padEnd(width, " ")
+  return padDisplayEnd(clip(text, width), Math.max(0, width))
 }
 
 interface Props {
@@ -36,8 +35,8 @@ export function Picker({ title, items, onSelect, onCancel }: Props) {
   // also leave room for the input area + status bar. The old `rows <= 26 ? 1 : ...`
   // threshold showed only a SINGLE option on small terminals.
   const pageSize = Math.max(2, Math.min(PAGE_SIZE, rows - 14))
-  const panelWidth = Math.max(40, Math.min(columns - 2, 88))
-  const contentWidth = Math.max(20, panelWidth - 4)
+  const panelWidth = Math.max(1, Math.min(columns - 2, 88))
+  const contentWidth = Math.max(1, panelWidth - 4)
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return items
