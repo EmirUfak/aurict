@@ -27,19 +27,6 @@ const PACKAGE_PATHS = [
   "packages/cli-win32-x64/package.json",
 ]
 
-const SOURCE_FILES: Array<{ path: string; pattern: RegExp; replace: string }> = [
-  {
-    path: "packages/cli/src/index.ts",
-    pattern: /Aurict v\d+\.\d+\.\d+/g,
-    replace: `Aurict v${version}`,
-  },
-  {
-    path: "packages/cli/src/util/update-check.ts",
-    pattern: /CURRENT_VERSION = "\d+\.\d+\.\d+"/,
-    replace: `CURRENT_VERSION = "${version}"`,
-  },
-]
-
 function write(file: string, content: string): void {
   if (!dryRun) writeFileSync(file, content)
 }
@@ -59,17 +46,6 @@ for (const rel of PACKAGE_PATHS) {
 
   write(file, JSON.stringify(pkg, null, 2) + "\n")
   console.log(`${dryRun ? "•" : "✓"} ${rel}  ${old} → ${version}`)
-}
-
-for (const { path: rel, pattern, replace } of SOURCE_FILES) {
-  const file = join(ROOT, rel)
-  const source = readFileSync(file, "utf8")
-  const next = source.replace(pattern, replace)
-  if (next === source) {
-    throw new Error(`Expected CLI version string was not found in ${rel}`)
-  }
-  write(file, next)
-  console.log(`${dryRun ? "•" : "✓"} ${rel}  (version string updated)`)
 }
 
 console.log(`\n${dryRun ? "Dry run complete" : "CLI version updated"} — v${version}`)

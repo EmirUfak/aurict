@@ -6,6 +6,7 @@
 
 import { join } from "node:path"
 import { mkdirSync, existsSync } from "node:fs"
+import { buildDefineArgs, resolveBuildMetadata } from "./build-metadata.js"
 
 const ROOT    = join(import.meta.dir, "..")
 const ENTRY   = join(ROOT, "packages/cli/src/index.ts")
@@ -13,6 +14,7 @@ const OUTDIR  = join(ROOT, "dist")
 const OUTFILE = join(OUTDIR, "aurict")
 
 console.log("Building Aurict…")
+const metadata = resolveBuildMetadata(ROOT)
 
 if (!existsSync(OUTDIR)) mkdirSync(OUTDIR, { recursive: true })
 
@@ -23,6 +25,7 @@ const result = Bun.spawnSync([
   "--target", "bun",
   "--minify",
   "--external", "fsevents",
+  ...buildDefineArgs(metadata),
 ], {
   cwd:    ROOT,
   stdout: "inherit",

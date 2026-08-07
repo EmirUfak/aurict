@@ -1,7 +1,7 @@
-import { dirname, join } from "path"
-import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync } from "fs"
+import { join } from "path"
 import type { FallbackTrigger } from "../provider/fallback.js"
 import { coreStatePath } from "../storage/paths.js"
+import { readJsonFileSync, writeJsonFileAtomicSync } from "../storage/persisted-json.js"
 
 export type CompactionStrategy  = "aggressive" | "balanced" | "conservative"
 export type TruncationStrategy = "head" | "tail" | "head_tail" | "smart"
@@ -262,18 +262,15 @@ const PROVIDER_ENV_VARS: Record<string, string> = {
 }
 
 function load(path: string): OmniConfig {
-  if (!existsSync(path)) return {}
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as OmniConfig
-  } catch (error) {
-    throw new Error(`Failed to read configuration at ${path}: ${error instanceof Error ? error.message : String(error)}`)
-  }
+  return readJsonFileSync<OmniConfig>(path, {
+    optional: true,
+    description: "Aurict configuration",
+    validate: isRecord,
+  }) ?? {}
 }
 
 function save(path: string, cfg: OmniConfig): void {
-  mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, JSON.stringify(cfg, null, 2), "utf8")
-  if (process.platform !== 'win32') chmodSync(path, 0o600)
+  writeJsonFileAtomicSync(path, cfg, { backup: true, mode: 0o600 })
 }
 
 function merge(a: OmniConfig, b: OmniConfig): OmniConfig {
@@ -376,6 +373,10 @@ export function resolveLongTaskRuntimeConfig(config?: OmniConfig | LongTaskRunti
 
 function isOmniConfig(config: unknown): config is OmniConfig {
   return Boolean(config && typeof config === "object" && ("securitySandbox" in config || "longTaskRuntime" in config || "providers" in config || "defaults" in config))
+}
+
+function isRecord(value: unknown): value is OmniConfig {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
 }
 
 function dedupeStrings(values?: string[]): string[] {

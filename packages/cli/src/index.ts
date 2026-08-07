@@ -7,10 +7,18 @@ import { profileCheckpoint, flushProfileReportOnExit } from "./util/startupProfi
 flushProfileReportOnExit()
 profileCheckpoint("entry_module_loaded")
 
-import { loadConfig, parseFlags, applyFlags } from "./config/loader.js"
+import { loadConfig, applyFlags } from "./config/loader.js"
 import { migrateLegacyCoreState } from "./util/state-migration.js"
 import { registerCustomThemes } from "./tui/theme/custom-themes.js"
 import { resolveThemePreference } from "./config/theme-preference.js"
+import { parseCli } from "./cli/parser.js"
+import { CliUsageError } from "./cli/types.js"
+import { renderCliHelp } from "./cli/help.js"
+import { CliDispatcher } from "./cli/dispatcher.js"
+import { renderCompletion } from "./cli/completion.js"
+import { chatOptionsFromParsed } from "./cli/chat-options.js"
+import { wantsJsonOutput, writeCliInfrastructureError, writeCliUsageError } from "./cli/errors.js"
+import { formatVersionText, getBuildInfo } from "./version.js"
 
 let mcpManagerRef: { disconnectAll(): Promise<void> } | null = null
 
@@ -23,7 +31,10 @@ function restoreTerminal() {
     process.stdout.write("\x1b[?2004l")  // disable bracketed paste
     process.stdout.write("\x1b[0m")      // reset colors
     process.stdout.write("\r")
-  } catch { /* ignore if stdout is already closed */ }
+  } catch (error) {
+    process.exitCode = process.exitCode || 1
+    void error
+  }
 }
 
 process.on("exit", restoreTerminal)
@@ -41,25 +52,49 @@ process.on("SIGINT",  () => {
 
   mcpManagerRef.disconnectAll()
     .then(()  => { clearTimeout(disconnectTimeout); restoreTerminal(); process.exit(0) })
-    .catch(() => { clearTimeout(disconnectTimeout); restoreTerminal(); process.exit(1) })
+    .catch((error) => {
+      clearTimeout(disconnectTimeout)
+      console.error("[aurict] Failed to disconnect MCP servers", error)
+      restoreTerminal()
+      process.exit(1)
+    })
 })
 process.on("uncaughtException",  (err) => {
   restoreTerminal()
-  try { const { writeCrashReport } = require("./util/draft.js"); writeCrashReport(err, "uncaughtException") } catch { /* ignore */ }
+  try {
+    const { writeCrashReport } = require("./util/draft.js")
+    writeCrashReport(err, "uncaughtException")
+  } catch (reportError) {
+    console.error("[aurict] Failed to write crash report", reportError)
+  }
   console.error(err)
   process.exit(1)
 })
 process.on("unhandledRejection", (r) => {
   restoreTerminal()
-  try { const { writeCrashReport } = require("./util/draft.js"); writeCrashReport(r, "unhandledRejection") } catch { /* ignore */ }
+  try {
+    const { writeCrashReport } = require("./util/draft.js")
+    writeCrashReport(r, "unhandledRejection")
+  } catch (reportError) {
+    console.error("[aurict] Failed to write crash report", reportError)
+  }
   console.error(r)
   process.exit(1)
 })
 // ─────────────────────────────────────────────────────────────────────────────
 
-const flags   = parseFlags()
 const workdir = process.cwd()
-const [subCmd, recipeFile] = process.argv.slice(2)
+const argv = process.argv.slice(2)
+let cli
+try {
+  cli = parseCli(argv)
+} catch (error) {
+  if (error instanceof CliUsageError) {
+    writeCliUsageError(error, wantsJsonOutput(argv))
+    process.exit(error.exitCode)
+  }
+  throw error
+}
 profileCheckpoint("flags_parsed")
 
 /** Resolves the signed backend token only for runs that may call Aurict modules. */
@@ -76,272 +111,223 @@ async function resolveBackendAccessToken(signal?: AbortSignal): Promise<string |
   }
 }
 
-// --version
-if (flags.version) {
-  console.log("Aurict v1.2.14")
+if (cli.helpRequested) {
+  process.stdout.write(renderCliHelp(cli.command))
   process.exit(0)
 }
 
-// --help
-if (flags.help && subCmd !== "run-agent") {
-  console.log(`
-Aurict v1.2.14 — Terminal AI assistant
+const earlyCommands = new CliDispatcher()
+  .register("version", command => {
+    process.stdout.write(command.options["json"] === true
+      ? `${JSON.stringify(getBuildInfo(), null, 2)}\n`
+      : `${formatVersionText()}\n`)
+    return 0
+  })
+  .register("doctor", async command => {
+    const { getDoctorReport, getDoctorReportJson } = await import("./util/doctor.js")
+    if (command.options["json"] === true || command.options["format"] === "json") {
+      const report = await getDoctorReportJson(workdir)
+      process.stdout.write(`${report.json}\n`)
+      return report.exitCode
+    }
+    const report = await getDoctorReport(workdir)
+    process.stdout.write(`${report.text}\n`)
+    return report.exitCode
+  })
+  .register("run-agent", async command => {
+    const { runHeadlessAgentCommand } = await import("./headless/run-agent.js")
+    return runHeadlessAgentCommand([...command.rawArgs])
+  })
+  .register("completion", command => {
+    process.stdout.write(renderCompletion(command.positionals[0]!))
+    return 0
+  })
 
-Usage:
-  aurict [options]
-  aurict doctor              Run local install diagnostics
-  aurict doctor --json       Machine-readable JSON report (aurict.doctor/v1 schema)
-  aurict run <recipe.yaml>   Run a recipe (automated multi-step task)
-  aurict run-agent <task>    Run the agent headlessly with a JSON result
-
-Options:
-  -p, --provider <id>   Select provider (anthropic, openai, openrouter, google, opencode, ollama, xai, azure, bedrock, nvidia, zai, alibaba)
-  -m, --model <id>      Select model
-  -s, --system <text>   Override system prompt
-      --undercover      Undercover mode (hides AI traces in commits)
-      --stream          Enable streaming
-      --no-stream       Disable streaming
-  -v, --version         Show version
-  -h, --help            Show this help
-
-Slash commands (inside TUI):
-  /help      List all commands
-  /models    Select model (picker)
-  /providers Select provider (picker)
-  /clear     Clear chat history
-  /session   Show session info
-  /exit      Exit
-
-Environment variables:
-  ANTHROPIC_API_KEY           Anthropic
-  OPENAI_API_KEY              OpenAI
-  OPENROUTER_API_KEY          OpenRouter
-  GOOGLE_API_KEY              Google
-  OPENCODE_API_KEY            OpenCode / Zenmux
-  XAI_API_KEY                 xAI (Grok)
-  AZURE_OPENAI_API_KEY        Azure OpenAI
-  AWS_ACCESS_KEY_ID           AWS Bedrock
-  NVIDIA_API_KEY              NVIDIA NIM
-  ZAI_API_KEY                 Z.AI (GLM)
-  DASHSCOPE_API_KEY           Alibaba (Qwen)
-  AURICT_PROVIDER            Default provider override
-`)
-  process.exit(0)
+let earlyExit: number | null
+try {
+  earlyExit = await earlyCommands.dispatch(cli)
+} catch (error) {
+  writeCliInfrastructureError(error, wantsJsonOutput(argv))
+  process.exit(1)
 }
+if (earlyExit !== null) process.exit(earlyExit)
 
-if (subCmd === "doctor") {
-  const jsonFlag = process.argv.slice(2).includes("--json") || process.argv.slice(2).includes("-j")
-  const { runDoctor } = await import("./util/doctor.js")
-  const exitCode = await runDoctor(workdir, { json: jsonFlag })
-  process.exit(exitCode)
-}
-
-if (subCmd === "run-agent") {
-  const { runHeadlessAgentCommand } = await import("./headless/run-agent.js")
-  process.exit(await runHeadlessAgentCommand(process.argv.slice(3)))
-}
-
-migrateLegacyCoreState()
+const chatOptions = cli.command.name === "chat" ? chatOptionsFromParsed(cli) : undefined
+const flags = chatOptions?.flags ?? {}
 
 // Desktop IPC owns stdin. Enter its dedicated bootstrap before importing Ink
 // or the terminal UI, whose input layer intentionally patches stdin globally.
 if (flags.ipcServer) {
+  migrateLegacyCoreState()
   const { runDesktopSidecar } = await import("./desktop-sidecar.js")
   await runDesktopSidecar(workdir)
   process.exit(0)
 }
 
+// ─── aurict run <recipe.yaml> ────────────────────────────────────────────────
+if (cli.command.name === "run") {
+  const recipeFile = cli.positionals[0]!
+  const { runRecipeCommand } = await import("./headless/run-recipe.js")
+  process.exit(await runRecipeCommand({
+    recipePath: recipeFile,
+    workdir,
+    format: cli.options["format"] === "json" ? "json" : "text",
+    audience: cli.options["audience"] === "agent" ? "agent" : "human",
+    quiet: cli.options["quiet"] === true,
+    backendAccessTokenResolver: resolveBackendAccessToken,
+    prepare: async () => {
+      migrateLegacyCoreState()
+      const { initializeConfiguredProviders } = await import("./provider-setup.js")
+      await initializeConfiguredProviders(workdir)
+    },
+  }))
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+if (!process.stdin.isTTY) {
+  // Pipe mode uses only core setup. TUI bootstrap would start the local server,
+  // initialize MCP processes, and contaminate machine-readable output.
+  const input = await Bun.stdin.text()
+  const { runPipeCommand } = await import("./headless/pipe.js")
+  process.exit(await runPipeCommand({
+    workdir,
+    input,
+    format: chatOptions?.format ?? "text",
+    audience: chatOptions?.audience ?? "human",
+    quiet: chatOptions?.quiet ?? false,
+    backendAccessTokenResolver: resolveBackendAccessToken,
+    prepare: async () => {
+      migrateLegacyCoreState()
+      const [{ ProviderRegistry, loadPlugins }, { initializeConfiguredProviders }] = await Promise.all([
+        import("@aurict/core"),
+        import("./provider-setup.js"),
+      ])
+      await initializeConfiguredProviders(workdir)
+      const pluginResults = await loadPlugins({
+        logger: chatOptions?.format === "text" && !chatOptions.quiet
+          ? message => process.stderr.write(`${message}\n`)
+          : () => {},
+      })
+      const pluginFailure = pluginResults.find(result => result.error)
+      if (pluginFailure) throw new Error(`Plugin '${pluginFailure.file}' failed to load: ${pluginFailure.error}`)
+      const cfg = applyFlags(loadConfig(workdir), flags)
+      return {
+        provider: cfg.provider ?? ProviderRegistry.detectDefault(),
+        ...(cfg.model !== undefined ? { model: cfg.model } : {}),
+        ...(cfg.system !== undefined ? { system: cfg.system } : {}),
+        ...(cfg.undercover !== undefined ? { undercover: cfg.undercover } : {}),
+      }
+    },
+  }))
+}
+
+// Interactive mode — full bootstrap is intentionally isolated to the TTY path.
+migrateLegacyCoreState()
 profileCheckpoint("prefetch_started")
-const [reactMod, inkMod] = await Promise.all([
+const [
+  reactMod, inkMod, bootstrapMod, appMod, setupWizardMod,
+  errorBoundaryMod, updateCheckMod, coreMod, providerSetupMod,
+] = await Promise.all([
   import("react"),
   import("ink"),
-])
-profileCheckpoint("react_ink_loaded")
-
-const [
-  bootstrapMod,     appMod,
-  setupWizardMod,   errorBoundaryMod,
-  updateCheckMod,   coreMod,
-] = await Promise.all([
   import("./bootstrap.js"),
   import("./tui/App.js"),
   import("./tui/SetupWizard.js"),
   import("./tui/ErrorBoundary.js"),
   import("./util/update-check.js"),
   import("@aurict/core"),
+  import("./provider-setup.js"),
 ])
 profileCheckpoint("prefetch_resolved")
 
-const React   = reactMod.default
+const React = reactMod.default
 const { render } = inkMod
 const { bootstrap } = bootstrapMod
 const { App } = appMod
 const { SetupWizard } = setupWizardMod
 const { ErrorBoundary, writeTUIcrashReport } = errorBoundaryMod
 const { checkForUpdate } = updateCheckMod
-const core = coreMod
-const {
-  runAgent,
-  ProviderRegistry,
-  mcpManager,
-  loadPlugins,
-  runRecipe,
-  parseRecipeFile,
-} = core
+const { ProviderRegistry, mcpManager, loadPlugins } = coreMod
 mcpManagerRef = mcpManager
-profileCheckpoint("core_symbols_destructured")
 
-const { initializeConfiguredProviders } = await import("./provider-setup.js")
-await initializeConfiguredProviders(workdir)
-profileCheckpoint("provider_config_resolved")
-
-// ─── aurict run <recipe.yaml> ────────────────────────────────────────────────
-if (subCmd === "run") {
-  if (!recipeFile) {
-    console.error("Usage: aurict run <recipe.yaml|recipe.json>")
-    process.exit(1)
-  }
-  await loadPlugins()
-  let recipe
-  try {
-    recipe = await parseRecipeFile(recipeFile)
-  } catch (err) {
-    console.error(`[aurict run] Failed to load recipe: ${err instanceof Error ? err.message : err}`)
-    process.exit(1)
-  }
-  console.log(`\n▶  ${recipe.name}${recipe.description ? `\n   ${recipe.description}` : ""}\n`)
-  const backendAccessToken = await resolveBackendAccessToken()
-  const result = await runRecipe({
-    recipe,
-    workdir,
-    ...(backendAccessToken !== undefined ? { backendAccessToken } : {}),
-    onStepStart: (i, step) => {
-      const label = step.name ?? (step.bash ? `bash: ${step.bash.slice(0, 50)}` : `prompt ${i + 1}`)
-      process.stdout.write(`\n[${ i + 1}] ${label}\n`)
-    },
-    onText: (text) => process.stdout.write(text),
-    onStepFinish: (_i, _step, _out) => { process.stdout.write("\n") },
-  })
-  const failed = result.steps.filter(s => s.error)
-  if (failed.length > 0) {
-    console.error(`\n✗ ${failed.length} step(s) failed:`)
-    for (const s of failed) console.error(`  [${s.index + 1}] ${s.name}: ${s.error}`)
-    process.exit(1)
-  }
-  console.log(`\n✓ Recipe complete — ${result.steps.length} step(s)`)
-  process.exit(0)
-}
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Load plugins (tool + provider plugins from ~/.aurict/plugins/)
+await providerSetupMod.initializeConfiguredProviders(workdir)
 await loadPlugins()
 profileCheckpoint("plugins_loaded")
 
-// Load config: global < project < CLI flags
-const cfg      = applyFlags(loadConfig(workdir), flags)
+const cfg = applyFlags(loadConfig(workdir), flags)
 registerCustomThemes(workdir)
 const initialTheme = resolveThemePreference(cfg.defaults?.theme)
 const { defaultProvider, localServer } = await bootstrap(cfg)
 profileCheckpoint("bootstrap_done")
 
-const provider   = cfg.provider ?? defaultProvider
-const plugin     = ProviderRegistry.get(provider)
-const model      = cfg.model ?? plugin.defaultModel()
+const provider = cfg.provider ?? defaultProvider
+const plugin = ProviderRegistry.get(provider)
+const model = cfg.model ?? plugin.defaultModel()
+const updatePromise = checkForUpdate()
+profileCheckpoint("app_render_start")
 
-if (process.stdin.isTTY) {
-  // Interactive mode — Ink TUI
-  const updatePromise = checkForUpdate()  // fire-and-forget, non-blocking
-  profileCheckpoint("app_render_start")
+const availableProviders = ProviderRegistry.available()
+const noKeyConfigured = availableProviders.every(p => !p.hasKey)
+const selectedProviderInfo = availableProviders.find(p => p.id === provider)
+const selectedNeedsKey = provider !== "ollama" && selectedProviderInfo?.hasKey !== true
+const needsSetup = noKeyConfigured && selectedNeedsKey && flags.provider === undefined
 
-  // Show the onboarding wizard if no provider has a key configured
-  const availableProviders = ProviderRegistry.available()
-  const noKeyConfigured = availableProviders.every(p => !p.hasKey)
-  const selectedProviderInfo = availableProviders.find(p => p.id === provider)
-  const selectedNeedsKey = provider !== "ollama" && selectedProviderInfo?.hasKey !== true
-  const needsSetup      = noKeyConfigured && selectedNeedsKey && flags.provider === undefined
-
-  if (needsSetup) {
-    // Render the App once the wizard completes
-    await new Promise<void>((resolve) => {
-      const { unmount } = render(
-        React.createElement(SetupWizard, {
-          onComplete: (chosenProvider: string, chosenModel: string) => {
-            unmount()
-            const appProps = {
-              initialProvider: chosenProvider,
-              initialModel:    chosenModel,
-              initialTheme,
-              workdir,
-              updatePromise,
-              localServer,
-              ...(cfg.system !== undefined ? { system: cfg.system } : {}),
-              ...(cfg.undercover !== undefined ? { undercover: cfg.undercover } : {}),
-            }
-            const { waitUntilExit: wait } = render(
-              React.createElement(ErrorBoundary, {
-                onError: writeTUIcrashReport,
-                children: React.createElement(App, appProps),
-              }),
-              { exitOnCtrlC: false },
-            )
-            wait().then(resolve)
-          },
-        }),
-        { exitOnCtrlC: false },
-      )
-    })
-  } else {
-    const { waitUntilExit } = render(
-      React.createElement(ErrorBoundary, {
-        onError: writeTUIcrashReport,
-        children: React.createElement(App, {
-          initialProvider: provider,
-          initialModel:    model,
-          initialTheme,
-          workdir,
-          updatePromise,
-          localServer,
-          ...(cfg.system !== undefined ? { system: cfg.system } : {}),
-          ...(cfg.undercover !== undefined ? { undercover: cfg.undercover } : {}),
-        }),
+if (needsSetup) {
+  await new Promise<void>((resolve) => {
+    const { unmount } = render(
+      React.createElement(SetupWizard, {
+        onComplete: (chosenProvider: string, chosenModel: string) => {
+          unmount()
+          const appProps = {
+            initialProvider: chosenProvider,
+            initialModel: chosenModel,
+            initialTheme,
+            workdir,
+            updatePromise,
+            localServer,
+            ...(cfg.system !== undefined ? { system: cfg.system } : {}),
+            ...(cfg.undercover !== undefined ? { undercover: cfg.undercover } : {}),
+          }
+          const { waitUntilExit: wait } = render(
+            React.createElement(ErrorBoundary, {
+              onError: writeTUIcrashReport,
+              children: React.createElement(App, appProps),
+            }),
+            { exitOnCtrlC: false },
+          )
+          wait().then(resolve)
+        },
       }),
-      { exitOnCtrlC: false },  // We handle Ctrl+C ourselves via useInput in App.tsx
+      { exitOnCtrlC: false },
     )
-    await waitUntilExit()
-  }
-
-  // After Ink unmounts, the process stays alive because of Bun.serve (local server)
-  // and MCP child processes — the user is left staring at a frozen screen while
-  // keystrokes leak through as raw text. Shut down cleanly:
-  if (mcpManagerRef) {
-    await Promise.race([
-      mcpManagerRef.disconnectAll().catch(() => {}),
-      new Promise((res) => setTimeout(res, 1000)),
-    ])
-  }
-  restoreTerminal()
-  process.exit(0)
+  })
 } else {
-  // Pipe modu — tek seferlik
-  const input = (await Bun.stdin.text()).trim()
-  if (!input) { console.error("[aurict] No input received"); process.exit(1) }
-
-  process.stdout.write("\n")
-  try {
-    await runAgent({
-      provider, model, workdir,
-      backendAccessTokenResolver: resolveBackendAccessToken,
-      ...(cfg.system !== undefined ? { system: cfg.system } : {}),
-      messages: [{ role: "user", content: input }],
-      runtime: { profile: "headless" },
-      onText:   (d) => process.stdout.write(d),
-      onFinish: ({ tokens }) => {
-        process.stdout.write("\n")
-        console.error(`[tokens: ${tokens.input} in / ${tokens.output} out]`)
-      },
-    })
-  } catch (err) {
-    console.error(`[error] ${err instanceof Error ? err.message : err}`)
-  }
-  process.exit(0)
+  const { waitUntilExit } = render(
+    React.createElement(ErrorBoundary, {
+      onError: writeTUIcrashReport,
+      children: React.createElement(App, {
+        initialProvider: provider,
+        initialModel: model,
+        initialTheme,
+        workdir,
+        updatePromise,
+        localServer,
+        ...(cfg.system !== undefined ? { system: cfg.system } : {}),
+        ...(cfg.undercover !== undefined ? { undercover: cfg.undercover } : {}),
+      }),
+    }),
+    { exitOnCtrlC: false },
+  )
+  await waitUntilExit()
 }
+
+if (mcpManagerRef) {
+  await Promise.race([
+    mcpManagerRef.disconnectAll().catch((error) => {
+      console.error("[aurict] Failed to disconnect MCP servers", error)
+    }),
+    new Promise((resolve) => setTimeout(resolve, 1000)),
+  ])
+}
+restoreTerminal()
+process.exit(0)

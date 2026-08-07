@@ -6,9 +6,8 @@
  * SessionId bazlı izolasyon — farklı session'lar birbirini etkilemez.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
-import { join, dirname }                                       from "node:path"
-import { homedir }                                             from "node:os"
+import { coreStatePath } from "../storage/paths.js"
+import { readJsonFileSync, writeJsonFileAtomicSync } from "../storage/persisted-json.js"
 
 // ── Tipler ────────────────────────────────────────────────────────────────────
 
@@ -31,36 +30,33 @@ export interface CheckpointEntry {
   updatedAt: number
 }
 
-// ── Dosya yolu ────────────────────────────────────────────────────────────────
-
-const STORE_PATH = join(homedir(), ".aurict", "checkpoints.json")
-
 // ── Store sınıfı ──────────────────────────────────────────────────────────────
 
-class CheckpointStore {
+export class CheckpointStore {
   private data = new Map<string, CheckpointEntry>()   // key: `${sessionId}:${id}`
   private loaded = false
+  private loadedPath: string | undefined
+
+  constructor(private readonly resolveStorePath: () => string = () => coreStatePath("checkpoints.json")) {}
 
   // ── I/O ─────────────────────────────────────────────────────────────────────
 
   private load() {
-    if (this.loaded) return
+    const path = this.resolveStorePath()
+    if (this.loaded && this.loadedPath === path) return
+    if (this.loadedPath !== path) this.data.clear()
+    const entries = readJsonFileSync<CheckpointEntry[]>(path, {
+      optional: true,
+      description: "checkpoint store",
+      validate: isCheckpointEntries,
+    }) ?? []
+    for (const entry of entries) this.data.set(`${entry.sessionId}:${entry.id}`, entry)
     this.loaded = true
-    if (!existsSync(STORE_PATH)) return
-    try {
-      const raw     = readFileSync(STORE_PATH, "utf8")
-      const entries = JSON.parse(raw) as CheckpointEntry[]
-      for (const e of entries) {
-        this.data.set(`${e.sessionId}:${e.id}`, e)
-      }
-    } catch { /* bozuk dosya — boş başla */ }
+    this.loadedPath = path
   }
 
   private persist() {
-    try {
-      mkdirSync(dirname(STORE_PATH), { recursive: true })
-      writeFileSync(STORE_PATH, JSON.stringify([...this.data.values()], null, 2), "utf8")
-    } catch { /* yazma hatası — sessizce geç */ }
+    writeJsonFileAtomicSync(this.resolveStorePath(), [...this.data.values()], { backup: true, mode: 0o600 })
   }
 
   // ── API ──────────────────────────────────────────────────────────────────────
@@ -185,3 +181,25 @@ class CheckpointStore {
 }
 
 export const checkpointStore = new CheckpointStore()
+
+function isCheckpointEntries(value: unknown): value is CheckpointEntry[] {
+  return Array.isArray(value) && value.every(entry => {
+    if (!entry || typeof entry !== "object") return false
+    const candidate = entry as Partial<CheckpointEntry>
+    return typeof candidate.id === "string"
+      && typeof candidate.title === "string"
+      && typeof candidate.sessionId === "string"
+      && typeof candidate.createdAt === "number"
+      && typeof candidate.updatedAt === "number"
+      && Array.isArray(candidate.steps)
+      && candidate.steps.every(step => {
+        if (!step || typeof step !== "object") return false
+        const checkpointStep = step as Partial<CheckpointStep>
+        return typeof checkpointStep.id === "string"
+          && typeof checkpointStep.label === "string"
+          && ["pending", "done", "skipped", "failed"].includes(checkpointStep.status ?? "")
+          && (checkpointStep.note === undefined || typeof checkpointStep.note === "string")
+          && (checkpointStep.doneAt === undefined || typeof checkpointStep.doneAt === "number")
+      })
+  })
+}

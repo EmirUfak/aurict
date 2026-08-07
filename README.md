@@ -209,6 +209,9 @@ aurict
 # Pipe mode — non-interactive single query
 echo "What does this function do?" | aurict
 
+# Machine-readable pipe result
+echo "Summarize this repository" | aurict --format json --audience agent
+
 # Open a specific directory
 cd ~/projects/myapp && aurict
 
@@ -217,6 +220,10 @@ aurict doctor
 
 # Run an automated recipe
 aurict run recipe.yaml
+
+# Inspect build provenance or install shell completion
+aurict version --json
+aurict completion zsh
 ```
 
 ### CLI Flags
@@ -227,10 +234,17 @@ aurict [options]
   -p, --provider <id>    Provider to use (anthropic, openai, openrouter, google, ollama)
   -m, --model <id>       Model to use
   -s, --system <text>    System prompt override
-      --undercover        Hide AI identity in responses
+      --undercover       Hide AI identity in responses
+      --stream           Enable streaming
+      --no-stream        Disable streaming
+      --format <mode>    Output format: text or json
+      --audience <type>  Output audience: human or agent
+  -q, --quiet            Suppress non-essential diagnostics
   -v, --version          Print version
   -h, --help             Show help
 ```
+
+Root commands and versioned output contracts are documented in [docs/cli.md](docs/cli.md).
 
 ---
 

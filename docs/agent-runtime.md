@@ -70,6 +70,17 @@ file and project-manifest contents.
 
 ## Headless execution
 
+Piped input uses the same headless runtime without starting Ink, the local HTTP
+server, or MCP processes:
+
+```bash
+printf 'Summarize the change' | aurict --format json --audience agent
+```
+
+The pipe contract is `aurict.pipe/v1`. Exit codes are `0` completed, `2` blocked,
+and `1` infrastructure or input failure. JSON mode writes exactly one result or
+error document to stdout; text diagnostics stay on stderr.
+
 `buildHeadlessRunResult()` converts a completed runtime and its event stream into
 the versioned benchmark result contract. The same contract is available from:
 

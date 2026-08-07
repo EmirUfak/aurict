@@ -113,6 +113,9 @@ jobs:
       - name: Smoke test linux binary
         run: ./dist/aurict-linux-x64 --version
 
+      - name: Verify package and binary version contract
+        run: bun run scripts/check-version-consistency.ts --binary dist/aurict-linux-x64
+
       - name: Dry-run npm wrapper packages
         run: |
           cd packages/cli && npm pack --dry-run

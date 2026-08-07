@@ -1,8 +1,7 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs"
-import { dirname as pathDirname } from "node:path"
 import type { PermissionDecision, PermissionResponse, CategoryPermission } from "./types.js"
 import type { ToolCategory } from "../tool/types.js"
 import { getToolCategory } from "./categories.js"
+import { readJsonFileSync, writeJsonFileAtomicSync } from "../storage/persisted-json.js"
 
 // Session boyunca onaylanan/reddedilen izinleri tutar
 interface PermissionState {
@@ -77,25 +76,23 @@ export const PermissionStore = {
   },
 
   loadPersisted(path: string): void {
-    try {
-      const raw  = readFileSync(path, "utf8")
-      const data = JSON.parse(raw) as PersistedData
-      if (data.version !== 1) return
-      for (const entry of data.approved)     state().approved.add(entry)
-      for (const entry of data.approvedDirs) state().approvedDirs.add(entry)
-    } catch { /* file absent or malformed — silent skip */ }
+    const data = readJsonFileSync<PersistedData>(path, {
+      optional: true,
+      description: "permission store",
+      validate: isPersistedPermissionData,
+    })
+    if (!data) return
+    for (const entry of data.approved)     state().approved.add(entry)
+    for (const entry of data.approvedDirs) state().approvedDirs.add(entry)
   },
 
   savePersisted(path: string): void {
-    try {
-      mkdirSync(pathDirname(path), { recursive: true })
-      const data: PersistedData = {
-        version:      1,
-        approved:     [...state().approved],
-        approvedDirs: [...state().approvedDirs],
-      }
-      writeFileSync(path, JSON.stringify(data, null, 2), "utf8")
-    } catch { /* non-fatal */ }
+    const data: PersistedData = {
+      version:      1,
+      approved:     [...state().approved],
+      approvedDirs: [...state().approvedDirs],
+    }
+    writeJsonFileAtomicSync(path, data, { backup: true, mode: 0o600 })
   },
 
   // ── Kategori bazlı onay ────────────────────────────────────────────────────
@@ -122,6 +119,14 @@ export const PermissionStore = {
       return { tool: entry.slice(0, idx), dir: entry.slice(idx + 1) }
     })
   },
+}
+
+function isPersistedPermissionData(value: unknown): value is PersistedData {
+  if (!value || typeof value !== "object") return false
+  const data = value as Partial<PersistedData>
+  return data.version === 1
+    && Array.isArray(data.approved) && data.approved.every(entry => typeof entry === "string")
+    && Array.isArray(data.approvedDirs) && data.approvedDirs.every(entry => typeof entry === "string")
 }
 
 // TUI → executor köprüsü: ask kararlarını bekler

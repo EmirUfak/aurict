@@ -5,9 +5,16 @@ Recipes are YAML or JSON files that define multi-step automated workflows. Run t
 ```bash
 aurict run recipe.yaml
 aurict run recipe.json
+aurict run recipe.json --format json --audience agent
 ```
 
 Recipes are useful for repeatable tasks: CI pipelines, release checklists, automated audits, or any multi-step operation you run regularly.
+
+`--format json` writes one `aurict.recipe/v1` document to stdout. Progress and
+plugin diagnostics never enter JSON stdout. Text mode writes step progress to
+stderr and the recipe result to stdout; `--quiet` suppresses non-essential
+diagnostics. A successful recipe exits `0`; a failed step or infrastructure
+error exits `1`.
 
 ---
 

@@ -31,6 +31,7 @@
     "doctor": "bun run packages/cli/src/index.ts doctor",
     "doctor:json": "bun run packages/cli/src/index.ts doctor --json",
     "doctor:report": "bun run packages/cli/src/index.ts doctor --json > reports/doctor-runtime.json",
+    "check:version": "bun run scripts/check-version-consistency.ts",
     "deadcode": "bunx knip --include files,dependencies",
     "smoke": "bun run build && ./dist/aurict --version",
     "hardening:check": "bun run smoke && bun run doctor",

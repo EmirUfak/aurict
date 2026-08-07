@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, chmodSync, accessSync, constants } from "node:fs"
+import { existsSync, mkdirSync, unlinkSync, accessSync, constants } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import type { KeyStore, KeystoreCapability } from "./types.js"
+import { readJsonFileSync, writeJsonFileAtomicSync } from "../../storage/persisted-json.js"
 
 /**
  * Plain-file fallback — `~/.aurict/keys.json` (chmod 0600).
@@ -24,28 +25,27 @@ function ensureDir(): void {
 
 function read(): Record<string, string> {
   const p = filepath()
-  if (!existsSync(p)) return {} as Record<string, string>
-  try {
-    const raw = readFileSync(p, "utf8").trim()
-    if (!raw) return {} as Record<string, string>
-    const obj = JSON.parse(raw)
-    if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return {} as Record<string, string>
-    return obj as Record<string, string>
-  } catch {
-    return {} as Record<string, string>
-  }
+  return readJsonFileSync<Record<string, string>>(p, {
+    optional: true,
+    description: "plain-file keystore",
+    validate: isStringRecord,
+  }) ?? {}
 }
 
 function write(data: Record<string, string>): boolean {
   ensureDir()
   const p = filepath()
   try {
-    writeFileSync(p, JSON.stringify(data, null, 2), "utf8")
-    try { chmodSync(p, FILE_MODE) } catch { /* best-effort */ }
+    writeJsonFileAtomicSync(p, data, { mode: FILE_MODE })
     return true
   } catch {
     return false
   }
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value)
+    && Object.values(value).every(entry => typeof entry === "string"))
 }
 
 export const plainFile: KeyStore = {
@@ -100,7 +100,5 @@ export function __plainFilePathForTests(): string {
 
 export function __plainCleanupForTests(): void {
   const p = filepath()
-  if (existsSync(p)) {
-    try { unlinkSync(p) } catch { /* ignore */ }
-  }
+  if (existsSync(p)) unlinkSync(p)
 }

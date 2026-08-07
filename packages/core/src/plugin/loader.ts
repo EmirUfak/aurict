@@ -18,15 +18,15 @@
  *   }
  */
 
-import { readdirSync, existsSync, mkdirSync } from "fs"
+import { readdirSync, existsSync } from "fs"
 import { join } from "path"
-import { homedir } from "os"
 import { ToolRegistry }     from "../tool/registry.js"
 import { ProviderRegistry } from "../provider/registry.js"
+import { coreStatePath } from "../storage/paths.js"
 import type { ToolDef }     from "../tool/types.js"
 import type { ProviderPlugin } from "../provider/plugin.js"
 
-export const PLUGIN_DIR = join(homedir(), ".aurict", "plugins")
+export const PLUGIN_DIR = coreStatePath("plugins")
 
 export interface OmniPlugin {
   name:       string
@@ -34,7 +34,7 @@ export interface OmniPlugin {
   providers?: Record<string, ProviderPlugin>
 }
 
-interface LoadResult {
+export interface LoadResult {
   file:   string
   name:   string
   tools:  number
@@ -45,17 +45,20 @@ interface LoadResult {
 let loaded = false
 const results: LoadResult[] = []
 
-export async function loadPlugins(): Promise<LoadResult[]> {
+export interface LoadPluginsOptions {
+  logger?: (message: string) => void
+}
+
+export async function loadPlugins(options: LoadPluginsOptions = {}): Promise<LoadResult[]> {
   if (loaded) return results
-  loaded = true
+  const logger = options.logger ?? console.error
 
   if (!existsSync(PLUGIN_DIR)) {
-    try { mkdirSync(PLUGIN_DIR, { recursive: true }) } catch { /* ok */ }
+    loaded = true
     return results
   }
 
-  let files: string[]
-  try { files = readdirSync(PLUGIN_DIR) } catch { return results }
+  const files = readdirSync(PLUGIN_DIR)
 
   const pluginFiles = files.filter((f) => f.endsWith(".js") || f.endsWith(".mjs"))
 
@@ -89,14 +92,15 @@ export async function loadPlugins(): Promise<LoadResult[]> {
       }
 
       results.push({ file, name: plugin.name, tools: toolCount, provs: provCount })
-      console.error(`[plugin] ${plugin.name}: ${toolCount} tool(s), ${provCount} provider(s) loaded`)
+      logger(`[plugin] ${plugin.name}: ${toolCount} tool(s), ${provCount} provider(s) loaded`)
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e)
       results.push({ file, name: "?", tools: 0, provs: 0, error })
-      console.error(`[plugin] ${file}: load error — ${error}`)
+      logger(`[plugin] ${file}: load error — ${error}`)
     }
   }
 
+  loaded = true
   return results
 }
 

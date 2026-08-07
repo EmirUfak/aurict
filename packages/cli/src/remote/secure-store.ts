@@ -6,9 +6,10 @@
  * remote state root; CLI falls back to the canonical core state directory.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, unlinkSync } from "fs"
+import { existsSync, unlinkSync } from "fs"
 import { join } from "path"
 import { coreStatePath } from "@aurict/core/storage/paths"
+import { readJsonFileSync, writeJsonFileAtomicSync } from "@aurict/core/storage/persisted-json"
 
 function resolveRemoteDir(): string {
   return process.env.AURICT_REMOTE_STATE_DIR?.trim() || coreStatePath("remote")
@@ -18,25 +19,18 @@ export function remoteDir(): string {
   return resolveRemoteDir()
 }
 
-export function remoteFilePath(filename: string): string {
-  return join(resolveRemoteDir(), filename)
+export function remoteFilePath(filename: string, directory = resolveRemoteDir()): string {
+  return join(directory, filename)
 }
 
-export function readSecureJson<T>(filename: string): T | null {
-  const path = remoteFilePath(filename)
-  if (!existsSync(path)) return null
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as T
-  } catch {
-    return null
-  }
+export function readSecureJson<T>(filename: string, directory = resolveRemoteDir()): T | null {
+  const path = remoteFilePath(filename, directory)
+  return readJsonFileSync<T>(path, { optional: true, description: "secure remote state" }) ?? null
 }
 
-export function writeSecureJson(filename: string, data: unknown): void {
-  mkdirSync(remoteDir(), { recursive: true })
-  const path = remoteFilePath(filename)
-  writeFileSync(path, JSON.stringify(data, null, 2), "utf8")
-  if (process.platform !== "win32") chmodSync(path, 0o600)
+export function writeSecureJson(filename: string, data: unknown, directory = resolveRemoteDir()): void {
+  const path = remoteFilePath(filename, directory)
+  writeJsonFileAtomicSync(path, data, { mode: 0o600 })
 }
 
 export function deleteSecureFile(filename: string): void {

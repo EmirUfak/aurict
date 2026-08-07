@@ -100,6 +100,16 @@ describe("CLI config loader", () => {
   it("fails visibly when a persisted theme is no longer available", () => {
     expect(() => resolveThemePreference("removed-theme")).toThrow("is not available")
   })
+
+  it("distinguishes a missing config from malformed persisted JSON", () => {
+    const missingProject = projectDir()
+    expect(() => loadConfig(missingProject)).not.toThrow()
+
+    const malformedProject = projectDir()
+    mkdirSync(join(malformedProject, ".aurict"), { recursive: true })
+    writeFileSync(join(malformedProject, ".aurict", "config.json"), "{broken", "utf8")
+    expect(() => loadConfig(malformedProject)).toThrow("Malformed Aurict CLI configuration")
+  })
 })
 
 function projectDir(): string {

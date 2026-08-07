@@ -1,0 +1,10 @@
+{
+  "name": "CLI contract fixture",
+  "description": "Exercises deterministic headless output without a provider request",
+  "steps": [
+    {
+      "name": "print result",
+      "bash": "printf 'recipe-ok'"
+    }
+  ]
+}

@@ -18,12 +18,14 @@
 
 import { join } from "node:path"
 import { mkdirSync, copyFileSync, chmodSync, writeFileSync } from "node:fs"
+import { buildDefineArgs, resolveBuildMetadata } from "./build-metadata.js"
 
 const ROOT  = join(import.meta.dir, "..")
 const ENTRY = join(ROOT, "packages/cli/src/index.ts")
 const DIST  = join(ROOT, "dist")
 
 mkdirSync(DIST, { recursive: true })
+const metadata = resolveBuildMetadata(ROOT)
 
 // Patch ink's devtools.js to a no-op so react-devtools-core is never imported.
 // ink loads devtools only when process.env.DEV === 'true'; Bun 1.3.x doesn't
@@ -72,6 +74,7 @@ for (const { id, bunTarget, exe } of targets) {
     "--outfile", outFile,
     "--minify",
     "--external", "fsevents",
+    ...buildDefineArgs(metadata),
   ], {
     cwd:    ROOT,
     stdout: "inherit",

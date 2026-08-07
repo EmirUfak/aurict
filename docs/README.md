@@ -4,6 +4,7 @@
 
 - [Getting Started](getting-started.md) — installation, first run, basic usage
 - [Configuration](configuration.md) — config file, environment variables, project instructions
+- [CLI Reference](cli.md) — root commands, strict flags, completion, output schemas, and exit codes
 - [Slash Commands](slash-commands.md) — full reference for all ~55 slash commands
 
 ## Product surfaces

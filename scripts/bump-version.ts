@@ -35,18 +35,8 @@ const PACKAGES = [
 
 const packagesToUpdate = desktopOnly ? ["apps/desktop/package.json"] : PACKAGES
 
-// Source files with hardcoded version strings
+// Product surfaces outside the CLI read package metadata at build/runtime.
 const SOURCE_FILES: Array<{ path: string; pattern: RegExp; replace: string }> = [
-  {
-    path: "packages/cli/src/index.ts",
-    pattern: /Aurict v\d+\.\d+\.\d+/g,
-    replace: `Aurict v${version}`,
-  },
-  {
-    path: "packages/cli/src/util/update-check.ts",
-    pattern: /CURRENT_VERSION = "\d+\.\d+\.\d+"/,
-    replace: `CURRENT_VERSION = "${version}"`,
-  },
   {
     path: "apps/web/src/components/Nav.tsx",
     pattern: /v\d+\.\d+\.\d+ · AGPLv3/,
