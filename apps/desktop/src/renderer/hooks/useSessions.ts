@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SessionInfo, SessionMessage, SessionSearchResult } from '../../shared/ipc-types.js';
+import { useAsyncError } from './useAsyncError.js';
 
 export function useSessions(onSelect: (messages: SessionMessage[]) => void, onNew?: () => void) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SessionSearchResult[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const { error, errorSeq, fail: reportFailure, clear } = useAsyncError();
   const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
 
   const fail = useCallback((reason: unknown, fallback: string, retry: (() => void) | null) => {
-    console.error(fallback, reason);
-    setError(reason instanceof Error ? reason.message : fallback);
+    reportFailure(reason, fallback);
     setRetryAction(() => retry);
-  }, []);
-  const succeed = useCallback(() => { setError(null); setRetryAction(null); }, []);
+  }, [reportFailure]);
+  const succeed = useCallback(() => { clear(); setRetryAction(null); }, [clear]);
 
   const refresh = useCallback(() => {
     window.aurict.session.list().then((next) => { setSessions(next); succeed(); }).catch((reason) => fail(reason, 'Sessions could not be loaded.', refresh));
@@ -68,5 +68,5 @@ export function useSessions(onSelect: (messages: SessionMessage[]) => void, onNe
   }, [onSelect, refresh]);
   const search = useCallback(async (query: string) => { setSearchResults(query.trim() ? await window.aurict.session.search(query) : []); }, []);
 
-  return { sessions, activeId, error, retryAction, refresh, select, create, remove, rename, archive, branch, search, searchResults };
+  return { sessions, activeId, error, errorSeq, retryAction, refresh, select, create, remove, rename, archive, branch, search, searchResults };
 }

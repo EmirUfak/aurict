@@ -110,7 +110,7 @@ export function App() {
       {screen === 'design' && <DesignScreen chat={chat} onLaunched={() => setScreen('main')} userType={onboarding.profile.userType} />}
       {screen === 'finance' && <FinanceScreen />}
       {screen === 'memory' && <MemoryScreen />}
-      {screen === 'settings' && onboarding.profile && <SettingsScreen profile={onboarding.profile} onUpdateProfile={onboarding.update} onResetOnboarding={onboarding.reset} workspace={workdir.workdir} workspaceError={workdir.error} onChooseWorkspace={workdir.choose} />}
+      {screen === 'settings' && onboarding.profile && <SettingsScreen profile={onboarding.profile} onUpdateProfile={onboarding.update} onResetOnboarding={onboarding.reset} workspace={workdir.workdir} workspaceError={workdir.error} workspaceErrorSeq={workdir.errorSeq} onChooseWorkspace={workdir.choose} />}
 
       {permission.current && (
         <ApprovalModal request={permission.current} onRespond={permission.respond} onEnableAutoApproveSafe={() => policy.setAutoAllowSafe(true)} />

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DesignSystemInfo, DesignSkillInfo, DesignOutputInfo, DesignArtifactInfo } from '../../shared/ipc-types.js';
+import { useAsyncError } from './useAsyncError.js';
 
 export function useDesign() {
   const [systems, setSystems] = useState<DesignSystemInfo[]>([]);
@@ -7,7 +8,7 @@ export function useDesign() {
   const [outputs, setOutputs] = useState<DesignOutputInfo[]>([]);
   const [artifacts, setArtifacts] = useState<DesignArtifactInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { error, errorSeq, fail, clear } = useAsyncError();
 
   const refreshOutputs = useCallback(async () => {
     try {
@@ -17,23 +18,22 @@ export function useDesign() {
       ]);
       setOutputs(nextOutputs);
       setArtifacts(nextArtifacts);
-      setError(null);
+      clear();
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : String(reason);
-      setError(message);
+      fail(reason, String(reason));
       throw reason;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clear, fail]);
 
   useEffect(() => {
     void Promise.all([
       window.aurict.design.listSystems().then(setSystems),
       window.aurict.design.listSkills().then(setSkills),
       refreshOutputs(),
-    ]).catch((reason) => setError(reason instanceof Error ? reason.message : String(reason)));
-  }, [refreshOutputs]);
+    ]).catch((reason) => fail(reason, String(reason)));
+  }, [refreshOutputs, fail]);
 
   const createArtifact = useCallback(async (spec: { brief: string; systemId: string; skillId: string; title?: string }) => {
     const launch = await window.aurict.design.createArtifact(spec);
@@ -47,5 +47,5 @@ export function useDesign() {
     return launch;
   }, [refreshOutputs]);
 
-  return { systems, skills, outputs, artifacts, loading, error, refreshOutputs, createArtifact, retryArtifact };
+  return { systems, skills, outputs, artifacts, loading, error, errorSeq, refreshOutputs, createArtifact, retryArtifact };
 }

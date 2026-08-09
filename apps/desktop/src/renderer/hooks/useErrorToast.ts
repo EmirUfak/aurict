@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ToastItem } from '../components/ToastRegion.js';
 
-export function shouldNotify(error: string | null, lastShown: string | null): boolean {
-  return error !== null && error !== lastShown;
+// errorSeq (not the message string) drives re-notification: React skips a
+// useEffect([error]) re-run when the new value equals the old one, so a
+// retry that fails with the identical message would otherwise show no
+// toast at all — see useAsyncError.
+export function shouldNotify(error: string | null, errorSeq: number, lastShownSeq: number | null): boolean {
+  return error !== null && errorSeq !== lastShownSeq;
 }
 
 export function useErrorToast(
   error: string | null,
+  errorSeq: number,
   retry: (() => void) | null,
   showToast: (message: string, tone: ToastItem['tone'], action?: ToastItem['action']) => void,
 ) {
-  const lastShown = useRef<string | null>(null);
-
-  const handleRetry = useCallback(() => {
-    lastShown.current = null;
-    retry?.();
-  }, [retry]);
+  const lastShownSeq = useRef<number | null>(null);
 
   useEffect(() => {
-    if (shouldNotify(error, lastShown.current)) {
-      showToast(error as string, 'error', retry ? { label: 'Retry', onClick: handleRetry } : undefined);
-      lastShown.current = error;
+    if (shouldNotify(error, errorSeq, lastShownSeq.current)) {
+      showToast(error as string, 'error', retry ? { label: 'Retry', onClick: retry } : undefined);
+      lastShownSeq.current = errorSeq;
     }
-    if (!error) lastShown.current = null;
-  }, [error, handleRetry, showToast, retry]);
+    if (!error) lastShownSeq.current = null;
+  }, [error, errorSeq, retry, showToast]);
 }

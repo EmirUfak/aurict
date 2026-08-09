@@ -51,7 +51,7 @@ interface DesignScreenProps {
 export function DesignScreen({ chat, onLaunched, userType }: DesignScreenProps) {
   const design = useDesign();
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
-  useErrorToast(design.error, design.refreshOutputs, showToast);
+  useErrorToast(design.error, design.errorSeq, design.refreshOutputs, showToast);
   const [brief, setBrief] = useState('');
   const [systemId, setSystemId] = useState('');
   const [skillId, setSkillId] = useState('');

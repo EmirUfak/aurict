@@ -25,16 +25,17 @@ interface Props {
   onResetOnboarding: () => Promise<void>;
   workspace: string;
   workspaceError: string | null;
+  workspaceErrorSeq: number;
   onChooseWorkspace: () => Promise<unknown>;
 }
 
-export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, workspace, workspaceError, onChooseWorkspace }: Props) {
+export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, workspace, workspaceError, workspaceErrorSeq, onChooseWorkspace }: Props) {
   const providers = useProviders();
   const policy = usePolicy();
   const agents = useAgents();
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
-  useErrorToast(providers.error, providers.refresh, showToast);
-  useErrorToast(workspaceError, onChooseWorkspace, showToast);
+  useErrorToast(providers.error, providers.errorSeq, providers.refresh, showToast);
+  useErrorToast(workspaceError, workspaceErrorSeq, onChooseWorkspace, showToast);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [keyDraft, setKeyDraft] = useState('');
   const [providerMessage, setProviderMessage] = useState<string | null>(null);

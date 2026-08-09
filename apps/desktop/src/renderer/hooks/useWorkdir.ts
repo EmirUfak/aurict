@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useAsyncError } from './useAsyncError.js';
 
 export function useWorkdir() {
   const [workdir, setWorkdir] = useState('~');
-  const [error, setError] = useState<string | null>(null);
+  const { error, errorSeq, fail, clear } = useAsyncError();
 
   const load = useCallback(() => {
     void window.aurict.workspace.get().then((workspace) => {
       setWorkdir(workspace.path);
-      setError(null);
+      clear();
     }).catch((reason) => {
-      console.error('Failed to load workspace', reason);
-      setError(reason instanceof Error ? reason.message : 'Workspace could not be loaded.');
+      fail(reason, 'Workspace could not be loaded.');
     });
-  }, []);
+  }, [clear, fail]);
 
   useEffect(() => {
     load();
@@ -23,14 +23,13 @@ export function useWorkdir() {
     try {
       const workspace = await window.aurict.workspace.choose();
       if (workspace) setWorkdir(workspace.path);
-      setError(null);
+      clear();
       return workspace;
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : 'Workspace could not be selected.';
-      setError(message);
+      fail(reason, 'Workspace could not be selected.');
       throw reason;
     }
-  }, []);
+  }, [clear, fail]);
 
-  return { workdir, error, choose, reload: load };
+  return { workdir, error, errorSeq, choose, reload: load };
 }
