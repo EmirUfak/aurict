@@ -71,12 +71,13 @@ export const visualCommands: CommandDef[] = [{
       // reaped by /visual --stop.
       detached: true,
       onExit: () => {
-        try { unlinkSync(join(ctx.workdir, PID_FILE)) } catch { /* already gone */ }
+        removePidFile(join(ctx.workdir, PID_FILE), "visual server exit")
       },
     })
 
     // Allow the parent to exit independently of the child.
-    try { (proc as Subprocess<"ignore", "ignore", "ignore">).unref() } catch { /* older bun: no unref */ }
+    try { (proc as Subprocess<"ignore", "ignore", "ignore">).unref() }
+    catch (error) { console.warn(`[aurict] visual server could not detach: ${error instanceof Error ? error.message : String(error)}`) }
 
     const pid = typeof proc.pid === "number" ? proc.pid : -1
     writeRunningServer(ctx.workdir, { pid, port: boundPort })
@@ -151,7 +152,8 @@ function readRunningServer(workdir: string): RunningServer | null {
     if (!Number.isInteger(parsed.pid) || !Number.isInteger(parsed.port)) return null
     if (!isProcessAlive(parsed.pid)) {
       // Stale PID file — clean it up.
-      try { unlinkSync(path) } catch { /* ignore */ }
+      const cleanupError = removePidFile(path, "stale visual server")
+      if (cleanupError) throw new Error(cleanupError)
       return null
     }
     return parsed
@@ -177,14 +179,29 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+function removePidFile(path: string, context: string): string | null {
+  try {
+    unlinkSync(path)
+    return null
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null
+    const message = `${context} PID cleanup failed: ${error instanceof Error ? error.message : String(error)}`
+    console.warn(`[aurict] ${message}`)
+    return message
+  }
+}
+
 function stopRunningServer(workdir: string): CommandResult {
   const existing = readRunningServer(workdir)
   if (!existing) return { type: "text", content: "No running visual server for this project." }
+  let alreadyStopped = false
   try {
     process.kill(existing.pid, "SIGTERM")
-  } catch {
-    // Already gone — fall through and clean up the pid file.
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ESRCH") alreadyStopped = true
+    else return { type: "error", message: `Failed to stop visual server: ${error instanceof Error ? error.message : String(error)}` }
   }
-  try { unlinkSync(pidFilePath(workdir)) } catch { /* ignore */ }
-  return { type: "text", content: "Visual server stopped (PID " + existing.pid + ", port " + existing.port + ")." }
+  const cleanupError = removePidFile(pidFilePath(workdir), "stopped visual server")
+  if (cleanupError) return { type: "error", message: cleanupError }
+  return { type: "text", content: (alreadyStopped ? "Visual server was already stopped" : "Visual server stopped") + " (PID " + existing.pid + ", port " + existing.port + ")." }
 }

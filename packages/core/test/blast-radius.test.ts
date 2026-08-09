@@ -36,7 +36,7 @@ export const helper = () => greet("util")
 })
 
 afterAll(() => {
-  try { rmSync(dir, { recursive: true, force: true }) } catch {}
+  rmSync(dir, { recursive: true, force: true })
 })
 
 function ctx() {

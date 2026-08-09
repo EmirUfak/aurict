@@ -2,6 +2,7 @@
 
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildDefineArgs, resolveBuildMetadata } from './build-metadata.js';
 
 const root = join(import.meta.dir, '..');
 const desktopRoot = join(root, 'apps', 'desktop');
@@ -9,6 +10,7 @@ const resourcesDir = join(desktopRoot, 'resources');
 const outputName = process.platform === 'win32' ? 'aurict-sidecar.exe' : 'aurict-sidecar';
 const output = join(resourcesDir, outputName);
 const target = process.env.AURICT_SIDECAR_TARGET;
+const metadata = resolveBuildMetadata(root);
 
 mkdirSync(resourcesDir, { recursive: true });
 
@@ -20,6 +22,7 @@ const command = [
   // out of the compiled sidecar even when a workspace test dependency is present.
   '--external', 'playwright-core',
   '--external', 'puppeteer-core',
+  ...buildDefineArgs(metadata),
   '--outfile', output,
   ...(target ? ['--target', target] : []),
 ];

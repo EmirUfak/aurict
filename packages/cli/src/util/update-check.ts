@@ -1,8 +1,8 @@
 import { homedir } from "os"
 import { join }    from "path"
 import { readFileSync, writeFileSync, mkdirSync } from "fs"
-
-export const CURRENT_VERSION = "1.2.14"
+export { CURRENT_VERSION } from "../version.js"
+import { CURRENT_VERSION } from "../version.js"
 
 const CACHE_FILE = join(homedir(), ".aurict", ".update-check")
 const CACHE_TTL  = 24 * 60 * 60 * 1_000  // 24 h

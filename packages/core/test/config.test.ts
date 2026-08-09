@@ -133,7 +133,7 @@ describe("loadConfig", () => {
 
   it("fails visibly when the global config is malformed", () => {
     writeFileSync(GLOBAL_PATH, '{not-json', "utf8")
-    expect(() => loadConfig()).toThrow("Failed to read configuration")
+    expect(() => loadConfig()).toThrow("Malformed Aurict configuration")
   })
 })
 
@@ -161,6 +161,8 @@ describe("setApiKey", () => {
     setApiKey("openai", "sk-second")
     const raw = JSON.parse(readFileSync(GLOBAL_PATH, "utf8"))
     expect(raw.providers?.openai?.apiKey).toBe("sk-second")
+    const backup = JSON.parse(readFileSync(`${GLOBAL_PATH}.bak`, "utf8"))
+    expect(backup.providers?.openai?.apiKey).toBe("sk-first")
   })
 
   it("loadConfig reflects the key set by setApiKey (via env var)", () => {

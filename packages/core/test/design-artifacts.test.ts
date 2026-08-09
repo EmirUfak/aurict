@@ -1,17 +1,18 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { designArtifactStore } from '../src/design/artifacts.js'
 
-const testHome = mkdtempSync(join(tmpdir(), 'aurict-design-artifacts-'))
+let testHome: string
 const originalDesignDataDir = process.env.AURICT_DESIGN_DATA_DIR
 
-beforeAll(() => {
+beforeEach(() => {
+  testHome = mkdtempSync(join(tmpdir(), 'aurict-design-artifacts-'))
   process.env.AURICT_DESIGN_DATA_DIR = testHome
 })
 
-afterAll(() => {
+afterEach(() => {
   if (originalDesignDataDir === undefined) delete process.env.AURICT_DESIGN_DATA_DIR
   else process.env.AURICT_DESIGN_DATA_DIR = originalDesignDataDir
   rmSync(testHome, { recursive: true, force: true })

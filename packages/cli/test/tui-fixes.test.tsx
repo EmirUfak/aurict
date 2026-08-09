@@ -9,6 +9,7 @@ import { test, expect, describe } from "bun:test"
 import React from "react"
 import { render } from "ink-testing-library"
 import { Box, Text } from "ink"
+import stringWidth from "string-width"
 import { FullscreenLayout } from "../src/tui/FullscreenLayout.js"
 import { OverlayStack } from "../src/tui/app-shell/OverlayStack.js"
 import { Picker } from "../src/tui/Picker.js"
@@ -53,6 +54,24 @@ function makeCommands(n: number): CommandDef[] {
 }
 
 describe("CommandSuggest windowed scrolling", () => {
+  test("stays within a narrow terminal and preserves Unicode glyphs", async () => {
+    const commands = [{
+      name: "review",
+      description: "Review değişikliklerini satır satır incele",
+      aliases: ["r"],
+    }] as CommandDef[]
+    const r = render(
+      <TerminalSizeContext.Provider value={{ columns: 32, rows: 18 }}>
+        <CommandSuggest filter="rev" commands={commands} isActive onExecute={() => {}} onFill={() => {}} />
+      </TerminalSizeContext.Provider>,
+    )
+    await sleep(20)
+    const lines = (r.lastFrame() ?? "").split("\n")
+    expect(lines.some((line) => line.includes("/review"))).toBe(true)
+    expect(lines.every((line) => stringWidth(line) <= 32)).toBe(true)
+    r.unmount()
+  })
+
   test("down arrow scrolls past the visible window", async () => {
     const cmds = makeCommands(20)
     const r = render(
@@ -208,6 +227,17 @@ describe("Picker wide-glyph rows", () => {
 })
 
 describe("Picker page size", () => {
+  test("does not force a minimum width larger than the terminal", async () => {
+    const r = render(
+      <TerminalSizeContext.Provider value={{ columns: 28, rows: 18 }}>
+        <Picker title="Choose a model" items={[{ id: "m", label: "A very long model label" }]} onSelect={() => {}} onCancel={() => {}} />
+      </TerminalSizeContext.Provider>,
+    )
+    await sleep(20)
+    expect((r.lastFrame() ?? "").split("\n").every((line) => stringWidth(line) <= 28)).toBe(true)
+    r.unmount()
+  })
+
   test("small terminals still show multiple items", async () => {
     const items = Array.from({ length: 8 }, (_, i) => ({ id: `p${i}`, label: `Provider ${i}` }))
     const r = render(

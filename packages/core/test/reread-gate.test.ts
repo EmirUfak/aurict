@@ -17,7 +17,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  try { rmSync(fixtureDir, { recursive: true, force: true }) } catch {}
+  rmSync(fixtureDir, { recursive: true, force: true })
 })
 
 // Re-read gate logic lives inside buildAITools execute closure in loop.ts.

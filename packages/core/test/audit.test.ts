@@ -7,9 +7,7 @@ describe("Audit Logging", () => {
 
   afterEach(() => {
     // Cleanup test log
-    try {
-      rmSync(testLogPath, { force: true })
-    } catch {}
+    rmSync(testLogPath, { force: true })
   })
 
   describe("AuditLogger", () => {

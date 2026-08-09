@@ -1,3 +1,7 @@
 [install]
 linker = "isolated"
 publicHoistPattern = ["@tanstack/virtual-core"]
+
+[test]
+coverageSkipTestFiles = true
+coverageThreshold = { lines = 0.45, functions = 0.30 }

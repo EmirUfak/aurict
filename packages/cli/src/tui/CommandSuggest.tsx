@@ -10,6 +10,7 @@ import {
   commandSearchText,
   commandSortKey,
 } from "../commands/ui-metadata.js"
+import { padDisplayEnd, truncateDisplayWidth } from "./terminal-text/display-width.js"
 
 const MAX_SHOW = 6
 const NAME_WIDTH = 14
@@ -17,8 +18,7 @@ const CATEGORY_WIDTH = 9
 const ALIAS_WIDTH = 14
 
 function fit(text: string, width: number): string {
-  if (width <= 1) return ""
-  return text.length <= width ? text.padEnd(width) : text.slice(0, width - 1) + "…"
+  return padDisplayEnd(truncateDisplayWidth(text, Math.max(0, width)), Math.max(0, width))
 }
 
 interface Props {
@@ -89,6 +89,7 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
   useEffect(() => { idxRef.current = 0; setIdx(0); offsetRef.current = 0 }, [filter])
 
   const { columns: termCols, rows: termRows } = useTerminalSize()
+  const compact = termCols < 72
   const maxShow = termRows <= 26 ? 4 : termRows >= 34 ? 8 : MAX_SHOW
   const allMatches = getCommandMatches(filter, commands)
   const matchCount = allMatches.length
@@ -111,7 +112,8 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
   offsetRef.current = winStart
 
   const visible   = allMatches.slice(winStart, winStart + maxShow)
-  const descWidth = Math.max(16, termCols - NAME_WIDTH - CATEGORY_WIDTH - ALIAS_WIDTH - 14)
+  const descWidth = Math.max(8, termCols - NAME_WIDTH - CATEGORY_WIDTH - ALIAS_WIDTH - 14)
+  const compactWidth = Math.max(4, termCols - 8)
 
   useInput((_char, key) => {
     if (!matchCount) return
@@ -127,7 +129,14 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
   const belowCount = allMatches.length - (winStart + visible.length)
 
   return (
-    <Box flexDirection="column" borderStyle="single" borderColor={theme.borderActive} paddingX={1} marginX={1}>
+    <Box
+      flexDirection="column"
+      borderStyle="single"
+      borderColor={theme.borderActive}
+      paddingX={1}
+      marginX={1}
+      width={Math.max(1, termCols - 2)}
+    >
       <Box gap={1}>
         <Text color={theme.accent} dimColor bold>commands</Text>
         {allMatches.length > maxShow && (
@@ -141,6 +150,14 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
         {visible.map((cmd, i) => {
           const sel = winStart + i === activeIdx
           const category = COMMAND_CATEGORY_META[commandCategory(cmd)]
+          if (compact) {
+            const summary = `${sel ? "›" : " "} ${commandIcon(cmd)} /${cmd.name} · ${cmd.description}`
+            return (
+              <Text key={cmd.name} color={sel ? theme.accent : theme.textDim} bold={sel} wrap="truncate-end">
+                {truncateDisplayWidth(summary, compactWidth)}
+              </Text>
+            )
+          }
           return (
             <Box key={cmd.name}>
               <Box>
@@ -165,7 +182,9 @@ export function CommandSuggest({ filter, commands, isActive, onExecute, onFill }
       {belowCount > 0 && (
         <Text color={theme.textDim} dimColor>  ↓ {belowCount} more - type to narrow</Text>
       )}
-      <Text color={theme.textDim} dimColor>  up/down select  tab fill  enter run  esc close</Text>
+      <Text color={theme.textDim} dimColor wrap="truncate-end">
+        {truncateDisplayWidth("  up/down select  tab fill  enter run  esc close", compactWidth)}
+      </Text>
     </Box>
   )
 }

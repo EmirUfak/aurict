@@ -4,6 +4,7 @@ import { resolve, dirname } from "path"
 import type { ToolDef, ToolContext, ExecuteResult } from "../types.js"
 import { semanticCache } from "../semantic-cache.js"
 import { resolveAuthorizedFilesystemPath } from "../../security/filesystem-grants.js"
+import { observeBackground } from "../../util/background-task.js"
 
 const MAX_CHARS = 100_000
 
@@ -73,7 +74,7 @@ export const readTool: ToolDef = {
     }
 
     // Bağımlılıkları arka planda ön getir (prefetch)
-    semanticCache.triggerPrefetch(filePath, dirname(filePath)).catch(() => {})
+    observeBackground(semanticCache.triggerPrefetch(filePath, dirname(filePath)), `semantic prefetch for ${filePath}`)
 
     const lines  = content.split("\n")
     const offset = typeof args["offset"] === "number" ? args["offset"] - 1 : 0

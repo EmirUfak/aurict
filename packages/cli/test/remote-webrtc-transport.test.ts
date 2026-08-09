@@ -19,8 +19,8 @@ const runningTransports: WebRtcCliTransport[] = []
 const runningPeers: RTCPeerConnection[] = []
 
 afterEach(async () => {
-  for (const t of runningTransports.splice(0)) await t.close().catch(() => {})
-  for (const p of runningPeers.splice(0)) await p.close().catch(() => {})
+  for (const t of runningTransports.splice(0)) await t.close()
+  for (const p of runningPeers.splice(0)) await p.close()
 })
 
 /** A bare werift peer mimicking mobile's (Workstream F) future real answerer. */

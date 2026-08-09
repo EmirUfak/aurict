@@ -4,6 +4,7 @@
 
 - [Getting Started](getting-started.md) — installation, first run, basic usage
 - [Configuration](configuration.md) — config file, environment variables, project instructions
+- [CLI Reference](cli.md) — root commands, strict flags, completion, output schemas, and exit codes
 - [Slash Commands](slash-commands.md) — full reference for all ~55 slash commands
 
 ## Product surfaces
@@ -19,6 +20,7 @@ Detailed product references:
 - [Terminal Design Baseline](terminal-design-baseline.md) — responsive layout, transcript, tool, streaming, and composer contracts
 - [Mobile App](mobile.md) — BYOK mobile assistant behavior, release path, privacy, and reporting
 - [Roadmap](roadmap.md) — current phases, near-term hardening, ecosystem expansion, and research track
+- [Testing and quality gates](testing.md) — isolated suites, coverage, stability, and CI contracts
 - [Security & Compliance](security-and-compliance.md) — current safeguards, limits, and next controls
 
 ## Core features

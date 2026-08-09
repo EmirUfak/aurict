@@ -187,7 +187,9 @@ const GET_PAGE_INFO = `(() => {
           }
         }
       }
-    } catch {}
+    } catch (error) {
+      console.warn('[aurict] stylesheet inspection skipped an unreadable stylesheet', error)
+    }
   }
 
   const metaDesc = document.querySelector('meta[name="description"]')?.getAttribute('content') || ''

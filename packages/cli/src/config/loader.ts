@@ -1,14 +1,16 @@
 import { join } from "path"
-import { readFileSync } from "fs"
 import { coreStatePath } from "@aurict/core/storage/paths"
 import { loadConfig as loadOmniConfig } from "@aurict/core/config"
+import { readJsonFileSync } from "@aurict/core/storage/persisted-json"
 import type { AurictConfig } from "./types.js"
 import type { OmniConfig } from "@aurict/core/config"
 
 function readJSON(path: string): Partial<AurictConfig> {
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as Partial<AurictConfig>
-  } catch { return {} }
+  return readJsonFileSync<Partial<AurictConfig>>(path, {
+    optional: true,
+    description: "Aurict CLI configuration",
+    validate: (value): value is Partial<AurictConfig> => Boolean(value && typeof value === "object" && !Array.isArray(value)),
+  }) ?? {}
 }
 
 // Load priority: global < project < CLI flags (last one wins)
@@ -52,8 +54,6 @@ function normalizeCliConfig(omni: OmniConfig, raw: AurictConfig): AurictConfig {
   return cfg
 }
 
-// ─── CLI flag parser ──────────────────────────────────────────────────────────
-
 export interface CLIFlags {
   provider?: string
   model?:    string
@@ -63,25 +63,6 @@ export interface CLIFlags {
   help?:     boolean
   undercover?: boolean
   ipcServer?: boolean
-}
-
-export function parseFlags(argv = process.argv.slice(2)): CLIFlags {
-  const flags: CLIFlags = {}
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]!
-    switch (arg) {
-      case "--provider": case "-p": { const v = argv[++i]; if (v !== undefined) flags.provider = v; break }
-      case "--model":    case "-m": { const v = argv[++i]; if (v !== undefined) flags.model    = v; break }
-      case "--system":   case "-s": { const v = argv[++i]; if (v !== undefined) flags.system   = v; break }
-      case "--undercover": flags.undercover = true; break
-      case "--stream":              flags.stream   = true;       break
-      case "--no-stream":           flags.stream   = false;      break
-      case "--version":  case "-v": flags.version  = true;       break
-      case "--help":     case "-h": flags.help     = true;       break
-      case "--ipc-server":          flags.ipcServer = true;      break
-    }
-  }
-  return flags
 }
 
 export function applyFlags(cfg: AurictConfig, flags: CLIFlags): AurictConfig {

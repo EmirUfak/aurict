@@ -4,6 +4,14 @@
 
 Aurict stores human-editable global config in `~/.aurict/config.json`. Runtime data such as sessions and memories may use `~/.aurict/aurict.db`.
 
+JSON state writes for configuration, permissions, checkpoints, plain-file keys,
+and remote session state use a temporary file plus atomic replacement. Sensitive
+files use mode `0600` on Unix. Existing configuration, permission, and checkpoint
+files receive a `.bak` copy before replacement. Aurict distinguishes a missing
+optional file from malformed or structurally invalid JSON: corruption is reported
+instead of silently starting with empty state. Recovery from `.bak` is explicit;
+Aurict does not automatically hide the damaged primary file.
+
 ```
 ~/.aurict/
 ├── config.json        # global provider/default/security config

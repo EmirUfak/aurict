@@ -1,6 +1,6 @@
 {
   "name": "@aurict/core",
-  "version": "1.2.14",
+  "version": "1.2.15",
   "private": false,
   "type": "module",
   "description": "Aurict core engine — agent loop, tools, sessions, providers",
@@ -21,7 +21,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./config": "./src/config/config.ts",
-    "./storage/paths": "./src/storage/paths.ts"
+    "./storage/paths": "./src/storage/paths.ts",
+    "./storage/persisted-json": "./src/storage/persisted-json.ts"
   },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",

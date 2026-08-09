@@ -11,6 +11,7 @@ import {
   commandSearchText,
   commandSortKey,
 } from "../commands/ui-metadata.js"
+import { padDisplayEnd, truncateDisplayWidth } from "./terminal-text/display-width.js"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,13 +46,11 @@ function score(cmd: CommandDef, query: string): number {
 }
 
 function clip(text: string, width: number): string {
-  if (text.length <= width) return text
-  if (width <= 1) return "…"
-  return `${text.slice(0, width - 1)}…`
+  return truncateDisplayWidth(text, Math.max(0, width))
 }
 
 function padClip(text: string, width: number): string {
-  return clip(text, width).padEnd(width, " ")
+  return padDisplayEnd(clip(text, width), Math.max(0, width))
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -62,8 +61,8 @@ export function CommandPalette({ commands, recentCommands, onSelect, onClose }: 
   const [query, setQuery]   = useState("")
   const [cursor, setCursor] = useState(0)
   const compact = rows <= 26 || columns < 88
-  const paletteWidth = Math.max(48, columns - 4)
-  const contentWidth = paletteWidth - 4
+  const paletteWidth = Math.max(1, Math.min(88, columns - 2))
+  const contentWidth = Math.max(1, paletteWidth - 4)
   const maxResults = compact ? 2 : 8
 
   const results = useMemo(() => {

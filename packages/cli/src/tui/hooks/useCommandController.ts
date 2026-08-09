@@ -12,6 +12,7 @@ import { THEMES } from "../../utils/theme.js";
 import {
   getCommand,
   parseSlashCommand,
+  suggestCommands,
 } from "../../commands/registry.js";
 import type { CommandResult, PickerItem } from "../../commands/types.js";
 import type { DisplayMessage } from "../conversation/types.js";
@@ -302,7 +303,7 @@ export function useCommandController(params: AppCommandParams) {
   const applyResult = useCallback((result: CommandResult) => {
     switch (result.type) {
       case "text":
-        params.addSystemMsg(result.content);
+        if (result.content.trim()) params.addSystemMsg(result.content);
         break;
       case "error":
         params.setMessages((messages) => [
@@ -342,25 +343,39 @@ export function useCommandController(params: AppCommandParams) {
   }, [params]);
 
   const executeCommand = useCallback((raw: string): boolean => {
-    const parsed = parseSlashCommand(raw);
+    let parsed: ReturnType<typeof parseSlashCommand>;
+    try {
+      parsed = parseSlashCommand(raw);
+    } catch (error) {
+      applyResult({
+        type: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return true;
+    }
     if (!parsed) return false;
     const command = getCommand(parsed.cmd);
     if (!command) {
-      params.addSystemMsg(
-        `Unknown command: /${parsed.cmd}  —  type /help to see all commands`,
-      );
+      const suggestions = suggestCommands(parsed.cmd);
+      const hint = suggestions.length > 0
+        ? ` Did you mean ${suggestions.map((name) => `/${name}`).join(", ")}?`
+        : " Type /help to see all commands.";
+      applyResult({ type: "error", message: `Unknown command: /${parsed.cmd}.${hint}` });
       return true;
     }
     const result = command.handler(parsed.args, buildContext());
     if (result instanceof Promise) {
       result
         .then(applyResult)
-        .catch((error) => params.addSystemMsg(`[error] ${String(error)}`));
+        .catch((error) => applyResult({
+          type: "error",
+          message: error instanceof Error ? error.message : String(error),
+        }));
     } else {
       applyResult(result);
     }
     return true;
-  }, [buildContext, applyResult, params.addSystemMsg]);
+  }, [buildContext, applyResult]);
 
   const handleCmdExecute = useCallback((name: string) => {
     params.skipSubmitRef.current = true;

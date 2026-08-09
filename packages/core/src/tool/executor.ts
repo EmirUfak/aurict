@@ -12,6 +12,7 @@ import { truncateOutput, resolveTruncationConfig } from "./truncation.js";
 import { storeToolOutputArtifact } from "./output-artifacts.js";
 import { toolResultCache } from "./cache.js";
 import { metrics } from "../util/metrics.js";
+import { observeBackground, reportBackgroundError } from "../util/background-task.js";
 import {
   shouldRunTsc,
 } from "../verification/tsc.js";
@@ -671,7 +672,7 @@ export async function executeTool(
     ctx.signal.removeEventListener("abort", mirrorFn);
     if (fileLockAcquired) {
       const absLockPath = resolve(ctx.workdir, lockTargetPath);
-      releaseFileLock(ctx.workdir, absLockPath, ctx.sessionId).catch(() => {});
+      observeBackground(releaseFileLock(ctx.workdir, absLockPath, ctx.sessionId), `file lock release for ${absLockPath}`);
     }
   }
 
@@ -722,16 +723,14 @@ export async function executeTool(
     try {
       const hints = extractPrefetchHints(def.id, args, result.output);
       for (const hint of hints) {
-        prefetchManager
-          .prefetch({
+        observeBackground(prefetchManager.prefetch({
             hint,
             data: { ...args, result: result.output },
             workdir: ctx.workdir,
-          })
-          .catch(() => {}); // Prefetch hatası tool sonucunu engellemez
+          }), `predictive prefetch for ${hint}`);
       }
-    } catch {
-      // Prefetch hatası tool sonucunu engellemez
+    } catch (error) {
+      reportBackgroundError("predictive prefetch scheduling", error);
     }
   }
 
@@ -1006,14 +1005,14 @@ export async function executeTool(
         `\n\n[Strategy] This failure pattern repeated ${cooldown.count} times. Do not retry the same command or edit pattern; inspect context and use a different strategy.`,
     };
   }
-  recordRunTrace(ctx.workdir, ctx.sessionId, "tool_result_distilled", {
+  observeBackground(recordRunTrace(ctx.workdir, ctx.sessionId, "tool_result_distilled", {
     tool: def.id,
     status: distilled.status,
     changedFiles: distilled.changedFiles,
     errors: distilled.errors,
     verification: distilled.verification,
     cooldown,
-  }).catch(() => {});
+  }), `distilled tool trace for ${def.id}`);
   if (result.error) {
     const replay = flightReplayPolicy(def, args);
     try {
@@ -1048,7 +1047,7 @@ export async function executeTool(
   await withTimeout(
     hooks.emitWithOutcome("v1.tool.after", afterPayload, outcome, durationMs),
     HOOK_TIMEOUT_MS,
-  ).catch(() => {});
+  ).catch((error) => reportBackgroundError(`v1.tool.after hook for ${def.id}`, error));
   const after = afterPayload;
 
   if (outcome === "error") {
@@ -1061,7 +1060,7 @@ export async function executeTool(
         durationMs,
       }),
       HOOK_TIMEOUT_MS,
-    ).catch(() => {});
+    ).catch((error) => reportBackgroundError(`v1.tool.error hook for ${def.id}`, error));
     // Persist to .aurict/diagnostics/ for cross-session awareness
     try {
       diagnosticsStore.record(ctx.workdir, {
@@ -1069,8 +1068,8 @@ export async function executeTool(
         tool: def.id,
         error: errMsg.slice(0, 300),
       });
-    } catch {
-      /* diagnostics failure must never break tool execution */
+    } catch (error) {
+      reportBackgroundError(`tool diagnostics persistence for ${def.id}`, error);
     }
   }
 

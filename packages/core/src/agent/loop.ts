@@ -21,6 +21,7 @@ import { skillScoreStore } from "../skill/score-store.js"
 import { ProviderFallback, NonRetryableStreamError } from "../provider/fallback.js"
 import { ModelRouter } from "../provider/router.js"
 import { metrics } from "../util/metrics.js"
+import { observeBackground, reportBackgroundError } from "../util/background-task.js"
 import { extractText } from "../session/context-compactor.js"
 import type { AgentRunOptions, AgentFinishResult, TokenBreakdown } from "./types.js"
 import {
@@ -476,18 +477,18 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
   })
   opts.onPromptCacheHealth?.(cacheHealth)
   if (sessionId) {
-    recordRunTrace(workdir, sessionId, "prompt_sections", {
+    observeBackground(recordRunTrace(workdir, sessionId, "prompt_sections", {
       tier: promptTier.tier,
       sections: tieredSystemSections.map(section => ({ name: section.name, cache: section.cache, chars: section.content.length })),
       cacheHealth,
-    }).catch(() => {})
+    }), `prompt section trace for ${sessionId}`)
     const canonicalState = tieredSystemSections.find(section => section.name === "canonical_agent_state")
     if (canonicalState) {
-      recordRunTrace(workdir, sessionId, "canonical_agent_state", {
+      observeBackground(recordRunTrace(workdir, sessionId, "canonical_agent_state", {
         chars: canonicalState.content.length,
         workingSetItems: workingSet.items.length,
         activeSkill: getSkillLifecycleSnapshot(sessionId).active?.skillId ?? null,
-      }).catch(() => {})
+      }), `canonical state trace for ${sessionId}`)
     }
   }
 
@@ -1206,27 +1207,31 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
       metrics.recordError("resume_state_write")
       throw new Error(`Failed to persist session resume state '${sessionId}'.`, { cause: error })
     }
-    recordRunTrace(workdir, sessionId, "completion_gate", completionGate as unknown as Record<string, unknown>).catch(() => {})
-    recordRunTrace(workdir, sessionId, "long_task", {
+    observeBackground(recordRunTrace(workdir, sessionId, "completion_gate", completionGate as unknown as Record<string, unknown>), `completion gate trace for ${sessionId}`)
+    observeBackground(recordRunTrace(workdir, sessionId, "long_task", {
       decision: longTask,
       ledger: taskLedger,
-    }).catch(() => {})
-    recordRunTrace(workdir, sessionId, "working_set", {
+    }), `long task trace for ${sessionId}`)
+    observeBackground(recordRunTrace(workdir, sessionId, "working_set", {
       items: finalWorkingSet.items.slice(0, 12),
       updatedAt: finalWorkingSet.updatedAt,
-    }).catch(() => {})
-    recordRunTrace(workdir, sessionId, "completion_proof", {
+    }), `working set trace for ${sessionId}`)
+    observeBackground(recordRunTrace(workdir, sessionId, "completion_proof", {
       status: completionProof.status,
       evidenceCount: completionProof.evidenceCount,
       criteria: completionProof.criteria.map((criterion) => ({ id: criterion.id, status: criterion.status })),
-    }).catch(() => {})
+    }), `completion proof trace for ${sessionId}`)
   }
 
   opts.onFinish?.(finish)
 
   // Agent başarıyla tamamlandı — aktif skill'lerin success skorunu artır (fire-and-forget)
   if (fullText && projectSkills.length > 0) {
-    try { skillScoreStore.recordSuccess(workdir, projectSkills.map((s) => s.id)) } catch { /* optional */ }
+    try {
+      skillScoreStore.recordSuccess(workdir, projectSkills.map((s) => s.id))
+    } catch (error) {
+      reportBackgroundError("skill success score persistence", error)
+    }
   }
 
   // ─── Faz 3: Per-turn memory extraction ──────────────────────────────────────
@@ -1242,7 +1247,10 @@ async function runAgentScoped(opts: AgentRunOptions, cfg: OmniConfig): Promise<A
       [...messages, ...newMessages],
       workdir,
       utilityModel,
-    ).catch(() => metrics.recordError("memory_extract"))
+    ).catch((error) => {
+      metrics.recordError("memory_extract")
+      reportBackgroundError("per-turn memory extraction", error)
+    })
   }
 
   return finish

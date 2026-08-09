@@ -165,7 +165,7 @@ curl -fsSL https://aurict.com/install.sh | bash
 Install a specific release or choose another directory by passing variables to `bash`:
 
 ```bash
-curl -fsSL https://aurict.com/install.sh | AURICT_INSTALL_VERSION=1.2.0 AURICT_INSTALL_DIR=/path/to/bin bash
+curl -fsSL https://aurict.com/install.sh | AURICT_INSTALL_VERSION=1.2.15 AURICT_INSTALL_DIR=/path/to/bin bash
 ```
 
 ### Compile from source
@@ -209,6 +209,9 @@ aurict
 # Pipe mode — non-interactive single query
 echo "What does this function do?" | aurict
 
+# Machine-readable pipe result
+echo "Summarize this repository" | aurict --format json --audience agent
+
 # Open a specific directory
 cd ~/projects/myapp && aurict
 
@@ -217,6 +220,10 @@ aurict doctor
 
 # Run an automated recipe
 aurict run recipe.yaml
+
+# Inspect build provenance or install shell completion
+aurict version --json
+aurict completion zsh
 ```
 
 ### CLI Flags
@@ -227,10 +234,17 @@ aurict [options]
   -p, --provider <id>    Provider to use (anthropic, openai, openrouter, google, ollama)
   -m, --model <id>       Model to use
   -s, --system <text>    System prompt override
-      --undercover        Hide AI identity in responses
+      --undercover       Hide AI identity in responses
+      --stream           Enable streaming
+      --no-stream        Disable streaming
+      --format <mode>    Output format: text or json
+      --audience <type>  Output audience: human or agent
+  -q, --quiet            Suppress non-essential diagnostics
   -v, --version          Print version
   -h, --help             Show help
 ```
+
+Root commands and versioned output contracts are documented in [docs/cli.md](docs/cli.md).
 
 ---
 
@@ -491,10 +505,17 @@ aurict/
 bun run test
 
 # Core only
-bun test packages/core/test/*.test.ts
+bun run test:core
 
-# TUI only
-bun test packages/cli/test/*.test.tsx
+# CLI and terminal tests
+bun run test:cli
+
+# Desktop tests
+bun run test:desktop
+
+# Coverage and randomized repeat gates
+bun run test:coverage
+bun run test:stability
 
 # Single file
 bun test packages/core/test/classifier.test.ts
@@ -504,7 +525,8 @@ bun run eval -- --list
 bun run eval -- --json
 ```
 
-Test coverage includes: bash classifier, token counting, permission system, context compaction,
+Each suite runs with isolated state under the operating-system temporary directory; tests do not
+write to the user's Aurict state. Test coverage includes: bash classifier, token counting, permission system, context compaction,
 sandbox detection, agent pool, HTTP server auth, and TUI components (Spinner, Markdown,
 StatusBar, StartupBanner).
 

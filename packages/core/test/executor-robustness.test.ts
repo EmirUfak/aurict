@@ -28,7 +28,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  try { rmSync(dir, { recursive: true, force: true }) } catch {}
+  rmSync(dir, { recursive: true, force: true })
 })
 
 function ctx(extra: Record<string, unknown> = {}) {

@@ -48,6 +48,11 @@ interface TargetFileInfo {
   functionParamCounts: Map<string, { min: number; max: number }>
 }
 
+function isMissingPath(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error
+    && (error.code === "ENOENT" || error.code === "ENOTDIR"))
+}
+
 async function parseTargetFile(filePath: string): Promise<TargetFileInfo | null> {
   try {
     const content = await Bun.file(filePath).text()
@@ -98,8 +103,9 @@ async function parseTargetFile(filePath: string): Promise<TargetFileInfo | null>
     })
 
     return { exportedNames, functionParamCounts }
-  } catch {
-    return null
+  } catch (error) {
+    if (isMissingPath(error)) return null
+    throw error
   }
 }
 
@@ -116,7 +122,9 @@ async function resolveModulePath(importPath: string, fromDir: string): Promise<s
     try {
       await stat(p)
       return p
-    } catch {}
+    } catch (error) {
+      if (!isMissingPath(error)) throw error
+    }
   }
 
   for (const indexFile of indexFiles) {
@@ -124,7 +132,9 @@ async function resolveModulePath(importPath: string, fromDir: string): Promise<s
     try {
       await stat(p)
       return p
-    } catch {}
+    } catch (error) {
+      if (!isMissingPath(error)) throw error
+    }
   }
 
   return null

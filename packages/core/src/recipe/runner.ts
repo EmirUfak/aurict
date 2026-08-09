@@ -183,8 +183,7 @@ async function runBashStep(
   workdir: string,
 ): Promise<{ output: string; error?: string }> {
   try {
-    const { spawn } = await import("bun")
-    const proc   = spawn(["sh", "-c", command], { cwd: workdir, stdout: "pipe", stderr: "pipe" })
+    const proc   = Bun.spawn(["sh", "-c", command], { cwd: workdir, stdout: "pipe", stderr: "pipe" })
     const stdout = await new Response(proc.stdout).text()
     const stderr = await new Response(proc.stderr).text()
     const code   = await proc.exited

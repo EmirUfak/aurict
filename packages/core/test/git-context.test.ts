@@ -55,8 +55,8 @@ export const x = 1
 })
 
 afterAll(() => {
-  try { rmSync(repoDir,  { recursive: true, force: true }) } catch {}
-  try { rmSync(noGitDir, { recursive: true, force: true }) } catch {}
+  rmSync(repoDir,  { recursive: true, force: true })
+  rmSync(noGitDir, { recursive: true, force: true })
 })
 
 function ctx(workdir: string) {

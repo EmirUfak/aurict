@@ -429,71 +429,77 @@ export interface AurictWindowApi {
 // Every line written to the sidecar's stdin / read from its stdout is exactly
 // one JSON object matching one of these shapes.
 
+// requestId correlates a command with its result: the desktop side
+// generates one per request and the sidecar echoes it back unchanged.
+// Commands/results with no response (chat:submit, remote:status, etc.)
+// don't need one — only request/response pairs that go through the
+// pending-request registry do.
+
 export type SidecarCommand =
   | { type: 'chat:submit'; payload: ChatSubmitPayload }
   | { type: 'chat:cancel'; turnId: string }
   | { type: 'permission:respond'; id: string; decision: PermissionDecision }
-  | { type: 'provider:list' }
+  | { type: 'provider:list'; requestId: string }
   | { type: 'provider:set-key'; providerId: string; apiKey: string }
   | { type: 'provider:set-custom'; id: string; def: CustomProviderDef }
-  | { type: 'session:list' }
-  | { type: 'session:select'; id: string }
-  | { type: 'session:new' }
-  | { type: 'session:rename'; id: string; title: string }
-  | { type: 'session:archive'; id: string; archived: boolean }
-  | { type: 'session:branch'; id: string }
-  | { type: 'session:search'; query: string }
-  | { type: 'session:delete'; id: string }
-  | { type: 'skills:list' }
-  | { type: 'skills:install'; url: string }
-  | { type: 'skills:uninstall'; id: string }
-  | { type: 'model:list'; providerId: string }
-  | { type: 'model:get-current' }
+  | { type: 'session:list'; requestId: string }
+  | { type: 'session:select'; id: string; requestId: string }
+  | { type: 'session:new'; requestId: string }
+  | { type: 'session:rename'; id: string; title: string; requestId: string }
+  | { type: 'session:archive'; id: string; archived: boolean; requestId: string }
+  | { type: 'session:branch'; id: string; requestId: string }
+  | { type: 'session:search'; query: string; requestId: string }
+  | { type: 'session:delete'; id: string; requestId: string }
+  | { type: 'skills:list'; requestId: string }
+  | { type: 'skills:install'; url: string; requestId: string }
+  | { type: 'skills:uninstall'; id: string; requestId: string }
+  | { type: 'model:list'; providerId: string; requestId: string }
+  | { type: 'model:get-current'; requestId: string }
   | { type: 'model:select'; providerId: string; modelId: string }
-  | { type: 'agents:list' }
-  | { type: 'design:list-systems' }
-  | { type: 'design:list-skills' }
-  | { type: 'design:match'; brief: string }
-  | { type: 'design:build-prompt'; brief: string; systemId: string; skillId: string }
-  | { type: 'design:artifact:list' }
-  | { type: 'design:artifact:create'; brief: string; systemId: string; skillId: string; title?: string }
-  | { type: 'design:artifact:retry'; id: string }
-  | { type: 'memory:list' }
-  | { type: 'memory:add'; content: string; category: MemoryCategory; scope: MemoryScope }
-  | { type: 'memory:remove'; id: string }
-  | { type: 'memory:clear'; scope?: MemoryScope }
-  | { type: 'finance:calculate'; request: FinanceCalculationRequest }
+  | { type: 'agents:list'; requestId: string }
+  | { type: 'design:list-systems'; requestId: string }
+  | { type: 'design:list-skills'; requestId: string }
+  | { type: 'design:match'; brief: string; requestId: string }
+  | { type: 'design:build-prompt'; brief: string; systemId: string; skillId: string; requestId: string }
+  | { type: 'design:artifact:list'; requestId: string }
+  | { type: 'design:artifact:create'; brief: string; systemId: string; skillId: string; title?: string; requestId: string }
+  | { type: 'design:artifact:retry'; id: string; requestId: string }
+  | { type: 'memory:list'; requestId: string }
+  | { type: 'memory:add'; content: string; category: MemoryCategory; scope: MemoryScope; requestId: string }
+  | { type: 'memory:remove'; id: string; requestId: string }
+  | { type: 'memory:clear'; scope?: MemoryScope; requestId: string }
+  | { type: 'finance:calculate'; request: FinanceCalculationRequest; requestId: string }
   | { type: 'remote:action'; action: 'login' | 'start' | 'stop' | 'logout' | 'status' };
 
 export type SidecarMessage =
   | { type: 'chat:event'; event: ChatEvent }
   | { type: 'permission:request'; request: PermissionRequestPayload }
-  | { type: 'provider:list-result'; providers: ProviderInfo[] }
-  | { type: 'session:list-result'; sessions: SessionInfo[] }
-  | { type: 'session:select-result'; messages: SessionMessage[] }
-  | { type: 'session:new-result'; id: string }
-  | { type: 'session:rename-result'; id: string; title: string }
-  | { type: 'session:archive-result'; id: string; archived: boolean }
-  | { type: 'session:branch-result'; id: string; messages: SessionMessage[] }
-  | { type: 'session:search-result'; results: SessionSearchResult[] }
-  | { type: 'session:delete-result'; id: string; wasActive: boolean }
-  | { type: 'skills:list-result'; skills: SkillInfo[] }
-  | { type: 'skills:install-result'; result: { id: string; name: string } | { error: string } }
-  | { type: 'skills:uninstall-result'; ok: boolean }
-  | { type: 'model:list-result'; models: ModelInfo[] }
-  | { type: 'model:list-error'; message: string }
-  | { type: 'model:current-result'; providerId: string; modelId: string }
-  | { type: 'agents:list-result'; agents: SessionAgentInfo[] }
-  | { type: 'design:list-systems-result'; systems: DesignSystemInfo[] }
-  | { type: 'design:list-skills-result'; skills: DesignSkillInfo[] }
-  | { type: 'design:match-result'; match: DesignMatchResult }
-  | { type: 'design:build-prompt-result'; prompt: string; outputDir: string }
-  | { type: 'design:artifact:list-result'; artifacts: DesignArtifactInfo[] }
-  | { type: 'design:artifact:create-result'; result: DesignArtifactLaunch }
-  | { type: 'design:artifact:retry-result'; result: DesignArtifactLaunch }
-  | { type: 'memory:list-result'; memories: MemoryInfo[] }
-  | { type: 'memory:add-result'; memory: MemoryInfo }
-  | { type: 'memory:remove-result'; ok: boolean }
-  | { type: 'memory:clear-result'; removed: number }
-  | { type: 'finance:calculate-result'; result?: FinanceCalculationResult; error?: string }
+  | { type: 'provider:list-result'; providers: ProviderInfo[]; requestId: string }
+  | { type: 'session:list-result'; sessions: SessionInfo[]; requestId: string }
+  | { type: 'session:select-result'; messages: SessionMessage[]; requestId: string }
+  | { type: 'session:new-result'; id: string; requestId: string }
+  | { type: 'session:rename-result'; id: string; title: string; requestId: string }
+  | { type: 'session:archive-result'; id: string; archived: boolean; requestId: string }
+  | { type: 'session:branch-result'; id: string; messages: SessionMessage[]; requestId: string }
+  | { type: 'session:search-result'; results: SessionSearchResult[]; requestId: string }
+  | { type: 'session:delete-result'; id: string; wasActive: boolean; requestId: string }
+  | { type: 'skills:list-result'; skills: SkillInfo[]; requestId: string }
+  | { type: 'skills:install-result'; result: { id: string; name: string } | { error: string }; requestId: string }
+  | { type: 'skills:uninstall-result'; ok: boolean; requestId: string }
+  | { type: 'model:list-result'; models: ModelInfo[]; requestId: string }
+  | { type: 'model:list-error'; message: string; requestId: string }
+  | { type: 'model:current-result'; providerId: string; modelId: string; requestId: string }
+  | { type: 'agents:list-result'; agents: SessionAgentInfo[]; requestId: string }
+  | { type: 'design:list-systems-result'; systems: DesignSystemInfo[]; requestId: string }
+  | { type: 'design:list-skills-result'; skills: DesignSkillInfo[]; requestId: string }
+  | { type: 'design:match-result'; match: DesignMatchResult; requestId: string }
+  | { type: 'design:build-prompt-result'; prompt: string; outputDir: string; requestId: string }
+  | { type: 'design:artifact:list-result'; artifacts: DesignArtifactInfo[]; requestId: string }
+  | { type: 'design:artifact:create-result'; result: DesignArtifactLaunch; requestId: string }
+  | { type: 'design:artifact:retry-result'; result: DesignArtifactLaunch; requestId: string }
+  | { type: 'memory:list-result'; memories: MemoryInfo[]; requestId: string }
+  | { type: 'memory:add-result'; memory: MemoryInfo; requestId: string }
+  | { type: 'memory:remove-result'; ok: boolean; requestId: string }
+  | { type: 'memory:clear-result'; removed: number; requestId: string }
+  | { type: 'finance:calculate-result'; result?: FinanceCalculationResult; error?: string; requestId: string }
   | { type: 'remote:status'; status: string; message: string; email?: string; sessionId?: string; verificationUriComplete?: string; userCode?: string };

@@ -55,7 +55,7 @@ export async function acquireFileLock(
   ttlMs = DEFAULT_TTL_MS,
 ): Promise<boolean> {
   const path = lockPathFor(workdir, filePath)
-  await mkdir(lockDir(workdir), { recursive: true }).catch(() => {})
+  await mkdir(lockDir(workdir), { recursive: true })
 
   const now = Date.now()
   const info: FileLockInfo = { agentId, sessionId, acquiredAt: now, expiresAt: now + ttlMs }

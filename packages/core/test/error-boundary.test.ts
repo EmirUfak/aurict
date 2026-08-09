@@ -142,9 +142,7 @@ describe("Error Boundary & Recovery", () => {
       const fn = async () => { throw new Error("fail") }
 
       for (let i = 0; i < 3; i++) {
-        try {
-          await breaker.execute(fn)
-        } catch {}
+        await expect(breaker.execute(fn)).rejects.toThrow("fail")
       }
 
       expect(breaker.getState()).toBe("open")
@@ -155,9 +153,7 @@ describe("Error Boundary & Recovery", () => {
       const fn = async () => { throw new Error("fail") }
 
       for (let i = 0; i < 2; i++) {
-        try {
-          await breaker.execute(fn)
-        } catch {}
+        await expect(breaker.execute(fn)).rejects.toThrow("fail")
       }
 
       await expect(breaker.execute(async () => "success")).rejects.toThrow("Circuit breaker is open")
@@ -168,9 +164,7 @@ describe("Error Boundary & Recovery", () => {
       const fn = async () => { throw new Error("fail") }
 
       for (let i = 0; i < 2; i++) {
-        try {
-          await breaker.execute(fn)
-        } catch {}
+        await expect(breaker.execute(fn)).rejects.toThrow("fail")
       }
 
       expect(breaker.getState()).toBe("open")
@@ -186,9 +180,7 @@ describe("Error Boundary & Recovery", () => {
     it("resets on success", async () => {
       const breaker = new CircuitBreaker(3, 1000)
       
-      try {
-        await breaker.execute(async () => { throw new Error("fail") })
-      } catch {}
+      await expect(breaker.execute(async () => { throw new Error("fail") })).rejects.toThrow("fail")
 
       expect(breaker.getFailureCount()).toBe(1)
 
@@ -201,9 +193,7 @@ describe("Error Boundary & Recovery", () => {
       const fn = async () => { throw new Error("fail") }
 
       for (let i = 0; i < 2; i++) {
-        try {
-          await breaker.execute(fn)
-        } catch {}
+        await expect(breaker.execute(fn)).rejects.toThrow("fail")
       }
 
       expect(breaker.getState()).toBe("open")
