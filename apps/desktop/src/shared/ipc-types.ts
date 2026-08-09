@@ -124,6 +124,11 @@ export interface WorkspaceInfo {
 export interface SidecarStatus {
   connected: boolean;
   message?: string;
+  // Set only when the main process has exhausted its automatic 1s/2s/4s
+  // reconnect attempts and is waiting on a manual retry. Screens use this
+  // (not every transient blip) to decide when a stale, silently-broken
+  // request deserves its own error toast.
+  giveUp?: boolean;
 }
 export interface RemoteStatus { status: string; message: string; email?: string; sessionId?: string; verificationUriComplete?: string; userCode?: string; }
 

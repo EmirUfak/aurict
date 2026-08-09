@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SessionInfo, SessionMessage, SessionSearchResult } from '../../shared/ipc-types.js';
 import { useAsyncError } from './useAsyncError.js';
+import { useSidecarGiveUp } from './useSidecarGiveUp.js';
 
 export function useSessions(onSelect: (messages: SessionMessage[]) => void, onNew?: () => void) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -20,6 +21,7 @@ export function useSessions(onSelect: (messages: SessionMessage[]) => void, onNe
   }, [fail, succeed]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  useSidecarGiveUp(refresh);
 
   // select/remove: safe to retry (re-opening or re-deleting the same id is
   // harmless). create: NOT offered a retry action — retrying blindly could

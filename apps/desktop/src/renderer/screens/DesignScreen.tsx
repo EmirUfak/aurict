@@ -267,7 +267,7 @@ export function DesignScreen({ chat, onLaunched, userType }: DesignScreenProps) 
             </button>
           </div>
           {matching && <div aria-live="polite" role="status" style={{ marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-subtle)' }}>Matching a workflow and visual system…</div>}
-          <ModelSelector />
+          <ModelSelector showToast={showToast} />
         </div>
       </div>
 

@@ -195,7 +195,7 @@ function startSidecar(): void {
 function scheduleSidecarRestart(): void {
   if (isQuitting || runtimeSuspended || restartTimer) return;
   if (restartAttempts >= 3) {
-    setRuntimeStatus({ connected: false, message: 'failed to reconnect after 3 attempts — click retry to try again' });
+    setRuntimeStatus({ connected: false, message: 'failed to reconnect after 3 attempts — click retry to try again', giveUp: true });
     return;
   }
   const delay = 1_000 * 2 ** restartAttempts;

@@ -85,6 +85,7 @@ export function MainScreen({ permission, chat, sessions, workdir, userType }: Ma
   useErrorToast(providers.error, providers.errorSeq, providers.refresh, showToast);
   useErrorToast(fileTree.error, fileTree.errorSeq, fileTree.refresh, showToast);
   useErrorToast(workdir.error, workdir.errorSeq, workdir.reload, showToast);
+  useErrorToast(agents.error, agents.errorSeq, agents.refresh, showToast);
   const profileCopy = PROFILE_COPY[userType === 'designer' ? 'developer' : userType];
   const activeSession = sessions.sessions.find((session) => session.id === sessions.activeId) ?? null;
 

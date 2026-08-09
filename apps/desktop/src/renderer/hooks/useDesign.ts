@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DesignSystemInfo, DesignSkillInfo, DesignOutputInfo, DesignArtifactInfo } from '../../shared/ipc-types.js';
 import { useAsyncError } from './useAsyncError.js';
+import { useSidecarGiveUp } from './useSidecarGiveUp.js';
 
 export function useDesign() {
   const [systems, setSystems] = useState<DesignSystemInfo[]>([]);
@@ -28,12 +29,16 @@ export function useDesign() {
   }, [clear, fail]);
 
   useEffect(() => {
-    void Promise.all([
-      window.aurict.design.listSystems().then(setSystems),
-      window.aurict.design.listSkills().then(setSkills),
-      refreshOutputs(),
-    ]).catch((reason) => fail(reason, String(reason)));
+    // Each source reports its own failure independently — refreshOutputs()
+    // already calls fail() (and rethrows only so manual retries can chain
+    // .catch()), so wrapping it in the same combined .catch() here would
+    // report the exact same failure a second time.
+    window.aurict.design.listSystems().then(setSystems).catch((reason) => fail(reason, String(reason)));
+    window.aurict.design.listSkills().then(setSkills).catch((reason) => fail(reason, String(reason)));
+    void refreshOutputs().catch(() => {undefined});
   }, [refreshOutputs, fail]);
+  const retryOnGiveUp = useCallback(() => { void refreshOutputs().catch(() => undefined); }, [refreshOutputs]);
+  useSidecarGiveUp(retryOnGiveUp);
 
   const createArtifact = useCallback(async (spec: { brief: string; systemId: string; skillId: string; title?: string }) => {
     const launch = await window.aurict.design.createArtifact(spec);
