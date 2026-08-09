@@ -224,12 +224,14 @@ if (!process.stdin.isTTY) {
 // Interactive mode — full bootstrap is intentionally isolated to the TTY path.
 migrateLegacyCoreState()
 profileCheckpoint("prefetch_started")
-const [
-  reactMod, inkMod, bootstrapMod, appMod, setupWizardMod,
-  errorBoundaryMod, updateCheckMod, coreMod, providerSetupMod,
-] = await Promise.all([
+const [reactMod, inkMod] = await Promise.all([
   import("react"),
   import("ink"),
+])
+const [
+  bootstrapMod, appMod, setupWizardMod,
+  errorBoundaryMod, updateCheckMod, coreMod, providerSetupMod,
+] = await Promise.all([
   import("./bootstrap.js"),
   import("./tui/App.js"),
   import("./tui/SetupWizard.js"),
