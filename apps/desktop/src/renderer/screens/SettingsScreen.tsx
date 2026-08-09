@@ -34,8 +34,8 @@ export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, wo
   const policy = usePolicy();
   const agents = useAgents();
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
-  useErrorToast(providers.error, providers.errorSeq, providers.refresh, showToast);
-  useErrorToast(workspaceError, workspaceErrorSeq, onChooseWorkspace, showToast);
+  useErrorToast(providers.error, providers.errorSeq, providers.refresh, showToast, dismissToast);
+  useErrorToast(workspaceError, workspaceErrorSeq, onChooseWorkspace, showToast, dismissToast);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [keyDraft, setKeyDraft] = useState('');
   const [providerMessage, setProviderMessage] = useState<string | null>(null);

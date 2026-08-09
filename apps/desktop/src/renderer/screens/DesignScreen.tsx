@@ -51,7 +51,7 @@ interface DesignScreenProps {
 export function DesignScreen({ chat, onLaunched, userType }: DesignScreenProps) {
   const design = useDesign();
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
-  useErrorToast(design.error, design.errorSeq, design.refreshOutputs, showToast);
+  useErrorToast(design.error, design.errorSeq, design.refreshOutputs, showToast, dismissToast);
   const [brief, setBrief] = useState('');
   const [systemId, setSystemId] = useState('');
   const [skillId, setSkillId] = useState('');
@@ -267,7 +267,7 @@ export function DesignScreen({ chat, onLaunched, userType }: DesignScreenProps) 
             </button>
           </div>
           {matching && <div aria-live="polite" role="status" style={{ marginTop: 8, fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--text-subtle)' }}>Matching a workflow and visual system…</div>}
-          <ModelSelector showToast={showToast} />
+          <ModelSelector showToast={showToast} dismissToast={dismissToast} />
         </div>
       </div>
 

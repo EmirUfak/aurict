@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import type { ModelInfo, ProviderInfo } from '../../shared/ipc-types.js';
+import { useSidecarGiveUp } from '../hooks/useSidecarGiveUp.js';
 
 export interface ProviderModelPreference {
   providerId: string | null;
@@ -64,6 +65,20 @@ export function OnboardingModelStep({ value, onChange }: Props) {
     // would refetch on every render.
   }, [value.providerId]);
 
+  // This step manages its own local provider/model state instead of the
+  // useProviders/useModelSelection hooks, so it needs its own recovery
+  // wiring too. Without this, a sidecar outage that starts *after* the
+  // initial (successful) load on mount never re-runs loadProviders/
+  // loadModels — providersFailed/modelsFailed simply never flip true, so
+  // the Retry button never appears until the step is unmounted and
+  // remounted (e.g. Back then forward again), which is what forces a fresh
+  // load attempt that then correctly fails and shows Retry.
+  const recoverFromOutage = useCallback(() => {
+    loadProviders();
+    if (value.providerId) loadModels(value.providerId);
+  }, [loadProviders, loadModels, value.providerId]);
+  useSidecarGiveUp(recoverFromOutage);
+
   async function selectProvider(providerId: string) {
     try {
       setError(null);
@@ -115,8 +130,13 @@ export function OnboardingModelStep({ value, onChange }: Props) {
     {error && (
       <div className="aur-inline-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span>{error}</span>
-        {providersFailed && <button type="button" onClick={loadProviders}>Retry</button>}
-        {modelsFailed && value.providerId && <button type="button" onClick={() => loadModels(value.providerId as string)}>Retry</button>}
+        {/* There's no Titlebar during onboarding (it only mounts after
+          onboarding completes in App.tsx), so this is the only recovery
+          path if the sidecar itself never came up — retry it here too,
+          the same action the Titlebar's own retry button performs,
+          alongside re-asking for the list that actually failed. */}
+        {providersFailed && <button type="button" onClick={() => { void window.aurict.runtime.retry(); loadProviders(); }}>Retry</button>}
+        {modelsFailed && value.providerId && <button type="button" onClick={() => { void window.aurict.runtime.retry(); loadModels(value.providerId as string); }}>Retry</button>}
       </div>
     )}
   </section>;

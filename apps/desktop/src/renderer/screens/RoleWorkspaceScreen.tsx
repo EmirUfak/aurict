@@ -3,6 +3,7 @@ import type { UserType } from '../../shared/ipc-types.js';
 import type { useChat } from '../hooks/useChat.js';
 import { ModelSelector } from '../components/ModelSelector.js';
 import { ChatTimeline } from '../components/ChatTimeline.js';
+import { useToasts, ToastRegion } from '../components/ToastRegion.js';
 
 type Role = Extract<UserType, 'product' | 'operator'>;
 
@@ -34,6 +35,7 @@ interface Props { role: Role; chat: ReturnType<typeof useChat>; onOpenDesign: ()
 export function RoleWorkspaceScreen({ role, chat, onOpenDesign }: Props) {
   const content = CONTENT[role];
   const [draft, setDraft] = useState('');
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
   const submit = () => {
     const value = draft.trim();
     if (!value || chat.pending) return;
@@ -41,7 +43,7 @@ export function RoleWorkspaceScreen({ role, chat, onOpenDesign }: Props) {
     setDraft('');
   };
 
-  return <main className="aur-role-workspace">
+  return <main className="aur-role-workspace" style={{ position: 'relative' }}>
     <ChatTimeline
       activities={chat.activities}
       contentStyle={{ maxWidth: 920, padding: 'clamp(28px, 5vw, 72px) clamp(20px, 6vw, 96px) 32px' }}
@@ -54,8 +56,9 @@ export function RoleWorkspaceScreen({ role, chat, onOpenDesign }: Props) {
       <div className="aur-role-composer">
         <textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); submit(); } }} placeholder={content.placeholder} rows={3} />
         <div><span>{chat.pending ? chat.statusMessage ?? 'Aurict is working…' : 'Enter to send · Shift+Enter for a new line'}</span><button type="button" className="aur-button aur-button-primary" disabled={!draft.trim() || chat.pending} onClick={submit}>{chat.pending ? 'working…' : 'send'}</button></div>
-        <ModelSelector />
+        <ModelSelector showToast={showToast} dismissToast={dismissToast} />
       </div>
     </section>
+    <ToastRegion toasts={toasts} onDismiss={dismissToast} />
   </main>;
 }

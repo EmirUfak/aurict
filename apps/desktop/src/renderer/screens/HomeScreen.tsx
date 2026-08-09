@@ -3,6 +3,7 @@ import type { UserType } from '../../shared/ipc-types.js';
 import type { useChat } from '../hooks/useChat.js';
 import { ModelSelector } from '../components/ModelSelector.js';
 import { ChatTimeline } from '../components/ChatTimeline.js';
+import { useToasts, ToastRegion } from '../components/ToastRegion.js';
 
 interface Props {
   chat: ReturnType<typeof useChat>;
@@ -89,6 +90,7 @@ const CONTENT: Record<UserType, HomeContent> = {
 export function HomeScreen({ chat, userType }: Props) {
   const content = CONTENT[userType];
   const [draft, setDraft] = useState('');
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
 
   const send = () => {
     const question = draft.trim();
@@ -97,7 +99,7 @@ export function HomeScreen({ chat, userType }: Props) {
     setDraft('');
   };
 
-  return <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+  return <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: 'var(--bg)', position: 'relative' }}>
     <ChatTimeline
       activities={chat.activities}
       contentStyle={{ maxWidth: 900, padding: '64px 32px 32px' }}
@@ -109,9 +111,10 @@ export function HomeScreen({ chat, userType }: Props) {
     <div style={{ padding: '14px 32px 20px', borderTop: '1px solid var(--border-subtle)' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, padding: '10px 10px 10px 16px', background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 11 }}><textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder={content.placeholder} rows={2} style={{ flex: 1, minWidth: 0, resize: 'vertical', fontFamily: 'var(--font-serif)', fontSize: 16, lineHeight: 1.45, color: 'var(--text)', background: 'transparent', border: 'none' }} /><button type="button" onClick={send} disabled={chat.pending || !draft.trim()} style={{ alignSelf: 'flex-end', padding: '9px 15px', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: chat.pending || !draft.trim() ? 'var(--text-subtle)' : 'var(--accent-ink)', background: chat.pending || !draft.trim() ? 'var(--control-hover)' : 'var(--accent)', border: 'none', borderRadius: 7, cursor: chat.pending || !draft.trim() ? 'default' : 'pointer' }}>{chat.pending ? 'working…' : 'send ↵'}</button></div>
-        <ModelSelector />
+        <ModelSelector showToast={showToast} dismissToast={dismissToast} />
         {chat.pending && <div role="status" className="aur-inline-status">{chat.statusMessage ?? 'Aurict is working…'} <button type="button" className="aur-text-action" onClick={chat.cancel}>stop</button></div>}
       </div>
     </div>
+    <ToastRegion toasts={toasts} onDismiss={dismissToast} />
   </main>;
 }
