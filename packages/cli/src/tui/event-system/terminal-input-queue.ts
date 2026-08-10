@@ -36,5 +36,6 @@ export function physicalInputFirst<T>(
   physical: T | null | undefined,
   synthetic: TerminalInputQueue,
 ): T | string | null | undefined {
-  return physical ?? synthetic.shift();
+  if (physical !== null && physical !== undefined) return physical;
+  return synthetic.shift() ?? physical;
 }

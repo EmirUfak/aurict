@@ -37,4 +37,11 @@ describe("terminal synthetic input queue", () => {
     expect(physicalInputFirst(null, queue)).toBe("middle")
     expect(physicalInputFirst(undefined, queue)).toBe("new")
   })
+
+  test("preserves the stream's empty-read sentinel when the queue is empty", () => {
+    const queue = new TerminalInputQueue(64)
+
+    expect(physicalInputFirst(null, queue)).toBeNull()
+    expect(physicalInputFirst(undefined, queue)).toBeUndefined()
+  })
 })
