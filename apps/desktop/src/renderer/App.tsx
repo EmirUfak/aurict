@@ -12,6 +12,9 @@ import { RoleWorkspaceScreen } from './screens/RoleWorkspaceScreen.js';
 import { usePermission } from './hooks/usePermission.js';
 import { usePolicy } from './hooks/usePolicy.js';
 import { useWorkdir } from './hooks/useWorkdir.js';
+import { useProviders } from './hooks/useProviders.js';
+import { useAgents } from './hooks/useAgents.js';
+import { useModelSelection } from './hooks/useModelSelection.js';
 import { useChat } from './hooks/useChat.js';
 import { useSessions } from './hooks/useSessions.js';
 import { useOnboarding } from './hooks/useOnboarding.js';
@@ -34,6 +37,9 @@ export function App() {
   const permission = usePermission();
   const policy = usePolicy();
   const workdir = useWorkdir();
+  const providers = useProviders();
+  const agents = useAgents();
+  const modelSelection = useModelSelection();
   // Lifted above MainScreen/DesignScreen so a design brief submitted from the
   // Design tab shows up in the same transcript/session when we switch back to Main.
   const chat = useChat();
@@ -100,7 +106,7 @@ export function App() {
       <Titlebar screen={screen} onNavigate={setScreen} workdir={workdir.workdir} onChooseWorkdir={workdir.choose} userType={onboarding.profile.userType} layout={onboarding.profile.layout} />
 
       {screen === 'main' && (onboarding.profile.layout === 'developer'
-        ? <MainScreen permission={permission} chat={chat} sessions={sessions} workdir={workdir} userType={onboarding.profile.userType} />
+        ? <MainScreen permission={permission} chat={chat} sessions={sessions} workdir={workdir} providers={providers} agents={agents} modelSelection={modelSelection} userType={onboarding.profile.userType} />
         : onboarding.profile.layout === 'product'
           ? <RoleWorkspaceScreen role="product" chat={chat} onOpenDesign={() => setScreen('design')} />
           : onboarding.profile.layout === 'operations'
@@ -110,12 +116,12 @@ export function App() {
       {screen === 'design' && <DesignScreen chat={chat} onLaunched={() => setScreen('main')} userType={onboarding.profile.userType} />}
       {screen === 'finance' && <FinanceScreen />}
       {screen === 'memory' && <MemoryScreen />}
-      {screen === 'settings' && onboarding.profile && <SettingsScreen profile={onboarding.profile} onUpdateProfile={onboarding.update} onResetOnboarding={onboarding.reset} workspace={workdir.workdir} workspaceError={workdir.error} workspaceErrorSeq={workdir.errorSeq} onChooseWorkspace={workdir.choose} />}
+      {screen === 'settings' && onboarding.profile && <SettingsScreen profile={onboarding.profile} onUpdateProfile={onboarding.update} onResetOnboarding={onboarding.reset} workspace={workdir.workdir} workspaceError={workdir.error} workspaceErrorSeq={workdir.errorSeq} onChooseWorkspace={workdir.choose} providers={providers} agents={agents} />}
 
       {permission.current && (
         <ApprovalModal request={permission.current} onRespond={permission.respond} onEnableAutoApproveSafe={() => policy.setAutoAllowSafe(true)} />
       )}
-      <ArtifactRail artifacts={artifacts.artifacts} activeId={artifacts.activeId} open={artifacts.open} onClose={() => artifacts.setOpen(false)} onSelect={artifacts.select} onRetry={(artifact) => { if (artifact.prompt) chat.submit(artifact.prompt, undefined, artifact.id, `Retry artifact: ${artifact.title}`, 'iterate'); }} />
+      <ArtifactRail artifacts={artifacts.artifacts} activeId={artifacts.activeId} open={artifacts.open} onClose={() => artifacts.setOpen(false)} onSelect={artifacts.select} onRetry={(artifact) => { if (artifact.prompt) chat.submit(artifact.prompt, undefined, artifact.id, `Retry artifact: ${artifact.title}`, 'iterate'); }} listError={artifacts.error} onRetryList={() => { void artifacts.refresh(); }} />
     </div>
   );
 }

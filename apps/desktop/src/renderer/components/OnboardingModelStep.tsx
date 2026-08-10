@@ -135,8 +135,8 @@ export function OnboardingModelStep({ value, onChange }: Props) {
           path if the sidecar itself never came up — retry it here too,
           the same action the Titlebar's own retry button performs,
           alongside re-asking for the list that actually failed. */}
-        {providersFailed && <button type="button" onClick={() => { void window.aurict.runtime.retry(); loadProviders(); }}>Retry</button>}
-        {modelsFailed && value.providerId && <button type="button" onClick={() => { void window.aurict.runtime.retry(); loadModels(value.providerId as string); }}>Retry</button>}
+        {providersFailed && <button type="button" className="aur-text-action" style={{ marginTop: 0 }} onClick={() => { void window.aurict.runtime.retry(); loadProviders(); }}>Retry</button>}
+        {modelsFailed && value.providerId && <button type="button" className="aur-text-action" style={{ marginTop: 0 }} onClick={() => { void window.aurict.runtime.retry(); loadModels(value.providerId as string); }}>Retry</button>}
       </div>
     )}
   </section>;

@@ -43,6 +43,9 @@ interface MainScreenProps {
   chat: ReturnType<typeof useChat>;
   sessions: ReturnType<typeof useSessions>;
   workdir: ReturnType<typeof useWorkdir>;
+  providers: ReturnType<typeof useProviders>;
+  agents: ReturnType<typeof useAgents>;
+  modelSelection: ReturnType<typeof useModelSelection>;
   userType: UserType;
 }
 
@@ -61,11 +64,8 @@ const PROFILE_COPY: Record<Exclude<UserType, 'designer'>, { empty: string; place
   finance: { empty: 'Ask Aurict to research a topic, explain a formula, or prepare a transparent calculation.', placeholder: 'Research or calculate something…' },
 };
 
-export function MainScreen({ permission, chat, sessions, workdir, userType }: MainScreenProps) {
+export function MainScreen({ permission, chat, sessions, workdir, providers, agents, modelSelection, userType }: MainScreenProps) {
   const fileTree = useFileTree();
-  const providers = useProviders();
-  const modelSelection = useModelSelection();
-  const agents = useAgents();
   const [rightTab, setRightTab] = useState<'files' | 'tasks'>('files');
   const [draft, setDraft] = useState('');
   const [openFiles, setOpenFiles] = useState<string[]>([]);
@@ -86,6 +86,7 @@ export function MainScreen({ permission, chat, sessions, workdir, userType }: Ma
   useErrorToast(fileTree.error, fileTree.errorSeq, fileTree.refresh, showToast, dismissToast);
   useErrorToast(workdir.error, workdir.errorSeq, workdir.reload, showToast, dismissToast);
   useErrorToast(agents.error, agents.errorSeq, agents.refresh, showToast, dismissToast);
+  useErrorToast(modelSelection.error, modelSelection.errorSeq, null, showToast, dismissToast);
   const profileCopy = PROFILE_COPY[userType === 'designer' ? 'developer' : userType];
   const activeSession = sessions.sessions.find((session) => session.id === sessions.activeId) ?? null;
 
@@ -301,6 +302,7 @@ export function MainScreen({ permission, chat, sessions, workdir, userType }: Ma
               <select
                 value={modelSelection.providerId ?? ''}
                 onChange={(e) => modelSelection.selectProvider(e.target.value)}
+                onFocus={() => { if (providers.error) void providers.refresh().catch(() => undefined); }}
                 style={selectStyle}
               >
                 {providers.providers.map((p) => (

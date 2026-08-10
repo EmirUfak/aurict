@@ -27,12 +27,12 @@ interface Props {
   workspaceError: string | null;
   workspaceErrorSeq: number;
   onChooseWorkspace: () => Promise<unknown>;
+  providers: ReturnType<typeof useProviders>;
+  agents: ReturnType<typeof useAgents>;
 }
 
-export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, workspace, workspaceError, workspaceErrorSeq, onChooseWorkspace }: Props) {
-  const providers = useProviders();
+export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, workspace, workspaceError, workspaceErrorSeq, onChooseWorkspace, providers, agents }: Props) {
   const policy = usePolicy();
-  const agents = useAgents();
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
   useErrorToast(providers.error, providers.errorSeq, providers.refresh, showToast, dismissToast);
   useErrorToast(workspaceError, workspaceErrorSeq, onChooseWorkspace, showToast, dismissToast);

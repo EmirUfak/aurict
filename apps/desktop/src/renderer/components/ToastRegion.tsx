@@ -16,7 +16,7 @@ export function useToasts() {
 
   const show = useCallback((message: string, tone: ToastItem['tone'] = 'info', action?: ToastItem['action']) => {
     const id = Date.now() + Math.floor(Math.random() * 1_000);
-    setToasts((current) => [...current, { id, message, tone, ...(action ? { action } : {}) }].slice(-3));
+    setToasts((current) => [...current, { id, message, tone, ...(action ? { action } : {}) }].slice(-4));
     if (!action) window.setTimeout(() => dismiss(id), 5_000);
     return id;
   }, [dismiss]);
