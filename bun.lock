@@ -113,21 +113,21 @@
     },
     "packages/aurict": {
       "name": "aurict",
-      "version": "1.2.17",
+      "version": "1.2.18",
       "bin": {
         "aurict": "./bin/aurict",
       },
       "optionalDependencies": {
-        "@aurict/cli-darwin-arm64": "1.2.17",
-        "@aurict/cli-darwin-x64": "1.2.17",
-        "@aurict/cli-linux-arm64": "1.2.17",
-        "@aurict/cli-linux-x64": "1.2.17",
-        "@aurict/cli-win32-x64": "1.2.17",
+        "@aurict/cli-darwin-arm64": "1.2.18",
+        "@aurict/cli-darwin-x64": "1.2.18",
+        "@aurict/cli-linux-arm64": "1.2.18",
+        "@aurict/cli-linux-x64": "1.2.18",
+        "@aurict/cli-win32-x64": "1.2.18",
       },
     },
     "packages/cli": {
       "name": "@aurict/cli",
-      "version": "1.2.17",
+      "version": "1.2.18",
       "bin": {
         "aurict": "./bin/aurict",
       },
@@ -145,32 +145,32 @@
         "wrap-ansi": "^9.0.2",
       },
       "optionalDependencies": {
-        "@aurict/cli-darwin-arm64": "1.2.17",
-        "@aurict/cli-darwin-x64": "1.2.17",
-        "@aurict/cli-linux-arm64": "1.2.17",
-        "@aurict/cli-linux-x64": "1.2.17",
-        "@aurict/cli-win32-x64": "1.2.17",
+        "@aurict/cli-darwin-arm64": "1.2.18",
+        "@aurict/cli-darwin-x64": "1.2.18",
+        "@aurict/cli-linux-arm64": "1.2.18",
+        "@aurict/cli-linux-x64": "1.2.18",
+        "@aurict/cli-win32-x64": "1.2.18",
       },
     },
     "packages/cli-darwin-arm64": {
       "name": "@aurict/cli-darwin-arm64",
-      "version": "1.2.17",
+      "version": "1.2.18",
     },
     "packages/cli-darwin-x64": {
       "name": "@aurict/cli-darwin-x64",
-      "version": "1.2.17",
+      "version": "1.2.18",
     },
     "packages/cli-linux-arm64": {
       "name": "@aurict/cli-linux-arm64",
-      "version": "1.2.17",
+      "version": "1.2.18",
     },
     "packages/cli-linux-x64": {
       "name": "@aurict/cli-linux-x64",
-      "version": "1.2.17",
+      "version": "1.2.18",
     },
     "packages/cli-win32-x64": {
       "name": "@aurict/cli-win32-x64",
-      "version": "1.2.17",
+      "version": "1.2.18",
     },
     "packages/core": {
       "name": "@aurict/core",

@@ -44,4 +44,18 @@ describe("Project Auto startup prompt", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(decisions).toEqual([false, true]);
   });
+
+  it("confirms the highlighted Auto choice with Enter", async () => {
+    const decisions: boolean[] = [];
+    const view = renderPrompt((enabled) => decisions.push(enabled));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    view.stdin.write("\u001B[C");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(view.lastFrame()).toContain("❯ Yes · enable Auto");
+
+    view.stdin.write("\r");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(decisions).toEqual([true]);
+  });
 });
