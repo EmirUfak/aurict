@@ -17,13 +17,15 @@ export function useErrorToast(
 
   useEffect(() => {
     if (shouldNotify(error, errorSeq, lastShownSeq.current)) {
-      lastShownId.current = showToast(error as string, 'error', retry ? { label: 'Retry', onClick: retry } : undefined);
       // A repeat failure from this same source (e.g. clicking "select
       // session" again while it keeps failing) replaces its own toast
       // instead of stacking a second one — otherwise repeatedly retrying
       // one action could push unrelated toasts out of the fixed-size
-      // ToastRegion queue.
+      // ToastRegion queue. Order matters here: dismiss the OLD id before
+      // overwriting lastShownId.current with the new one — reversing this
+      // makes the effect dismiss the toast it just created.
       if (lastShownId.current !== null) dismissToast?.(lastShownId.current);
+      lastShownId.current = showToast(error as string, 'error', retry ? { label: 'Retry', onClick: retry } : undefined);
       lastShownSeq.current = errorSeq;
     }
     if (!error) {
