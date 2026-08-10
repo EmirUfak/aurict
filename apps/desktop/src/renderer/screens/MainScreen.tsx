@@ -15,7 +15,6 @@ import { ContextDrawer } from '../components/TaskActivity.js';
 import { CenterTab, PanelTab, SessionMetadata } from '../components/WorkspaceChrome.js';
 import { VirtualSessionList } from '../components/VirtualSessionList.js';
 import { useErrorToast } from '../hooks/useErrorToast.js';
-import type { useWorkdir } from '../hooks/useWorkdir.js';
 
 const selectStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)',
@@ -42,7 +41,6 @@ interface MainScreenProps {
   permission: ReturnType<typeof usePermission>;
   chat: ReturnType<typeof useChat>;
   sessions: ReturnType<typeof useSessions>;
-  workdir: ReturnType<typeof useWorkdir>;
   providers: ReturnType<typeof useProviders>;
   agents: ReturnType<typeof useAgents>;
   modelSelection: ReturnType<typeof useModelSelection>;
@@ -64,7 +62,7 @@ const PROFILE_COPY: Record<Exclude<UserType, 'designer'>, { empty: string; place
   finance: { empty: 'Ask Aurict to research a topic, explain a formula, or prepare a transparent calculation.', placeholder: 'Research or calculate something…' },
 };
 
-export function MainScreen({ permission, chat, sessions, workdir, providers, agents, modelSelection, userType }: MainScreenProps) {
+export function MainScreen({ permission, chat, sessions, providers, agents, modelSelection, userType }: MainScreenProps) {
   const fileTree = useFileTree();
   const [rightTab, setRightTab] = useState<'files' | 'tasks'>('files');
   const [draft, setDraft] = useState('');
@@ -84,7 +82,6 @@ export function MainScreen({ permission, chat, sessions, workdir, providers, age
   useErrorToast(sessions.error, sessions.errorSeq, sessions.retryAction, showToast, dismissToast);
   useErrorToast(providers.error, providers.errorSeq, providers.refresh, showToast, dismissToast);
   useErrorToast(fileTree.error, fileTree.errorSeq, fileTree.refresh, showToast, dismissToast);
-  useErrorToast(workdir.error, workdir.errorSeq, workdir.reload, showToast, dismissToast);
   useErrorToast(agents.error, agents.errorSeq, agents.refresh, showToast, dismissToast);
   useErrorToast(modelSelection.error, modelSelection.errorSeq, null, showToast, dismissToast);
   const profileCopy = PROFILE_COPY[userType === 'designer' ? 'developer' : userType];

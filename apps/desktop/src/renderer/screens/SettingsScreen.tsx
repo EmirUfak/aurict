@@ -25,17 +25,19 @@ interface Props {
   onResetOnboarding: () => Promise<void>;
   workspace: string;
   workspaceError: string | null;
-  workspaceErrorSeq: number;
   onChooseWorkspace: () => Promise<unknown>;
   providers: ReturnType<typeof useProviders>;
   agents: ReturnType<typeof useAgents>;
 }
 
-export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, workspace, workspaceError, workspaceErrorSeq, onChooseWorkspace, providers, agents }: Props) {
+export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, workspace, workspaceError, onChooseWorkspace, providers, agents }: Props) {
   const policy = usePolicy();
   const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
   useErrorToast(providers.error, providers.errorSeq, providers.refresh, showToast, dismissToast);
-  useErrorToast(workspaceError, workspaceErrorSeq, onChooseWorkspace, showToast, dismissToast);
+  // Workspace selection errors already surface as a toast at the App shell
+  // level (Titlebar's "choose workspace" is global, not Settings-specific),
+  // so this only needs the inline error text below — a second toast here
+  // would duplicate the shell one for the exact same failure.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [keyDraft, setKeyDraft] = useState('');
   const [providerMessage, setProviderMessage] = useState<string | null>(null);

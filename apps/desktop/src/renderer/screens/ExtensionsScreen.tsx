@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { useSkills } from '../hooks/useSkills.js';
+import { ToastRegion, useToasts } from '../components/ToastRegion.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 
 export function ExtensionsScreen() {
-  const { skills, install, uninstall } = useSkills();
+  const { skills, error: listError, errorSeq: listErrorSeq, refresh, install, uninstall } = useSkills();
   const [urlDraft, setUrlDraft] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
+  useErrorToast(listError, listErrorSeq, refresh, showToast, dismissToast);
 
   const handleInstall = () => {
     const url = urlDraft.trim();
@@ -32,7 +36,7 @@ export function ExtensionsScreen() {
   };
   
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)' }}>
+    <div style={{ flex: 1, overflowY: 'auto', position: 'relative', background: 'var(--bg)' }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 32px 64px' }}>
         <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 28, color: 'var(--text)', margin: '0 0 6px' }}>
           Extensions
@@ -83,6 +87,7 @@ export function ExtensionsScreen() {
           ))}
         </div>
       </div>
+      <ToastRegion toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

@@ -25,6 +25,8 @@ import { AppStateScreen } from './components/AppStateScreen.js';
 import { ArtifactRail } from './components/ArtifactRail.js';
 import { useArtifacts } from './hooks/useArtifacts.js';
 import { eventShortcut, readShortcuts, screenForShortcut, type ShortcutAction } from './shortcuts.js';
+import { ToastRegion, useToasts } from './components/ToastRegion.js';
+import { useErrorToast } from './hooks/useErrorToast.js';
 
 function startScreen(layout: ExperienceLayout): Screen {
   if (layout === 'design') return 'design';
@@ -47,6 +49,13 @@ export function App() {
   const onboarding = useOnboarding();
   const artifacts = useArtifacts();
   const hasAppliedInitialScreen = useRef(false);
+  // Workspace selection is triggered from the Titlebar, which is mounted
+  // once here and shared by every screen — so its error surface lives at
+  // the same shell level rather than being re-wired per screen (which
+  // previously left non-Main/Settings screens with no visible failure at
+  // all when "choose workspace" failed).
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
+  useErrorToast(workdir.error, workdir.errorSeq, workdir.reload, showToast, dismissToast);
 
   useEffect(() => {
     if (!onboarding.profile) {
@@ -106,7 +115,7 @@ export function App() {
       <Titlebar screen={screen} onNavigate={setScreen} workdir={workdir.workdir} onChooseWorkdir={workdir.choose} userType={onboarding.profile.userType} layout={onboarding.profile.layout} />
 
       {screen === 'main' && (onboarding.profile.layout === 'developer'
-        ? <MainScreen permission={permission} chat={chat} sessions={sessions} workdir={workdir} providers={providers} agents={agents} modelSelection={modelSelection} userType={onboarding.profile.userType} />
+        ? <MainScreen permission={permission} chat={chat} sessions={sessions} providers={providers} agents={agents} modelSelection={modelSelection} userType={onboarding.profile.userType} />
         : onboarding.profile.layout === 'product'
           ? <RoleWorkspaceScreen role="product" chat={chat} onOpenDesign={() => setScreen('design')} />
           : onboarding.profile.layout === 'operations'
@@ -116,12 +125,13 @@ export function App() {
       {screen === 'design' && <DesignScreen chat={chat} onLaunched={() => setScreen('main')} userType={onboarding.profile.userType} />}
       {screen === 'finance' && <FinanceScreen />}
       {screen === 'memory' && <MemoryScreen />}
-      {screen === 'settings' && onboarding.profile && <SettingsScreen profile={onboarding.profile} onUpdateProfile={onboarding.update} onResetOnboarding={onboarding.reset} workspace={workdir.workdir} workspaceError={workdir.error} workspaceErrorSeq={workdir.errorSeq} onChooseWorkspace={workdir.choose} providers={providers} agents={agents} />}
+      {screen === 'settings' && onboarding.profile && <SettingsScreen profile={onboarding.profile} onUpdateProfile={onboarding.update} onResetOnboarding={onboarding.reset} workspace={workdir.workdir} workspaceError={workdir.error} onChooseWorkspace={workdir.choose} providers={providers} agents={agents} />}
 
       {permission.current && (
         <ApprovalModal request={permission.current} onRespond={permission.respond} onEnableAutoApproveSafe={() => policy.setAutoAllowSafe(true)} />
       )}
       <ArtifactRail artifacts={artifacts.artifacts} activeId={artifacts.activeId} open={artifacts.open} onClose={() => artifacts.setOpen(false)} onSelect={artifacts.select} onRetry={(artifact) => { if (artifact.prompt) chat.submit(artifact.prompt, undefined, artifact.id, `Retry artifact: ${artifact.title}`, 'iterate'); }} listError={artifacts.error} onRetryList={() => { void artifacts.refresh(); }} />
+      <ToastRegion toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
