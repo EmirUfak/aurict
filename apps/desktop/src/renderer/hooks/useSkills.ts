@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SkillInfo } from '../../shared/ipc-types.js';
+import { useAsyncError } from './useAsyncError.js';
 
 export function useSkills() {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
+  const { error, errorSeq, fail, clear } = useAsyncError();
 
   const refresh = useCallback(() => {
-    window.aurict.skills.list().then(setSkills).catch((error) => console.error('Failed to load skills', error));
-  }, []);
+    window.aurict.skills.list().then((next) => { setSkills(next); clear(); }).catch((reason) => fail(reason, 'Skills could not be loaded.'));
+  }, [fail, clear]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -24,5 +26,5 @@ export function useSkills() {
     });
   }, [refresh]);
 
-  return { skills, install, uninstall };
+  return { skills, error, errorSeq, refresh, install, uninstall };
 }

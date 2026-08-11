@@ -194,13 +194,11 @@ button:disabled { cursor: not-allowed; }
 .aur-dialog-field input { width: 100%; min-height: 38px; padding: 8px 10px; color: var(--text); background: var(--bg-deep); border: 1px solid var(--border-strong); border-radius: 6px; font-family: var(--font-mono); font-size: 12px; }
 .aur-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 18px 20px; }
 .aur-toast-region { position: absolute; z-index: 90; right: 18px; bottom: 18px; display: grid; gap: 8px; width: min(360px, calc(100% - 36px)); pointer-events: none; }
-.aur-toast { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 12px; color: var(--text); background: var(--bg-card); border: 1px solid var(--border-strong); border-left-width: 3px; border-radius: 7px; box-shadow: 0 12px 34px oklch(0 0 0 / .24); font-family: var(--font-mono); font-size: 11.5px; line-height: 1.45; pointer-events: auto; }
-.aur-toast-info { border-left-color: var(--accent); }
-.aur-toast-success { border-left-color: var(--safe); }
+.aur-toast { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 12px; color: var(--text); background: var(--bg-card); border: 1px solid var(--border-strong); border-left-width: 3px; border-radius: 7px; box-shadow: 0 12px 34px oklch(0 0 0 / .24); font-family: var(--font-mono); font-size: 11.5px; line-height: 1.45; pointer-events: auto; --aur-toast-flash-color: var(--accent); animation: aur-toast-flash .9s ease-out; }
+@keyframes aur-toast-flash { 0% { box-shadow: 0 12px 34px oklch(0 0 0 / .24), 0 0 0 3px color-mix(in oklch, var(--aur-toast-flash-color) 55%, transparent); } 100% { box-shadow: 0 12px 34px oklch(0 0 0 / .24), 0 0 0 0 transparent; } }.aur-toast-success { border-left-color: var(--safe); }
 .aur-toast-error { border-left-color: var(--danger); }
-.aur-toast button { min-height: 20px; padding: 0; color: var(--text-muted); background: transparent; border: none; cursor: pointer; font-family: var(--font-mono); font-size: 15px; }
-.aur-finance-prompts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.aur-toast-success { border-left-color: var(--safe); --aur-toast-flash-color: var(--safe); }
+.aur-toast-error { border-left-color: var(--danger); --aur-toast-flash-color: var(--danger); }button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } .aur-pulse { animation: none !important; } }
 /* Shrink instead of hiding: display:none removed the workdir path entirely
    on narrower windows, but truncating it (ellipsis, see the rtl trick in

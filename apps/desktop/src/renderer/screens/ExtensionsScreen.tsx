@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { useSkills } from '../hooks/useSkills.js';
+import { ToastRegion, useToasts } from '../components/ToastRegion.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 
 export function ExtensionsScreen() {
-  const { skills, install, uninstall } = useSkills();
+  const { skills, error: listError, errorSeq: listErrorSeq, refresh, install, uninstall } = useSkills();
   const [urlDraft, setUrlDraft] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
+  useErrorToast(listError, listErrorSeq, refresh, showToast, dismissToast);
 
   const handleInstall = () => {
     const url = urlDraft.trim();
@@ -16,11 +20,23 @@ export function ExtensionsScreen() {
       setPending(false);
       if ('error' in result) setError(result.error);
       else setUrlDraft('');
+      }).catch((reason: unknown) => {
+      console.error('Failed to install skill', reason);
+      setPending(false);
+      setError(reason instanceof Error ? reason.message : 'Skill could not be installed.');
     });
   };
 
+  const handleUninstall = (id: string) => {
+    setError(null);
+    uninstall(id).catch((reason: unknown) => {
+      console.error('Failed to uninstall skill', reason);
+      setError(reason instanceof Error ? reason.message : 'Skill could not be removed.');
+    });
+  };
+  
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)' }}>
+    <div style={{ flex: 1, overflowY: 'auto', position: 'relative', background: 'var(--bg)' }}>
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 32px 64px' }}>
         <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 28, color: 'var(--text)', margin: '0 0 6px' }}>
           Extensions
@@ -58,7 +74,7 @@ export function ExtensionsScreen() {
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.active ? 'var(--safe)' : 'var(--text-disabled)' }} />
                   {s.installed && (
                     <button type="button"
-                      onClick={() => uninstall(s.id)}
+                      onClick={() => handleUninstall(s.id)}
                       style={{ padding: 0, fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }}
                     >
                       remove
@@ -71,6 +87,7 @@ export function ExtensionsScreen() {
           ))}
         </div>
       </div>
+      <ToastRegion toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

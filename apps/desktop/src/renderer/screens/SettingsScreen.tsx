@@ -6,6 +6,8 @@ import type { ColorMode, ExperienceLayout, ExperienceTheme, FontPair, UserProfil
 import type { RemoteStatus } from '../../shared/ipc-types.js';
 import { createProfile, FONT_OPTIONS, layoutOptions, THEME_OPTIONS, USER_TYPE_OPTIONS } from '../experience/registry.js';
 import { DEFAULT_SHORTCUTS, eventShortcut, readShortcuts, saveShortcuts, type ShortcutAction } from '../shortcuts.js';
+import { useToasts, ToastRegion } from '../components/ToastRegion.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 
 const COMING_SOON_POLICY = [
   { label: 'Warn on cross-directory writes', desc: 'apply_patch outside the active allowlist' },
@@ -24,12 +26,18 @@ interface Props {
   workspace: string;
   workspaceError: string | null;
   onChooseWorkspace: () => Promise<unknown>;
+  providers: ReturnType<typeof useProviders>;
+  agents: ReturnType<typeof useAgents>;
 }
 
-export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, workspace, workspaceError, onChooseWorkspace }: Props) {
-  const providers = useProviders();
+export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, workspace, workspaceError, onChooseWorkspace, providers, agents }: Props) {
   const policy = usePolicy();
-  const agents = useAgents();
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
+  useErrorToast(providers.error, providers.errorSeq, providers.refresh, showToast, dismissToast);
+  // Workspace selection errors already surface as a toast at the App shell
+  // level (Titlebar's "choose workspace" is global, not Settings-specific),
+  // so this only needs the inline error text below — a second toast here
+  // would duplicate the shell one for the exact same failure.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [keyDraft, setKeyDraft] = useState('');
   const [providerMessage, setProviderMessage] = useState<string | null>(null);
@@ -188,6 +196,7 @@ export function SettingsScreen({ profile, onUpdateProfile, onResetOnboarding, wo
         </>}
         {section === 'keyboard' && <KeyboardSettings />}
       </div>
+      <ToastRegion toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

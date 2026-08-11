@@ -1,13 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { SessionAgentInfo } from '../../shared/ipc-types.js';
+import { useAsyncError } from './useAsyncError.js';
+import { useSidecarGiveUp } from './useSidecarGiveUp.js';
 
 export function useAgents() {
   const [agents, setAgents] = useState<SessionAgentInfo[]>([]);
   const [agentId, setAgentId] = useState('omni');
+  const { error, errorSeq, fail, clear } = useAsyncError();
 
-  useEffect(() => {
-    window.aurict.agents.list().then(setAgents).catch((error) => console.error('Failed to load agent modes', error));
-  }, []);
+  const refresh = useCallback(() => {
+    window.aurict.agents.list().then((next) => { setAgents(next); clear(); }).catch((reason) => {
+      fail(reason, 'Agent modes could not be loaded.');
+    });
+  }, [clear, fail]);
 
-  return { agents, agentId, setAgentId };
+  useEffect(() => { refresh(); }, [refresh]);
+  useSidecarGiveUp(refresh);
+
+  return { agents, agentId, setAgentId, error, errorSeq, refresh };
 }

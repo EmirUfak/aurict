@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import type { ModelInfo, ProviderInfo } from '../../shared/ipc-types.js';
+import { useSidecarGiveUp } from '../hooks/useSidecarGiveUp.js';
 
 export interface ProviderModelPreference {
   providerId: string | null;
@@ -17,20 +18,40 @@ export function OnboardingModelStep({ value, onChange }: Props) {
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [providersFailed, setProvidersFailed] = useState(false);
+  const [modelsFailed, setModelsFailed] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadProviders = useCallback(() => {
+    setLoadingProviders(true);
+    setProvidersFailed(false);
+    setError(null);
     void window.aurict.provider.list().then((nextProviders) => {
-      if (cancelled) return;
       setProviders(nextProviders);
       setLoadingProviders(false);
     }).catch((reason) => {
-      if (cancelled) return;
       console.error('Failed to load onboarding providers', reason);
       setError(reason instanceof Error ? reason.message : 'Providers could not be loaded.');
+      setProvidersFailed(true);
       setLoadingProviders(false);
     });
-    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => { loadProviders(); }, [loadProviders]);
+
+  const loadModels = useCallback((providerId: string) => {
+    setLoadingModels(true);
+    setModelsFailed(false);
+    setError(null);
+    void window.aurict.provider.models(providerId).then((nextModels) => {
+      setModels(nextModels);
+      setLoadingModels(false);
+    }).catch((reason) => {
+      console.error('Failed to load onboarding provider models', reason);
+      setError(reason instanceof Error ? reason.message : 'Provider models could not be loaded.');
+      setModelsFailed(true);
+      setModels([]);
+      setLoadingModels(false);
+    });
   }, []);
 
   useEffect(() => {
@@ -38,22 +59,25 @@ export function OnboardingModelStep({ value, onChange }: Props) {
       setModels([]);
       return;
     }
-    let cancelled = false;
-    setLoadingModels(true);
-    setError(null);
-    void window.aurict.provider.models(value.providerId).then((nextModels) => {
-      if (cancelled) return;
-      setModels(nextModels);
-      setLoadingModels(false);
-    }).catch((reason) => {
-      if (cancelled) return;
-      console.error('Failed to load onboarding provider models', reason);
-      setError(reason instanceof Error ? reason.message : 'Provider models could not be loaded.');
-      setModels([]);
-      setLoadingModels(false);
-    });
-    return () => { cancelled = true; };
+    loadModels(value.providerId);
+    // Re-running only when the provider changes is intentional — loadModels
+    // itself is stable (useCallback with no deps) and re-triggering it here
+    // would refetch on every render.
   }, [value.providerId]);
+
+  // This step manages its own local provider/model state instead of the
+  // useProviders/useModelSelection hooks, so it needs its own recovery
+  // wiring too. Without this, a sidecar outage that starts *after* the
+  // initial (successful) load on mount never re-runs loadProviders/
+  // loadModels — providersFailed/modelsFailed simply never flip true, so
+  // the Retry button never appears until the step is unmounted and
+  // remounted (e.g. Back then forward again), which is what forces a fresh
+  // load attempt that then correctly fails and shows Retry.
+  const recoverFromOutage = useCallback(() => {
+    loadProviders();
+    if (value.providerId) loadModels(value.providerId);
+  }, [loadProviders, loadModels, value.providerId]);
+  useSidecarGiveUp(recoverFromOutage);
 
   async function selectProvider(providerId: string) {
     try {
@@ -103,7 +127,18 @@ export function OnboardingModelStep({ value, onChange }: Props) {
         </select>
       </label>
     </div>
-    {error && <div className="aur-inline-error" role="alert">{error}</div>}
+    {error && (
+      <div className="aur-inline-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span>{error}</span>
+        {/* There's no Titlebar during onboarding (it only mounts after
+          onboarding completes in App.tsx), so this is the only recovery
+          path if the sidecar itself never came up — retry it here too,
+          the same action the Titlebar's own retry button performs,
+          alongside re-asking for the list that actually failed. */}
+        {providersFailed && <button type="button" className="aur-text-action" style={{ marginTop: 0 }} onClick={() => { void window.aurict.runtime.retry(); loadProviders(); }}>Retry</button>}
+        {modelsFailed && value.providerId && <button type="button" className="aur-text-action" style={{ marginTop: 0 }} onClick={() => { void window.aurict.runtime.retry(); loadModels(value.providerId as string); }}>Retry</button>}
+      </div>
+    )}
   </section>;
 }
 

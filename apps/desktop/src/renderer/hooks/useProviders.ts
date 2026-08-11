@@ -1,27 +1,30 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ProviderInfo, CustomProviderDef } from '../../shared/ipc-types.js';
+import { useAsyncError } from './useAsyncError.js';
+import { useSidecarGiveUp } from './useSidecarGiveUp.js';
 
 export function useProviders() {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { error, errorSeq, fail, clear } = useAsyncError();
 
   const refresh = useCallback(async () => {
     try {
       setLoading(true);
       const next = await window.aurict.provider.list();
       setProviders(next);
-      setError(null);
+      clear();
     } catch (reason) {
-      console.error('Failed to load providers', reason);
-      setError(reason instanceof Error ? reason.message : 'Providers could not be loaded.');
+      fail(reason, 'Providers could not be loaded.');
       throw reason;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clear, fail]);
 
   useEffect(() => { void refresh().catch((reason) => console.error('Initial provider load failed', reason)); }, [refresh]);
+  const retryOnGiveUp = useCallback(() => { void refresh().catch(() => undefined); }, [refresh]);
+  useSidecarGiveUp(retryOnGiveUp);
 
   const setKey = useCallback(async (providerId: string, apiKey: string) => {
     await window.aurict.provider.setKey(providerId, apiKey);
@@ -33,5 +36,5 @@ export function useProviders() {
     await refresh();
   }, [refresh]);
 
-  return { providers, loading, error, refresh, setKey, setCustom };
+  return { providers, loading, error, errorSeq, refresh, setKey, setCustom };
 }

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useMemory } from '../hooks/useMemory.js';
 import type { MemoryCategory, MemoryScope, MemoryInfo } from '../../shared/ipc-types.js';
+import { ToastRegion, useToasts } from '../components/ToastRegion.js';
+import { useErrorToast } from '../hooks/useErrorToast.js';
 
 const sectionHeading: React.CSSProperties = {
   fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase',
@@ -25,6 +27,8 @@ export function MemoryScreen() {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<MemoryCategory>('fact');
   const [scope, setScope] = useState<MemoryScope>('project');
+  const { toasts, show: showToast, dismiss: dismissToast } = useToasts();
+  useErrorToast(memory.error, memory.errorSeq, memory.retryAction, showToast, dismissToast);
 
   const handleAdd = () => {
     const trimmed = content.trim();
@@ -37,7 +41,7 @@ export function MemoryScreen() {
   const global = memory.memories.filter((m) => m.scope === 'global');
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)' }}>
+    <div style={{ flex: 1, overflowY: 'auto', position: 'relative', background: 'var(--bg)' }}>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '40px 32px 64px' }}>
         <h1 style={{ fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 28, color: 'var(--text)', margin: '0 0 6px' }}>
           Memory
@@ -83,6 +87,7 @@ export function MemoryScreen() {
         <div style={{ ...sectionHeading, marginTop: 28 }}>global ({global.length})</div>
         <MemoryList entries={global} onRemove={memory.remove} />
       </div>
+      <ToastRegion toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

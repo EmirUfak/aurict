@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import type { ArtifactInfo } from '../../shared/ipc-types.js';
 import { PdfPreview } from './PdfPreview.js';
 
-interface Props { artifacts: ArtifactInfo[]; activeId: string | null; open: boolean; onClose: () => void; onSelect: (id: string) => void; onRetry: (artifact: ArtifactInfo) => void; }
+interface Props { artifacts: ArtifactInfo[]; activeId: string | null; open: boolean; onClose: () => void; onSelect: (id: string) => void; onRetry: (artifact: ArtifactInfo) => void; listError: string | null; onRetryList: () => void; }
 
-export function ArtifactRail({ artifacts, activeId, open, onClose, onSelect, onRetry }: Props) {
+export function ArtifactRail({ artifacts, activeId, open, onClose, onSelect, onRetry, listError, onRetryList }: Props) {
   const artifact = artifacts.find((item) => item.id === activeId) ?? null;
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +27,7 @@ export function ArtifactRail({ artifacts, activeId, open, onClose, onSelect, onR
   };
   return <aside className="aur-artifact-rail" aria-label="Artifact preview">
     <header><div><strong>Artifacts</strong><small>{artifacts.length} created this session</small></div><button type="button" aria-label="Close artifact preview" onClick={onClose}>×</button></header>
+    {listError && <div className="aur-preview-error" role="alert">{listError} <button type="button" onClick={onRetryList}>Retry</button></div>}
     <nav>{artifacts.map((item) => <button key={item.id} className={item.id === activeId ? 'active' : ''} onClick={() => onSelect(item.id)}><span>{icon(item.kind)}</span><div><b>{item.title}</b><small>{item.lifecycle} · {new Date(item.updatedAt).toLocaleTimeString()}</small></div></button>)}</nav>
     <main>{artifact ? <>
       <div className="aur-artifact-meta"><span>{artifact.kind}</span><span>{artifact.lifecycle}</span><span>{new Date(artifact.updatedAt).toLocaleString()}</span></div>
