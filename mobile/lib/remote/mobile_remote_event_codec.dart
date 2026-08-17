@@ -58,19 +58,76 @@ class MobileRemoteEvent {
   }
 
   factory MobileRemoteEvent.fromJson(Map<String, dynamic> json) {
+    final sessionId = json['sessionId'];
+    if (sessionId is! String || sessionId.trim().isEmpty) {
+      throw const FormatException(
+        'MobileRemoteEvent: missing or empty sessionId',
+      );
+    }
+
+    final seq = json['seq'];
+    if (seq is! int || seq < 1) {
+      throw const FormatException(
+        'MobileRemoteEvent: seq must be a positive integer (>= 1)',
+      );
+    }
+
+    final rawTimestamp = json['timestamp'];
+    if (rawTimestamp is! String) {
+      throw const FormatException(
+        'MobileRemoteEvent: missing timestamp string',
+      );
+    }
+    final trimmedTimestamp = rawTimestamp.trim();
+    final hasTimezone = RegExp(
+      r'(?:Z|[+-]\d{2}(?::?\d{2})?)$',
+    ).hasMatch(trimmedTimestamp);
+    if (!hasTimezone) {
+      throw const FormatException(
+        'MobileRemoteEvent: timestamp must include explicit timezone',
+      );
+    }
+    final timestamp = DateTime.tryParse(trimmedTimestamp);
+    if (timestamp == null) {
+      throw const FormatException(
+        'MobileRemoteEvent: invalid ISO-8601 timestamp',
+      );
+    }
+
+    final senderDeviceId = json['senderDeviceId'];
+    if (senderDeviceId is! String || senderDeviceId.trim().isEmpty) {
+      throw const FormatException(
+        'MobileRemoteEvent: missing or empty senderDeviceId',
+      );
+    }
+
+    final type = json['type'];
+    if (type is! String || type.trim().isEmpty) {
+      throw const FormatException('MobileRemoteEvent: missing or empty type');
+    }
+
     final payload = json['payload'];
+    if (payload is! Map) {
+      throw const FormatException(
+        'MobileRemoteEvent: missing or invalid payload Map',
+      );
+    }
+
+    final signature = json['signature'];
+    if (signature is! String || signature.trim().isEmpty) {
+      throw const FormatException(
+        'MobileRemoteEvent: missing or empty signature',
+      );
+    }
+
     return MobileRemoteEvent(
-      sessionId: json['sessionId']?.toString() ?? '',
-      seq: int.tryParse(json['seq']?.toString() ?? '') ?? 0,
-      timestamp:
-          DateTime.tryParse(json['timestamp']?.toString() ?? '') ??
-          DateTime.now(),
-      senderDeviceId: json['senderDeviceId']?.toString() ?? '',
-      type: json['type']?.toString() ?? MobileRemoteEventTypes.error,
-      payload: payload is Map
-          ? Map<String, Object?>.from(payload)
-          : <String, Object?>{},
-      signature: json['signature']?.toString() ?? '',
+      sessionId: sessionId,
+      seq: seq,
+      timestamp: timestamp,
+      senderDeviceId: senderDeviceId,
+      type: type,
+      payload: Map<String, Object?>.from(payload),
+      signature: signature,
     );
   }
 }
