@@ -1,0 +1,7 @@
+{
+  "version": 99,
+  "backendCarriesPayload": false,
+  "eventTypes": [
+    "prompt.submit"
+  ]
+}

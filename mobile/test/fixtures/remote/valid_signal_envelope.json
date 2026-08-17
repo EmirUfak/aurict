@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "sessionProtocolVersion": 1,
+  "type": "offer",
+  "transport": "webrtc",
+  "payload": "v=0\r\no=- 123456 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=sendrecv\r\n",
+  "signingKeyFingerprint": "fp_test_device_001",
+  "signature": "synthetic-sig-offer-001"
+}

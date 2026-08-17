@@ -1,0 +1,23 @@
+{
+  "id": "session-test-001",
+  "desktopDeviceId": "device-test-cli-001",
+  "protocolVersion": 1,
+  "status": "available",
+  "connectionMode": "webrtc",
+  "signedOffer": {
+    "version": 1,
+    "sessionProtocolVersion": 1,
+    "type": "offer",
+    "transport": "webrtc",
+    "payload": "v=0\r\no=- 123456 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n",
+    "signingKeyFingerprint": "fp_test_device_001",
+    "signature": "synthetic-sig-offer-001"
+  },
+  "acceptedByDeviceId": null,
+  "signedAnswer": null,
+  "resumeAvailable": false,
+  "lastSequence": 0,
+  "maxIdleSeconds": 90,
+  "expiresAt": "2026-08-17T12:00:00.000Z",
+  "lastHeartbeatAt": "2026-08-17T11:55:00.000Z"
+}

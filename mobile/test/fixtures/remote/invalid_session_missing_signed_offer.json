@@ -1,0 +1,12 @@
+{
+  "id": "session-test-002",
+  "desktopDeviceId": "device-test-cli-001",
+  "protocolVersion": 1,
+  "status": "available",
+  "connectionMode": "webrtc",
+  "signedOffer": null,
+  "lastSequence": 0,
+  "maxIdleSeconds": 90,
+  "expiresAt": "2026-08-17T12:00:00.000Z",
+  "lastHeartbeatAt": "2026-08-17T11:55:00.000Z"
+}
