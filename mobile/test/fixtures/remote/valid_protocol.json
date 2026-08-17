@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "backendCarriesPayload": false,
+  "eventTypes": [
+    "prompt.submit",
+    "terminal.output",
+    "agent.status",
+    "tool.call",
+    "tool.result.summary",
+    "interrupt",
+    "resume",
+    "heartbeat",
+    "close",
+    "error"
+  ]
+}

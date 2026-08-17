@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "sessionProtocolVersion": 1,
+  "type": "offer",
+  "transport": "webrtc",
+  "payload": "",
+  "signingKeyFingerprint": "fp_test_device_001",
+  "signature": "synthetic-sig-offer-001"
+}
