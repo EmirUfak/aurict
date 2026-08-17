@@ -108,7 +108,7 @@ class MethodChannelMobileModelCacheStore implements MobileModelCacheStore {
       if (raw == null || raw.trim().isEmpty || raw.trim() == '{}') {
         return const {};
       }
-      return compute(parseMobileModelCachePayload, raw);
+      return await compute(parseMobileModelCachePayload, raw);
     } on MissingPluginException {
       return _fallback.readAll();
     }
