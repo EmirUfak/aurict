@@ -19,9 +19,10 @@
 import { join } from "node:path"
 import { mkdirSync, copyFileSync, chmodSync, writeFileSync } from "node:fs"
 import { buildDefineArgs, resolveBuildMetadata } from "./build-metadata.js"
+import { cliBuildEntrypoints, verifyAgentWorkerBundled } from "./agent-build-entrypoints.js"
 
 const ROOT  = join(import.meta.dir, "..")
-const ENTRY = join(ROOT, "packages/cli/src/index.ts")
+const ENTRIES = cliBuildEntrypoints(ROOT)
 const DIST  = join(ROOT, "dist")
 
 mkdirSync(DIST, { recursive: true })
@@ -68,7 +69,7 @@ for (const { id, bunTarget, exe } of targets) {
   console.log(`\n▶ Building ${id}…`)
 
   const result = Bun.spawnSync([
-    "bun", "build", ENTRY,
+    "bun", "build", ...ENTRIES,
     "--compile",
     "--target",  bunTarget,
     "--outfile", outFile,
@@ -86,6 +87,8 @@ for (const { id, bunTarget, exe } of targets) {
     allOk = false
     continue
   }
+
+  await verifyAgentWorkerBundled(outFile)
 
   // chmod is a no-op on Windows binaries but harmless to attempt on Linux/macOS host
   try { chmodSync(outFile, 0o755) } catch { /* Windows .exe doesn't need chmod */ }

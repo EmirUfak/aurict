@@ -29,6 +29,15 @@ Custom tool output without a native outcome can pass through the compatibility a
 `status: unknown` and `source: legacy_adapter`. Correctness checks must not treat
 that output as successful verification evidence.
 
+## Standalone worker packaging
+
+Bun does not automatically include statically referenced Worker files in a standalone executable.
+CLI, cross-platform, and desktop-sidecar builds therefore share an explicit two-entrypoint contract:
+their surface entrypoint plus `packages/core/src/agent/worker.ts`. Compiled binaries resolve the Worker
+through that repository-root literal, while source runs retain the module-relative URL. Each build
+verifies that the worker payload is present in the resulting binary, and `bun run check:worker`
+compiles and opens the worker in an isolated smoke executable.
+
 ## Complexity routing
 
 Adaptive step and reasoning budgets share one complexity assessment. It combines text length,

@@ -20,6 +20,7 @@ export function buildDefineArgs(metadata: BuildMetadata): string[] {
     "--define", `__AURICT_VERSION__=${JSON.stringify(metadata.version)}`,
     "--define", `__AURICT_COMMIT__=${JSON.stringify(metadata.commit)}`,
     "--define", `__AURICT_BUILD_DATE__=${JSON.stringify(metadata.buildDate)}`,
+    "--define", "__AURICT_COMPILED__=true",
   ]
 }
 

@@ -3,6 +3,7 @@
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildDefineArgs, resolveBuildMetadata } from './build-metadata.js';
+import { desktopSidecarBuildEntrypoints, verifyAgentWorkerBundled } from './agent-build-entrypoints.js';
 
 const root = join(import.meta.dir, '..');
 const desktopRoot = join(root, 'apps', 'desktop');
@@ -11,11 +12,12 @@ const outputName = process.platform === 'win32' ? 'aurict-sidecar.exe' : 'aurict
 const output = join(resourcesDir, outputName);
 const target = process.env.AURICT_SIDECAR_TARGET;
 const metadata = resolveBuildMetadata(root);
+const entrypoints = desktopSidecarBuildEntrypoints(root);
 
 mkdirSync(resourcesDir, { recursive: true });
 
 const command = [
-  'bun', 'build', join(desktopRoot, 'src', 'sidecar-entry.ts'),
+  'bun', 'build', ...entrypoints,
   '--compile', '--minify',
   '--external', 'fsevents',
   // Browser drivers are optional runtime integrations. Keep their dynamic imports
@@ -29,6 +31,7 @@ const command = [
 
 const build = Bun.spawnSync(command, { cwd: root, stdout: 'inherit', stderr: 'inherit' });
 if (build.exitCode !== 0) process.exit(build.exitCode);
+await verifyAgentWorkerBundled(output);
 
 const sourceData = join(root, 'packages', 'cli', 'data');
 if (!existsSync(sourceData)) throw new Error(`Desktop sidecar data directory is missing: ${sourceData}`);

@@ -156,6 +156,9 @@ jobs:
       - name: Smoke test linux binary
         run: ./dist/aurict-linux-x64 --version
 
+      - name: Smoke test compiled worker bootstrap
+        run: bun run check:worker
+
       - name: Verify package and binary version contract
         run: bun run scripts/check-version-consistency.ts --binary dist/aurict-linux-x64
 

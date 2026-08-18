@@ -1,6 +1,6 @@
 {
   "name": "aurict",
-  "version": "1.2.20",
+  "version": "1.2.21",
   "private": true,
   "license": "AGPL-3.0-only",
   "workspaces": [
@@ -38,6 +38,7 @@
     "doctor:json": "bun run packages/cli/src/index.ts doctor --json",
     "doctor:report": "bun run packages/cli/src/index.ts doctor --json > reports/doctor-runtime.json",
     "check:version": "bun run scripts/check-version-consistency.ts",
+    "check:worker": "bun run scripts/check-compiled-worker.ts",
     "check:quality": "bun run scripts/check-quality.ts",
     "deadcode": "bunx knip --include files,dependencies",
     "smoke": "bun run build && ./dist/aurict --version",

@@ -7,9 +7,10 @@
 import { join } from "node:path"
 import { mkdirSync, existsSync } from "node:fs"
 import { buildDefineArgs, resolveBuildMetadata } from "./build-metadata.js"
+import { cliBuildEntrypoints, verifyAgentWorkerBundled } from "./agent-build-entrypoints.js"
 
 const ROOT    = join(import.meta.dir, "..")
-const ENTRY   = join(ROOT, "packages/cli/src/index.ts")
+const ENTRIES = cliBuildEntrypoints(ROOT)
 const OUTDIR  = join(ROOT, "dist")
 const OUTFILE = join(OUTDIR, "aurict")
 
@@ -19,7 +20,7 @@ const metadata = resolveBuildMetadata(ROOT)
 if (!existsSync(OUTDIR)) mkdirSync(OUTDIR, { recursive: true })
 
 const result = Bun.spawnSync([
-  "bun", "build", ENTRY,
+  "bun", "build", ...ENTRIES,
   "--compile",
   "--outfile", OUTFILE,
   "--target", "bun",
@@ -36,6 +37,8 @@ if (result.exitCode !== 0) {
   console.error("Build failed!")
   process.exit(1)
 }
+
+await verifyAgentWorkerBundled(OUTFILE)
 
 // Make executable
 Bun.spawnSync(["chmod", "+x", OUTFILE])

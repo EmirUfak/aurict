@@ -10,6 +10,8 @@ import { agentLearner }   from "./learning.js"
 import { providerEnvironmentFromConfig } from "../provider/credentials.js"
 import type { TaskContext } from "../context/types.js"
 
+declare const __AURICT_COMPILED__: boolean | undefined
+
 export class PoolFullError extends Error {
   constructor(max: number) {
     super(`Worker pool full (max ${max})`)
@@ -20,6 +22,13 @@ export class PoolFullError extends Error {
 const DEFAULT_WORKER_TIMEOUT  = 300_000   // 5 dakika — heartbeat'le reset edilir
 const HEARTBEAT_GRACE         = 45_000    // heartbeat gelmezse bu kadar sonra timeout
 const DEFAULT_MAX_WORKERS     = 8
+
+export function createAgentWorker(): Worker {
+  if (typeof __AURICT_COMPILED__ === "boolean" && __AURICT_COMPILED__) {
+    return new Worker("./packages/core/src/agent/worker.ts", { type: "module" })
+  }
+  return new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
+}
 
 const ENV_VAR_KEYS = [
   "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
@@ -231,7 +240,7 @@ class AgentPool {
     })
 
     return new Promise<string>((resolve, reject) => {
-      const worker = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" })
+      const worker = createAgentWorker()
 
       const info: AgentInfo = {
         id:              opts.id,
