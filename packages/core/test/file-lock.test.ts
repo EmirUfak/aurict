@@ -22,6 +22,7 @@ import { writeTool } from "../src/tool/built-in/write.js"
 import { editTool } from "../src/tool/built-in/edit.js"
 import { applyPatchTool } from "../src/tool/built-in/apply-patch.js"
 import { notebookEditTool } from "../src/tool/built-in/notebook.js"
+import { progressTracker } from "../src/util/progress.js"
 
 let dir: string
 
@@ -467,8 +468,10 @@ describe("tool/executor.ts — Faz 3C entegrasyonu & çok dosyalı subagent muta
   })
 
   it("transaction kurulumu başarısız olsa bile kilit serbest bırakılır", async () => {
+    progressTracker.clear()
     const result = executeTool(writeTool, { path: dir, content: "new" }, ctx({ sessionId: "worker-transaction" }))
     await expect(result).rejects.toThrow()
     expect(await getFileLockInfo(dir, dir)).toBeNull()
+    expect(progressTracker.getActiveTools()).toEqual([])
   })
 })

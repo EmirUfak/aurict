@@ -641,10 +641,6 @@ export async function executeTool(
   let verificationBase: Awaited<ReturnType<typeof fingerprintWorkspaceRevision>> | undefined;
 
   try {
-    // --- Faz 6: Progress tracking başlat ---
-    const progressMessage = getToolProgressMessage(def.id, args);
-    progressTracker.start(def.id, progressMessage);
-
     verificationPaths = def.id === "verify"
       ? verificationPathsForSession(ctx, args)
       : [];
@@ -655,6 +651,10 @@ export async function executeTool(
       ctx.workdir,
       toolMutationPaths,
     );
+
+    // --- Faz 6: Progress tracking başlat ---
+    const progressMessage = getToolProgressMessage(def.id, args);
+    progressTracker.start(def.id, progressMessage);
 
     // --- Execute (timeout korumalı + gerçek iptal zinciri) ---
     //
