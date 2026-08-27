@@ -7,7 +7,7 @@
  *     - solo session (isSubagent: false) kilit kontrolünden etkilenmez.
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "bun:test"
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
