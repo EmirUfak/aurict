@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { createHash } from "node:crypto"
 
 /**
@@ -20,6 +20,11 @@ export interface FileLockInfo {
   expiresAt:  number
 }
 
+export interface AcquireLocksResult {
+  acquired: boolean
+  conflictingPath?: string
+}
+
 const DEFAULT_TTL_MS = 30_000
 
 function lockDir(workdir: string): string {
@@ -27,7 +32,8 @@ function lockDir(workdir: string): string {
 }
 
 function lockPathFor(workdir: string, filePath: string): string {
-  const hash = createHash("sha1").update(filePath).digest("hex")
+  const canonical = resolve(workdir, filePath)
+  const hash = createHash("sha1").update(canonical).digest("hex")
   return join(lockDir(workdir), `${hash}.lock`)
 }
 
@@ -80,6 +86,39 @@ export async function acquireFileLock(
   }
 }
 
+/**
+ * Birden fazla dosya için deterministik sırada lock almaya çalışır.
+ *   - Yolları normalize eder, yinelenenleri eler ve alfabetik olarak sıralar.
+ *   - Herhangi bir dosyanın lock'u alınamazsa, bu çağrıda şimdiye kadar alınan
+ *     tüm lock'lar geri bırakılır (rollback) ve çakışan yol ile birlikte false döner.
+ */
+export async function acquireFileLocks(
+  workdir:   string,
+  filePaths: string[],
+  agentId:   string,
+  sessionId: string,
+  ttlMs = DEFAULT_TTL_MS,
+): Promise<AcquireLocksResult> {
+  const canonicalSortedPaths = [...new Set(filePaths.map((p) => resolve(workdir, p)))].sort()
+  const acquiredPaths: string[] = []
+
+  try {
+    for (const filePath of canonicalSortedPaths) {
+      const ok = await acquireFileLock(workdir, filePath, agentId, sessionId, ttlMs)
+      if (!ok) {
+        await releaseFileLocks(workdir, acquiredPaths, agentId)
+        return { acquired: false, conflictingPath: filePath }
+      }
+      acquiredPaths.push(filePath)
+    }
+  } catch (error) {
+    await releaseFileLocks(workdir, acquiredPaths, agentId)
+    throw error
+  }
+
+  return { acquired: true }
+}
+
 /** Bir lock'u serbest bırakır. Sadece sahibi (aynı agentId) serbest bırakabilir. */
 export async function releaseFileLock(workdir: string, filePath: string, agentId: string): Promise<boolean> {
   const path = lockPathFor(workdir, filePath)
@@ -91,6 +130,19 @@ export async function releaseFileLock(workdir: string, filePath: string, agentId
   } catch {
     return false
   }
+}
+
+/** Birden fazla lock'u toplu serbest bırakır. */
+export async function releaseFileLocks(
+  workdir:   string,
+  filePaths: string[],
+  agentId:   string,
+): Promise<boolean> {
+  const canonicalPaths = [...new Set(filePaths.map((p) => resolve(workdir, p)))]
+  const results = await Promise.all(
+    canonicalPaths.map((filePath) => releaseFileLock(workdir, filePath, agentId)),
+  )
+  return results.every(Boolean)
 }
 
 /** Bir dosyanın şu an (başka bir agent tarafından, geçerli şekilde) kilitli olup olmadığını döner. */

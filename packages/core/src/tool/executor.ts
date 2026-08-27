@@ -41,7 +41,7 @@ import {
   getWorkingSetSnapshot,
   recordVerificationRevision,
 } from "../agent/working-set.js";
-import { acquireFileLock, releaseFileLock } from "../agent/file-lock.js";
+import { acquireFileLocks, releaseFileLocks } from "../agent/file-lock.js";
 import { recordFailureCooldown } from "../agent/failure-cooldown.js";
 import { failedStrategiesStore } from "../agent/failed-strategies-store.js";
 import { recordRunTrace } from "../agent/run-trace.js";
@@ -609,83 +609,92 @@ export async function executeTool(
   // ana session'da overhead yok. agentPool.spawn her worker'ı AYRI bir Worker
   // thread'de çalıştırdığından (bkz. agent/pool.ts) in-memory bir lock hiçbir
   // çakışmayı önlemez; bu yüzden dosya tabanlı bir lock kullanılıyor.
-  const lockTargetPath =
-    def.id === "edit" || def.id === "write" ? String(args["path"] ?? "") : "";
-  let fileLockAcquired = false;
-  if (ctx.isSubagent && lockTargetPath) {
-    const absLockPath = resolve(ctx.workdir, lockTargetPath);
-    fileLockAcquired = await acquireFileLock(
+  // Workspace transaction mutasyon yolları ile worker lock yolları birebir eşlenir.
+  const toolMutationPaths = mutationPathsForTool(def.id, args);
+  let acquiredLockPaths: string[] = [];
+  if (ctx.isSubagent && toolMutationPaths.length > 0) {
+    const lockResult = await acquireFileLocks(
       ctx.workdir,
-      absLockPath,
+      toolMutationPaths,
       ctx.sessionId,
       ctx.sessionId,
     );
-    if (!fileLockAcquired) {
+    if (!lockResult.acquired) {
+      const rawConflict =
+        toolMutationPaths.find((p) => resolve(ctx.workdir, p) === lockResult.conflictingPath) ??
+        lockResult.conflictingPath ??
+        "a file";
       return {
         output: "",
-        error: `[file-lock] '${lockTargetPath}' is currently being edited by another worker. Wait and retry, or work on a different file.`,
+        error: `[file-lock] '${rawConflict}' is currently being edited by another worker. Wait and retry, or work on a different file.`,
       };
     }
+    acquiredLockPaths = toolMutationPaths;
   }
 
-  // --- Faz 6: Progress tracking başlat ---
-  const progressMessage = getToolProgressMessage(def.id, args);
-  progressTracker.start(def.id, progressMessage);
-
-  // --- Execute (timeout korumalı + gerçek iptal zinciri) ---
-  //
-  // execAC: bu tool çağrısına özel AbortController.
-  //   • ctx.signal (loop'tan gelen opts.signal) abort edilirse → execAC da abort edilir.
-  //   • withToolTimeout süresi dolunca → execAC abort edilir.
-  // Tool, ctx.signal yerine execCtx.signal'i kullanır; her iki kaynaktan da iptal alır.
   const execAC = new AbortController();
   const mirrorFn = () => execAC.abort();
-  if (ctx.signal.aborted) {
-    execAC.abort();
-  } else {
-    ctx.signal.addEventListener("abort", mirrorFn, { once: true });
-  }
-  const execCtx: ToolContext = { ...ctx, signal: execAC.signal };
-
   const start = Date.now();
   let result: ExecuteResult;
   let execError: string | null = null;
-  const verificationPaths = def.id === "verify"
-    ? verificationPathsForSession(ctx, args)
-    : [];
-  const verificationBase = verificationPaths.length > 0
-    ? await fingerprintWorkspaceRevision(ctx.workdir, verificationPaths)
-    : undefined;
-  const transaction = await WorkspaceTransaction.begin(
-    ctx.workdir,
-    mutationPathsForTool(def.id, args),
-  );
+  let verificationPaths: string[] = [];
+  let verificationBase: Awaited<ReturnType<typeof fingerprintWorkspaceRevision>> | undefined;
 
   try {
-    result = await withToolTimeout(def.execute(args, execCtx), def, () =>
-      execAC.abort(),
-    );
-  } catch (err) {
-    execError = String(err);
-    result = { output: "", error: execError };
-  } finally {
-    ctx.signal.removeEventListener("abort", mirrorFn);
-    if (fileLockAcquired) {
-      const absLockPath = resolve(ctx.workdir, lockTargetPath);
-      observeBackground(releaseFileLock(ctx.workdir, absLockPath, ctx.sessionId), `file lock release for ${absLockPath}`);
-    }
-  }
+    // --- Faz 6: Progress tracking başlat ---
+    const progressMessage = getToolProgressMessage(def.id, args);
+    progressTracker.start(def.id, progressMessage);
 
-  if (transaction) {
-    const committed = await transaction.commit();
-    const transactionRecord = result.error ? await transaction.rollback() : committed;
-    result = {
-      ...result,
-      metadata: { ...result.metadata, transaction: transactionRecord },
-      ...(transactionRecord.status === "rollback_conflict"
-        ? { error: `${result.error ?? "Tool failed"}\n[transaction] Rollback refused because the file changed after this tool attempt.` }
-        : {}),
-    };
+    verificationPaths = def.id === "verify"
+      ? verificationPathsForSession(ctx, args)
+      : [];
+    verificationBase = verificationPaths.length > 0
+      ? await fingerprintWorkspaceRevision(ctx.workdir, verificationPaths)
+      : undefined;
+    const transaction = await WorkspaceTransaction.begin(
+      ctx.workdir,
+      toolMutationPaths,
+    );
+
+    // --- Execute (timeout korumalı + gerçek iptal zinciri) ---
+    //
+    // execAC: bu tool çağrısına özel AbortController.
+    //   • ctx.signal (loop'tan gelen opts.signal) abort edilirse → execAC da abort edilir.
+    //   • withToolTimeout süresi dolunca → execAC abort edilir.
+    // Tool, ctx.signal yerine execCtx.signal'i kullanır; her iki kaynaktan da iptal alır.
+    if (ctx.signal.aborted) {
+      execAC.abort();
+    } else {
+      ctx.signal.addEventListener("abort", mirrorFn, { once: true });
+    }
+    const execCtx: ToolContext = { ...ctx, signal: execAC.signal };
+
+    try {
+      result = await withToolTimeout(def.execute(args, execCtx), def, () =>
+        execAC.abort(),
+      );
+    } catch (err) {
+      execError = String(err);
+      result = { output: "", error: execError };
+    } finally {
+      ctx.signal.removeEventListener("abort", mirrorFn);
+    }
+
+    if (transaction) {
+      const committed = await transaction.commit();
+      const transactionRecord = result.error ? await transaction.rollback() : committed;
+      result = {
+        ...result,
+        metadata: { ...result.metadata, transaction: transactionRecord },
+        ...(transactionRecord.status === "rollback_conflict"
+          ? { error: `${result.error ?? "Tool failed"}\n[transaction] Rollback refused because the file changed after this tool attempt.` }
+          : {}),
+      };
+    }
+  } finally {
+    if (acquiredLockPaths.length > 0) {
+      await releaseFileLocks(ctx.workdir, acquiredLockPaths, ctx.sessionId);
+    }
   }
 
   if (!result.error && importPrecheckWarning) {
