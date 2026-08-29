@@ -41,7 +41,7 @@ import {
   getWorkingSetSnapshot,
   recordVerificationRevision,
 } from "../agent/working-set.js";
-import { acquireFileLocks, releaseFileLocks } from "../agent/file-lock.js";
+import { acquireFileLocks, DEFAULT_FILE_LOCK_TTL_MS, releaseFileLocks } from "../agent/file-lock.js";
 import { recordFailureCooldown } from "../agent/failure-cooldown.js";
 import { failedStrategiesStore } from "../agent/failed-strategies-store.js";
 import { recordRunTrace } from "../agent/run-trace.js";
@@ -63,6 +63,7 @@ import {
   patchPermissionMetadata,
   verifyLocalImports,
   waitForPermission,
+  DEFAULT_TOOL_TIMEOUT_MS,
   withTimeout,
   withToolTimeout,
 } from "./execution-helpers.js";
@@ -618,6 +619,7 @@ export async function executeTool(
       toolMutationPaths,
       ctx.sessionId,
       ctx.sessionId,
+      (def.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS) + DEFAULT_FILE_LOCK_TTL_MS,
     );
     if (!lockResult.acquired) {
       const rawConflict =
@@ -629,7 +631,7 @@ export async function executeTool(
         error: `[file-lock] '${rawConflict}' is currently being edited by another worker. Wait and retry, or work on a different file.`,
       };
     }
-    acquiredLockPaths = toolMutationPaths;
+    acquiredLockPaths = lockResult.acquiredPaths ?? [];
   }
 
   const execAC = new AbortController();
@@ -693,7 +695,7 @@ export async function executeTool(
     }
   } finally {
     if (acquiredLockPaths.length > 0) {
-      await releaseFileLocks(ctx.workdir, acquiredLockPaths, ctx.sessionId);
+      await releaseFileLocks(ctx.workdir, acquiredLockPaths, ctx.sessionId, ctx.sessionId);
     }
   }
 

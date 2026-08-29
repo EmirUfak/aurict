@@ -85,6 +85,23 @@ describe("agent/file-lock.ts — saf modül davranışı", () => {
     expect(releasedByOwner).toBe(true)
   })
 
+  it("releaseFileLock same agent's other session lock cannot release", async () => {
+    const f = target()
+    await acquireFileLock(dir, f, "agent-a", "session-a")
+    expect(await releaseFileLock(dir, f, "agent-a", "session-b")).toBe(false)
+    expect(await releaseFileLock(dir, f, "agent-a", "session-a")).toBe(true)
+  })
+
+  it("expired lock is reacquired by same worker instead of treated as owned", async () => {
+    const f = target()
+    await acquireFileLock(dir, f, "agent-a", "session-a", 10)
+    await new Promise((resolve) => setTimeout(resolve, 30))
+
+    expect(await acquireFileLock(dir, f, "agent-a", "session-a", 200)).toBe(true)
+    expect((await getFileLockInfo(dir, f))!.expiresAt).toBeGreaterThan(Date.now() + 150)
+    await releaseFileLock(dir, f, "agent-a", "session-a")
+  })
+
   it("release sonrası başka bir agent lock alabilir", async () => {
     const f = target()
     await acquireFileLock(dir, f, "agent-a", "session-a")
@@ -136,6 +153,20 @@ describe("agent/file-lock.ts — saf modül davranışı", () => {
     // Başka bir worker f1'i hemen kilitleyebilmeli
     const ok = await acquireFileLock(dir, f1, "third-agent", "third-session")
     expect(ok).toBe(true)
+  })
+
+  it("acquireFileLocks rollback keeps locks it did not create", async () => {
+    const f1 = target()
+    const f2 = target()
+    await acquireFileLock(dir, f1, "agent-batch", "session-batch")
+    await acquireFileLock(dir, f2, "other-agent", "other-session")
+
+    const result = await acquireFileLocks(dir, [f1, f2], "agent-batch", "session-batch")
+    expect(result.acquired).toBe(false)
+    expect((await getFileLockInfo(dir, f1))?.agentId).toBe("agent-batch")
+
+    await releaseFileLock(dir, f1, "agent-batch", "session-batch")
+    await releaseFileLock(dir, f2, "other-agent", "other-session")
   })
 
   it("acquireFileLocks yinelenen ve göreceli yolları tek bir kilide indirger (deduplicate/canonicalize)", async () => {
