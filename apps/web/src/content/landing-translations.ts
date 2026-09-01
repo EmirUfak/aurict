@@ -1,8 +1,10 @@
 import type { AppLocale } from "@/i18n/routing"
 
-type Triple = [string, string, string]
-type Quad = [string, string, string, string]
-type Pair = [string, string]
+export type Triple = [string, string, string]
+export type Quad = [string, string, string, string]
+export type Pair = [string, string]
+
+import { LANDING_CONTENT_EXTRA } from "@/content/landing-translations-extra"
 
 export const whyItemsEn: Triple[] = [
   ["01", "Agent-first, not prompt-first.", "Every task routes to a domain specialist — explore, code, review, test, debug, docs, security, performance, analytics — each with its own tools and context budget. Complex work decomposes and runs in parallel instead of waiting in a single queue."],
@@ -96,9 +98,9 @@ export const faqsTr: Pair[] = [
   ["Mevcut MCP sunucularımı kullanabilir miyim?", "Aurict uyumlu mevcut MCP yapılandırmasını içe aktarabilir. Kullanmadan önce her bağlantıyı ve kullanılabilir aracı /mcp içinde doğrulayın."],
 ]
 
-export function localizeWhyItems(l: AppLocale) { return l === "tr" ? whyItemsTr : whyItemsEn }
-export function localizeCapabilityItems(l: AppLocale) { return l === "tr" ? capabilityItemsTr : capabilityItemsEn }
-export function localizeSecurityProfiles(l: AppLocale) { return l === "tr" ? securityProfilesTr : securityProfilesEn }
-export function localizeInstallSteps(l: AppLocale) { return l === "tr" ? installStepsTr : installStepsEn }
-export function localizeMobileAssistantItems(l: AppLocale) { return l === "tr" ? mobileAssistantItemsTr : mobileAssistantItemsEn }
-export function localizeFaqs(l: AppLocale) { return l === "tr" ? faqsTr : faqsEn }
+export function localizeWhyItems(l: AppLocale) { return l === "tr" ? whyItemsTr : l === "en" ? whyItemsEn : LANDING_CONTENT_EXTRA[l].why }
+export function localizeCapabilityItems(l: AppLocale) { return l === "tr" ? capabilityItemsTr : l === "en" ? capabilityItemsEn : LANDING_CONTENT_EXTRA[l].capabilities }
+export function localizeSecurityProfiles(l: AppLocale) { return l === "tr" ? securityProfilesTr : l === "en" ? securityProfilesEn : LANDING_CONTENT_EXTRA[l].security }
+export function localizeInstallSteps(l: AppLocale) { return l === "tr" ? installStepsTr : l === "en" ? installStepsEn : LANDING_CONTENT_EXTRA[l].install }
+export function localizeMobileAssistantItems(l: AppLocale) { return l === "tr" ? mobileAssistantItemsTr : l === "en" ? mobileAssistantItemsEn : LANDING_CONTENT_EXTRA[l].mobile }
+export function localizeFaqs(l: AppLocale) { return l === "tr" ? faqsTr : l === "en" ? faqsEn : LANDING_CONTENT_EXTRA[l].faqs }

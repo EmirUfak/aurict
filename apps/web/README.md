@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aurict web
 
-## Getting Started
+The public Aurict website is a Next.js 16 application. It contains the product landing page, the terminal-agent search hub, documentation, comparisons, use cases, release notes, downloads, legal pages, and account flows.
 
-First, run the development server:
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Before shipping a change, run:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+bun run lint
+bunx tsc --noEmit
+bun run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Internationalization
 
-## Learn More
+The site uses `next-intl` and supports English (`en`), Turkish (`tr`), German (`de`), French (`fr`), and Spanish (`es`). English uses unprefixed URLs; the other locales use `/tr`, `/de`, `/fr`, and `/es`.
 
-To learn more about Next.js, take a look at the following resources:
+Locale configuration lives in `src/i18n/config.ts`. Navigation messages live in `src/messages/`. The homepage and `/terminal-agent` are fully localized in all five languages. Long-form editorial, documentation, comparison, use-case, and legal content currently remains English/Turkish; German, French, and Spanish requests receive the English article with an English canonical until an reviewed translation is available. Do not add those fallback pages to localized sitemap entries.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+When adding a fully translated public page:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Provide visible content and metadata for every advertised locale.
+2. Pass the translated locale list to `localizedMetadata`.
+3. Add reciprocal localized entries through `src/app/sitemap.ts`.
+4. Verify the rendered `lang`, canonical, `hreflang`, and structured data for each locale.
 
-## Deploy on Vercel
+## SEO surfaces
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `src/i18n/metadata.ts` builds canonical URLs, reciprocal `hreflang`, Open Graph, Twitter, and crawler directives.
+- `src/app/sitemap.ts` lists only locale variants with real translated content.
+- `src/components/seo/JsonLd.tsx` safely serializes structured data.
+- `src/content/home-seo.ts` defines homepage metadata and structured data.
+- `src/content/terminal-agent.ts` defines the five-language terminal-agent topic hub.
+- `public/llms.txt` provides a concise map for AI crawlers and research tools.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Validate structured data with Google Rich Results Test or Schema.org Validator after deployment, then submit `https://aurict.com/sitemap.xml` in the production search consoles.

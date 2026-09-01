@@ -2,9 +2,9 @@
 
 import { useLocale, useTranslations } from "next-intl"
 import { usePathname, useRouter } from "@/i18n/navigation"
-import type { AppLocale } from "@/i18n/routing"
+import { SUPPORTED_LOCALES, type AppLocale } from "@/i18n/config"
 
-const locales: AppLocale[] = ["en", "tr"]
+const locales = SUPPORTED_LOCALES
 
 export function LocaleSwitcher() {
   const locale = useLocale() as AppLocale

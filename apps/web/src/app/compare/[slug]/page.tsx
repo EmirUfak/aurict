@@ -1,25 +1,27 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getLocale } from "next-intl/server"
 import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
+import { JsonLd } from "@/components/seo/JsonLd"
 import { localizeComparison } from "@/content/comparison-translations"
 import { COMPARISONS } from "@/content/comparisons"
 import type { AppLocale } from "@/i18n/routing"
+import { localizedMetadata, localizedUrl } from "@/i18n/metadata"
+import { Link } from "@/i18n/navigation"
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const comparison = COMPARISONS.find((entry) => entry.slug === slug)
-  if (!comparison) return {}
+  const source = COMPARISONS.find((entry) => entry.slug === slug)
+  if (!source) return {}
+  const locale = await getLocale() as AppLocale
+  const comparison = localizeComparison(source, locale)
 
-  return {
-    title: comparison.title,
-    description: comparison.description,
-    alternates: { canonical: `https://aurict.com/compare/${slug}` },
-    openGraph: { title: comparison.title, description: comparison.description, url: `https://aurict.com/compare/${slug}` },
-  }
+  return localizedMetadata(locale, `/compare/${slug}`, comparison.title, comparison.description, {
+    type: "article",
+    modifiedTime: comparison.updatedAt,
+  })
 }
 
 export function generateStaticParams() {
@@ -34,6 +36,7 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
 
   const comparison = localizeComparison(source, locale)
   const others = COMPARISONS.filter((entry) => entry.slug !== slug).map((entry) => localizeComparison(entry, locale))
+  const contentLocale = locale === "tr" ? "tr" : "en"
   const tr = locale === "tr"
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -41,13 +44,14 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
     headline: comparison.title,
     description: comparison.description,
     dateModified: comparison.updatedAt,
-    url: `https://aurict.com/compare/${slug}`,
+    inLanguage: contentLocale,
+    url: localizedUrl(`/compare/${slug}`, contentLocale),
     author: { "@type": "Organization", name: "Aurict" },
   }
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
+      <JsonLd data={articleJsonLd} />
       <Nav />
       <main className="marketing-main" style={{ maxWidth: 860 }}>
         <Breadcrumb items={[{ label: tr ? "Ana sayfa" : "Home", href: "/" }, { label: `vs ${comparison.competitor}`, href: `/compare/${slug}` }]} />

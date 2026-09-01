@@ -5,6 +5,7 @@
 ## Core Pages
 
 - [Aurict — Terminal AI Coding Assistant](https://aurict.com/): Open-source terminal agent and AI coding assistant with specialist agents, contextual skills, multi-provider support, and a BYOK mobile assistant.
+- [Aurict Terminal Agent](https://aurict.com/terminal-agent): Detailed overview of the open-source terminal agent, its multi-agent workflow, command controls, MCP support, provider choice, verification model, use cases, and frequently asked questions.
 - [Bondley.one](https://bondley.one): Aurict sub-product for researching bonds, yields, and spreads through clear, comparable analysis.
 - [Documentation](https://aurict.com/docs): Install Aurict, configure providers and API keys, connect tools, use agent workflows, and understand the runtime.
 - [About Aurict](https://aurict.com/about): The Aurict manifesto, architecture philosophy, BYOK model, objectivity principle, and long-term product vision.
@@ -42,3 +43,7 @@
 
 - [GitHub Repository](https://github.com/aurict/aurict): Source code, issues, releases, and contribution history.
 - [npm Package](https://www.npmjs.com/package/aurict): Package page for installing Aurict.
+
+## Languages
+
+The main product overview and terminal-agent guide are available in English, Turkish, German, French, and Spanish. Localized URLs use `/tr`, `/de`, `/fr`, and `/es`; English is served without a locale prefix.

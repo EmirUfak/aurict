@@ -2,12 +2,14 @@ import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
 import { CodeBlock } from "@/components/ui/CodeBlock"
-import Link from "next/link"
+import { JsonLd } from "@/components/seo/JsonLd"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
 import { getLocale } from "next-intl/server"
 import { localizeUseCase } from "@/content/use-case-translations"
 import type { AppLocale } from "@/i18n/routing"
+import { localizedMetadata, localizedUrl } from "@/i18n/metadata"
+import { Link } from "@/i18n/navigation"
 
 interface UseCase {
   slug: string
@@ -148,19 +150,12 @@ async function getUser() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const uc = USE_CASES.find((u) => u.slug === slug)
-  if (!uc) return {}
+  const source = USE_CASES.find((u) => u.slug === slug)
+  if (!source) return {}
+  const locale = await getLocale() as AppLocale
+  const useCase = localizeUseCase(source, locale)
 
-  return {
-    title: uc.title,
-    description: uc.description,
-    alternates: { canonical: `https://aurict.com/use-cases/${slug}` },
-    openGraph: {
-      title: uc.title,
-      description: uc.description,
-      url: `https://aurict.com/use-cases/${slug}`,
-    },
-  }
+  return localizedMetadata(locale, `/use-cases/${slug}`, useCase.title, useCase.description)
 }
 
 export function generateStaticParams() {
@@ -175,12 +170,15 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
 
   if (!sourceUseCase) notFound()
   const uc = localizeUseCase(sourceUseCase, locale)
+  const contentLocale = locale === "tr" ? "tr" : "en"
 
   const howToJsonLd = {
     "@context": "https://schema.org",
     "@type": "HowTo",
     "name": uc.title,
     "description": uc.description,
+    "inLanguage": contentLocale,
+    "url": localizedUrl(`/use-cases/${slug}`, contentLocale),
     "step": uc.steps.map((step, i) => ({
       "@type": "HowToStep",
       "position": i + 1,
@@ -193,7 +191,7 @@ export default async function UseCasePage({ params }: { params: Promise<{ slug: 
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToJsonLd) }} />
+      <JsonLd data={howToJsonLd} />
       <Nav />
       <main className="marketing-main marketing-main-narrow">
         <Breadcrumb

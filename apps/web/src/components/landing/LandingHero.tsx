@@ -4,39 +4,40 @@ import { useLocale } from "next-intl"
 import { CopyCommand } from "@/components/CopyCommand"
 import { Link } from "@/i18n/navigation"
 import { currentEditionLabel, providerCount } from "@/content/product-facts"
+import { localizeLandingUi } from "@/content/landing-ui"
+import type { AppLocale } from "@/i18n/config"
 import styles from "./LandingHero.module.css"
 
 const providers = ["Anthropic", "OpenAI", "Google", "xAI", "Azure", "AWS Bedrock", "Ollama", "OpenRouter"]
 
 export function LandingHero() {
-  const tr = useLocale() === "tr"
+  const locale = useLocale() as AppLocale
+  const t = localizeLandingUi(locale).hero
 
   return (
     <section className={styles.hero} data-screen-label="Hero">
       <div className={styles.stage}>
         <aside className={styles.rail}>
-          <div className={styles.signal}><span />{tr ? "açık kaynak" : "open source"}</div>
-          <p>{tr ? "yerel bağlam" : "local context"}</p>
-          <p>{tr ? "açık kontrol" : "explicit control"}</p>
+          <div className={styles.signal}><span />{t.openSource}</div>
+          <p>{t.localContext}</p>
+          <p>{t.explicitControl}</p>
           <i aria-hidden="true">01—04</i>
         </aside>
         <div className={styles.content}>
           <header className={styles.masthead}>
             <p className={styles.version}>{currentEditionLabel} · AGPLv3</p>
-            <p>{tr ? "masaüstü · terminal · mobil · finans" : "desktop · terminal · mobile · finance"}</p>
+            <p>{t.surfaces}</p>
           </header>
-          <h1>{tr ? <>İşiniz neredeyse,<br />Aurict orada.</> : <>One intelligence.<br />Every surface.</>}</h1>
-          <WorkThread tr={tr} />
+          <h1>{t.title[0]}<br />{t.title[1]}</h1>
+          <WorkThread copy={t} />
           <div className={styles.decisionRow}>
             <div>
-              <p className={styles.summary}>{tr
-                ? "İşiniz neredeyse Aurict oradadır: Hoprel'de yerel öncelikli masaüstü çalışma alanı, terminalde kodlama, Aurict Mobile ile araştırma ve uzaktan kontrol, Bondley.one ile sabit getirili piyasa zekâsı."
-                : "Aurict brings agentic work to the surface that fits: Hoprel for a local-first desktop workspace, a native terminal runtime for code, Aurict Mobile for research and remote control, and Bondley.one for fixed-income intelligence."}</p>
-              <p className={styles.proof}>{tr ? "tek hesap · kendi sağlayıcılarınız · yerel bağlam · açık kontrol" : "one account · your providers · local context · explicit control"}</p>
+              <p className={styles.summary}>{t.summary}</p>
+              <p className={styles.proof}>{t.proof}</p>
             </div>
           <div className={styles.actions}>
-            <Link className={styles.primaryAction} href="/downloads">↓ {tr ? "Hoprel'i indir" : "download Hoprel"}</Link>
-            <CopyCommand className={styles.secondaryAction} command="curl -fsSL https://aurict.com/install.sh | bash" copiedLabel={tr ? "$ kopyalandı" : "$ copied"} label={tr ? "$ kur" : "$ install"} />
+            <Link className={styles.primaryAction} href="/downloads">↓ {t.download}</Link>
+            <CopyCommand className={styles.secondaryAction} command="curl -fsSL https://aurict.com/install.sh | bash" copiedLabel={t.copied} label={t.install} />
             <a className={styles.githubAction} href="https://github.com/aurict/aurict" rel="noopener noreferrer" target="_blank">★ GitHub</a>
           </div>
         </div>
@@ -44,39 +45,35 @@ export function LandingHero() {
       </div>
 
       <div className={styles.providers}>
-        <span>{tr ? "uyumlu" : "works with"}</span>
+        <span>{t.worksWith}</span>
         {providers.map((provider) => <b key={provider}>{provider}</b>)}
-        <span>{tr ? `+${providerCount - providers.length} daha — kendi anahtarını getir` : `+${providerCount - providers.length} more — bring your own key`}</span>
+        <span>{t.moreProviders(providerCount - providers.length)}</span>
       </div>
     </section>
   )
 }
 
-function WorkThread({ tr }: { tr: boolean }) {
-  const steps = tr
-    ? [["01", "bağlam taraması", "84 dosya · framework algılandı"], ["02", "uzmanlara ayır", "keşfet · kodla · incele"], ["03", "açık onay", "komut çalışmadan önce durur"], ["04", "sonuç teslimi", "dosyalar · kanıt · sonraki adım"]]
-    : [["01", "context scan", "84 files · framework detected"], ["02", "delegate specialists", "explore · code · review"], ["03", "explicit approval", "commands stop before they run"], ["04", "deliver the result", "files · evidence · next step"]]
-
+function WorkThread({ copy }: { copy: ReturnType<typeof localizeLandingUi>["hero"] }) {
   return (
-    <div aria-label={tr ? "Aurict çalışma akışı" : "Aurict work thread"} className={styles.thread}>
+    <div aria-label={copy.threadAria} className={styles.thread}>
       <div className={styles.threadTopline}>
         <span>aurict / work thread</span>
-        <span className={styles.live}><i /> {tr ? "canlı bağlam" : "live context"}</span>
+        <span className={styles.live}><i /> {copy.liveContext}</span>
       </div>
       <div className={styles.threadPrompt}>
         <span>$</span>
-        <p>{tr ? "Bu kod tabanında güvenle ilerle." : "Move this codebase forward safely."}</p>
+        <p>{copy.prompt}</p>
       </div>
       <ol>
-        {steps.map(([number, title, detail], index) => (
+        {copy.steps.map(([number, title, detail], index) => (
           <li className={index === 2 ? styles.approval : ""} key={number}>
             <span className={styles.stepNumber}>{number}</span>
             <div><strong>{title}</strong><small>{detail}</small></div>
-            <span className={styles.stepState}>{index === 2 ? (tr ? "bekliyor" : "awaiting") : "✓"}</span>
+            <span className={styles.stepState}>{index === 2 ? copy.awaiting : "✓"}</span>
           </li>
         ))}
       </ol>
-      <div className={styles.threadFooter}><span>{tr ? "paralel uzmanlar" : "parallel specialists"}</span><span>{tr ? "yerel öncelikli" : "local-first"}</span><span>{tr ? "denetlenebilir" : "auditable"}</span></div>
+      <div className={styles.threadFooter}>{copy.threadFooter.map((item) => <span key={item}>{item}</span>)}</div>
     </div>
   )
 }

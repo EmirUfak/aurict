@@ -2,11 +2,15 @@
   "Locale": {
     "label": "Dil",
     "en": "İngilizce",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "de": "Almanca",
+    "fr": "Fransızca",
+    "es": "İspanyolca"
   },
   "Nav": {
     "product": "ürün",
     "overview": "genel bakış",
+    "terminalAgent": "terminal ajanı",
     "surfaces": "platformlar",
     "capabilities": "yetenekler",
     "security": "güvenlik",
@@ -25,6 +29,7 @@
   "Footer": {
     "product": "ürün",
     "capabilities": "yetenekler",
+    "terminalAgent": "terminal ajanı",
     "roadmap": "yol haritası",
     "compare": "karşılaştırmalar",
     "docs": "dokümanlar",

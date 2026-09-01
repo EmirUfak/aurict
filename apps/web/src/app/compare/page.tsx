@@ -8,11 +8,20 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb"
 import { CompareCard } from "@/components/ui/CompareCard"
 import { COMPARISONS } from "@/content/comparisons"
 import { breadcrumbJsonLd, collectionJsonLd } from "@/lib/seo"
+import { localizedMetadata } from "@/i18n/metadata"
 
-export const metadata: Metadata = {
-  title: "Aurict vs. Alternatives — Terminal AI Coding Assistant Comparisons",
-  description: "See how Aurict compares to Claude Code, Cursor, Aider, GitHub Copilot, and OpenCode. Multi-provider, multi-agent, native binary.",
-  alternates: { canonical: "https://aurict.com/compare" },
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale() as AppLocale
+  const title = locale === "tr"
+    ? "Aurict ve Alternatifleri — Terminal Yapay Zekâ Ajanı Karşılaştırmaları"
+    : "Aurict vs. Alternatives — Terminal AI Agent Comparisons"
+  const description = locale === "tr"
+    ? "Aurict'i Claude Code, Cursor, Aider, GitHub Copilot ve OpenCode ile sağlayıcı desteği, izinler, ajan mimarisi ve doğrulama açısından karşılaştırın."
+    : "Compare Aurict with Claude Code, Cursor, Aider, GitHub Copilot, and OpenCode across providers, permissions, agent architecture, and verification."
+
+  return localizedMetadata(locale, "/compare", title, description, {
+    keywords: ["terminal agent comparison", "AI coding agent comparison", "Aurict alternatives"],
+  })
 }
 
 const breadcrumb = breadcrumbJsonLd([

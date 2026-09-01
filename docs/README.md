@@ -10,7 +10,8 @@
 ## Product surfaces
 
 - **Terminal CLI** — the primary Aurict agent runtime with BYOK providers, typed tools, sessions, skills, MCP, hooks, and local API.
-- **Web platform** — public landing, docs, changelog, roadmap, manifesto, Firebase-backed auth, browser login, privacy, terms, and account deletion direction.
+- **Web platform (current)** — `aurict.com` public landing, docs, changelog, roadmap, manifesto, Firebase-backed auth, browser login, privacy, terms, and account controls; the plan moves product auth into the separate chat app.
+- **Web chat (planned)** — separately deployed `apps/chat` product for `chat.aurict.com`, sharing the Aurict account backend and runtime protocol without sharing marketing sessions or deployment state.
 - **Mobile app** — Flutter BYOK assistant for chat, research, document/PDF workflows, provider sessions, and assistant-answer reporting.
 - **Backend prototype** — local/private control-plane routes for account deletion and report ingestion. Backend files and secrets stay ignored by git.
 
@@ -19,6 +20,7 @@ Detailed product references:
 - [Product Overview](product-overview.md) — Aurict surfaces, architecture boundaries, and product direction
 - [Terminal Design Baseline](terminal-design-baseline.md) — responsive layout, transcript, tool, streaming, and composer contracts
 - [Mobile App](mobile.md) — BYOK mobile assistant behavior, release path, privacy, and reporting
+- [Web Chat Platform Plan](web-chat-platform-plan.md) — hosted/self-host product architecture, chat UX, runtime protocol, security, and phased delivery
 - [Roadmap](roadmap.md) — current phases, near-term hardening, ecosystem expansion, and research track
 - [Testing and quality gates](testing.md) — isolated suites, coverage, stability, and CI contracts
 - [Security & Compliance](security-and-compliance.md) — current safeguards, limits, and next controls

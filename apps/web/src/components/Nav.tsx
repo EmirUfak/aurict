@@ -7,6 +7,7 @@ import { AuthNavSlot } from "@/components/auth/AuthNavSlot"
 import { LocaleSwitcher } from "@/components/LocaleSwitcher"
 import { Link } from "@/i18n/navigation"
 import { currentEditionLabel } from "@/content/product-facts"
+import type { AppLocale } from "@/i18n/config"
 import styles from "./Nav.module.css"
 
 const SITE_LINKS = [
@@ -17,6 +18,7 @@ const SITE_LINKS = [
 
 const PRODUCT_LINKS = [
   { href: "/", key: "overview" },
+  { href: "/terminal-agent", key: "terminalAgent" },
   { href: "/#surfaces", key: "surfaces" },
   { href: "/#capabilities", key: "capabilities" },
   { href: "/#security", key: "security" },
@@ -30,20 +32,17 @@ const ECOSYSTEM_LINKS = [
   {
     href: "https://bondley.one",
     label: "Bondley.one",
-    descriptionEn: "Aurict sub-product · fixed-income intelligence",
-    descriptionTr: "Aurict alt ürünü · sabit getirili finans zekâsı",
+    descriptions: { en: "Aurict sub-product · fixed-income intelligence", tr: "Aurict alt ürünü · sabit getirili finans zekâsı", de: "Aurict-Teilprodukt · Anleihenanalyse", fr: "Produit Aurict · analyse obligataire", es: "Producto Aurict · inteligencia de renta fija" },
   },
   {
     href: "https://mobile.aurict.com",
     label: "aurict mobile",
-    descriptionEn: "Aurict companion · mobile workspace",
-    descriptionTr: "Aurict companion · mobil çalışma alanı",
+    descriptions: { en: "Aurict companion · mobile workspace", tr: "Aurict companion · mobil çalışma alanı", de: "Aurict-Begleiter · mobiler Workspace", fr: "Compagnon Aurict · espace mobile", es: "Compañero Aurict · espacio móvil" },
   },
   {
     href: "https://decision.aurict.com",
     label: "Decision Engine / MicroTarget",
-    descriptionEn: "Aurict sub-product · on-device decisions",
-    descriptionTr: "Aurict alt ürünü · cihaz içi kararlar",
+    descriptions: { en: "Aurict sub-product · on-device decisions", tr: "Aurict alt ürünü · cihaz içi kararlar", de: "Aurict-Teilprodukt · lokale Entscheidungen", fr: "Produit Aurict · décisions sur l’appareil", es: "Producto Aurict · decisiones en el dispositivo" },
   },
 ]
 
@@ -55,7 +54,7 @@ export function Nav() {
   const [activeMenu, setActiveMenu] = useState<MenuName>(null)
   const navRef = useRef<HTMLElement>(null)
   const t = useTranslations("Nav")
-  const tr = useLocale() === "tr"
+  const locale = useLocale() as AppLocale
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12)
@@ -128,12 +127,12 @@ export function Nav() {
               onToggle={() => setActiveMenu((menu) => menu === "ecosystem" ? null : "ecosystem")}
             >
               <div className={styles.ecosystemPanel}>
-                <span className={styles.panelLabel}>connected surface</span>
+                <span className={styles.panelLabel}>{t("ecosystem")}</span>
                 {ECOSYSTEM_LINKS.map((link) => (
                   <a className={styles.ecosystemLink} href={link.href} key={link.href} onClick={closeMenus} rel="noopener noreferrer" target="_blank">
                     <span className={styles.ecosystemLinkText}>
                       <strong>{link.label}</strong>
-                      <small>{tr ? link.descriptionTr : link.descriptionEn}</small>
+                      <small>{link.descriptions[locale]}</small>
                     </span>
                     <span aria-hidden="true">↗</span>
                   </a>
@@ -173,7 +172,7 @@ export function Nav() {
               <a className={styles.drawerEcosystemLink} href={link.href} key={link.href} onClick={closeMenus} rel="noopener noreferrer" target="_blank">
                 <span className={styles.ecosystemLinkText}>
                   <strong>{link.label}</strong>
-                  <small>{tr ? link.descriptionTr : link.descriptionEn}</small>
+                  <small>{link.descriptions[locale]}</small>
                 </span>
                 <span aria-hidden="true">↗</span>
               </a>
