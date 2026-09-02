@@ -1,6 +1,6 @@
-import { mkdir, readFile, writeFile, unlink } from "node:fs/promises"
+import { mkdir, readFile, writeFile, unlink, rename, readdir, stat } from "node:fs/promises"
 import { join } from "node:path"
-import { createHash } from "node:crypto"
+import { createHash, randomBytes } from "node:crypto"
 
 /**
  * Faz 3C — Dosya-tabanlı worker lock.
@@ -31,9 +31,20 @@ function lockPathFor(workdir: string, filePath: string): string {
   return join(lockDir(workdir), `${hash}.lock`)
 }
 
-async function readLock(path: string): Promise<FileLockInfo | null> {
+function claimSuffix(): string {
+  return randomBytes(6).toString("hex")
+}
+
+async function readRaw(path: string): Promise<string | null> {
   try {
-    const raw = await readFile(path, "utf8")
+    return await readFile(path, "utf8")
+  } catch {
+    return null
+  }
+}
+
+function parseLock(raw: string): FileLockInfo | null {
+  try {
     return JSON.parse(raw) as FileLockInfo
   } catch {
     return null
@@ -41,11 +52,40 @@ async function readLock(path: string): Promise<FileLockInfo | null> {
 }
 
 /**
+ * A crash between a CAS rename and its unlink leaves a claim sibling behind.
+ * Orphans never block acquisition (the canonical path is free again), so this
+ * only reclaims disk; it runs on the rare reclamation path and never throws.
+ */
+async function pruneOrphanClaims(dir: string): Promise<void> {
+  try {
+    const cutoff = Date.now() - DEFAULT_TTL_MS
+    for (const name of await readdir(dir)) {
+      if (!/\.lock\.(?:reclaim|release)\.[0-9a-f]+$/.test(name)) continue
+      const full = join(dir, name)
+      const info = await stat(full).catch(() => null)
+      if (info && info.mtimeMs < cutoff) await unlink(full).catch(() => { /* raced — already gone */ })
+    }
+  } catch { /* best-effort — sweeping must never fail an acquire */ }
+}
+
+async function readLock(path: string): Promise<FileLockInfo | null> {
+  const raw = await readRaw(path)
+  return raw === null ? null : parseLock(raw)
+}
+
+/**
  * Bir dosya için lock almaya çalışır.
  *   - Aynı agentId zaten sahipse: true (idempotent — aynı worker'ın ardışık edit'leri).
  *   - Başka bir agent hâlâ geçerli (süresi dolmamış) bir lock'a sahipse: false.
- *   - Süresi dolmuş (stale) bir lock varsa: temizlenir ve bir kez daha denenir.
+ *   - Süresi dolmuş (stale) bir lock varsa: race-safe biçimde devralınır.
  * `wx` flag'i ("write, fail if exists") dosya oluşturmayı atomic yapar.
+ *
+ * Stale reclamation uses rename() as a compare-and-swap instead of
+ * read → unlink → create: rename requires its source to exist, so racing
+ * callers get exactly one winner and ENOENT for the rest. The captured bytes
+ * are re-checked against the stale observation; a mismatch means the slot
+ * changed underneath us, so it is restored (only into an empty slot) and
+ * reclamation abandoned.
  */
 export async function acquireFileLock(
   workdir:   string,
@@ -59,37 +99,84 @@ export async function acquireFileLock(
 
   const now = Date.now()
   const info: FileLockInfo = { agentId, sessionId, acquiredAt: now, expiresAt: now + ttlMs }
+  const raw = JSON.stringify(info)
 
   try {
-    await writeFile(path, JSON.stringify(info), { flag: "wx" })
+    await writeFile(path, raw, { flag: "wx" })
     return true
   } catch {
-    const existing = await readLock(path)
-    if (!existing) return false // okunamadı (silinmiş/bozuk) — güvenli tarafta kal
-    if (existing.agentId === agentId) return true // aynı agent — idempotent
-    if (existing.expiresAt > now) return false // başka agent hâlâ geçerli şekilde sahip
+    // contended — fall through to the read/decide path below
+  }
 
-    // Stale lock — temizle ve bir kez daha dene (sınırsız retry yok, tek deneme yeterli)
-    try {
-      await unlink(path)
-      await writeFile(path, JSON.stringify(info), { flag: "wx" })
-      return true
-    } catch {
+  const existingRaw = await readRaw(path)
+  if (existingRaw === null) return false // okunamadı (silinmiş/bozuk) — güvenli tarafta kal
+  const existing = parseLock(existingRaw)
+  if (!existing) return false
+  if (existing.agentId === agentId) return true // aynı agent — idempotent
+  if (existing.expiresAt > now) return false // başka agent hâlâ geçerli şekilde sahip
+
+  // Stale lock — exclusive reclamation via rename-as-CAS (see doc comment above).
+  await pruneOrphanClaims(lockDir(workdir))
+  const claimPath = `${path}.reclaim.${claimSuffix()}`
+  try {
+    await rename(path, claimPath)
+  } catch {
+    return false // another contender (or the owner) already moved it first
+  }
+
+  try {
+    const capturedRaw = await readRaw(claimPath)
+    if (capturedRaw !== existingRaw) {
+      // Slot changed under us — restore only if nothing else reclaimed it.
+      if (capturedRaw !== null) {
+        try { await writeFile(path, capturedRaw, { flag: "wx" }) } catch { /* slot already reoccupied — leave it */ }
+      }
       return false
     }
+
+    await writeFile(path, raw, { flag: "wx" })
+    return true
+  } catch {
+    return false // a fresh acquirer filled the slot in the gap — defer to it
+  } finally {
+    await unlink(claimPath).catch(() => { /* best-effort — already gone or never created */ })
   }
 }
 
-/** Bir lock'u serbest bırakır. Sadece sahibi (aynı agentId) serbest bırakabilir. */
+/**
+ * Bir lock'u serbest bırakır. Sadece sahibi (aynı agentId) serbest bırakabilir.
+ *
+ * Ownership is checked BEFORE the rename-as-CAS capture: renaming first would
+ * make a still-valid lock briefly invisible, letting a third agent win the `wx`
+ * fast path and destroying the real owner's lock. A non-owner release must stay
+ * a pure no-op. The CAS still guards the owner against a racing stale reclaim.
+ */
 export async function releaseFileLock(workdir: string, filePath: string, agentId: string): Promise<boolean> {
   const path = lockPathFor(workdir, filePath)
+
   const existing = await readLock(path)
   if (!existing || existing.agentId !== agentId) return false
+
+  const claimPath = `${path}.release.${claimSuffix()}`
   try {
-    await unlink(path)
-    return true
+    await rename(path, claimPath)
   } catch {
+    return false // nothing there to release, or someone else captured it first
+  }
+
+  try {
+    const capturedRaw = await readRaw(claimPath)
+    const captured = capturedRaw === null ? null : parseLock(capturedRaw)
+    if (captured && captured.agentId === agentId) return true
+
+    // Replaced between our read and our capture — restore the exact bytes we
+    // took (parseable or not) if the slot is still empty, and report no-op.
+    if (capturedRaw !== null) {
+      try { await writeFile(path, capturedRaw, { flag: "wx" }) } catch { /* slot reoccupied — leave it */ }
+    }
     return false
+  } finally {
+    await unlink(claimPath).catch(() => { /* best-effort — already gone */ })
   }
 }
 
