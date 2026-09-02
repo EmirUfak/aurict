@@ -29,11 +29,15 @@ describe("network-policy iptal edilebilirliği", () => {
 
   it("iş bittikten sonra signal üzerinde dinleyici bırakmaz", async () => {
     const controller = new AbortController()
+    let addCount = 0
+    let removeCount = 0
+    const realAdd = controller.signal.addEventListener.bind(controller.signal)
+    const realRemove = controller.signal.removeEventListener.bind(controller.signal)
+    controller.signal.addEventListener = (...a: Parameters<typeof realAdd>) => { addCount++; return realAdd(...a) }
+    controller.signal.removeEventListener = (...a: Parameters<typeof realRemove>) => { removeCount++; return realRemove(...a) }
+
     await withAbort(controller.signal, async () => "ok")
-    let leaked = false
-    controller.signal.addEventListener("abort", () => { leaked = true })
-    controller.abort()
-    expect(leaked).toBe(true) // yeni dinleyici çalışır; eski dinleyici reject etmediği için test asılmaz
+    expect(removeCount).toBe(addCount)
   })
 
   it("zaten iptal edilmiş bir signal ile fetchWithUrlPolicy DNS'e hiç girmez", async () => {
