@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, mock } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import * as realFs from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -40,6 +40,10 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "aurict-file-lock-race-"))
   renamePauseAtCall = null
   renameCallCount = 0
+})
+
+afterEach(() => {
+  try { rmSync(dir, { recursive: true, force: true }) } catch { /* ignore */ }
 })
 
 function target() {
@@ -137,8 +141,4 @@ describe("agent/file-lock.ts — race-safe stale reclamation", () => {
     const ok = await acquireFileLock(dir, f, "agent-b", "session-b")
     expect(ok).toBe(true)
   })
-})
-
-process.once("exit", () => {
-  try { rmSync(dir, { recursive: true, force: true }) } catch { /* ignore */ }
 })

@@ -72,14 +72,14 @@ RETURNS: status code, response headers, body (auto-parsed JSON), timing.`,
       }
     }
 
+    // Already cancelled — short-circuit before arming a timer or a listener that
+    // would only be torn down again, and before any request is started.
+    if (ctx.signal.aborted) return { output: "", error: "Request cancelled" }
+
     const controller = new AbortController()
     let timedOut = false
     const onParentAbort = () => controller.abort()
-    if (ctx.signal.aborted) {
-      controller.abort()
-    } else {
-      ctx.signal.addEventListener("abort", onParentAbort, { once: true })
-    }
+    ctx.signal.addEventListener("abort", onParentAbort, { once: true })
     const timer = setTimeout(() => { timedOut = true; controller.abort() }, timeout)
 
     const start = Date.now()
