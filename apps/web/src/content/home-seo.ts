@@ -63,15 +63,20 @@ export function homeStructuredData(locale: AppLocale) {
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "WebSite", "@id": "https://aurict.com/#website", url: "https://aurict.com", name: "Aurict", inLanguage: ["en", "tr", "de", "fr", "es"],
+        "@type": "WebSite", "@id": "https://aurict.com/#website", url: "https://aurict.com", name: "Aurict", alternateName: "Aurict AI", inLanguage: ["en", "tr", "de", "fr", "es"],
         description: seo.description, publisher: { "@id": "https://aurict.com/#organization" },
       },
       {
         "@type": "Organization", "@id": "https://aurict.com/#organization", name: "Aurict", url: "https://aurict.com",
+        logo: { "@type": "ImageObject", url: "https://aurict.com/aurict-logo-v5.svg" },
         sameAs: ["https://github.com/aurict/aurict", "https://www.npmjs.com/package/aurict"],
       },
       {
-        "@type": "SoftwareApplication", "@id": `${url}#terminal-agent`, name: "Aurict", alternateName: "Aurict Terminal Agent",
+        "@type": "WebPage", "@id": `${url}#webpage`, url, name: seo.title, description: seo.description,
+        inLanguage: locale, isPartOf: { "@id": "https://aurict.com/#website" }, mainEntity: { "@id": "https://aurict.com/#software" },
+      },
+      {
+        "@type": "SoftwareApplication", "@id": "https://aurict.com/#software", name: "Aurict", alternateName: ["Aurict Terminal Agent", "Aurict AI Coding Agent"],
         applicationCategory: "DeveloperApplication", applicationSubCategory: "AI coding agent", operatingSystem: "macOS, Linux, Windows",
         description: seo.description, url, downloadUrl: "https://www.npmjs.com/package/aurict", installUrl: "https://aurict.com/install.sh",
         codeRepository: "https://github.com/aurict/aurict", license: "https://www.gnu.org/licenses/agpl-3.0.html",

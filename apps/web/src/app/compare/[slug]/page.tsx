@@ -17,8 +17,18 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!source) return {}
   const locale = await getLocale() as AppLocale
   const comparison = localizeComparison(source, locale)
+  const title = locale === "tr"
+    ? `${comparison.competitor} Alternatifi — Yapay Zekâ Ajanı Karşılaştırması`
+    : `${comparison.competitor} Alternative — Terminal AI Agent Comparison`
 
-  return localizedMetadata(locale, `/compare/${slug}`, comparison.title, comparison.description, {
+  return localizedMetadata(locale, `/compare/${slug}`, title, comparison.description, {
+    keywords: [
+      `${comparison.competitor} alternative`,
+      `${comparison.competitor} alternatives`,
+      `Aurict vs ${comparison.competitor}`,
+      `${comparison.competitor} comparison`,
+      "terminal AI coding agent",
+    ],
     type: "article",
     modifiedTime: comparison.updatedAt,
   })
@@ -38,26 +48,45 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
   const others = COMPARISONS.filter((entry) => entry.slug !== slug).map((entry) => localizeComparison(entry, locale))
   const contentLocale = locale === "tr" ? "tr" : "en"
   const tr = locale === "tr"
-  const articleJsonLd = {
+  const url = localizedUrl(`/compare/${slug}`, contentLocale)
+  const heading = tr
+    ? `${comparison.competitor} alternatifi: ${comparison.title}`
+    : `${comparison.competitor} alternative: ${comparison.title}`
+  const structuredData = {
     "@context": "https://schema.org",
-    "@type": "Article",
-    headline: comparison.title,
-    description: comparison.description,
-    dateModified: comparison.updatedAt,
-    inLanguage: contentLocale,
-    url: localizedUrl(`/compare/${slug}`, contentLocale),
-    author: { "@type": "Organization", name: "Aurict" },
+    "@graph": [
+      {
+        "@type": "Article", "@id": `${url}#article`, headline: heading,
+        description: comparison.description, dateModified: comparison.updatedAt,
+        inLanguage: contentLocale, url, mainEntityOfPage: { "@id": `${url}#webpage` },
+        author: { "@id": "https://aurict.com/#organization" },
+        publisher: { "@id": "https://aurict.com/#organization" },
+      },
+      {
+        "@type": "WebPage", "@id": `${url}#webpage`, url, name: heading,
+        description: comparison.description, inLanguage: contentLocale,
+        isPartOf: { "@id": "https://aurict.com/#website" }, mainEntity: { "@id": `${url}#article` },
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: tr ? "Ana sayfa" : "Home", item: localizedUrl("/", contentLocale) },
+          { "@type": "ListItem", position: 2, name: tr ? "Karşılaştırmalar" : "Comparisons", item: localizedUrl("/compare", contentLocale) },
+          { "@type": "ListItem", position: 3, name: heading, item: url },
+        ],
+      },
+    ],
   }
 
   return (
     <>
-      <JsonLd data={articleJsonLd} />
+      <JsonLd data={structuredData} />
       <Nav />
       <main className="marketing-main" style={{ maxWidth: 860 }}>
         <Breadcrumb items={[{ label: tr ? "Ana sayfa" : "Home", href: "/" }, { label: `vs ${comparison.competitor}`, href: `/compare/${slug}` }]} />
         <div className="marketing-hero">
           <p className="marketing-eyebrow">{tr ? "Karşılaştırma" : "Comparison"}</p>
-          <h1 className="marketing-title marketing-title-sm">Aurict vs {comparison.competitor}</h1>
+          <h1 className="marketing-title marketing-title-sm">{heading}</h1>
           <p className="marketing-lede">{comparison.description}</p>
           <p className="mono" style={{ fontSize: 13, color: "var(--accent)", marginTop: 18 }}>{comparison.tagline}</p>
         </div>
@@ -77,10 +106,33 @@ export default async function ComparePage({ params }: { params: Promise<{ slug: 
         </section>
 
         <section style={{ marginBottom: 56 }}>
+          <h2 className="marketing-section-title">{tr ? `${comparison.competitor} ne zaman daha uygun olabilir?` : `When ${comparison.competitor} may fit better`}</h2>
+          <p className="marketing-copy" style={{ marginBottom: 18 }}>
+            {tr ? "Alternatif seçimi yalnızca özellik sayısıyla yapılmamalıdır. Aşağıdaki güçlü yönler, resmî ürün dokümanlarına göre bu aracın daha uygun olabileceği iş akışlarını gösterir." : "Choosing an alternative is not a feature-counting exercise. These documented strengths show workflows where the other product may be the better fit."}
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {comparison.theirStrengths.map((strength) => <div key={strength} className="marketing-card" style={{ display: "flex", gap: 12, padding: "12px 16px" }}><span style={{ color: "var(--accent-alt)", fontSize: 16 }}>◇</span><span style={{ font: "15px/1.5 var(--font-serif)", color: "var(--text-dim)" }}>{strength}</span></div>)}
+          </div>
+        </section>
+
+        <section style={{ marginBottom: 56 }}>
           <h2 className="marketing-section-title">{tr ? "Aurict nerede ayrışır?" : "Where Aurict differs"}</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {comparison.ourStrengths.map((strength) => <div key={strength} className="marketing-card" style={{ display: "flex", gap: 12, padding: "12px 16px" }}><span style={{ color: "var(--success)", fontSize: 16 }}>✓</span><span style={{ font: "15px/1.5 var(--font-serif)", color: "var(--text-dim)" }}>{strength}</span></div>)}
           </div>
+        </section>
+
+        <section className="marketing-card" style={{ padding: "24px 26px", marginBottom: 56 }}>
+          <p className="marketing-eyebrow" style={{ marginBottom: 10 }}>{tr ? `${comparison.competitor} alternatifi` : `${comparison.competitor} alternative`}</p>
+          <h2 className="marketing-section-title" style={{ fontSize: 25 }}>
+            {tr ? `Aurict, ${comparison.competitor} için bir alternatif mi?` : `Is Aurict an alternative to ${comparison.competitor}?`}
+          </h2>
+          <p className="marketing-copy">
+            {tr
+              ? `Evet; özellikle terminal tabanlı bir yapay zekâ kodlama ajanında ${comparison.differentiator.toLocaleLowerCase("tr")} arıyorsanız Aurict değerlendirilebilir. Bununla birlikte en doğru seçim, aynı gerçek depo görevini iki araçta çalıştırıp izinleri, diff kalitesini, doğrulama kanıtını, gecikmeyi ve model maliyetini karşılaştırmaktır.`
+              : `Yes—especially if you want an AI coding agent centered on ${comparison.differentiator.toLowerCase()}. The reliable way to choose is to run the same representative repository task in both tools and compare permissions, diff quality, verification evidence, latency, and model cost.`}
+          </p>
+          <Link className="landing-pill mono" href="/ai-coding-agent" style={{ display: "inline-flex", marginTop: 18, textDecoration: "none" }}>{tr ? "kodlama ajanı seçim rehberi" : "AI coding agent buyer guide"} →</Link>
         </section>
 
         <section className="marketing-card" style={{ padding: "24px 26px", marginBottom: 56 }}>

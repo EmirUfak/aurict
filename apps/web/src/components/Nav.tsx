@@ -18,6 +18,7 @@ const SITE_LINKS = [
 
 const PRODUCT_LINKS = [
   { href: "/", key: "overview" },
+  { href: "/ai-coding-agent", key: "aiCodingAgent" },
   { href: "/terminal-agent", key: "terminalAgent" },
   { href: "/#surfaces", key: "surfaces" },
   { href: "/#capabilities", key: "capabilities" },

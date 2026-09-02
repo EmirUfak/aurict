@@ -16,15 +16,16 @@ type SitemapRoute = {
 const BILINGUAL_LOCALES: readonly AppLocale[] = ["en", "tr"]
 
 const staticRoutes: SitemapRoute[] = [
-  { path: "/", lastModified: "2026-08-31", changeFrequency: "weekly", priority: 1, locales: SUPPORTED_LOCALES },
-  { path: "/terminal-agent", lastModified: "2026-08-31", changeFrequency: "weekly", priority: 0.95, locales: SUPPORTED_LOCALES },
+  { path: "/", lastModified: "2026-09-02", changeFrequency: "weekly", priority: 1, locales: SUPPORTED_LOCALES },
+  { path: "/terminal-agent", lastModified: "2026-09-02", changeFrequency: "weekly", priority: 0.95, locales: SUPPORTED_LOCALES },
+  { path: "/ai-coding-agent", lastModified: "2026-09-02", changeFrequency: "weekly", priority: 0.95 },
   { path: "/docs", lastModified: "2026-07-22", changeFrequency: "weekly", priority: 0.9 },
   { path: "/about", lastModified: "2026-07-03", changeFrequency: "monthly", priority: 0.8 },
   { path: "/roadmap", lastModified: "2026-07-03", changeFrequency: "weekly", priority: 0.8 },
   { path: "/changelog", lastModified: "2026-07-03", changeFrequency: "weekly", priority: 0.7 },
   { path: "/downloads", lastModified: "2026-07-11", changeFrequency: "weekly", priority: 0.7 },
   { path: "/blog", lastModified: "2026-07-03", changeFrequency: "weekly", priority: 0.8 },
-  { path: "/compare", lastModified: "2026-07-22", changeFrequency: "monthly", priority: 0.8 },
+  { path: "/compare", lastModified: "2026-09-02", changeFrequency: "monthly", priority: 0.8 },
   { path: "/use-cases", lastModified: "2026-07-03", changeFrequency: "monthly", priority: 0.8 },
   { path: "/privacy", lastModified: "2026-07-13", changeFrequency: "yearly", priority: 0.4 },
   { path: "/terms", lastModified: "2026-07-02", changeFrequency: "yearly", priority: 0.4 },
@@ -52,7 +53,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }))
   const comparisonRoutes = COMPARISONS.flatMap((comparison) => localizedEntries({
     path: `/compare/${comparison.slug}`,
-    lastModified: comparison.updatedAt,
+    lastModified: "2026-09-02",
     changeFrequency: "monthly",
     priority: 0.72,
   }))

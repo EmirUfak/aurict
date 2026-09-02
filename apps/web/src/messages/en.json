@@ -10,6 +10,7 @@
   "Nav": {
     "product": "product",
     "overview": "overview",
+    "aiCodingAgent": "AI coding agent",
     "terminalAgent": "terminal agent",
     "surfaces": "surfaces",
     "capabilities": "capabilities",
@@ -29,6 +30,7 @@
   "Footer": {
     "product": "product",
     "capabilities": "capabilities",
+    "aiCodingAgent": "AI coding agent",
     "terminalAgent": "terminal agent",
     "roadmap": "roadmap",
     "compare": "compare",

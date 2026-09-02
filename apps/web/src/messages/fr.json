@@ -10,6 +10,7 @@
   "Nav": {
     "product": "produit",
     "overview": "aperçu",
+    "aiCodingAgent": "agent de code IA",
     "terminalAgent": "agent de terminal",
     "surfaces": "interfaces",
     "capabilities": "fonctionnalités",
@@ -29,6 +30,7 @@
   "Footer": {
     "product": "produit",
     "capabilities": "fonctionnalités",
+    "aiCodingAgent": "agent de code IA",
     "terminalAgent": "agent de terminal",
     "roadmap": "feuille de route",
     "compare": "comparaisons",

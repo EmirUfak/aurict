@@ -10,6 +10,7 @@
   "Nav": {
     "product": "ürün",
     "overview": "genel bakış",
+    "aiCodingAgent": "yapay zekâ kodlama ajanı",
     "terminalAgent": "terminal ajanı",
     "surfaces": "platformlar",
     "capabilities": "yetenekler",
@@ -29,6 +30,7 @@
   "Footer": {
     "product": "ürün",
     "capabilities": "yetenekler",
+    "aiCodingAgent": "yapay zekâ kodlama ajanı",
     "terminalAgent": "terminal ajanı",
     "roadmap": "yol haritası",
     "compare": "karşılaştırmalar",

@@ -10,6 +10,7 @@
   "Nav": {
     "product": "Produkt",
     "overview": "Übersicht",
+    "aiCodingAgent": "KI-Coding-Agent",
     "terminalAgent": "Terminal-Agent",
     "surfaces": "Plattformen",
     "capabilities": "Funktionen",
@@ -29,6 +30,7 @@
   "Footer": {
     "product": "Produkt",
     "capabilities": "Funktionen",
+    "aiCodingAgent": "KI-Coding-Agent",
     "terminalAgent": "Terminal-Agent",
     "roadmap": "Roadmap",
     "compare": "Vergleiche",

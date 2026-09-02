@@ -1,6 +1,6 @@
 # Aurict web
 
-The public Aurict website is a Next.js 16 application. It contains the product landing page, the terminal-agent search hub, documentation, comparisons, use cases, release notes, downloads, legal pages, and account flows.
+The public Aurict website is a Next.js 16 application. It contains the product landing page, AI-coding-agent and terminal-agent search hubs, documentation, comparisons, use cases, release notes, downloads, legal pages, and account flows.
 
 ## Development
 
@@ -36,7 +36,10 @@ When adding a fully translated public page:
 - `src/app/sitemap.ts` lists only locale variants with real translated content.
 - `src/components/seo/JsonLd.tsx` safely serializes structured data.
 - `src/content/home-seo.ts` defines homepage metadata and structured data.
+- `src/content/ai-coding-agent.ts` defines the English/Turkish AI-coding-agent topic hub.
 - `src/content/terminal-agent.ts` defines the five-language terminal-agent topic hub.
 - `public/llms.txt` provides a concise map for AI crawlers and research tools.
+
+High-intent aliases such as `/claude-code-alternative`, `/terminal-ai`, and `/coding-agent` permanently redirect to their canonical topic or comparison page. Keep aliases out of the sitemap and never render duplicate indexable content at those paths.
 
 Validate structured data with Google Rich Results Test or Schema.org Validator after deployment, then submit `https://aurict.com/sitemap.xml` in the production search consoles.
