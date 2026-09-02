@@ -13,7 +13,7 @@ type LegalPage = {
   sections: LegalSection[]
 }
 
-const privacy: Record<AppLocale, LegalPage> = {
+const privacy: Record<"en" | "tr", LegalPage> = {
   en: {
     eyebrow: "Legal",
     title: "Privacy Policy",
@@ -48,7 +48,7 @@ const privacy: Record<AppLocale, LegalPage> = {
   },
 }
 
-const terms: Record<AppLocale, LegalPage> = {
+const terms: Record<"en" | "tr", LegalPage> = {
   en: {
     eyebrow: "Legal", title: "Terms of Use", breadcrumb: "Terms", lede: "Effective July 2, 2026. These terms define the rules for using Aurict, including BYOK responsibilities, security boundaries, account flows, and future policy changes.",
     sections: [
@@ -80,5 +80,6 @@ const terms: Record<AppLocale, LegalPage> = {
 }
 
 export function getLegalPage(page: "privacy" | "terms", locale: AppLocale): LegalPage {
-  return page === "privacy" ? privacy[locale] : terms[locale]
+  const legalLocale = locale === "tr" ? "tr" : "en"
+  return page === "privacy" ? privacy[legalLocale] : terms[legalLocale]
 }

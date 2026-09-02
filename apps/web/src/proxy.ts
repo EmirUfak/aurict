@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
-import type { AppLocale } from "./i18n/routing"
+import { DEFAULT_LOCALE, isAppLocale, type AppLocale } from "./i18n/config"
 
 const localeCookie = "AURICT_LOCALE"
 
 function preferredLocale(request: NextRequest): AppLocale {
   const savedLocale = request.cookies.get(localeCookie)?.value
-  if (savedLocale === "en" || savedLocale === "tr") return savedLocale
+  if (isAppLocale(savedLocale)) return savedLocale
 
-  return request.headers.get("accept-language")?.toLowerCase().startsWith("tr") ? "tr" : "en"
+  const acceptedLanguages = request.headers.get("accept-language")
+    ?.split(",")
+    .map((entry) => entry.trim().split(";")[0].toLowerCase().split("-")[0])
+
+  return acceptedLanguages?.find(isAppLocale) ?? DEFAULT_LOCALE
+}
+
+function pathLocale(pathname: string): AppLocale | undefined {
+  return isAppLocale(pathname.split("/")[1]) ? pathname.split("/")[1] as AppLocale : undefined
 }
 
 function rewriteWithLocale(request: NextRequest, pathname: string, locale: AppLocale) {
@@ -23,32 +31,32 @@ function rewriteWithLocale(request: NextRequest, pathname: string, locale: AppLo
 
 export default function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const locale = preferredLocale(request)
-  const isEnglishPath = pathname === "/en" || pathname.startsWith("/en/")
-  const isTurkishPath = pathname === "/tr" || pathname.startsWith("/tr/")
+  const explicitLocale = pathLocale(pathname)
 
-  if (isEnglishPath) {
+  if (explicitLocale === DEFAULT_LOCALE) {
     const url = request.nextUrl.clone()
     url.pathname = pathname === "/en" ? "/" : pathname.slice(3)
     const response = NextResponse.redirect(url)
-    response.cookies.set(localeCookie, "en", { sameSite: "lax", path: "/" })
+    response.cookies.set(localeCookie, DEFAULT_LOCALE, { sameSite: "lax", path: "/" })
     return response
   }
 
-  if (isTurkishPath) {
-    const destination = pathname === "/tr" ? "/" : pathname.slice(3)
-    return rewriteWithLocale(request, destination, "tr")
+  if (explicitLocale) {
+    const prefix = `/${explicitLocale}`
+    const destination = pathname === prefix ? "/" : pathname.slice(prefix.length)
+    return rewriteWithLocale(request, destination, explicitLocale)
   }
 
-  if (locale === "tr") {
+  const locale = preferredLocale(request)
+  if (locale !== DEFAULT_LOCALE) {
     const url = request.nextUrl.clone()
-    url.pathname = `/tr${pathname}`
+    url.pathname = `/${locale}${pathname}`
     const response = NextResponse.redirect(url)
-    response.cookies.set(localeCookie, "tr", { sameSite: "lax", path: "/" })
+    response.cookies.set(localeCookie, locale, { sameSite: "lax", path: "/" })
     return response
   }
 
-  return rewriteWithLocale(request, pathname, "en")
+  return rewriteWithLocale(request, pathname, DEFAULT_LOCALE)
 }
 
 export const config = {

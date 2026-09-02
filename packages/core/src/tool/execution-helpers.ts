@@ -6,7 +6,7 @@ import type { FlightReplayPolicy } from "../diagnostics/flight-recorder.js"
 import type { PatchSummary } from "./built-in/apply-patch.js"
 import type { ToolContext, ToolDef } from "./types.js"
 
-const DEFAULT_TOOL_TIMEOUT_MS = 120_000
+export const DEFAULT_TOOL_TIMEOUT_MS = 120_000
 const PERMISSION_PROMPT_TIMEOUT_MS = 60_000
 const TODO_ACTIONS = new Set(["list", "add", "complete", "delete"])
 

@@ -1,0 +1,55 @@
+{
+  "Locale": {
+    "label": "Sprache",
+    "en": "Englisch",
+    "tr": "Türkisch",
+    "de": "Deutsch",
+    "fr": "Französisch",
+    "es": "Spanisch"
+  },
+  "Nav": {
+    "product": "Produkt",
+    "overview": "Übersicht",
+    "aiCodingAgent": "KI-Coding-Agent",
+    "terminalAgent": "Terminal-Agent",
+    "surfaces": "Plattformen",
+    "capabilities": "Funktionen",
+    "security": "Sicherheit",
+    "mobile": "Mobil",
+    "downloadHoprel": "Hoprel herunterladen",
+    "install": "Installation",
+    "faq": "FAQ",
+    "ecosystem": "Ökosystem",
+    "roadmap": "Roadmap",
+    "docs": "Dokumentation",
+    "changelog": "Änderungen",
+    "site": "Website",
+    "openMenu": "Menü öffnen",
+    "closeMenu": "Menü schließen"
+  },
+  "Footer": {
+    "product": "Produkt",
+    "capabilities": "Funktionen",
+    "aiCodingAgent": "KI-Coding-Agent",
+    "terminalAgent": "Terminal-Agent",
+    "roadmap": "Roadmap",
+    "compare": "Vergleiche",
+    "docs": "Dokumentation",
+    "changelog": "Änderungen",
+    "company": "Unternehmen",
+    "about": "Über uns",
+    "blog": "Blog",
+    "useCases": "Anwendungsfälle",
+    "legal": "Rechtliches",
+    "privacy": "Datenschutz",
+    "terms": "Nutzungsbedingungen",
+    "openSource": "Open Source"
+  },
+  "Auth": {
+    "login": "Anmelden",
+    "register": "Registrieren",
+    "account": "Konto",
+    "console": "Konsole",
+    "signOut": "Abmelden"
+  }
+}

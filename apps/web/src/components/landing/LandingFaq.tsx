@@ -3,19 +3,22 @@
 import { useState } from "react"
 import { useLocale } from "next-intl"
 import { localizeFaqs } from "@/content/landing-translations"
+import { localizeLandingUi } from "@/content/landing-ui"
+import type { AppLocale } from "@/i18n/config"
 import styles from "./LandingSections.module.css"
 
 export function LandingFaq() {
   const [openFaq, setOpenFaq] = useState(0)
-  const tr = useLocale() === "tr"
-  const faqs = localizeFaqs(tr ? "tr" : "en")
+  const locale = useLocale() as AppLocale
+  const faqs = localizeFaqs(locale)
+  const copy = localizeLandingUi(locale).faq
 
   return (
     <section className={styles.faq} id="faq">
-      <div className={styles.eyebrow}>{tr ? "sss" : "faq"}</div>
+      <div className={styles.eyebrow}>{copy.eyebrow}</div>
       <div className={styles.faqHeading}>
-        <h2>{tr ? "Mühendislerin gerçekten sorduğu sorular." : "Questions engineers actually ask."}</h2>
-        <p>{tr ? "Karar vermek için gereken kısa yanıtlar." : "The short answers you need to make a decision."}</p>
+        <h2>{copy.title}</h2>
+        <p>{copy.body}</p>
       </div>
       <div className={styles.faqList}>
         {faqs.map(([question, answer], index) => {

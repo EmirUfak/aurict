@@ -15,7 +15,7 @@ export function Footer() {
           <p>AGPLv3 License · © 2026 aurict</p>
         </div>
         <div className={styles.columns}>
-          <FooterColumn title={t("product")} links={[[t("capabilities"), "/#capabilities"], ["Bondley.one", "https://bondley.one"], [t("roadmap"), "/roadmap"], [t("compare"), "/compare"], [t("docs"), "/docs"], [t("changelog"), "/changelog"]]} />
+          <FooterColumn title={t("product")} links={[[t("aiCodingAgent"), "/ai-coding-agent"], [t("terminalAgent"), "/terminal-agent"], [t("capabilities"), "/#capabilities"], ["Bondley.one", "https://bondley.one"], [t("roadmap"), "/roadmap"], [t("compare"), "/compare"], [t("docs"), "/docs"], [t("changelog"), "/changelog"]]} />
           <FooterColumn title={t("company")} links={[[t("about"), "/about"], [t("blog"), "/blog"], [t("useCases"), "/use-cases"]]} />
           <FooterColumn title={t("legal")} links={[[t("privacy"), "/privacy"], [t("terms"), "/terms"]]} />
           <FooterColumn title={t("openSource")} links={[["GitHub", "https://github.com/aurict/aurict"], ["npm", "https://www.npmjs.com/package/aurict"]]} />

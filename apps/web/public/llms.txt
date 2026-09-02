@@ -5,6 +5,8 @@
 ## Core Pages
 
 - [Aurict — Terminal AI Coding Assistant](https://aurict.com/): Open-source terminal agent and AI coding assistant with specialist agents, contextual skills, multi-provider support, and a BYOK mobile assistant.
+- [Aurict Terminal Agent](https://aurict.com/terminal-agent): Detailed overview of the open-source terminal agent, its multi-agent workflow, command controls, MCP support, provider choice, verification model, use cases, and frequently asked questions.
+- [Aurict AI Coding Agent](https://aurict.com/ai-coding-agent): In-depth guide to AI coding agents, the difference between agents and assistants, evaluation criteria, engineering workflows, alternatives, and adoption questions.
 - [Bondley.one](https://bondley.one): Aurict sub-product for researching bonds, yields, and spreads through clear, comparable analysis.
 - [Documentation](https://aurict.com/docs): Install Aurict, configure providers and API keys, connect tools, use agent workflows, and understand the runtime.
 - [About Aurict](https://aurict.com/about): The Aurict manifesto, architecture philosophy, BYOK model, objectivity principle, and long-term product vision.
@@ -23,7 +25,7 @@
 
 ## Comparisons
 
-- [Aurict vs Claude Code](https://aurict.com/compare/claude-code): Compare Aurict with Claude Code for provider flexibility, terminal workflows, and agent architecture.
+- [Claude Code Alternative — Aurict vs Claude Code](https://aurict.com/compare/claude-code): Balanced comparison of provider flexibility, terminal workflows, agent architecture, permissions, verification, and the workflows where each product may fit better.
 - [Aurict vs Cursor](https://aurict.com/compare/cursor): Compare terminal-native AI workflows with IDE-based AI development.
 - [Aurict vs Aider](https://aurict.com/compare/aider): Compare Aurict's agent runtime with Git-focused AI pair programming.
 - [Aurict vs GitHub Copilot](https://aurict.com/compare/github-copilot): Compare full terminal assistant workflows with IDE autocomplete and GitHub-native assistance.
@@ -42,3 +44,7 @@
 
 - [GitHub Repository](https://github.com/aurict/aurict): Source code, issues, releases, and contribution history.
 - [npm Package](https://www.npmjs.com/package/aurict): Package page for installing Aurict.
+
+## Languages
+
+The main product overview and terminal-agent guide are available in English, Turkish, German, French, and Spanish. The AI-coding-agent guide, comparisons, editorial content, documentation, and legal pages are available in English and Turkish. Localized URLs use `/tr`, `/de`, `/fr`, and `/es`; English is served without a locale prefix.

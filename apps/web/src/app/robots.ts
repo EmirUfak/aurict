@@ -1,4 +1,10 @@
 import type { MetadataRoute } from "next"
+import { SUPPORTED_LOCALES } from "@/i18n/config"
+
+const privateRoutes = ["/auth/", "/console", "/login", "/register"]
+const localizedPrivateRoutes = SUPPORTED_LOCALES
+  .filter((locale) => locale !== "en")
+  .flatMap((locale) => privateRoutes.map((path) => `/${locale}${path}`))
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -6,7 +12,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow:     "/",
-        disallow:  ["/api/", "/auth/", "/console/", "/login", "/register"],
+        disallow:  ["/api/", ...privateRoutes, ...localizedPrivateRoutes],
       },
     ],
     sitemap: "https://aurict.com/sitemap.xml",

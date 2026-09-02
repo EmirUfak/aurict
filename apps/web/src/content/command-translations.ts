@@ -15,6 +15,8 @@ export const COMMANDS_EN: CommandItem[] = [
   { label: "Documentation", href: "/docs", category: "Pages", icon: "📖" },
   { label: "Changelog", href: "/changelog", category: "Pages", icon: "📋" },
   { label: "Blog", href: "/blog", category: "Pages", icon: "✍️" },
+  { label: "AI Coding Agent", href: "/ai-coding-agent", category: "Pages", icon: "◇" },
+  { label: "Terminal Agent", href: "/terminal-agent", category: "Pages", icon: "▸" },
 
   // Sections
   { label: "Features", href: "/#features", category: "Sections", icon: "⚡" },
@@ -48,6 +50,8 @@ export const COMMANDS_TR: CommandItem[] = [
   { label: "Dokümantasyon", href: "/docs", category: "Sayfalar", icon: "📖" },
   { label: "Değişiklik Günlüğü", href: "/changelog", category: "Sayfalar", icon: "📋" },
   { label: "Blog", href: "/blog", category: "Sayfalar", icon: "✍️" },
+  { label: "Yapay Zekâ Kodlama Ajanı", href: "/ai-coding-agent", category: "Sayfalar", icon: "◇" },
+  { label: "Terminal Ajanı", href: "/terminal-agent", category: "Sayfalar", icon: "▸" },
 
   // Bölümler
   { label: "Yetenekler", href: "/#capabilities", category: "Bölümler", icon: "⚡" },

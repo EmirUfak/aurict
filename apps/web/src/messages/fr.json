@@ -1,0 +1,55 @@
+{
+  "Locale": {
+    "label": "Langue",
+    "en": "Anglais",
+    "tr": "Turc",
+    "de": "Allemand",
+    "fr": "Français",
+    "es": "Espagnol"
+  },
+  "Nav": {
+    "product": "produit",
+    "overview": "aperçu",
+    "aiCodingAgent": "agent de code IA",
+    "terminalAgent": "agent de terminal",
+    "surfaces": "interfaces",
+    "capabilities": "fonctionnalités",
+    "security": "sécurité",
+    "mobile": "mobile",
+    "downloadHoprel": "télécharger Hoprel",
+    "install": "installation",
+    "faq": "FAQ",
+    "ecosystem": "écosystème",
+    "roadmap": "feuille de route",
+    "docs": "documentation",
+    "changelog": "nouveautés",
+    "site": "site",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu"
+  },
+  "Footer": {
+    "product": "produit",
+    "capabilities": "fonctionnalités",
+    "aiCodingAgent": "agent de code IA",
+    "terminalAgent": "agent de terminal",
+    "roadmap": "feuille de route",
+    "compare": "comparaisons",
+    "docs": "documentation",
+    "changelog": "nouveautés",
+    "company": "entreprise",
+    "about": "à propos",
+    "blog": "blog",
+    "useCases": "cas d’usage",
+    "legal": "juridique",
+    "privacy": "confidentialité",
+    "terms": "conditions",
+    "openSource": "open source"
+  },
+  "Auth": {
+    "login": "connexion",
+    "register": "créer un compte",
+    "account": "compte",
+    "console": "console",
+    "signOut": "déconnexion"
+  }
+}

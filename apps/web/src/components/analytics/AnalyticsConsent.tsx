@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
 import { useLocale } from "next-intl"
 import { usePathname } from "next/navigation"
+import type { AppLocale } from "@/i18n/config"
 
 const measurementId = "G-FJ9YLY6NMX"
 const consentStorageKey = "aurict:analytics-consent"
@@ -41,6 +42,39 @@ const copy = {
     statusOn: "Analitik açık",
     statusOff: "Yalnızca gerekli",
     change: "Çerez tercihini değiştir",
+  },
+  de: {
+    label: "Cookie-Einstellung",
+    title: "Helfen Sie uns zu verstehen, was funktioniert.",
+    body: "Mit Ihrer Zustimmung messen wir Seiten und Interaktionen, um Aurict zu verbessern. Bei Ablehnung wird kein Analyse-Cookie gespeichert; Google erhält nur ein cookieloses, aggregiertes Besuchssignal.",
+    necessary: "Nur erforderliche",
+    accept: "Analyse erlauben",
+    privacy: "Datenschutz",
+    statusOn: "Analyse aktiv",
+    statusOff: "Nur erforderliche",
+    change: "Cookie-Einstellung ändern",
+  },
+  fr: {
+    label: "Préférence des cookies",
+    title: "Aidez-nous à comprendre ce qui fonctionne.",
+    body: "Avec votre accord, nous mesurons les pages et interactions pour améliorer Aurict. En cas de refus, aucun cookie d’analyse n’est stocké ; Google ne reçoit qu’un signal agrégé sans cookie.",
+    necessary: "Essentiels uniquement",
+    accept: "Autoriser l’analyse",
+    privacy: "Confidentialité",
+    statusOn: "Analyse active",
+    statusOff: "Essentiels uniquement",
+    change: "Modifier la préférence des cookies",
+  },
+  es: {
+    label: "Preferencia de cookies",
+    title: "Ayúdanos a entender qué funciona.",
+    body: "Con tu permiso medimos páginas e interacciones para mejorar Aurict. Si rechazas, no se almacena ninguna cookie analítica; Google solo recibe una señal agregada sin cookies.",
+    necessary: "Solo necesarias",
+    accept: "Permitir analítica",
+    privacy: "Privacidad",
+    statusOn: "Analítica activa",
+    statusOff: "Solo necesarias",
+    change: "Cambiar preferencia de cookies",
   },
 } as const
 
@@ -102,7 +136,7 @@ function subscribeToHydration() {
 }
 
 export function AnalyticsConsent() {
-  const locale = useLocale() === "tr" ? "tr" : "en"
+  const locale = useLocale() as AppLocale
   const pathname = usePathname()
   const consent = useSyncExternalStore(subscribeToConsent, readConsent, () => null)
   const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false)

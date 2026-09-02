@@ -1,8 +1,9 @@
 import { getRequestConfig } from "next-intl/server"
 import { routing, type AppLocale } from "./routing"
+import { isAppLocale } from "./config"
 
 function resolveLocale(value: string | undefined): AppLocale {
-  return routing.locales.includes(value as AppLocale) ? value as AppLocale : routing.defaultLocale
+  return isAppLocale(value) ? value : routing.defaultLocale
 }
 
 export default getRequestConfig(async ({ requestLocale }) => {

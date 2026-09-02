@@ -1,6 +1,15 @@
 "use client"
 import { useState } from "react"
 import { useLocale } from "next-intl"
+import type { AppLocale } from "@/i18n/config"
+
+const labels: Record<AppLocale, { copy: string; copied: string }> = {
+  en: { copy: "Copy", copied: "Copied" },
+  tr: { copy: "Kopyala", copied: "Kopyalandı" },
+  de: { copy: "Kopieren", copied: "Kopiert" },
+  fr: { copy: "Copier", copied: "Copié" },
+  es: { copy: "Copiar", copied: "Copiado" },
+}
 
 interface CodeBlockProps {
   code: string
@@ -9,7 +18,7 @@ interface CodeBlockProps {
 }
 
 export function CodeBlock({ code, language = "bash", filename }: CodeBlockProps) {
-  const tr = useLocale() === "tr"
+  const locale = useLocale() as AppLocale
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -76,7 +85,7 @@ export function CodeBlock({ code, language = "bash", filename }: CodeBlockProps)
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              {tr ? "Kopyalandı" : "Copied"}
+              {labels[locale].copied}
             </>
           ) : (
             <>
@@ -84,7 +93,7 @@ export function CodeBlock({ code, language = "bash", filename }: CodeBlockProps)
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
-               {tr ? "Kopyala" : "Copy"}
+              {labels[locale].copy}
             </>
           )}
         </button>

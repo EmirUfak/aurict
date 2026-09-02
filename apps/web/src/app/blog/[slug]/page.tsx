@@ -1,27 +1,29 @@
 import type { Metadata } from "next"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getLocale } from "next-intl/server"
 import { Nav } from "@/components/Nav"
 import { Footer } from "@/components/sections/Footer"
 import { Breadcrumb } from "@/components/ui/Breadcrumb"
 import { CodeBlock } from "@/components/ui/CodeBlock"
+import { JsonLd } from "@/components/seo/JsonLd"
 import { localizeBlogPost } from "@/content/blog-translations"
 import { BLOG_POSTS } from "@/content/blog"
 import type { AppLocale } from "@/i18n/routing"
+import { localizedMetadata, localizedUrl } from "@/i18n/metadata"
+import { Link } from "@/i18n/navigation"
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const post = BLOG_POSTS.find((entry) => entry.slug === slug)
-  if (!post) return {}
+  const source = BLOG_POSTS.find((entry) => entry.slug === slug)
+  if (!source) return {}
+  const locale = await getLocale() as AppLocale
+  const post = localizeBlogPost(source, locale)
 
-  return {
-    title: post.title,
-    description: post.description,
-    alternates: { canonical: `https://aurict.com/blog/${slug}` },
-    openGraph: { title: post.title, description: post.description, url: `https://aurict.com/blog/${slug}`, type: "article", publishedTime: post.date, authors: ["Aurict"] },
-    twitter: { card: "summary_large_image", title: post.title, description: post.description },
-  }
+  return localizedMetadata(locale, `/blog/${slug}`, post.title, post.description, {
+    type: "article",
+    publishedTime: post.date,
+    modifiedTime: post.updatedAt,
+  })
 }
 
 export function generateStaticParams() {
@@ -34,6 +36,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   const source = BLOG_POSTS.find((post) => post.slug === slug)
   if (!source) notFound()
   const post = localizeBlogPost(source, locale)
+  const contentLocale = locale === "tr" ? "tr" : "en"
   const tr = locale === "tr"
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -44,12 +47,13 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     dateModified: post.updatedAt,
     author: { "@type": "Organization", name: "Aurict" },
     publisher: { "@type": "Organization", name: "Aurict", url: "https://aurict.com" },
-    url: `https://aurict.com/blog/${slug}`,
+    inLanguage: contentLocale,
+    url: localizedUrl(`/blog/${slug}`, contentLocale),
   }
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
+      <JsonLd data={articleJsonLd} />
       <Nav />
       <main className="marketing-main marketing-main-narrow">
         <Breadcrumb items={[{ label: tr ? "Ana sayfa" : "Home", href: "/" }, { label: "Blog", href: "/blog" }, { label: post.title, href: `/blog/${slug}` }]} />

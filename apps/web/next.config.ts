@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
     return [
       {
         source:      "/:path*",
+        has:         [{ type: "host", value: "www.aurict.com" }],
+        destination: "https://aurict.com/:path*",
+        permanent:   true,
+      },
+      {
+        source:      "/:path*",
         has:         [{ type: "host", value: "aurict.dev" }],
         destination: "https://aurict.com/:path*",
         permanent:   true,
@@ -27,6 +33,26 @@ const nextConfig: NextConfig = {
         has:         [{ type: "host", value: "www.aurict.dev" }],
         destination: "https://aurict.com/:path*",
         permanent:   true,
+      },
+      {
+        source: "/claude-code-alternative",
+        destination: "/compare/claude-code",
+        permanent: true,
+      },
+      {
+        source: "/terminal-ai",
+        destination: "/terminal-agent",
+        permanent: true,
+      },
+      {
+        source: "/coding-agent",
+        destination: "/ai-coding-agent",
+        permanent: true,
+      },
+      {
+        source: "/ai-agent",
+        destination: "/ai-coding-agent",
+        permanent: true,
       },
     ]
   },

@@ -1,9 +1,18 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useLocale } from "next-intl"
+import type { AppLocale } from "@/i18n/config"
+
+const labels: Record<AppLocale, string> = {
+  en: "Back to top",
+  tr: "Başa dön",
+  de: "Nach oben",
+  fr: "Retour en haut",
+  es: "Volver arriba",
+}
 
 export function BackToTop() {
-  const tr = useLocale() === "tr"
+  const locale = useLocale() as AppLocale
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -27,7 +36,7 @@ export function BackToTop() {
   return (
     <button
       onClick={scrollToTop}
-      aria-label={tr ? "Başa dön" : "Back to top"}
+      aria-label={labels[locale]}
       style={{
         position: "fixed",
         bottom: 32,

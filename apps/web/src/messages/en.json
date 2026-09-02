@@ -2,11 +2,16 @@
   "Locale": {
     "label": "Language",
     "en": "English",
-    "tr": "Turkish"
+    "tr": "Turkish",
+    "de": "German",
+    "fr": "French",
+    "es": "Spanish"
   },
   "Nav": {
     "product": "product",
     "overview": "overview",
+    "aiCodingAgent": "AI coding agent",
+    "terminalAgent": "terminal agent",
     "surfaces": "surfaces",
     "capabilities": "capabilities",
     "security": "security",
@@ -25,6 +30,8 @@
   "Footer": {
     "product": "product",
     "capabilities": "capabilities",
+    "aiCodingAgent": "AI coding agent",
+    "terminalAgent": "terminal agent",
     "roadmap": "roadmap",
     "compare": "compare",
     "docs": "docs",
